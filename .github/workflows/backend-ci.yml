@@ -1,0 +1,90 @@
+name: MorPex Backend CI
+
+on:
+  push:
+    branches: [main, develop]
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+      - 'tsconfig.json'
+      - '.dependency-cruiser.*'
+      - 'eslint.config.*'
+  pull_request:
+    branches: [main]
+    paths:
+      - 'packages/**'
+      - 'package.json'
+      - 'package-lock.json'
+  workflow_dispatch:
+
+jobs:
+  # ═══════════════════════════════════════════════════════
+  # TypeScript Type Check
+  # ═══════════════════════════════════════════════════════
+  typecheck:
+    name: TypeScript Type Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx tsc --noEmit
+        # Note: pre-existing test file errors (~225) are expected.
+        # Only new errors in packages/adapters/ or packages/contracts/ are regressions.
+
+  # ═══════════════════════════════════════════════════════
+  # Adapter Contract Tests
+  # ═══════════════════════════════════════════════════════
+  contract-tests:
+    name: Adapter Contract Tests
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx tsx packages/adapters/__tests__/contract-tests.ts
+
+  # ═══════════════════════════════════════════════════════
+  # Dependency Boundary Check
+  # ═══════════════════════════════════════════════════════
+  boundary-check:
+    name: Dependency Boundary Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - run: npx dependency-cruiser packages/contracts packages/adapters --config .dependency-cruiser.js
+
+  # ═══════════════════════════════════════════════════════
+  # Pi Version Audit (no floating versions)
+  # ═══════════════════════════════════════════════════════
+  version-audit:
+    name: Pi Version Audit
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          echo "=== Checking Pi versions ==="
+          FLOATING=$(grep -E '"@earendil-works/pi-(ai|agent-core|coding-agent)"\s*:\s*"\^|~|latest|\*"' package.json | wc -l)
+          if [ "$FLOATING" -gt 0 ]; then
+            echo "❌ FLOATING VERSION DETECTED"
+            grep -E '"@earendil-works/pi-' package.json
+            exit 1
+          fi
+          echo "✅ All Pi versions are exact (no ^ ~ latest)"
+          grep -E '"@earendil-works/pi-' package.json

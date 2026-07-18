@@ -1,0 +1,102 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   LeftTerminal.css — 左侧终端面板（Final）
+   白边分割 | 系统等宽字体 | Flex 日志行 | 50/50 分割 | 可见滚动条
+   ═══════════════════════════════════════════════════════════════════════ */
+
+* { box-sizing: border-box; margin: 0; padding: 0; }
+
+/* 外层容器：3px 白边，纯黑底 */
+.left-terminal-wrapper {
+  width: 100%;
+  height: 100%;
+  background: #000;
+  border: 3px solid #ffffff;
+  display: flex;
+  flex-direction: column;
+  font-family: 'Consolas', 'Courier New', monospace;
+  color: #d4d4d4;
+  font-size: 14px;
+  line-height: 1.5;
+}
+
+/* 内部区块：左右内边距，无左右边框 */
+.term-half {
+  padding: 12px 14px;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+}
+
+/* 上半部分：底部 3px 白线分割 — 固定 50% */
+.term-half.top {
+  flex: 1 1 50%;
+  border-bottom: 3px solid #ffffff;
+}
+
+/* 下半部分：无边框 — 固定 50% */
+.term-half.bottom {
+  flex: 1 1 50%;
+}
+
+.term-title {
+  font-size: 14px;
+  color: #d4d4d4;
+  padding-bottom: 6px;
+  margin-bottom: 6px;
+  border-bottom: 1px solid #3a3c42;
+  flex-shrink: 0;
+}
+
+/* 暗红细线 */
+.divider-red {
+  width: 100%;
+  height: 1px;
+  background: #3a0000;
+  margin: 4px 0 8px 0;
+  flex-shrink: 0;
+}
+
+/* 滚动区：可见的赛博红滚动条 */
+.logs-scroll {
+  flex: 1 1 auto;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.logs-scroll::-webkit-scrollbar {
+  width: 2px;
+}
+.logs-scroll::-webkit-scrollbar-track {
+  background: transparent;
+}
+.logs-scroll::-webkit-scrollbar-thumb {
+  background: rgba(255, 42, 42, 0.3);
+}
+.logs-scroll::-webkit-scrollbar-thumb:hover {
+  background: #ff2a2a;
+}
+
+/* 日志行：Flex 布局，固定时间戳宽度 */
+.log-row {
+  display: flex;
+  align-items: flex-start;
+  padding: 1px 0;
+}
+
+.time {
+  color: #a0a0a0;
+  flex: 0 0 85px;
+}
+
+.log-content {
+  flex: 1;
+  white-space: pre-wrap;
+  word-break: break-all;
+}
+
+/* 警告文本 */
+.alert-text {
+  color: #ff1a1a;
+  text-shadow: 0 0 4px rgba(255, 26, 26, 0.2);
+}

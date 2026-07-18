@@ -1,0 +1,46 @@
+{
+  "compilerOptions": {
+    "target": "ES2022",
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "lib": ["ES2022"],
+    "strict": true,
+    "noEmit": true,
+    "skipLibCheck": true,
+    "esModuleInterop": true,
+    "forceConsistentCasingInFileNames": true,
+    "resolveJsonModule": true,
+    "isolatedModules": true,
+    "sourceMap": true,
+    "baseUrl": ".",
+    "paths": {
+      "@morpex/contracts": ["./packages/contracts/index.ts"],
+      "@morpex/contracts/*": ["./packages/contracts/*"],
+      "@morpex/core": ["./packages/core/index.ts"],
+      "@morpex/core/*": ["./packages/core/*"],
+      "@morpex/memory": ["./packages/memory/src/index.ts"],
+      "@morpex/memory/*": ["./packages/memory/src/*"],
+      "@morpex/studio/*": ["./packages/studio/*"],
+      "@morpex/adapters/mock-runtime": ["./packages/adapters/mock-runtime/index.ts"],
+      "@morpex/adapters/mock-runtime/*": ["./packages/adapters/mock-runtime/*"],
+      "@morpex/adapters/pi-ai": ["./packages/adapters/pi-ai/index.ts"],
+      "@morpex/adapters/pi-ai/*": ["./packages/adapters/pi-ai/*"],
+      "@morpex/adapters/pi-agent-core": ["./packages/adapters/pi-agent-core/index.ts"],
+      "@morpex/adapters/pi-agent-core/*": ["./packages/adapters/pi-agent-core/*"]
+    }
+  },
+  "include": [
+    "packages/core/**/*.ts",
+    "packages/memory/src/**/*.ts",
+    "packages/studio/server/**/*.ts",
+    "packages/contracts/**/*.ts",
+    "packages/adapters/**/*.ts",
+    "scripts/**/*.ts"
+  ],
+  "exclude": [
+    "node_modules",
+    "packages/studio/ui",
+    "data",
+    "dist"
+  ]
+}

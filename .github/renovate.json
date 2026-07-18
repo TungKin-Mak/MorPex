@@ -1,0 +1,62 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:recommended"],
+  "labels": ["dependencies"],
+  "automerge": false,
+  "rangeStrategy": "pin",
+  "lockFileMaintenance": {
+    "enabled": true
+  },
+  "separateMajorMinor": true,
+  "separateMultipleMajor": true,
+  "packageRules": [
+    {
+      "matchPackageNames": ["@earendil-works/pi-ai"],
+      "groupName": "pi-ai",
+      "labels": ["dependencies", "pi-upgrade"],
+      "description": "Upgrades for pi-ai — requires adapter contract tests",
+      "postUpgradeTasks": {
+        "commands": [
+          "npx tsc --noEmit",
+          "npx dependency-cruiser packages/ --config .dependency-cruiser.js",
+          "npx tsx packages/adapters/__tests__/contract-tests.ts"
+        ],
+        "fileFilters": ["packages/**"],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "matchPackageNames": ["@earendil-works/pi-agent-core"],
+      "groupName": "pi-agent-core",
+      "labels": ["dependencies", "pi-upgrade"],
+      "description": "Upgrades for pi-agent-core — requires adapter contract tests",
+      "postUpgradeTasks": {
+        "commands": [
+          "npx tsc --noEmit",
+          "npx dependency-cruiser packages/ --config .dependency-cruiser.js",
+          "npx tsx packages/adapters/__tests__/contract-tests.ts"
+        ],
+        "fileFilters": ["packages/**"],
+        "executionMode": "branch"
+      }
+    },
+    {
+      "matchPackageNames": ["@earendil-works/pi-coding-agent"],
+      "groupName": "pi-coding-agent",
+      "labels": ["dependencies"],
+      "enabled": false
+    }
+  ],
+  "major": {
+    "automerge": false,
+    "labels": ["dependencies", "major-upgrade"]
+  },
+  "minor": {
+    "automerge": false,
+    "labels": ["dependencies", "minor-upgrade"]
+  },
+  "patch": {
+    "automerge": false,
+    "labels": ["dependencies", "patch-upgrade"]
+  }
+}

@@ -1,0 +1,265 @@
+{
+  "main": {
+    "id": "2010eaec4386a4c7",
+    "type": "split",
+    "children": [
+      {
+        "id": "0ed80c5d41031b7b",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "21d84e5812076f6c",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/README.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "README"
+            }
+          },
+          {
+            "id": "94766cee0d45b140",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/README.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "README"
+            }
+          },
+          {
+            "id": "56c57ed81d227481",
+            "type": "leaf",
+            "state": {
+              "type": "markdown",
+              "state": {
+                "file": "docs/ARCHITECTURE-v4.0.md",
+                "mode": "source",
+                "source": false
+              },
+              "icon": "lucide-file",
+              "title": "ARCHITECTURE-v4.0"
+            }
+          }
+        ],
+        "currentTab": 2
+      }
+    ],
+    "direction": "vertical"
+  },
+  "left": {
+    "id": "0439d70f8348401e",
+    "type": "split",
+    "children": [
+      {
+        "id": "245287f7f1250506",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "f4d79844e22e1132",
+            "type": "leaf",
+            "state": {
+              "type": "file-explorer",
+              "state": {
+                "sortOrder": "alphabetical",
+                "autoReveal": false
+              },
+              "icon": "lucide-folder-closed",
+              "title": "文件列表"
+            }
+          },
+          {
+            "id": "0b5b753a032d9e12",
+            "type": "leaf",
+            "state": {
+              "type": "search",
+              "state": {
+                "query": "拦截",
+                "matchingCase": false,
+                "explainSearch": false,
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical"
+              },
+              "icon": "lucide-search",
+              "title": "搜索"
+            }
+          },
+          {
+            "id": "408fe41ecb558814",
+            "type": "leaf",
+            "state": {
+              "type": "bookmarks",
+              "state": {},
+              "icon": "lucide-bookmark",
+              "title": "书签"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300
+  },
+  "right": {
+    "id": "2212420d4b598097",
+    "type": "split",
+    "children": [
+      {
+        "id": "4fcddc6c37e1f006",
+        "type": "tabs",
+        "children": [
+          {
+            "id": "0a7be022bd0537af",
+            "type": "leaf",
+            "state": {
+              "type": "backlink",
+              "state": {
+                "file": "TODO.md",
+                "collapseAll": false,
+                "extraContext": false,
+                "sortOrder": "alphabetical",
+                "showSearch": false,
+                "searchQuery": "",
+                "backlinkCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-coming-in",
+              "title": "TODO 的反向链接列表"
+            }
+          },
+          {
+            "id": "98895b16a123b133",
+            "type": "leaf",
+            "state": {
+              "type": "outgoing-link",
+              "state": {
+                "file": "TODO.md",
+                "linksCollapsed": false,
+                "unlinkedCollapsed": true
+              },
+              "icon": "links-going-out",
+              "title": "TODO 的出链列表"
+            }
+          },
+          {
+            "id": "8c8cda1e814ca058",
+            "type": "leaf",
+            "state": {
+              "type": "tag",
+              "state": {
+                "sortOrder": "frequency",
+                "useHierarchy": true,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-tags",
+              "title": "标签"
+            }
+          },
+          {
+            "id": "568e30e8dfa12a8d",
+            "type": "leaf",
+            "state": {
+              "type": "all-properties",
+              "state": {
+                "sortOrder": "frequency",
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-archive",
+              "title": "添加笔记属性"
+            }
+          },
+          {
+            "id": "f3d46175229dc5ad",
+            "type": "leaf",
+            "state": {
+              "type": "outline",
+              "state": {
+                "file": "TODO.md",
+                "followCursor": false,
+                "showSearch": false,
+                "searchQuery": ""
+              },
+              "icon": "lucide-list",
+              "title": "TODO 的大纲"
+            }
+          }
+        ]
+      }
+    ],
+    "direction": "horizontal",
+    "width": 300,
+    "collapsed": true
+  },
+  "left-ribbon": {
+    "hiddenItems": {
+      "switcher:打开快速切换": false,
+      "graph:查看关系图谱": false,
+      "canvas:新建白板": false,
+      "daily-notes:打开/创建今天的日记": false,
+      "templates:插入模板": false,
+      "command-palette:打开命令面板": false,
+      "bases:新建数据库": false
+    }
+  },
+  "active": "56c57ed81d227481",
+  "lastOpenFiles": [
+    "node_modules/watskeburt/LICENSE",
+    "node_modules/tsconfig-paths-webpack-plugin/node_modules/chalk/readme.md",
+    "node_modules/tsconfig-paths-webpack-plugin/node_modules/chalk/index.d.ts",
+    "node_modules/tsconfig-paths-webpack-plugin/LICENSE",
+    "node_modules/tsconfig-paths-webpack-plugin/jest.config.js",
+    "node_modules/tsconfig-paths-webpack-plugin/CHANGELOG.md",
+    "node_modules/tsconfig-paths/register.js",
+    "node_modules/tsconfig-paths/CHANGELOG.md",
+    "node_modules/teamcity-service-messages/README.md",
+    "node_modules/teamcity-service-messages/LICENSE.txt",
+    "node_modules/teamcity-service-messages/index.d.ts",
+    "node_modules/tapable/tapable.d.ts",
+    "node_modules/supports-preserve-symlinks-flag/README.md",
+    "node_modules/supports-preserve-symlinks-flag/LICENSE",
+    "node_modules/supports-preserve-symlinks-flag/index.js",
+    "node_modules/supports-preserve-symlinks-flag/CHANGELOG.md",
+    "node_modules/supports-preserve-symlinks-flag/browser.js",
+    "node_modules/strip-bom/readme.md",
+    "node_modules/sisteransi/readme.md",
+    "node_modules/safe-regex/README.md",
+    "node_modules/safe-regex/CHANGELOG.md",
+    "node_modules/resolve/SECURITY.md",
+    "node_modules/require-from-string/readme.md",
+    "node_modules/regexp-tree/README.md",
+    "node_modules/rechoir/README.md",
+    "node_modules/rechoir/CHANGELOG.md",
+    "node_modules/picocolors/README.md",
+    "node_modules/path-parse/README.md",
+    "node_modules/memoize/readme.md",
+    "node_modules/kleur/readme.md",
+    "node_modules/json5/README.md",
+    "node_modules/json5/LICENSE.md",
+    "node_modules/json-schema-traverse/README.md",
+    "node_modules/is-path-inside/readme.md",
+    "node_modules/is-installed-globally/readme.md",
+    "node_modules/is-core-module/README.md",
+    "node_modules/tsconfig-paths-webpack-plugin/coverage/lcov-report/sort-arrow-sprite.png",
+    "node_modules/tsconfig-paths-webpack-plugin/coverage/lcov-report/favicon.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-D-Right-Pane-—-FSM-matrix-chromium/test-failed-1.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-A-Header-—-title-status-clock-chromium/test-failed-1.png",
+    "packages/studio/ui/node_modules/echarts/asset/logo.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-E-Footer-—-6-progress-cards-chromium/test-failed-1.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-C-Center-—-ring-frame-labels-chromium/test-failed-1.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-B-Left-Pane-—-terminal-logs-chromium/test-failed-1.png",
+    "packages/studio/ui/test-results/diagnostic--INPUT-CommandBar-sends-to-API-chromium/test-failed-1.png",
+    "packages/studio/ui/test-results/diagnostic--ZONE-A-TopBar-—-brand-gauges-terminal-toggle-chromium/test-failed-1.png",
+    "未命名.canvas"
+  ]
+}

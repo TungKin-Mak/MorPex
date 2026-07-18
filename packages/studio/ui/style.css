@@ -1,0 +1,130 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   ASTROM KERNEL — 全局样式 v5.0 (赛博朋克监控面板)
+   Background: #0a0b0d | Panels: #14161a | Borders: #2b2e3a
+   Alert Red: #ff2a2a | Font: Share Tech Mono
+   ═══════════════════════════════════════════════════════════════════════ */
+
+/* ── CSS 自定义属性 ── */
+:root {
+  --bg-dark: #0a0b0d;
+  --panel-bg: #14161a;
+  --border-color: #2b2e3a;
+  --border-red: #ff2a2a;
+  --text-main: #d8dadc;
+  --text-muted: #787a7e;
+  --text-red: #ff2a2a;
+  --font-main: 'Share Tech Mono', 'Courier New', monospace;
+  --glow-red: 0 0 8px #ff2a2a;
+  --glow-red-strong: 0 0 14px #ff2a2a;
+  --glow-red-inset: inset 0 0 10px #ff2a2a;
+}
+
+/* ── 全局重置 ── */
+* {
+  box-sizing: border-box;
+  margin: 0;
+  padding: 0;
+  /* 强制直角 — 零圆角 */
+  border-radius: 0 !important;
+}
+
+html, body, #root {
+  width: 100%;
+  height: 100%;
+  margin: 0;
+  padding: 0;
+}
+
+body {
+  background-color: var(--bg-dark);
+  font-family: var(--font-main);
+  color: var(--text-main);
+  letter-spacing: 0.5px;
+  overflow: hidden;
+  text-transform: uppercase;
+}
+
+/* ── 面板基础类 ── */
+.panel-box {
+  background-color: var(--panel-bg);
+  border: 1px solid var(--border-color);
+  box-shadow: inset 0 0 15px rgba(0, 0, 0, 0.9);
+  padding: 8px 10px;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+}
+
+/* ── 动画 ── */
+@keyframes blink {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.3; }
+}
+
+@keyframes blink-fast {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0; }
+}
+
+@keyframes glow-pulse {
+  0%, 100% { box-shadow: 0 0 4px rgba(255, 42, 42, 0.3); }
+  50% { box-shadow: 0 0 16px rgba(255, 42, 42, 0.8); }
+}
+
+@keyframes breathe {
+  0%, 100% { opacity: 1; text-shadow: 0 0 5px #ff2a2a; }
+  50% { opacity: 0.5; text-shadow: 0 0 14px #ff2a2a; }
+}
+
+@keyframes scan-line {
+  0% { transform: translateY(-100%); }
+  100% { transform: translateY(100%); }
+}
+
+@keyframes status-dot-pulse {
+  0%, 100% { box-shadow: 0 0 2px #ff2a2a, 0 0 6px rgba(255,42,42,0.4); }
+  50% { box-shadow: 0 0 6px #ff2a2a, 0 0 20px rgba(255,42,42,0.8); }
+}
+
+@keyframes flicker {
+  0%, 100% { opacity: 1; }
+  15% { opacity: 0.8; }
+  16% { opacity: 1; }
+  45% { opacity: 0.9; }
+  46% { opacity: 1; }
+  72% { opacity: 0.7; }
+  73% { opacity: 1; }
+}
+
+/* ── 滚动条 ── */
+::-webkit-scrollbar { width: 2px; height: 2px; }
+::-webkit-scrollbar-track { background: transparent; }
+::-webkit-scrollbar-thumb { background: rgba(255, 42, 42, 0.25); }
+::-webkit-scrollbar-thumb:hover { background: #ff2a2a; }
+* { scrollbar-width: thin; scrollbar-color: rgba(255, 42, 42, 0.25) transparent; }
+
+/* ── 红色高亮工具类 ── */
+.text-red { color: var(--text-red); }
+.text-glow { color: var(--text-red); text-shadow: var(--glow-red); }
+.text-muted { color: var(--text-muted); }
+.border-red { border: 1px solid var(--border-red); }
+.bg-red-flash { background: rgba(255, 42, 42, 0.08); }
+
+/* ── 分隔线 ── */
+.hairline-top { border-top: 1px solid var(--border-color); }
+.hairline-bottom { border-bottom: 1px solid var(--border-color); }
+
+/* ── 扫描线叠加效果 (全局可选) ── */
+.scanline-overlay {
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 9998;
+  background: repeating-linear-gradient(
+    0deg,
+    transparent,
+    transparent 2px,
+    rgba(0, 0, 0, 0.03) 2px,
+    rgba(0, 0, 0, 0.03) 4px
+  );
+}

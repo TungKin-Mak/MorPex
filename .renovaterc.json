@@ -1,0 +1,47 @@
+{
+  "$schema": "https://docs.renovatebot.com/renovate-schema.json",
+  "extends": ["config:base"],
+  "ignorePaths": ["node_modules/**"],
+  "enabled": true,
+  "automerge": false,
+  "dependencyDashboard": true,
+  "labels": ["dependencies"],
+  "packageRules": [
+    {
+      "matchPackageNames": [
+        "@earendil-works/pi-ai",
+        "@earendil-works/pi-agent-core",
+        "@earendil-works/pi-coding-agent"
+      ],
+      "groupName": "Pi packages",
+      "separateMinorPatch": false,
+      "labels": ["pi", "requires-review"],
+      "major": {
+        "automerge": false,
+        "labels": ["pi", "major", "requires-review"]
+      },
+      "minor": {
+        "automerge": false,
+        "labels": ["pi", "minor", "requires-review"]
+      },
+      "patch": {
+        "automerge": false,
+        "labels": ["pi", "patch", "requires-review"]
+      }
+    },
+    {
+      "matchDepTypes": ["devDependencies"],
+      "automerge": false,
+      "labels": ["dev-deps"]
+    }
+  ],
+  "vulnerabilityAlerts": {
+    "labels": ["security"]
+  },
+  "prConcurrentLimit": 3,
+  "prHourlyLimit": 2,
+  "rangeStrategy": "pin",
+  "semanticCommits": "enabled",
+  "semanticCommitType": "chore",
+  "npmrc": "@earendil-works:registry=https://npm.pkg.github.com"
+}

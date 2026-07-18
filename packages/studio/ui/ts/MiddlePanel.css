@@ -1,0 +1,37 @@
+/* ═══════════════════════════════════════════════════════════════════════
+   MiddlePanel.css — 中央列布局（图表 40% + 大脑矩阵 60%）
+   ═══════════════════════════════════════════════════════════════════════ */
+
+.middle-column-wrapper {
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  width: 100%;
+  min-height: 0;
+  background: #000;
+}
+
+/* 上半部分图表区，占中间总高度的 30% */
+.charts-container-section {
+  flex: 3;
+  min-height: 0;
+  overflow: hidden;
+  border-bottom: 1px solid #2b2e3a;
+}
+
+/* 下半部分大脑区，占中间总高度的 70% */
+.brain-container-section {
+  flex: 7;
+  min-height: 0;
+}
+
+/* 占位符，后续会被替换 */
+.brain-placeholder {
+  width: 100%;
+  height: 100%;
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  color: #3a3c42;
+  font-family: 'Consolas', monospace;
+}

@@ -1,0 +1,38 @@
+# ── Node ──
+node_modules/
+dist/
+*.tsbuildinfo
+
+# ── Runtime Data (自动生成) ──
+data/
+!data/README.md
+
+# ── 构建产物 ──
+packages/studio/ui/dist/
+
+# ── 日志 ──
+*.log
+logs/
+
+# ── 环境 ──
+.env
+.env.local
+
+# ── 系统 ──
+.DS_Store
+Thumbs.db
+nul
+
+# ── 大文件 ──
+*.zip
+*.tar.gz
+
+# ── Python ──
+__pycache__/
+*.pyc
+.venv/
+
+# ── 旧目录（迁移完成后删除） ──
+# src/
+# Pi/
+# studio/

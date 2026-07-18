@@ -1,0 +1,23 @@
+{
+  "name": "@morpex/integration-tests",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MorPex integration and contract tests — runs against all adapter implementations",
+  "dependencies": {
+    "@morpex/contracts": "1.0.0",
+    "@morpex/adapters": "1.0.0",
+    "@earendil-works/pi-ai": "0.79.10",
+    "@earendil-works/pi-agent-core": "0.79.10"
+  },
+  "devDependencies": {
+    "typescript": "^5.9.3",
+    "tsx": "^4.22.4"
+  },
+  "scripts": {
+    "test:adapter:mock": "npx tsx adapter-contract-tests.ts --adapter=mock",
+    "test:adapter:pi-ai": "npx tsx adapter-contract-tests.ts --adapter=pi-ai",
+    "test:adapter:pi-agent": "npx tsx adapter-contract-tests.ts --adapter=pi-agent-core",
+    "test:all": "npx tsx adapter-contract-tests.ts --adapter=all"
+  }
+}

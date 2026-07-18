@@ -1,0 +1,1666 @@
+{
+  "config": {
+    "argv": [
+      "C:\\Program Files\\nodejs\\node.exe",
+      "E:\\Morpex\\packages\\studio\\ui\\node_modules\\@playwright\\test\\cli.js",
+      "test",
+      "--config",
+      "e2e/playwright.config.ts",
+      "--list"
+    ],
+    "configFile": "E:\\Morpex\\packages\\studio\\ui\\e2e\\playwright.config.ts",
+    "rootDir": "E:/Morpex/packages/studio/ui/e2e",
+    "failOnFlakyTests": false,
+    "forbidOnly": false,
+    "fullyParallel": false,
+    "globalSetup": null,
+    "globalTeardown": null,
+    "globalTimeout": 0,
+    "grep": {},
+    "grepInvert": null,
+    "maxFailures": 0,
+    "metadata": {},
+    "preserveOutput": "always",
+    "projects": [
+      {
+        "outputDir": "E:/Morpex/packages/studio/ui/test-results",
+        "repeatEach": 1,
+        "retries": 0,
+        "metadata": {},
+        "id": "chromium",
+        "name": "chromium",
+        "testDir": "E:/Morpex/packages/studio/ui/e2e",
+        "testIgnore": [],
+        "testMatch": [
+          "*.spec.ts"
+        ],
+        "timeout": 60000
+      }
+    ],
+    "quiet": false,
+    "reporter": [
+      [
+        "list",
+        null
+      ],
+      [
+        "html",
+        {
+          "outputFolder": "e2e/report",
+          "open": "never"
+        }
+      ],
+      [
+        "json",
+        {
+          "outputFolder": "e2e/report",
+          "outputFile": "results.json"
+        }
+      ]
+    ],
+    "reportSlowTests": {
+      "max": 5,
+      "threshold": 300000
+    },
+    "shard": null,
+    "tags": [],
+    "updateSnapshots": "missing",
+    "updateSourceMethod": "patch",
+    "version": "1.61.1",
+    "workers": 2,
+    "webServer": null
+  },
+  "suites": [
+    {
+      "title": "cli-tool-workflow.spec.ts",
+      "file": "cli-tool-workflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "聊天 API",
+          "file": "cli-tool-workflow.spec.ts",
+          "line": 14,
+          "column": 6,
+          "specs": [
+            {
+              "title": "POST /api/chat/agent-send 应接受消息",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "15d1f9c9061ab0db9504-a90d9392de679311057b",
+              "file": "cli-tool-workflow.spec.ts",
+              "line": 15,
+              "column": 3
+            },
+            {
+              "title": "GET /api/chat/agent-status 应返回状态",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "15d1f9c9061ab0db9504-f93bd60d5e80f476b4b4",
+              "file": "cli-tool-workflow.spec.ts",
+              "line": 24,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "执行引擎",
+          "file": "cli-tool-workflow.spec.ts",
+          "line": 32,
+          "column": 6,
+          "specs": [
+            {
+              "title": "POST /api/execute 应接受任务",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "15d1f9c9061ab0db9504-1c9eb914f567fa3e8eb8",
+              "file": "cli-tool-workflow.spec.ts",
+              "line": 33,
+              "column": 3
+            },
+            {
+              "title": "GET /api/artifacts 应返回产物",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "15d1f9c9061ab0db9504-b59a64ce894afb7aa0cf",
+              "file": "cli-tool-workflow.spec.ts",
+              "line": 44,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "cli-workflow.spec.ts",
+      "file": "cli-workflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "跨领域",
+          "file": "cli-workflow.spec.ts",
+          "line": 14,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/domains 应返回领域列表",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "29b25fa840f1d65b9150-c60314a88da9d0812fa2",
+              "file": "cli-workflow.spec.ts",
+              "line": 15,
+              "column": 3
+            },
+            {
+              "title": "GET /api/domains/events 应返回事件类型",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "29b25fa840f1d65b9150-3de936302f439d2ea06f",
+              "file": "cli-workflow.spec.ts",
+              "line": 22,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "知识图谱",
+          "file": "cli-workflow.spec.ts",
+          "line": 30,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/knowledge-graph/data 应返回图数据",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "29b25fa840f1d65b9150-6bd8109d2478d05199f6",
+              "file": "cli-workflow.spec.ts",
+              "line": 31,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "integration.spec.ts",
+      "file": "integration.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "系统状态与健康",
+          "file": "integration.spec.ts",
+          "line": 15,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/health",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-3a9bb6a73842e68d3a2f",
+              "file": "integration.spec.ts",
+              "line": 16,
+              "column": 3
+            },
+            {
+              "title": "GET /api/status",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-85342b9b78d9781e8101",
+              "file": "integration.spec.ts",
+              "line": 23,
+              "column": 3
+            },
+            {
+              "title": "GET /api/engine/check",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-e4ffeafad90024d19b53",
+              "file": "integration.spec.ts",
+              "line": 34,
+              "column": 3
+            },
+            {
+              "title": "GET /api/v6/startup-state",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-26fc9566a7d448516fc6",
+              "file": "integration.spec.ts",
+              "line": 45,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "AI 引擎",
+          "file": "integration.spec.ts",
+          "line": 54,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/ai/status",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-3b12a22d8120de28b5a4",
+              "file": "integration.spec.ts",
+              "line": 55,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "可观测性",
+          "file": "integration.spec.ts",
+          "line": 66,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/observability/workers",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-cea56e503c5e502733eb",
+              "file": "integration.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "GET /api/observability/metrics",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-7b9510c868786284538c",
+              "file": "integration.spec.ts",
+              "line": 75,
+              "column": 3
+            },
+            {
+              "title": "GET /api/observability/traces",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-8f06bf9b8b91a2a9f727",
+              "file": "integration.spec.ts",
+              "line": 82,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "组织架构",
+          "file": "integration.spec.ts",
+          "line": 90,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/business-units",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-aa77884ef989fa8bd23d",
+              "file": "integration.spec.ts",
+              "line": 91,
+              "column": 3
+            },
+            {
+              "title": "GET /api/departments",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-a1c9e2916301d5aa0a08",
+              "file": "integration.spec.ts",
+              "line": 97,
+              "column": 3
+            },
+            {
+              "title": "GET /api/agents",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-8455953651a72c4003f0",
+              "file": "integration.spec.ts",
+              "line": 103,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "会话管理",
+          "file": "integration.spec.ts",
+          "line": 110,
+          "column": 6,
+          "specs": [
+            {
+              "title": "POST /api/sessions — 创建会话",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-7ed2555d9ee0fea04674",
+              "file": "integration.spec.ts",
+              "line": 113,
+              "column": 3
+            },
+            {
+              "title": "GET /api/sessions — 会话列表",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-ecc7c135c34dc0f30aa1",
+              "file": "integration.spec.ts",
+              "line": 125,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "记忆系统",
+          "file": "integration.spec.ts",
+          "line": 135,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/memory/stats",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-d815f20329f9e8f11528",
+              "file": "integration.spec.ts",
+              "line": 136,
+              "column": 3
+            },
+            {
+              "title": "GET /api/memory/search?q=test",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-1ec6ead4ed6d8c2576dd",
+              "file": "integration.spec.ts",
+              "line": 144,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "创业循环",
+          "file": "integration.spec.ts",
+          "line": 153,
+          "column": 6,
+          "specs": [
+            {
+              "title": "POST /api/cycle/run",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-e016d9758b91255ac5c0",
+              "file": "integration.spec.ts",
+              "line": 154,
+              "column": 3
+            },
+            {
+              "title": "GET /api/cycle/history",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-fa8e90c3cbebfd12a7e5",
+              "file": "integration.spec.ts",
+              "line": 163,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "搜索引擎",
+          "file": "integration.spec.ts",
+          "line": 171,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/search/stats",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-aa2d28b3a935495a746b",
+              "file": "integration.spec.ts",
+              "line": 172,
+              "column": 3
+            },
+            {
+              "title": "GET /api/search/query?q=AI",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-aefef4f16872b30d379a",
+              "file": "integration.spec.ts",
+              "line": 179,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "配置",
+          "file": "integration.spec.ts",
+          "line": 188,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/config",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-d86ef2757790526fec8a",
+              "file": "integration.spec.ts",
+              "line": 189,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "错误边界",
+          "file": "integration.spec.ts",
+          "line": 197,
+          "column": 6,
+          "specs": [
+            {
+              "title": "不存在路由返回 404",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-e29a981ccb9ab0f367aa",
+              "file": "integration.spec.ts",
+              "line": 198,
+              "column": 3
+            },
+            {
+              "title": "SSE 全局事件流可连接",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "4c8f7e420cc033ba00ea-261923775a2d26f7dbd9",
+              "file": "integration.spec.ts",
+              "line": 206,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "memory-tasks.spec.ts",
+      "file": "memory-tasks.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "记忆统计",
+          "file": "memory-tasks.spec.ts",
+          "line": 14,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/memory/stats 应返回统计",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-9d64a08eb5f242711202",
+              "file": "memory-tasks.spec.ts",
+              "line": 15,
+              "column": 3
+            },
+            {
+              "title": "GET /api/memory-bus/stats 应返回总线统计",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-7033260b0cbb21781f2b",
+              "file": "memory-tasks.spec.ts",
+              "line": 23,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "记忆搜索",
+          "file": "memory-tasks.spec.ts",
+          "line": 31,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/memory/search 应返回结果",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-5728bc82566dcf83fb30",
+              "file": "memory-tasks.spec.ts",
+              "line": 32,
+              "column": 3
+            },
+            {
+              "title": "空搜索词应正常响应",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-7c531beaeec6fc1b5b77",
+              "file": "memory-tasks.spec.ts",
+              "line": 40,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "记忆写入与反馈",
+          "file": "memory-tasks.spec.ts",
+          "line": 46,
+          "column": 6,
+          "specs": [
+            {
+              "title": "POST /api/memory/feedback 应接受反馈",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-f20151bad493252b2bd8",
+              "file": "memory-tasks.spec.ts",
+              "line": 47,
+              "column": 3
+            },
+            {
+              "title": "POST /api/memory/compact 应触发压缩",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-e4a9e0b1ab635c9c5e96",
+              "file": "memory-tasks.spec.ts",
+              "line": 56,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "记忆摘要与临时池",
+          "file": "memory-tasks.spec.ts",
+          "line": 65,
+          "column": 6,
+          "specs": [
+            {
+              "title": "GET /api/memory/summary-chain 应返回摘要链",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-016943471786735b62c9",
+              "file": "memory-tasks.spec.ts",
+              "line": 66,
+              "column": 3
+            },
+            {
+              "title": "GET /api/memory/temp-pool 应返回临时池",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "f98049b36d0ced90236f-e4743757cbf576901622",
+              "file": "memory-tasks.spec.ts",
+              "line": 71,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "morpex-frontend.spec.ts",
+      "file": "morpex-frontend.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "基础页面加载",
+          "file": "morpex-frontend.spec.ts",
+          "line": 21,
+          "column": 6,
+          "specs": [
+            {
+              "title": "首页应正常加载无 JS 错误",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-534f0e66990ee48e0eea",
+              "file": "morpex-frontend.spec.ts",
+              "line": 22,
+              "column": 3
+            },
+            {
+              "title": "页面不应有控制台报错",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-1ea2d45109b59ce2e2a3",
+              "file": "morpex-frontend.spec.ts",
+              "line": 36,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "TopBarMatrix 系统状态栏",
+          "file": "morpex-frontend.spec.ts",
+          "line": 52,
+          "column": 6,
+          "specs": [
+            {
+              "title": "应显示 MORPEX CORE 品牌文字",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-1e8375f25a4458b802cc",
+              "file": "morpex-frontend.spec.ts",
+              "line": 53,
+              "column": 3
+            },
+            {
+              "title": "应显示系统状态指示",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-160b03a05c7ce0cec214",
+              "file": "morpex-frontend.spec.ts",
+              "line": 58,
+              "column": 3
+            },
+            {
+              "title": "应显示时钟",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-88a59f0a4bd169833708",
+              "file": "morpex-frontend.spec.ts",
+              "line": 68,
+              "column": 3
+            },
+            {
+              "title": "应显示配置按钮",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-d70098decf5c9b6fbff2",
+              "file": "morpex-frontend.spec.ts",
+              "line": 74,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "Grid Matrix 布局",
+          "file": "morpex-frontend.spec.ts",
+          "line": 81,
+          "column": 6,
+          "specs": [
+            {
+              "title": "应包含 MatrixGrid 容器",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-904f047a48b2cb3bdaa2",
+              "file": "morpex-frontend.spec.ts",
+              "line": 82,
+              "column": 3
+            },
+            {
+              "title": "应包含三个矩阵面板 (Left / Center / Right)",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-806cd7fcdd7108735e16",
+              "file": "morpex-frontend.spec.ts",
+              "line": 87,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "后端可达性",
+          "file": "morpex-frontend.spec.ts",
+          "line": 95,
+          "column": 6,
+          "specs": [
+            {
+              "title": "后端健康检查应返回 200",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-d4bdbd6392dbc06f8932",
+              "file": "morpex-frontend.spec.ts",
+              "line": 96,
+              "column": 3
+            },
+            {
+              "title": "系统状态 API 应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "e13d90200f0d7fef7d50-23af9e00d00126608f3e",
+              "file": "morpex-frontend.spec.ts",
+              "line": 101,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "title": "user-workflow.spec.ts",
+      "file": "user-workflow.spec.ts",
+      "column": 0,
+      "line": 0,
+      "specs": [],
+      "suites": [
+        {
+          "title": "页面加载基础验证",
+          "file": "user-workflow.spec.ts",
+          "line": 21,
+          "column": 6,
+          "specs": [
+            {
+              "title": "页面应完整加载",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-6fcf59e0af13c9643c97",
+              "file": "user-workflow.spec.ts",
+              "line": 22,
+              "column": 3
+            },
+            {
+              "title": "顶栏应显示系统品牌",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-c9de317a6cbc29a42707",
+              "file": "user-workflow.spec.ts",
+              "line": 28,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "聊天面板 — DOM 结构",
+          "file": "user-workflow.spec.ts",
+          "line": 34,
+          "column": 6,
+          "specs": [
+            {
+              "title": "聊天面板元素应存在于 DOM",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-ce6d324c1d95fbbbee7d",
+              "file": "user-workflow.spec.ts",
+              "line": 35,
+              "column": 3
+            },
+            {
+              "title": "聊天面板标题应显示 \"MorPex 智能体对话\"",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-4af1f92d3dc453d499aa",
+              "file": "user-workflow.spec.ts",
+              "line": 49,
+              "column": 3
+            },
+            {
+              "title": "聊天输入框应有占位符文字",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-e9fe815cb09304650e85",
+              "file": "user-workflow.spec.ts",
+              "line": 54,
+              "column": 3
+            },
+            {
+              "title": "聊天消息容器应有欢迎区域",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-60c844b4bb01186025a1",
+              "file": "user-workflow.spec.ts",
+              "line": 60,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "聊天面板 — 交互",
+          "file": "user-workflow.spec.ts",
+          "line": 66,
+          "column": 6,
+          "specs": [
+            {
+              "title": "输入框应可聚焦",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-4de3fafd1bb5e649062a",
+              "file": "user-workflow.spec.ts",
+              "line": 67,
+              "column": 3
+            },
+            {
+              "title": "关闭按钮应可点击且触发表单消失",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-724577765cfdfea258d4",
+              "file": "user-workflow.spec.ts",
+              "line": 73,
+              "column": 3
+            },
+            {
+              "title": "新建会话按钮应可点击",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-3e703a06419e7562d28b",
+              "file": "user-workflow.spec.ts",
+              "line": 83,
+              "column": 3
+            }
+          ]
+        },
+        {
+          "title": "API 业务路径",
+          "file": "user-workflow.spec.ts",
+          "line": 89,
+          "column": 6,
+          "specs": [
+            {
+              "title": "健康检查应可用",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-0ed75f74dd515aee060d",
+              "file": "user-workflow.spec.ts",
+              "line": 90,
+              "column": 3
+            },
+            {
+              "title": "系统状态应包含版本和阶段",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-a62543a9c0424ec8fb19",
+              "file": "user-workflow.spec.ts",
+              "line": 95,
+              "column": 3
+            },
+            {
+              "title": "AI 引擎状态应可查询",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-66677218ad8e242053e3",
+              "file": "user-workflow.spec.ts",
+              "line": 104,
+              "column": 3
+            },
+            {
+              "title": "会话列表应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-fed21ec44ae56b497c6c",
+              "file": "user-workflow.spec.ts",
+              "line": 113,
+              "column": 3
+            },
+            {
+              "title": "部门数据应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-3248e1cb074578ea4e26",
+              "file": "user-workflow.spec.ts",
+              "line": 121,
+              "column": 3
+            },
+            {
+              "title": "Agent 列表应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-46352c76bc8769e0528c",
+              "file": "user-workflow.spec.ts",
+              "line": 128,
+              "column": 3
+            },
+            {
+              "title": "知识图谱数据应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-d3f1c4231c5d03396936",
+              "file": "user-workflow.spec.ts",
+              "line": 135,
+              "column": 3
+            },
+            {
+              "title": "循环历史应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-964267f76eda52f43046",
+              "file": "user-workflow.spec.ts",
+              "line": 143,
+              "column": 3
+            },
+            {
+              "title": "搜索引擎统计应返回",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-a4b8fd05b59999a58d9d",
+              "file": "user-workflow.spec.ts",
+              "line": 150,
+              "column": 3
+            },
+            {
+              "title": "不存在路由应返回 404",
+              "ok": true,
+              "tags": [],
+              "tests": [
+                {
+                  "timeout": 60000,
+                  "annotations": [],
+                  "expectedStatus": "passed",
+                  "projectId": "chromium",
+                  "projectName": "chromium",
+                  "results": [],
+                  "status": "skipped"
+                }
+              ],
+              "id": "d47384c71a53f0a14177-449fd21a5dd7b6ab9fc2",
+              "file": "user-workflow.spec.ts",
+              "line": 155,
+              "column": 3
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "errors": [],
+  "stats": {
+    "startTime": "2026-07-10T04:02:54.757Z",
+    "duration": 333.51,
+    "expected": 0,
+    "skipped": 66,
+    "unexpected": 0,
+    "flaky": 0
+  }
+}

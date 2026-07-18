@@ -1,0 +1,19 @@
+{
+  "name": "@morpex/contracts",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MorPex stable contracts — zero-dependency type definitions",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./inference": "./inference.ts",
+    "./agent-runtime": "./agent-runtime.ts",
+    "./runtime-events": "./runtime-events.ts",
+    "./tool": "./tool.ts",
+    "./errors": "./errors.ts",
+    "./capabilities": "./capabilities.ts"
+  },
+  "dependencies": {}
+}

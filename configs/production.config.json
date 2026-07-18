@@ -1,0 +1,40 @@
+{
+  "paths": {
+    "zvecDb": "./data/zvec",
+    "workspace": "./data/workspace"
+  },
+  "models": {
+    "default": "deepseek-chat",
+    "embedding": "bge-m3"
+  },
+  "agents": {
+    "maxParallel": 8,
+    "defaultTimeout": 180000
+  },
+  "tools": {
+    "dockerEnabled": false
+  },
+  "memory": {
+    "autoSync": true,
+    "syncInterval": 30000
+  },
+  "security": {
+    "rateLimiting": {
+      "enabled": true,
+      "requestsPerMinute": 60,
+      "burstSize": 20
+    },
+    "cors": {
+      "allowedOrigins": [],
+      "allowCredentials": true
+    }
+  },
+  "logging": {
+    "level": "info",
+    "format": "json",
+    "output": ["console", "file"],
+    "filePath": "./logs/app.log",
+    "maxFiles": 10,
+    "maxSize": "10M"
+  }
+}

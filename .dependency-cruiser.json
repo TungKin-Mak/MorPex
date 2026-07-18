@@ -1,0 +1,78 @@
+{
+  "forbidden": [
+    {
+      "name": "contracts-must-not-depend-on-pi",
+      "comment": "packages/contracts must not import from @earendil-works (Pi packages)",
+      "severity": "error",
+      "from": {
+        "path": "^packages/contracts"
+      },
+      "to": {
+        "path": "^(node_modules/@earendil-works|packages/core|packages/adapters)"
+      }
+    },
+    {
+      "name": "contracts-must-not-depend-on-core",
+      "comment": "packages/contracts must not import from packages/core",
+      "severity": "error",
+      "from": {
+        "path": "^packages/contracts"
+      },
+      "to": {
+        "path": "^packages/core"
+      }
+    },
+    {
+      "name": "core-no-direct-pi-import",
+      "comment": "packages/core (except adapters/) must not import from @earendil-works directly",
+      "severity": "error",
+      "from": {
+        "path": "^packages/core/src/(?!adapters/)"
+      },
+      "to": {
+        "path": "^(node_modules/@earendil-works|@earendil-works)"
+      }
+    },
+    {
+      "name": "adapters-must-not-depend-on-core",
+      "comment": "packages/adapters must not import from packages/core",
+      "severity": "error",
+      "from": {
+        "path": "^packages/adapters"
+      },
+      "to": {
+        "path": "^packages/core"
+      }
+    },
+    {
+      "name": "no-circular-contracts-core-adapters",
+      "comment": "No circular dependencies between contracts, core, and adapters",
+      "severity": "error",
+      "from": {},
+      "to": {
+        "circular": true
+      }
+    }
+  ],
+  "options": {
+    "includeOnly": "^packages/(contracts|core/src|adapters)",
+    "exclude": {
+      "path": "(node_modules|__tests__|\\.test\\.ts|\\.spec\\.ts|dist)"
+    },
+    "tsConfig": {
+      "fileName": "tsconfig.json"
+    },
+    "tsPreCompilationDeps": true,
+    "doNotFollow": {
+      "path": "node_modules",
+      "dependencyTypes": [
+        "npm",
+        "npm-dev",
+        "npm-optional",
+        "npm-peer",
+        "npm-bundled",
+        "npm-no-pkg"
+      ]
+    }
+  }
+}

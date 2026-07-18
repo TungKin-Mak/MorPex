@@ -1,0 +1,22 @@
+{
+  "name": "@morpex/adapters",
+  "version": "1.0.0",
+  "private": true,
+  "type": "module",
+  "description": "MorPex adapters — PiAI, PiAgentCore, and MockRuntime implementations of InferencePort and AgentRuntimePort",
+  "main": "./index.ts",
+  "types": "./index.ts",
+  "exports": {
+    ".": "./index.ts",
+    "./pi-ai": "./pi-ai/index.ts",
+    "./pi-agent-core": "./pi-agent-core/index.ts",
+    "./mock-runtime": "./mock-runtime/MockRuntimeAdapter.ts"
+  },
+  "dependencies": {
+    "@morpex/contracts": "1.0.0"
+  },
+  "peerDependencies": {
+    "@earendil-works/pi-ai": "^0.79.10",
+    "@earendil-works/pi-agent-core": "^0.79.10"
+  }
+}
