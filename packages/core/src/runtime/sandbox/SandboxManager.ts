@@ -41,6 +41,16 @@ const DEFAULT_CONTEXTS: Record<string, SandboxContext> = {
 const RISKY_ACTIONS = ['delete', 'remove', 'destroy', 'terminate', 'exec', 'eval', 'write_system', 'modify_config']
 const WARNING_ACTIONS = ['deploy', 'publish', 'release', 'email', 'payment', 'write_file']
 
+// ── 第三方 Agent 沙箱上下文（高限制） ──
+const THIRD_PARTY_CONTEXT: SandboxContext = {
+  cpuLimit: 1,
+  memoryLimit: 256,
+  network: false,
+  filesystem: 'readonly',
+  timeout: 60000,
+  allowedCommands: [],
+}
+
 // ═══════════════════════════════════════════════════════════════
 // SandboxManager
 // ═══════════════════════════════════════════════════════════════
@@ -53,17 +63,30 @@ export class SandboxManager {
     totalDurationMs: 0,
   }
 
+  // ★ v9.2 Phase 3: Agent 行为追踪
+  private agentBehavior = new Map<string, { actions: { action: string; timestamp: number }[] }>()
+
   /**
    * execute — 在沙箱上下文中执行任务
    *
    * @param task - 要执行的任务
    * @param context - 沙箱上下文
+   * @param agentId - (可选) Agent ID，高风险 Agent 自动应用第三方沙箱
    * @returns SandboxExecutionResult
    */
   async execute(
     task: { id: string; action: string; params: Record<string, unknown> },
     context: SandboxContext,
+    agentId?: string,
   ): Promise<SandboxExecutionResult> {
+    // ★ v9.2 Phase 3: 高风险 Agent 自动降级到第三方沙箱
+    let effectiveContext = context
+    if (agentId) {
+      const riskScore = this.getAgentRiskScore(agentId)
+      if (riskScore >= 0.7) {
+        effectiveContext = this.getThirdPartySandboxContext()
+      }
+    }
     const startTime = Date.now()
     this.stats.totalExecutions++
 
@@ -146,6 +169,92 @@ export class SandboxManager {
    */
   getDefaultContext(domain: string): SandboxContext {
     return { ...(DEFAULT_CONTEXTS[domain] || DEFAULT_CONTEXTS.general) }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ★ v9.2 Phase 3: 第三方 Agent 沙箱
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * getThirdPartySandboxContext — 第三方 Agent 的受限沙箱
+   *
+   * 外部/第三方 Agent 始终在最高限制下执行：
+   *   - 无网络
+   *   - 只读文件系统
+   *   - 低 CPU/内存上限
+   *   - 60 秒超时
+   */
+  getThirdPartySandboxContext(): SandboxContext {
+    return { ...THIRD_PARTY_CONTEXT }
+  }
+
+  /**
+   * registerAgentBehavior — 记录 Agent 的行为
+   *
+   * @param agentId - Agent ID
+   * @param action - 执行的操作名称
+   */
+  registerAgentBehavior(agentId: string, action: string): void {
+    if (!this.agentBehavior.has(agentId)) {
+      this.agentBehavior.set(agentId, { actions: [] })
+    }
+    this.agentBehavior.get(agentId)!.actions.push({ action, timestamp: Date.now() })
+  }
+
+  /**
+   * getAgentRiskScore — 计算 Agent 风险评分 (0-1)
+   *
+   * 基于两个维度:
+   *   1. 危险操作占比 (riskyActions / totalActions)
+   *   2. 近期活跃度加权 (最近 5 分钟的操作权重翻倍)
+   *
+   * @param agentId - Agent ID
+   * @returns 风险评分 (0=低风险, 1=高风险)
+   */
+  getAgentRiskScore(agentId: string): number {
+    const record = this.agentBehavior.get(agentId)
+    if (!record || record.actions.length === 0) return 0
+
+    const now = Date.now()
+    const fiveMinAgo = now - 300000
+
+    let riskyCount = 0
+    let recentCount = 0
+
+    for (const { action, timestamp } of record.actions) {
+      const actionLower = action.toLowerCase()
+      const isRisky = RISKY_ACTIONS.some(r => actionLower.includes(r))
+      if (isRisky) riskyCount++
+
+      if (timestamp >= fiveMinAgo) recentCount++
+    }
+
+    const total = record.actions.length
+    if (total === 0) return 0
+
+    // 基础风险: 危险操作占比
+    const baseRisk = riskyCount / total
+
+    // 近期活跃修正: 最近 5 分钟有操作则风险 +20%
+    const recencyPenalty = recentCount > 0 ? 0.2 * Math.min(1, recentCount / 5) : 0
+
+    return Math.min(1, baseRisk + recencyPenalty)
+  }
+
+  /**
+   * getHighRiskAgentIds — 获取高风险 Agent 列表
+   *
+   * @param threshold - 风险阈值 (默认 0.7)
+   * @returns Agent ID 数组
+   */
+  getHighRiskAgentIds(threshold: number = 0.7): string[] {
+    const result: string[] = []
+    for (const [agentId] of this.agentBehavior) {
+      if (this.getAgentRiskScore(agentId) >= threshold) {
+        result.push(agentId)
+      }
+    }
+    return result
   }
 
   /**

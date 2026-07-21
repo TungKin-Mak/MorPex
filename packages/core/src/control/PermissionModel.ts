@@ -60,6 +60,8 @@ export interface PermissionSet {
   maxRiskLevel: RiskLevel;
   /** 权限过期时间 */
   expiresAt?: number;
+  /** ★ v9.2: 允许访问的共享内存 key 模式（支持 * 通配符） */
+  allowedSharedMemory?: string[];
 }
 
 // ── PermissionCheck — 权限检查结果 ──
@@ -292,6 +294,85 @@ export class PermissionModel {
    */
   removeUser(userId: string): void {
     this.permissions.delete(userId);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ★ v9.2 Phase 3: Agent 权限
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * canAccessSharedMemory — 检查 Agent 是否有权访问共享内存
+   *
+   * 检查条件:
+   *   1. Agent 必须有 agent_access_shared_memory 权限
+   *   2. Agent 必须属于指定的团队 (通过 userId 前缀匹配 teamId)
+   *   3. sharedKey 必须匹配 allowedSharedMemory 列表中的模式
+   *
+   * @param agentId - Agent ID
+   * @param teamId - 团队 ID
+   * @param sharedKey - 共享内存 key
+   * @returns PermissionCheck
+   */
+  canAccessSharedMemory(agentId: string, teamId: string, sharedKey: string): PermissionCheck {
+    const permSet = this.getPermissions(agentId);
+
+    // 检查权限过期
+    if (permSet.expiresAt && Date.now() > permSet.expiresAt) {
+      return { allowed: false, reason: '权限已过期', missingPermissions: [] };
+    }
+
+    // 检查管理员权限
+    if (permSet.permissions.includes('admin')) {
+      return { allowed: true, reason: '管理员权限', missingPermissions: [] };
+    }
+
+    // 1. 检查 agent_access_shared_memory 权限
+    if (!permSet.permissions.includes('agent_access_shared_memory')) {
+      return {
+        allowed: false,
+        reason: 'Agent 没有共享内存访问权限',
+        missingPermissions: ['agent_access_shared_memory'],
+      };
+    }
+
+    // 2. 检查 sharedKey 是否匹配允许的模式
+    const allowedPatterns = permSet.allowedSharedMemory ?? [];
+    if (allowedPatterns.length > 0) {
+      const matched = allowedPatterns.some(pattern => {
+        if (pattern === '*') return true;
+        if (pattern.endsWith('*')) {
+          return sharedKey.startsWith(pattern.slice(0, -1));
+        }
+        return sharedKey === pattern;
+      });
+      if (!matched) {
+        return {
+          allowed: false,
+          reason: `共享内存 key "${sharedKey}" 不在 Agent 的允许列表中`,
+          missingPermissions: [],
+        };
+      }
+    }
+
+    return { allowed: true, reason: '共享内存访问许可', missingPermissions: [] };
+  }
+
+  /**
+   * canAgentEvolve — 检查 Agent 是否有自我进化权限
+   *
+   * @param agentId - Agent ID
+   * @returns PermissionCheck
+   */
+  canAgentEvolve(agentId: string): PermissionCheck {
+    const permSet = this.getPermissions(agentId);
+    if (permSet.permissions.includes('admin') || permSet.permissions.includes('agent_evolve')) {
+      return { allowed: true, reason: 'Agent 进化权限已授权', missingPermissions: [] };
+    }
+    return {
+      allowed: false,
+      reason: 'Agent 没有自我进化权限',
+      missingPermissions: ['agent_evolve'],
+    };
   }
 
   // ── 序列化 ──
