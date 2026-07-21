@@ -65,7 +65,8 @@ export class ContextAssemblyEngine {
     templates?: ContextTemplateRepository,
     enricherPipeline?: ContextEnricherPipeline,
     config?: Partial<ContextAssemblyConfig>,
-    private persistence?: ContextPersistence
+    private persistence?: ContextPersistence,
+    private metrics?: { record: (name: string, value: number, tags?: Record<string, string>) => void }
   ) {
     this.registry = registry ?? new ContextFragmentRegistry()
     this.builder = builder ?? new ContextBuilder()
@@ -95,14 +96,28 @@ export class ContextAssemblyEngine {
 
     // 4. 兜底：为核心片段自动生成默认值（首次使用自动创建）
     const collectedSources = new Set(fragments.map(f => f.source))
+    const missingFragments: string[] = []
     for (const required of requiredSources) {
       if (!collectedSources.has(required)) {
         const fallback = this.generateFallbackFragment(required, input)
         if (fallback) {
           fragments.push(fallback)
           collectedSources.add(required)
+          missingFragments.push(required)
         }
       }
+    }
+
+    // 上报缺失片段（已兜底但说明外部 Provider 未注册）
+    if (missingFragments.length > 0) {
+      console.warn(
+        `[ContextAssemblyEngine] ⚠️  ${missingFragments.length} 个关键片段使用默认值: ${missingFragments.join(', ')}。` +
+        `注册对应 Provider 可获取真实数据。`
+      )
+      this.metrics?.record('context.missing_fragments', missingFragments.length, {
+        fragments: missingFragments.join(','),
+        missionId: input.missionId,
+      })
     }
 
     // 5. 限制片段数量
