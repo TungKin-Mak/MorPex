@@ -617,8 +617,8 @@ export type { RetryPolicyConfig, BackoffStrategy, CircuitState, CircuitBreakerCo
 export type { MissionCheckpoint } from './runtime/checkpoint/index.js';
 
 // ── v8.8 Observability ──
-export { MetricsCollector } from './observability/index.js';
-export type { MetricPoint } from './observability/index.js';
+export { MetricsCollector, CompactionService } from './observability/index.js';
+export type { MetricPoint, V9Metrics, CompactionConfig, CompactionResult as DbCompactionResult } from './observability/index.js';
 export { TraceManager } from './observability/index.js';
 export type { TraceSpan, MissionTrace } from './observability/index.js';
 export { WorkflowMetrics } from './observability/index.js';

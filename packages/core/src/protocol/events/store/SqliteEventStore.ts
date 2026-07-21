@@ -29,6 +29,8 @@ import type Database from 'better-sqlite3';
 import type { BaseEvent } from '../BaseEvent.js';
 import type { DecisionEvent } from '../DecisionEvent.js';
 import type { EventQueryFilter, EventStoreStats, IEventStore } from './IEventStore.js';
+import { CompactionService } from '../../../observability/CompactionService.js';
+import type { CompactionConfig } from '../../../observability/CompactionService.js';
 
 // ── Schema DDL ──
 
@@ -287,6 +289,13 @@ const SCHEMA_SQL = `
     created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_sme_lock ON shared_memory_entries(lock_owner);
+
+  -- ═══ v9.2+ Performance: Composite Indexes ═══
+  CREATE INDEX IF NOT EXISTS idx_events_mission_seq ON events(execution_id, sequence);
+  CREATE INDEX IF NOT EXISTS idx_events_type_time ON events(type, timestamp);
+  CREATE INDEX IF NOT EXISTS idx_context_snapshots_mission_ver ON context_snapshots(mission_id, version);
+  CREATE INDEX IF NOT EXISTS idx_artifacts_v2_type_status ON artifacts_v2(type, status);
+  CREATE INDEX IF NOT EXISTS idx_shared_memory_key_version ON shared_memory_entries(key, version);
 `;
 
 const PRAGMA_SQL = `
@@ -559,6 +568,13 @@ export class SqliteEventStore implements IEventStore {
       twinVersion: row.twin_version ?? 0,
       metadata: JSON.parse(row.metadata ?? '{}'),
     };
+  }
+
+  /**
+   * getCompactionService — 获取数据库压缩维护服务
+   */
+  getCompactionService(config?: Partial<CompactionConfig>): CompactionService {
+    return new CompactionService(this.db, config);
   }
 }
 
