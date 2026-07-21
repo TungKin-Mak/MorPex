@@ -648,27 +648,27 @@ export type { AgentIdentity as AgentIdentityInterface, AgentProfile as AgentProf
 export type { AgentMessage as AgentMessageInterface, AgentMemoryScope, AgentExecutionContext, AssignmentStrategyType, NegotiationRequest, NegotiationResponse } from './agent/index.js'
 
 // ── v9.2 Cross-Agent Learning ──
-export { CrossAgentLearningEngine as AgentLearningEngine, ExperienceRepository as AgentExperienceRepository } from './agent/index.js'
+export { CrossAgentLearningEngine as AgentLearningEngine, ExperienceRepository as AgentExperienceRepository, ExperienceSqliteRepository as AgentExperienceSqliteRepo } from './agent/index.js'
 export type { GeneralizedExperience, ExperienceCategory, ExperienceQuery } from './agent/index.js'
 
 // ── v9.2 Organization Governance ──
-export { OrganizationPolicyEngine as AgentOrgPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit } from './agent/index.js'
+export { OrganizationPolicyEngine as AgentOrgPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit, GovernanceSqliteRepository as AgentGovernanceSqliteRepo } from './agent/index.js'
 export type { OrgPolicyAction, OrgPolicyRule, OrgPolicyContext, OrgPolicyDecision, TeamPolicy as AgentTeamPolicy, TeamMembership as AgentTeamMembership, OrgBudget, BudgetAllocation, GovernanceAuditEntry } from './agent/index.js'
 
 // ── v9.2 Agent Marketplace ──
-export { MarketplaceRegistry, BidEngine, TrustVerifier as AgentTrustVerifier, MarketplaceContractManager } from './agent/index.js'
+export { MarketplaceRegistry, BidEngine, TrustVerifier as AgentTrustVerifier, MarketplaceContractManager, MarketplaceSqliteRepository as AgentMarketplaceSqliteRepo } from './agent/index.js'
 export type { MarketplaceListing, BidRequest, Bid, MarketplaceContract, BidStrategy } from './agent/index.js'
 
 // ── v9.2 Distributed Agent Runtime ──
-export { AgentTransport, RemoteAgentProxy, DistributedScheduler, DistributedRuntimeManager } from './agent/index.js'
+export { AgentTransport, RemoteAgentProxy, DistributedScheduler, DistributedRuntimeManager, DistributedSqliteRepository as AgentDistributedSqliteRepo } from './agent/index.js'
 export type { RemoteNode, TransportMessage, HeartbeatStatus, TransportType, NodeStatus } from './agent/index.js'
 
 // ── v9.2 Agent Team Formation ──
-export { TeamFormationEngine, TeamCompositionOptimizer, TeamLifecycleManager } from './agent/index.js'
+export { TeamFormationEngine, TeamCompositionOptimizer, TeamLifecycleManager, TeamSqliteRepository as AgentTeamSqliteRepo } from './agent/index.js'
 export type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamStatus } from './agent/index.js'
 
 // ── v9.2 Shared Memory Consensus ──
-export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService } from './agent/index.js'
+export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService, SharedMemorySqliteRepository as AgentSharedMemorySqliteRepo } from './agent/index.js'
 export type { SharedMemoryConfig, MemoryConsistencyLevel, MemoryScope, ConsensusProposal, MemoryLock, ConflictResolutionStrategy, ConflictRecord, MemorySnapshot } from './agent/index.js'
 
 // ── 唯一入口（v2.4 门面模式） — 对外只暴露 bootstrapMorPexCore

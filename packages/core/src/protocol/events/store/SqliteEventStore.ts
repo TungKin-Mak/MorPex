@@ -193,6 +193,100 @@ const SCHEMA_SQL = `
     recorded_at INTEGER NOT NULL
   );
   CREATE INDEX IF NOT EXISTS idx_ac_agent ON agent_collaborations(agent_id);
+
+  -- ═══ v9.2: Cross-Agent Learning ═══
+  CREATE TABLE IF NOT EXISTS shared_experiences (
+    id TEXT PRIMARY KEY, category TEXT NOT NULL, problem_pattern TEXT NOT NULL,
+    solution TEXT NOT NULL, success_rate REAL DEFAULT 0, avg_latency REAL DEFAULT 0,
+    cost_savings REAL DEFAULT 0, source_agent_type TEXT, source_mission_ids TEXT,
+    positive_feedback INTEGER DEFAULT 0, negative_feedback INTEGER DEFAULT 0,
+    weight REAL DEFAULT 0, tags TEXT, visible_to TEXT, created_at INTEGER NOT NULL,
+    last_validated_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_se_category ON shared_experiences(category);
+  CREATE INDEX IF NOT EXISTS idx_se_weight ON shared_experiences(weight);
+
+  -- ═══ v9.2: Organization Governance ═══
+  CREATE TABLE IF NOT EXISTS org_policies (
+    id TEXT PRIMARY KEY, name TEXT NOT NULL, description TEXT, priority INTEGER DEFAULT 0,
+    action TEXT NOT NULL, rule_condition TEXT, override_by TEXT,
+    enabled INTEGER DEFAULT 1, created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS team_governance (
+    team_id TEXT PRIMARY KEY, team_name TEXT NOT NULL, member_roles TEXT,
+    max_concurrent_collabs INTEGER DEFAULT 5, budget_allocation REAL DEFAULT 0,
+    allow_external INTEGER DEFAULT 0, require_approval INTEGER DEFAULT 0,
+    escalation_path TEXT, created_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS team_memberships (
+    agent_id TEXT NOT NULL, team_id TEXT NOT NULL, team_role TEXT DEFAULT \'member\',
+    permissions TEXT, joined_at INTEGER NOT NULL,
+    PRIMARY KEY (agent_id, team_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS org_budget (
+    id TEXT PRIMARY KEY DEFAULT \'singleton\', total_budget REAL DEFAULT 1000000,
+    allocated REAL DEFAULT 0, reserved REAL DEFAULT 0, updated_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS budget_allocations (
+    team_id TEXT PRIMARY KEY, allocated REAL NOT NULL, spent REAL DEFAULT 0,
+    last_updated INTEGER NOT NULL
+  );
+
+  -- ═══ v9.2: Agent Marketplace ═══
+  CREATE TABLE IF NOT EXISTS marketplace_listings (
+    id TEXT PRIMARY KEY, agent_id TEXT NOT NULL, capability TEXT NOT NULL,
+    price_per_task REAL DEFAULT 0, availability INTEGER DEFAULT 1,
+    reputation REAL DEFAULT 0, total_tasks INTEGER DEFAULT 0, success_rate REAL DEFAULT 1,
+    metadata_json TEXT DEFAULT \'{}\', listed_at INTEGER NOT NULL
+  );
+
+  CREATE TABLE IF NOT EXISTS marketplace_bids (
+    id TEXT PRIMARY KEY, listing_id TEXT NOT NULL, bidder_id TEXT NOT NULL,
+    price REAL NOT NULL, estimated_duration INTEGER, confidence REAL DEFAULT 0.5,
+    status TEXT DEFAULT \'pending\', created_at INTEGER NOT NULL,
+    awarded_at INTEGER
+  );
+
+  CREATE TABLE IF NOT EXISTS marketplace_contracts (
+    id TEXT PRIMARY KEY, bid_id TEXT, provider_id TEXT NOT NULL,
+    consumer_id TEXT NOT NULL, capability TEXT NOT NULL, price REAL NOT NULL,
+    status TEXT DEFAULT \'active\', terms_json TEXT DEFAULT \'{}\',
+    created_at INTEGER NOT NULL, completed_at INTEGER
+  );
+
+  -- ═══ v9.2: Distributed Runtime ═══
+  CREATE TABLE IF NOT EXISTS agent_instances (
+    node_id TEXT NOT NULL, agent_id TEXT NOT NULL, status TEXT DEFAULT \'online\',
+    last_heartbeat INTEGER NOT NULL, address TEXT, capabilities_json TEXT DEFAULT \'[]\',
+    load REAL DEFAULT 0, PRIMARY KEY (node_id, agent_id)
+  );
+
+  CREATE TABLE IF NOT EXISTS remote_messages (
+    id TEXT PRIMARY KEY, from_node TEXT NOT NULL, to_node TEXT NOT NULL,
+    correlation_id TEXT, type TEXT NOT NULL, payload TEXT DEFAULT \'{}\',
+    status TEXT DEFAULT \'sent\', sent_at INTEGER NOT NULL, received_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_rm_correlation ON remote_messages(correlation_id);
+
+  -- ═══ v9.2: Team Formation ═══
+  CREATE TABLE IF NOT EXISTS agent_teams (
+    team_id TEXT PRIMARY KEY, mission_id TEXT NOT NULL, status TEXT DEFAULT \'forming\',
+    leader_id TEXT, composition_json TEXT DEFAULT \'{}\', context_json TEXT DEFAULT \'{}\',
+    formed_at INTEGER NOT NULL, dissolved_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_at_mission ON agent_teams(mission_id);
+
+  -- ═══ v9.2: Shared Memory Consensus ═══
+  CREATE TABLE IF NOT EXISTS shared_memory_entries (
+    key TEXT PRIMARY KEY, value TEXT NOT NULL, version INTEGER DEFAULT 1,
+    lock_owner TEXT, lock_expires_at INTEGER, consensus_version INTEGER DEFAULT 1,
+    created_by TEXT, created_at INTEGER NOT NULL, updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sme_lock ON shared_memory_entries(lock_owner);
 `;
 
 const PRAGMA_SQL = `
