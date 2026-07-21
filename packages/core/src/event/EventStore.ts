@@ -1,5 +1,8 @@
 /**
- * EventStore — Event Sourcing 持久化
+ * EventStore — Event Sourcing 持久化 (JSONL)
+ *
+ * @deprecated 使用 UnifiedEventStore（SQLite 后端）代替。
+ * 迁移路径: new UnifiedEventStore() 替代 new EventStore(logPath)
  *
  * 每次状态变迁追加一行 JSONL。重启时重放重建运行时状态。
  *

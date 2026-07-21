@@ -183,9 +183,9 @@ export type {
   ArtifactUpdatedEvent,
 } from './events/CrossDomainEvents.js';
 
-// ── EventStore (Phase 1.3) ──
+// ── EventStore (Phase 1.3) — @deprecated 使用 UnifiedEventStore 代替
+/** @deprecated 使用 UnifiedEventStore 代替 */
 export { EventStore } from './event/EventStore.js';
-export type { SourcingEvent, ReplayState } from './event/EventStore.js';
 
 // ── TeamSayTool (Phase 3.2) ──
 export { TeamSayTool, createTeamSayTool } from './tools/TeamSayTool.js';
@@ -469,9 +469,10 @@ export {
 } from './protocol/index.js';
 export type { BaseEvent, DecisionEvent, DecisionEventQuery } from './protocol/index.js';
 
-// ── Event Sourcing (Phase 4 / v8.5, 别名避免与旧 EventStore 冲突) ──
-export { EventStore as EventSourcingStore, EventRepository, EventProjection } from './protocol/index.js';
-export type { EventStoreConfig as SourcingStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './protocol/index.js';
+// ── Event Sourcing (v9.2 Stage 0: 统一 SQLite EventStore + 旧版兼容) ──
+export { SqliteEventStore, UnifiedEventStore, EventStore as EventSourcingStore, EventRepository, EventProjection } from './protocol/index.js';
+export type { IEventStore, EventQueryFilter, EventStoreStats, EventStoreConfig as SourcingStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './protocol/index.js';
+export type { ReplayState, SourcingEvent } from './protocol/events/store/UnifiedEventStore.js';
 
 // ── MorPex v8 Interaction Layer ──
 export {

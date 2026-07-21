@@ -27,8 +27,25 @@ export {
   // Decision Events (v8.6: Cognitive Event Stream)
   createDecisionEvent,
   decisionToBaseEvent,
+  // v9.2 Stage 0: SQLite EventStore
+  SqliteEventStore,
+  UnifiedEventStore,
 } from './events/index.js';
-export type { BaseEvent, EventStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection, DecisionEvent, DecisionEventQuery } from './events/index.js';
+export type {
+  BaseEvent,
+  IEventStore,
+  EventQueryFilter,
+  EventStoreStats,
+  EventStoreConfig,
+  EventQuery,
+  AggregationResult,
+  MissionProjection,
+  SystemProjection,
+  DecisionEvent,
+  DecisionEventQuery,
+  ReplayState,
+  SourcingEvent,
+} from './events/index.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 后续 Phase 将在此进一步扩展：

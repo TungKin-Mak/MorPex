@@ -1,5 +1,10 @@
 /**
- * EventStore — Event Sourcing 不可变事件存储
+ * EventStore — Event Sourcing 不可变事件存储 (JSONL)
+ *
+ * @deprecated 使用 SqliteEventStore 或 UnifiedEventStore（SQLite 后端）代替。
+ * 迁移路径:
+ *   const store = new SqliteEventStore();        // 新实现
+ *   const store = new UnifiedEventStore();       // 兼容旧 API 的门面
  *
  * Phase 4 / MorPex v8.5: 所有状态变更通过事件记录，不直接修改状态。
  * 状态由 EventProjection 从事件流投影生成。

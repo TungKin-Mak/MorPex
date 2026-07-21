@@ -21,9 +21,11 @@ export { isStandardEvent, isEventInLayer, extractEventLayer } from './BaseEvent.
 export type { DecisionEvent, DecisionEventQuery } from './DecisionEvent.js';
 export { createDecisionEvent, decisionToBaseEvent } from './DecisionEvent.js';
 
-// ── Event Sourcing Store (Phase 4 / v8.5) ──
-export { EventStore, EventRepository, EventProjection } from './store/index.js';
-export type { EventStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './store/index.js';
+// ── Event Sourcing Store (v9.2 Stage 0: 统一 IEventStore + SQLite) ──
+export type { IEventStore } from './store/index.js';
+export { SqliteEventStore, UnifiedEventStore, EventStore, EventRepository, EventProjection } from './store/index.js';
+export type { EventQueryFilter, EventStoreStats, EventStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './store/index.js';
+export type { ReplayState, SourcingEvent } from './store/UnifiedEventStore.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 遗留事件类型映射表
