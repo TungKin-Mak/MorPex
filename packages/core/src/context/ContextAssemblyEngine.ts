@@ -93,11 +93,15 @@ export class ContextAssemblyEngine {
     // 3. 从注册中心收集片段（带超时）
     const fragments = await this.collectFragmentsWithTimeout(input, allSources)
 
-    // 4. 检查必需片段是否齐全
+    // 4. 兜底：为核心片段自动生成默认值（首次使用自动创建）
     const collectedSources = new Set(fragments.map(f => f.source))
     for (const required of requiredSources) {
       if (!collectedSources.has(required)) {
-        console.warn(`[ContextAssemblyEngine] 必需片段 "${required}" 未采集到`)
+        const fallback = this.generateFallbackFragment(required, input)
+        if (fallback) {
+          fragments.push(fallback)
+          collectedSources.add(required)
+        }
       }
     }
 
@@ -211,6 +215,116 @@ export class ContextAssemblyEngine {
   }
 
   // ── 内部方法 ──
+
+  /**
+   * generateFallbackFragment — 为核心片段生成默认兜底数据
+   *
+   * 当外部未注册对应 Provider 时，自动创建初始版本的片段。
+   * 支持首次使用即自动初始化，消除 "必需片段未采集到" 警告。
+   */
+  private generateFallbackFragment(
+    source: FragmentSource,
+    input: ContextAssemblyInput
+  ): ContextFragment | null {
+    const now = Date.now()
+
+    switch (source) {
+      case 'user_profile':
+        return {
+          source: 'user_profile',
+          version: 1,
+          collectedAt: now,
+          data: {
+            id: input.userId || 'default',
+            name: 'Default User',
+            preferences: {
+              responseStyle: 'practical',
+              language: 'zh-CN',
+            },
+            createdAt: now,
+            lastActive: now,
+          },
+        }
+
+      case 'mission_state':
+        return {
+          source: 'mission_state',
+          version: 1,
+          collectedAt: now,
+          data: {
+            id: input.missionId,
+            status: 'CREATED',
+            currentStage: 'ContextStage',
+            createdAt: now,
+            input: input.tags ? input.tags.join(', ') : undefined,
+          },
+        }
+
+      case 'behavior_twin':
+        return {
+          source: 'behavior_twin',
+          version: 1,
+          collectedAt: now,
+          data: {
+            version: 1,
+            profile: {
+              planningStyle: 'top-down',
+              riskTolerance: 'medium',
+              executionPreference: 'sequential',
+            },
+            confidence: 0.5,
+          },
+        }
+
+      case 'goal_graph':
+        return {
+          source: 'goal_graph',
+          version: 1,
+          collectedAt: now,
+          data: {
+            goals: [],
+            activeCount: 0,
+          },
+        }
+
+      case 'agent_status':
+        return {
+          source: 'agent_status',
+          version: 1,
+          collectedAt: now,
+          data: {
+            agents: [],
+            activeCount: 0,
+            idleCount: 0,
+          },
+        }
+
+      case 'decision_history':
+        return {
+          source: 'decision_history',
+          version: 1,
+          collectedAt: now,
+          data: {
+            recentDecisions: [],
+            totalCount: 0,
+          },
+        }
+
+      case 'artifact_lineage':
+        return {
+          source: 'artifact_lineage',
+          version: 1,
+          collectedAt: now,
+          data: {
+            recentArtifacts: [],
+            totalCount: 0,
+          },
+        }
+
+      default:
+        return null
+    }
+  }
 
   /**
    * selectTemplate — 选择上下文模板
