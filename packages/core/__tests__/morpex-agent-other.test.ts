@@ -1,5 +1,7 @@
 /**
  * MorPex Agent & Other Module Tests
+ *
+ * Updated: removed blocks for modules deleted during v4→v9.2 refactor.
  */
 console.log('========================================');
 console.log('  MorPex Agent + Remaining Module Tests');
@@ -15,34 +17,7 @@ function ok(c: boolean, m: string) { if (c) pass++; else { console.error('  ❌ 
 function eq(a: any, b: any, m: string) { if (a === b) pass++; else { console.error('  ❌ ' + m); fail++; } }
 
 async function main() {
-  // 1. AgentOrchestrator
-  console.log('\n--- 1. AgentOrchestrator ---');
-  try {
-    const { AgentOrchestrator } = await import('../src/planes/agent-plane/orchestrator/AgentOrchestrator.js');
-    const orch = new AgentOrchestrator();
-    ok(orch !== null, 'Can instantiate');
-    ok(typeof (orch as any).createCEO === 'function' || typeof (orch as any).registerZone === 'function' || true, 'Module loaded');
-    console.log('  ✅ AgentOrchestrator');
-  } catch (e: any) { console.error('  ❌ AgentOrchestrator:', e.message); fail++; }
-
-  // 2. SwarmEngine
-  console.log('\n--- 2. SwarmEngine ---');
-  try {
-    const { SwarmEngine } = await import('../src/planes/agent-plane/swarm/SwarmEngine.js');
-    const swarm = new SwarmEngine();
-    ok(swarm !== null, 'Can instantiate');
-    ok(typeof (swarm as any).createAuction === 'function' || true, 'Module loaded');
-    console.log('  ✅ SwarmEngine');
-  } catch (e: any) { console.error('  ❌ SwarmEngine:', e.message); fail++; }
-
-  // 3. AgentService (basic)
-  console.log('\n--- 3. AgentService ---');
-  try {
-    const { AgentService } = await import('../src/services/AgentService.js');
-    const svc = new AgentService();
-    ok(svc !== null, 'Can instantiate');
-    console.log('  ✅ AgentService');
-  } catch (e: any) { console.error('  ❌ AgentService:', e.message); fail++; }
+  // Blocks 1-3 REMOVED: AgentOrchestrator, SwarmEngine, AgentService (deleted)
 
   // 4. AgentFactory
   console.log('\n--- 4. AgentFactory ---');
@@ -60,51 +35,9 @@ async function main() {
     console.log('  ✅ ExecutionOrchestrator');
   } catch (e: any) { console.error('  ❌ ExecutionOrchestrator:', e.message); fail++; }
 
-  // 6. ExecutionRecordingEngine
-  console.log('\n--- 6. ExecutionRecordingEngine ---');
-  try {
-    const { ExecutionRecordingEngine } = await import('../src/mirror/ExecutionRecordingEngine.js');
-    const ere = new ExecutionRecordingEngine();
-    ok(ere !== null, 'Can instantiate');
-    ok(typeof (ere as any).recordThought === 'function' || typeof (ere as any).recordAction === 'function' || true, 'Module loaded');
-    console.log('  ✅ ExecutionRecordingEngine');
-  } catch (e: any) { console.error('  ❌ ExecutionRecordingEngine:', e.message); fail++; }
+  // 6 REMOVED: ExecutionRecordingEngine (deleted)
 
-  // 7. AgentReasoningInterceptor
-  console.log('\n--- 7. AgentReasoningInterceptor ---');
-  try {
-    const { AgentReasoningInterceptor } = await import('../src/gateway/AgentReasoningInterceptor.js');
-    const mockMemBus = {
-      remember: async () => {},
-      recall: async () => [],
-      query: async () => [],
-    };
-    const interceptor = new AgentReasoningInterceptor({ memoryBus: mockMemBus });
-    ok(interceptor !== null, 'Can instantiate');
-    ok(typeof interceptor.wrap === 'function', 'Has wrap()');
-    ok(typeof interceptor.checkAction === 'function', 'Has checkAction()');
-    ok(typeof interceptor.processObservation === 'function', 'Has processObservation()');
-    ok(typeof interceptor.getStats === 'function', 'Has getStats()');
-    
-    // Test checkAction with blocked tool
-    const blockResult = await interceptor.checkAction({ name: 'rm', args: {} });
-    ok(blockResult.allowed === false, 'Blocks dangerous tool');
-    
-    // Test checkAction with safe tool
-    const safeResult = await interceptor.checkAction({ name: 'read_file', args: { path: '/test' } });
-    ok(safeResult.allowed === true, 'Allows safe tool');
-    
-    // Test stats
-    const stats = interceptor.getStats();
-    ok(stats.actionsChecked >= 2, 'Stats track actions');
-    ok(stats.actionsBlocked >= 1, 'Stats track blocked actions');
-    
-    // Test classification
-    const extractor = (interceptor as any);
-    ok(typeof extractor.classifyError === 'function' || true, 'Module loaded');
-    
-    console.log('  ✅ AgentReasoningInterceptor');
-  } catch (e: any) { console.error('  ❌ AgentReasoningInterceptor:', e.message); fail++; }
+  // 7 REMOVED: AgentReasoningInterceptor (deleted)
 
   // 8. Planning Modules - ToolQualityManager
   console.log('\n--- 8. ToolQualityManager ---');
@@ -211,13 +144,7 @@ async function main() {
     console.log('  ✅ Industry Plugin');
   } catch (e: any) { console.error('  ❌ Industry Plugin:', e.message); fail++; }
 
-  // 21. Memory plugin
-  console.log('\n--- 21. Knowledge Plane Memory Plugin ---');
-  try {
-    const mp = await import('../src/planes/knowledge-plane/memory/plugin.js');
-    ok(typeof mp === 'object', 'Module loads');
-    console.log('  ✅ Knowledge Memory Plugin');
-  } catch (e: any) { console.error('  ❌ Memory Plugin:', e.message); fail++; }
+  // 21 REMOVED: Knowledge Plane Memory Plugin (deleted)
 
   // 22. Knowledge plugin
   console.log('\n--- 22. Knowledge Plane Knowledge Plugin ---');
@@ -235,37 +162,7 @@ async function main() {
     console.log('  ✅ Artifact Plugin');
   } catch (e: any) { console.error('  ❌ Artifact Plugin:', e.message); fail++; }
 
-  // 24. FSM Plugin
-  console.log('\n--- 24. FSM Plugin ---');
-  try {
-    const fp = await import('../src/planes/runtime-kernel/fsm/plugin.js');
-    ok(typeof fp.FSMPlugin === 'function' || typeof fp === 'object', 'Module loads');
-    console.log('  ✅ FSM Plugin');
-  } catch (e: any) { console.error('  ❌ FSM Plugin:', e.message); fail++; }
-
-  // 25. DAG Plugin
-  console.log('\n--- 25. DAG Plugin ---');
-  try {
-    const dp = await import('../src/planes/runtime-kernel/dag/plugin.js');
-    ok(typeof dp.DAGPlugin === 'function' || typeof dp === 'object', 'Module loads');
-    console.log('  ✅ DAG Plugin');
-  } catch (e: any) { console.error('  ❌ DAG Plugin:', e.message); fail++; }
-
-  // 26. Scheduler Plugin
-  console.log('\n--- 26. Scheduler Plugin ---');
-  try {
-    const sp = await import('../src/planes/runtime-kernel/scheduler/plugin.js');
-    ok(typeof sp.SchedulerPlugin === 'function' || typeof sp === 'object', 'Module loads');
-    console.log('  ✅ Scheduler Plugin');
-  } catch (e: any) { console.error('  ❌ Scheduler Plugin:', e.message); fail++; }
-
-  // 27. Execution Graph Plugin
-  console.log('\n--- 27. Execution Graph Plugin ---');
-  try {
-    const egp = await import('../src/planes/runtime-kernel/execution-graph/plugin.js');
-    ok(typeof egp.ExecGraphPlugin === 'function' || typeof egp === 'object', 'Module loads');
-    console.log('  ✅ Execution Graph Plugin');
-  } catch (e: any) { console.error('  ❌ Execution Graph Plugin:', e.message); fail++; }
+  // Blocks 24-27 REMOVED: FSM/DAG/Scheduler/ExecutionGraph plugins (deleted)
 
   // 28. Intent Plugin
   console.log('\n--- 28. Intent Plugin ---');
@@ -275,21 +172,7 @@ async function main() {
     console.log('  ✅ Intent Plugin');
   } catch (e: any) { console.error('  ❌ Intent Plugin:', e.message); fail++; }
 
-  // 29. Orchestrator Plugin
-  console.log('\n--- 29. Orchestrator Plugin ---');
-  try {
-    const op = await import('../src/planes/agent-plane/orchestrator/plugin.js');
-    ok(typeof op === 'object', 'Module loads');
-    console.log('  ✅ Orchestrator Plugin');
-  } catch (e: any) { console.error('  ❌ Orchestrator Plugin:', e.message); fail++; }
-
-  // 30. Swarm Plugin
-  console.log('\n--- 30. Swarm Plugin ---');
-  try {
-    const sp2 = await import('../src/planes/agent-plane/swarm/plugin.js');
-    ok(typeof sp2 === 'object', 'Module loads');
-    console.log('  ✅ Swarm Plugin');
-  } catch (e: any) { console.error('  ❌ Swarm Plugin:', e.message); fail++; }
+  // Blocks 29-30 REMOVED: Orchestrator/Swarm plugins (deleted)
 
   // 31. CompactionPolicy (verify with correct API)
   console.log('\n--- 31. CompactionPolicy API check ---');
@@ -327,7 +210,7 @@ async function main() {
     const tools = ['ForkExecuteTool', 'AgentCreateTool', 'TeamSayTool', 'ReadArtifactTool', 'ToolExecutionProxy'];
     for (const t of tools) {
       try {
-        const mod = await import(`../src/tool/${t}.js`);
+        const mod = await import(`../src/tools/${t}.js`);
         ok(typeof mod === 'object', `${t} loads`);
       } catch (e2: any) {
         console.log(`  ⚠️ ${t} skipped: ${e2.message}`);

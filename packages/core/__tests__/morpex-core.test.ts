@@ -246,7 +246,7 @@ console.log('\n📋 10. Full Pipeline\n');
 // ══════════════════════════════════════
 console.log('\n📋 11. Intent Plugin\n');
 {
-  const { IntentResolver } = await import('../planes/control-plane/intent/IntentResolver.js');
+  const { IntentResolver } = await import('../src/planes/control-plane/intent/IntentResolver.js');
   LLMProvider.set(async () => JSON.stringify({ type: 'directive', confidence: 0.95, domain: 'software', goal: '创建应用', entities: { tech: ['react'] }, reasoning: '明确' }));
   const r1 = await new IntentResolver().resolve('帮我创建应用');
   eq(r1.type, 'directive', '分类directive'); ok(r1.confidence > 0.9, '高置信度'); eq(r1.domain, 'software', '领域识别'); ok(r1.goal.includes('创建'), '目标提取');
@@ -259,7 +259,7 @@ console.log('\n📋 11. Intent Plugin\n');
   LLMProvider.set(async () => '```json\n{"type":"query","confidence":0.88,"domain":"general","goal":"了解信息"}\n```');
   const r4 = await new IntentResolver().resolve('什么是量子计算？');
   eq(r4.type, 'query', 'Markdown代码块提取JSON');
-  const { IntentPlugin } = await import('../planes/control-plane/intent/plugin.js');
+  const { IntentPlugin } = await import('../src/planes/control-plane/intent/plugin.js');
   const ip = new IntentPlugin(); eq(ip.name, 'intent-plugin', '插件名'); eq(ip.version, '0.1.0', '版本');
 }
 
@@ -273,7 +273,7 @@ console.log('\n📋 12. Planner\n——已迁移至 CrossDomainRouter ——\n')
 // ══════════════════════════════════════
 console.log('\n📋 13. FSM (状态机)\n');
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const engine = new FSMEngine();
   eq(engine.state, 'IDLE', '初始IDLE'); eq(engine.getStateLabel(), '空闲', '标签');
   const events: any[] = []; engine.onTransition = e => events.push(e);
@@ -285,44 +285,44 @@ console.log('\n📋 13. FSM (状态机)\n');
   engine.feed('agent_end'); eq(engine.state, 'COMPLETED', '→COMPLETED'); ok(engine.isTerminal, 'isTerminal');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const engine = new FSMEngine(); let w = false; engine.onWaitingUser = () => { w = true; };
   engine.start('t2', '审批'); engine.feed('turn_start'); engine.feed('user_input');
   eq(engine.state, 'WAITING_USER', '→WAITING_USER'); ok(w, 'onWaitingUser');
   engine.sendUserInput('确认'); eq(engine.state, 'RUNNING', '输入→RUNNING');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const engine = new FSMEngine(); let cancelled = false; engine.onCancel = () => { cancelled = true; };
   engine.start('t3', 't'); engine.cancel(); eq(engine.state, 'CANCELLED', '取消'); ok(cancelled, 'onCancel');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const engine = new FSMEngine(); let failed = false; engine.onFail = () => { failed = true; };
   engine.start('t4', 't'); engine.feed('error', { error: 'err' }); eq(engine.state, 'FAILED', '失败'); ok(failed, 'onFail');
   const ctx = engine.getContext(); ok(ctx?.error?.includes('err') === true, '错误信息保存');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   ok(!new FSMEngine().feed('user_input'), 'IDLE无视非法事件');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const e2 = new FSMEngine({ taskTimeout: 50 }); let f2 = false; e2.onFail = () => { f2 = true; };
   e2.start('t5', 't'); await new Promise(r => setTimeout(r, 100)); ok(f2, '超时→FAILED');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const e3 = new FSMEngine(); let d = ''; e3.onMessageDelta = delta => { d += delta; };
   e3.start('t6', 't'); e3.emitDelta('Hel'); e3.emitDelta('lo'); eq(d, 'Hello', 'delta累积');
 }
 {
-  const { FSMEngine } = await import('../planes/runtime-kernel/fsm/FSMEngine.js');
+  const { FSMEngine } = await import('../src/planes/runtime-kernel/fsm/FSMEngine.js');
   const e4 = new FSMEngine(); e4.start('t7', 'g'); e4.feed('turn_start'); e4.feed('turn_end'); e4.feed('agent_end');
   const h = e4.getHistory(); ok(h.length >= 3, '转换历史'); eq(h[0].from, 'IDLE', '从IDLE开始');
 }
 {
-  const { FSMPlugin } = await import('../planes/runtime-kernel/fsm/plugin.js');
+  const { FSMPlugin } = await import('../src/planes/runtime-kernel/fsm/plugin.js');
   eq(new FSMPlugin().name, 'fsm-plugin', '插件名'); eq(new FSMPlugin().version, '0.2.0', '版本');
 }
 
@@ -331,7 +331,7 @@ console.log('\n📋 13. FSM (状态机)\n');
 // ══════════════════════════════════════
 console.log('\n📋 15. DAG\n');
 {
-  const { DAGEngine } = await import('../planes/runtime-kernel/dag/DAGEngine.js');
+  const { DAGEngine } = await import('../src/planes/runtime-kernel/dag/DAGEngine.js');
   const mk = (id: string, deps: string[] = []) => ({ id, name: id, agentType: 'e', description: '', deps, status: 'pending' as any, priority: 5, retryCount: 0, maxRetries: 3 });
   const e = new DAGEngine();
   e.addNode(mk('a')); e.addNode(mk('b', ['a']));
@@ -358,7 +358,7 @@ console.log('\n📋 15. DAG\n');
   e.clear();
   e.buildFromTasks([{ id: 't1', name: '需求', description: '分析', assignedRole: 'pm', dependencies: [], priority: 8 }, { id: 't2', name: '编码', description: '实现', assignedRole: 'eng', dependencies: ['t1'], priority: 7 }]);
   eq(e.nodeCount, 2, 'buildFromTasks'); eq(e.getNode('t1')?.agentType, 'pm', '角色正确');
-  const { DAGPlugin } = await import('../planes/runtime-kernel/dag/plugin.js');
+  const { DAGPlugin } = await import('../src/planes/runtime-kernel/dag/plugin.js');
   eq(new DAGPlugin().name, 'dag-plugin', '插件名'); eq(new DAGPlugin().version, '0.1.0', '版本');
   // planner-plugin 已移除，dependencies 为空数组
   eq(new DAGPlugin().dependencies.length, 0, '无外部依赖');
@@ -369,7 +369,7 @@ console.log('\n📋 15. DAG\n');
 // ══════════════════════════════════════
 console.log('\n📋 16. Exec Graph\n');
 {
-  const { ExecutionGraphEngine } = await import('../planes/runtime-kernel/execution-graph/ExecutionGraph.js');
+  const { ExecutionGraphEngine } = await import('../src/planes/runtime-kernel/execution-graph/ExecutionGraph.js');
   const e = new ExecutionGraphEngine();
   const g = e.startExecution('e1', 'd1', '测试'); eq(g.status, 'running', '初始running'); eq(g.nodes.length, 0, '初始0节点');
   e.completeExecution('e1', true); ok(e.getGraph('e1')?.totalDuration !== undefined, '有耗时');
@@ -389,7 +389,7 @@ console.log('\n📋 16. Exec Graph\n');
   e.startExecution('e_s1', 'd_s1', '成功'); e.createNode('e_s1', { dagNodeId: 'a', name: 'A' }); e.completeExecution('e_s1', true);
   e.startExecution('e_s2', 'd_s2', '失败'); e.createNode('e_s2', { dagNodeId: 'b', name: 'B' }); e.completeExecution('e_s2', false);
   const st = e.getStats(); ok(st.totalExecutions >= 2, '执行统计'); ok(st.totalNodes >= 2, '节点统计'); ok(st.successRate > 0, '成功率');
-  const { ExecGraphPlugin } = await import('../planes/runtime-kernel/execution-graph/plugin.js');
+  const { ExecGraphPlugin } = await import('../src/planes/runtime-kernel/execution-graph/plugin.js');
   eq(new ExecGraphPlugin().name, 'exec-graph-plugin', '插件名'); eq(new ExecGraphPlugin().version, '0.1.0', '版本');
   ok(new ExecGraphPlugin().dependencies.includes('dag-plugin'), '依赖dag-plugin');
 }
@@ -399,7 +399,7 @@ console.log('\n📋 16. Exec Graph\n');
 // ══════════════════════════════════════
 console.log('\n📋 17. Scheduler\n');
 {
-  const { SchedulerEngine } = await import('../planes/runtime-kernel/scheduler/SchedulerEngine.js');
+  const { SchedulerEngine } = await import('../src/planes/runtime-kernel/scheduler/SchedulerEngine.js');
   let ready: any = null;
   const e1 = new SchedulerEngine({ maxConcurrent: 2 }); e1.onTaskReady = t => { ready = t; };
   const r = e1.enqueue({ id: 't1', dagId: 'd', dagNodeId: 'n', agentType: 'e', priority: { roi: 0.9, cost: 0.3, latency: 0.7 }, estimatedDuration: 1000 });
@@ -428,7 +428,7 @@ console.log('\n📋 17. Scheduler\n');
   es.enqueue({ id: 's1', dagId: 'd', dagNodeId: 'n', agentType: 'e', priority: { roi: 0.5, cost: 0.5, latency: 0.5 }, estimatedDuration: 100 }); es.completeTask('s1');
   es.enqueue({ id: 's2', dagId: 'd', dagNodeId: 'n', agentType: 'e', priority: { roi: 0.5, cost: 0.5, latency: 0.5 }, estimatedDuration: 100 }); es.failTask('s2', 'e');
   const st = es.getStats(); eq(st.totalEnqueued, 2, '入队2'); eq(st.totalCompleted, 1, '完成1'); eq(st.totalFailed, 1, '失败1');
-  const { SchedulerPlugin } = await import('../planes/runtime-kernel/scheduler/plugin.js');
+  const { SchedulerPlugin } = await import('../src/planes/runtime-kernel/scheduler/plugin.js');
   eq(new SchedulerPlugin().name, 'scheduler-plugin', '插件名'); eq(new SchedulerPlugin().version, '0.1.0', '版本');
 }
 
@@ -437,13 +437,13 @@ console.log('\n📋 17. Scheduler\n');
 // ══════════════════════════════════════
 console.log('\n📋 18. Artifact\n');
 {
-  const { ArtifactRegistry } = await import('../planes/knowledge-plane/artifacts/ArtifactRegistry.js');
+  const { ArtifactRegistry } = await import('../src/planes/knowledge-plane/artifacts/ArtifactRegistry.js');
   const R = ArtifactRegistry;
   const a = R.createArtifact({ name: '需求文档', type: 'document', content: '# 需求', createdBy: 'pm' });
   ok(a.id.startsWith('art_'), 'ID前缀'); eq(a.name, '需求文档', '名称'); eq(a.type, 'document', '类型'); eq(a.version, 1, '版本1'); eq(a.status, 'draft', '状态draft');
   const a2 = R.updateContent(a, 'v2'); eq(a2.version, 2, '版本2'); eq(a2.content, 'v2', '内容更新');
   const ap = R.changeStatus(a, 'approved'); eq(ap.status, 'approved', '→approved');
-  const { createVersionSnapshot, formatVersion } = await import('../planes/knowledge-plane/artifacts/ArtifactVersion.js');
+  const { createVersionSnapshot, formatVersion } = await import('../src/planes/knowledge-plane/artifacts/ArtifactVersion.js');
   const vs = createVersionSnapshot(a, '初始'); eq(vs.artifactId, a.id, '版本关联'); eq(vs.version, 1, '版本号'); eq(formatVersion(1), 'v1', '格式化');
   const reg = new ArtifactRegistry();
   const a3 = R.createArtifact({ name: 'API', type: 'document', content: '...', createdBy: 'eng' });
@@ -467,7 +467,7 @@ console.log('\n📋 18. Artifact\n');
   reg3.register(R.createArtifact({ name: 'b', type: 'code', content: '' }));
   reg3.register(R.createArtifact({ name: 'c', type: 'document', content: '' }));
   const st = reg3.getStatsByType(); eq(st.code, 2, 'code:2'); eq(st.document, 1, 'doc:1');
-  const { ArtifactPlugin } = await import('../planes/knowledge-plane/artifacts/plugin.js');
+  const { ArtifactPlugin } = await import('../src/planes/knowledge-plane/artifacts/plugin.js');
   eq(new ArtifactPlugin().name, 'artifact-plugin', '插件名'); eq(new ArtifactPlugin().version, '0.1.0', '版本');
 }
 
@@ -531,7 +531,7 @@ console.log('\n📋 19. Memory\n');
   try { rmSync(td3, { recursive: true, force: true }); } catch {}
   try { rmSync(td4, { recursive: true, force: true }); } catch {}
 
-  const { MemoryPlugin } = await import('../planes/knowledge-plane/memory/plugin.js');
+  const { MemoryPlugin } = await import('../src/planes/knowledge-plane/memory/plugin.js');
   eq(new MemoryPlugin().name, 'memory-plugin', '插件名'); eq(new MemoryPlugin().version, '2.0.0', '版本');
 }
 
@@ -540,7 +540,7 @@ console.log('\n📋 19. Memory\n');
 // ══════════════════════════════════════
 console.log('\n📋 20. Knowledge Graph\n');
 {
-  const { KnowledgeGraph } = await import('../planes/knowledge-plane/knowledge/KnowledgeGraph.js');
+  const { KnowledgeGraph } = await import('../src/planes/knowledge-plane/knowledge/KnowledgeGraph.js');
   const g = new KnowledgeGraph();
   const a1 = g.addEntity({ type: 'agent', name: 'Coder', tags: ['code'] });
   const a2 = g.addEntity({ type: 'task', name: '实现登录', tags: ['auth'] });
@@ -565,7 +565,7 @@ console.log('\n📋 20. Knowledge Graph\n');
   eq(im.type, 'memory', '导入Memory');
   const ie = g.importFromExecution({ id: 'exec_1', goal: '实现登录', status: 'completed' });
   eq(ie.type, 'execution', '导入Execution');
-  const { KnowledgeGraphPlugin } = await import('../planes/knowledge-plane/knowledge/plugin.js');
+  const { KnowledgeGraphPlugin } = await import('../src/planes/knowledge-plane/knowledge/plugin.js');
   eq(new KnowledgeGraphPlugin().name, 'knowledge-graph-plugin', '插件名'); eq(new KnowledgeGraphPlugin().version, '0.1.0', '版本');
   ok(new KnowledgeGraphPlugin().dependencies.includes('artifact-plugin'), '依赖artifact');
   ok(new KnowledgeGraphPlugin().dependencies.includes('memory-plugin'), '依赖memory');
@@ -585,7 +585,7 @@ console.log('\n📋 21. Human-in-Loop\n');
 // ══════════════════════════════════════
 console.log('\n📋 22. Orchestrator\n');
 {
-  const { AgentOrchestrator } = await import('../planes/agent-plane/orchestrator/AgentOrchestrator.js');
+  const { AgentOrchestrator } = await import('../src/planes/agent-plane/orchestrator/AgentOrchestrator.js');
   const o = new AgentOrchestrator();
   const ceo = o.createCEO(); eq(ceo.role, 'ceo', 'CEO角色'); ok(ceo.id.startsWith('agt_'), 'ID前缀');
   const mgr = o.createManager('M1'); eq(mgr.role, 'manager', 'Manager');
@@ -600,7 +600,7 @@ console.log('\n📋 22. Orchestrator\n');
   const o5 = new AgentOrchestrator(); const w5 = o5.createWorker('W1', 'coder');
   o5.assignTask('t1', w5.id); o5.failTask('t1', '超时'); eq(w5.status, 'error', '失败→error');
   o5.releaseAgent(w5.id); eq(w5.status, 'idle', '释放→idle');
-  const { OrchestratorPlugin } = await import('../planes/agent-plane/orchestrator/plugin.js');
+  const { OrchestratorPlugin } = await import('../src/planes/agent-plane/orchestrator/plugin.js');
   eq(new OrchestratorPlugin().name, 'orchestrator-plugin', '插件名'); eq(new OrchestratorPlugin().version, '0.1.0', '版本');
 }
 
@@ -609,7 +609,7 @@ console.log('\n📋 22. Orchestrator\n');
 // ══════════════════════════════════════
 console.log('\n📋 23. Swarm\n');
 {
-  const { SwarmEngine } = await import('../planes/agent-plane/swarm/SwarmEngine.js');
+  const { SwarmEngine } = await import('../src/planes/agent-plane/swarm/SwarmEngine.js');
   const e = new SwarmEngine({ auctionTimeout: 5000 });
   const a = e.createAuction({ taskId: 't1', description: '实现登录', requiredCapabilities: ['code'], budget: 100 });
   ok(a.id.startsWith('auc_'), '拍卖ID前缀'); eq(a.status, 'open', '状态open'); eq(a.bids.length, 0, '无投标');
@@ -629,7 +629,7 @@ console.log('\n📋 23. Swarm\n');
   e4.createAuction({ taskId: 't1', description: '任务1' }); e4.createAuction({ taskId: 't2', description: '任务2' });
   eq(e4.getActiveAuctions().length, 2, '活跃拍卖'); eq(e4.getStats().total, 2, '总计');
   e4.dispose();
-  const { SwarmPlugin } = await import('../planes/agent-plane/swarm/plugin.js');
+  const { SwarmPlugin } = await import('../src/planes/agent-plane/swarm/plugin.js');
   eq(new SwarmPlugin().name, 'swarm-plugin', '插件名'); eq(new SwarmPlugin().version, '0.1.0', '版本');
 }
 
@@ -638,7 +638,7 @@ console.log('\n📋 23. Swarm\n');
 // ══════════════════════════════════════
 console.log('\n📋 24. Industry\n');
 {
-  const { IndustryRegistry } = await import('../industry/IndustryRegistry.js');
+  const { IndustryRegistry } = await import('../src/industry/IndustryRegistry.js');
   const reg = new IndustryRegistry();
   const all = reg.getAll(); ok(all.length >= 4, '默认4行业');
   const sw = reg.get('software'); ok(sw !== undefined, 'software存在'); eq(sw!.label, '软件开发', '标签'); ok(sw!.keywords.length > 0, '有关键词'); ok(sw!.suggestedTools.length > 0, '有工具');
@@ -648,7 +648,7 @@ console.log('\n📋 24. Industry\n');
   const r2 = reg.guessIndustry('制作短视频'); eq(r2.industry, 'video', '→video');
   const hints = reg.getIntentHints('software'); ok(hints.length > 0, '意图提示');
   const allHints = reg.getAllIntentHints(); ok(allHints.length > 4, '全部提示');
-  const { IndustryPlugin } = await import('../industry/plugin.js');
+  const { IndustryPlugin } = await import('../src/industry/plugin.js');
   eq(new IndustryPlugin().name, 'industry-plugin', '插件名'); eq(new IndustryPlugin().version, '0.1.0', '版本');
 }
 
