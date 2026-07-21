@@ -20,3 +20,5 @@ export type { ContextEnricher } from './ContextEnricher.js'
 
 export { ContextAssemblyEngine } from './ContextAssemblyEngine.js'
 export type { ContextAssemblyConfig } from './ContextAssemblyEngine.js'
+
+export { ContextPersistence } from './ContextPersistence.js'

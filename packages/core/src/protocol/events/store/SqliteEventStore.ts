@@ -73,6 +73,126 @@ const SCHEMA_SQL = `
     applied_at INTEGER NOT NULL DEFAULT (unixepoch()),
     description TEXT
   );
+
+  -- ═══ v9.1: Context Assembly ═══
+  CREATE TABLE IF NOT EXISTS context_snapshots (
+    context_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    mission_id TEXT NOT NULL,
+    schema_version TEXT NOT NULL DEFAULT '1.0',
+    base_data TEXT NOT NULL DEFAULT '{}',
+    session_data TEXT NOT NULL DEFAULT '{}',
+    ephemeral_data TEXT NOT NULL DEFAULT '{}',
+    fragments_json TEXT NOT NULL DEFAULT '[]',
+    change_description TEXT,
+    assembled_at INTEGER NOT NULL,
+    PRIMARY KEY (context_id, version)
+  );
+  CREATE INDEX IF NOT EXISTS idx_cs_mission ON context_snapshots(mission_id);
+
+  -- ═══ v9.1: Artifact Plane ═══
+  CREATE TABLE IF NOT EXISTS artifacts_v2 (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    type TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'draft',
+    version INTEGER NOT NULL DEFAULT 1,
+    content TEXT,
+    content_hash TEXT,
+    created_by TEXT,
+    source TEXT,
+    metadata_json TEXT DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_artifacts_v2_type ON artifacts_v2(type);
+  CREATE INDEX IF NOT EXISTS idx_artifacts_v2_status ON artifacts_v2(status);
+
+  CREATE TABLE IF NOT EXISTS artifact_versions_v2 (
+    id TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    content TEXT,
+    content_hash TEXT,
+    change_log TEXT,
+    staged_by TEXT,
+    verified_at INTEGER,
+    committed_at INTEGER,
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_av_v2_artifact ON artifact_versions_v2(artifact_id, version);
+
+  CREATE TABLE IF NOT EXISTS artifact_dependencies_v2 (
+    from_id TEXT NOT NULL,
+    to_id TEXT NOT NULL,
+    relation_type TEXT NOT NULL DEFAULT 'depends_on',
+    weight REAL DEFAULT 1.0,
+    created_at INTEGER NOT NULL,
+    PRIMARY KEY (from_id, to_id, relation_type)
+  );
+
+  CREATE TABLE IF NOT EXISTS artifact_staging_v2 (
+    stage_id TEXT PRIMARY KEY,
+    artifact_id TEXT NOT NULL,
+    new_content TEXT,
+    new_content_hash TEXT,
+    staged_by TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'staged',
+    staged_at INTEGER NOT NULL,
+    expires_at INTEGER
+  );
+
+  -- ═══ v9.1: Agent Governance ═══
+  CREATE TABLE IF NOT EXISTS agents (
+    id TEXT PRIMARY KEY,
+    name TEXT NOT NULL,
+    role TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'ACTIVE',
+    version INTEGER NOT NULL DEFAULT 1,
+    memory_scope TEXT,
+    permission_scope TEXT,
+    trust_level REAL DEFAULT 0.5,
+    max_risk_level TEXT DEFAULT 'medium',
+    require_approval_for_collab INTEGER DEFAULT 0,
+    organization_tag TEXT,
+    metadata_json TEXT DEFAULT '{}',
+    created_at INTEGER NOT NULL,
+    last_active_at INTEGER
+  );
+  CREATE INDEX IF NOT EXISTS idx_agents_role ON agents(role);
+  CREATE INDEX IF NOT EXISTS idx_agents_status ON agents(status);
+
+  CREATE TABLE IF NOT EXISTS agent_capabilities (
+    agent_id TEXT NOT NULL,
+    capability_name TEXT NOT NULL,
+    level INTEGER DEFAULT 3,
+    success_rate REAL DEFAULT 1.0,
+    cost REAL DEFAULT 0.5,
+    last_used_at INTEGER,
+    PRIMARY KEY (agent_id, capability_name)
+  );
+
+  CREATE TABLE IF NOT EXISTS agent_governance_log (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL,
+    event_type TEXT NOT NULL,
+    decision TEXT,
+    reason TEXT,
+    details_json TEXT DEFAULT '{}',
+    recorded_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_agl_agent ON agent_governance_log(agent_id);
+
+  CREATE TABLE IF NOT EXISTS agent_collaborations (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    agent_id TEXT NOT NULL,
+    collaborator_id TEXT NOT NULL,
+    outcome TEXT NOT NULL DEFAULT 'unknown',
+    mission_id TEXT,
+    duration_ms INTEGER,
+    recorded_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_ac_agent ON agent_collaborations(agent_id);
 `;
 
 const PRAGMA_SQL = `
@@ -249,6 +369,16 @@ export class SqliteEventStore implements IEventStore {
     this.db.close();
   }
 
+  /**
+   * getDatabase — 获取内部 better-sqlite3 实例
+   *
+   * 供 ContextPersistence / ArtifactSqliteRepository / AgentGovernanceRepository
+   * 等模块复用同一数据库连接。
+   */
+  getDatabase(): Database.Database {
+    return this.db;
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 内部方法
   // ═══════════════════════════════════════════════════════════════
@@ -258,10 +388,12 @@ export class SqliteEventStore implements IEventStore {
     for (const stmt of PRAGMA_SQL.split(';').filter(Boolean)) {
       try { this.db.exec(stmt + ';'); } catch { /* PRAGMA may fail in constrained envs */ }
     }
-    // Run schema DDL
+    // Run schema DDL — strip SQL comments (-- to end of line) before checking
     for (const stmt of SCHEMA_SQL.split(';').filter(Boolean)) {
-      if (stmt.trim().toUpperCase().startsWith('CREATE')) {
-        try { this.db.exec(stmt + ';'); } catch { /* table may already exist */ }
+      // Strip SQL inline comments so 'CREATE' detection works
+      const cleaned = stmt.replace(/\s*--.*$/gm, '').trim();
+      if (cleaned.toUpperCase().startsWith('CREATE') || cleaned.toUpperCase().startsWith('PRAGMA')) {
+        try { this.db.exec(stmt + ';'); } catch { /* table may already exist — skip */ }
       }
     }
 

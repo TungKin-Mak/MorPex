@@ -17,6 +17,7 @@ export { ArtifactVersionService } from './ArtifactVersionService.js'
 export type { VersionInfo, VersionTag, VersionDiff } from './ArtifactVersionService.js'
 export { ArtifactEventEmitter } from './ArtifactEventEmitter.js'
 export type { EventCallback } from './ArtifactEventEmitter.js'
+export { ArtifactSqliteRepository } from './ArtifactSqliteRepository.js'
 export { ArtifactLineageTracker } from './ArtifactLineageTracker.js'
 export type { LineageRelation, LineageEdge, LineagePath } from './ArtifactLineageTracker.js'
 export type {

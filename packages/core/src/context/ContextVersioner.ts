@@ -12,6 +12,7 @@
  */
 
 import type { ExecutionContext } from './ContextBuilder.js'
+import type { ContextPersistence } from './ContextPersistence.js'
 
 // ── ContextSnapshot — 上下文快照 ──
 
@@ -48,12 +49,22 @@ export class ContextVersioner {
   private snapshots = new Map<string, ContextSnapshot[]>()
   /** contextId → 当前版本号 */
   private currentVersions = new Map<string, number>()
+  /** ★ v9.1 Stage 1: 可选的持久化层 */
+  private persistence?: ContextPersistence
+
+  /**
+   * @param persistence - 可选的持久化层（设置后将自动持久化每个快照）
+   */
+  constructor(persistence?: ContextPersistence) {
+    this.persistence = persistence
+  }
 
   /**
    * snapshot — 创建上下文快照
    *
    * 版本号自动递增（从 1 开始）。
    * 记录父版本以支持回滚链路。
+   * 如果配置了 persistence，自动持久化到 SQLite。
    *
    * @param context - 要快照的 ExecutionContext
    * @param changeDescription - 变更说明（可选）
@@ -76,6 +87,11 @@ export class ContextVersioner {
     existing.push(snap)
     this.snapshots.set(contextId, existing)
     this.currentVersions.set(contextId, version)
+
+    // ★ v9.1 Stage 1: 自动持久化
+    if (this.persistence) {
+      this.persistence.save(context, changeDescription)
+    }
 
     return snap
   }
@@ -198,10 +214,47 @@ export class ContextVersioner {
   }
 
   /**
+   * loadFromDb — 从数据库加载指定上下文的最新版本
+   *
+   * 如果持久化层已配置且内存中无此上下文的快照，则从 SQLite 加载。
+   *
+   * @param contextId - 上下文 ID
+   * @returns 加载的 ExecutionContext 或 undefined
+   */
+  loadFromDb(contextId: string): ExecutionContext | undefined {
+    if (!this.persistence) return undefined
+    if (this.has(contextId)) return undefined // 内存中已有，无需加载
+
+    const ctx = this.persistence.loadLatest(contextId)
+    if (!ctx) return undefined
+
+    // 重建快照索引
+    const existing = this.snapshots.get(contextId) ?? []
+    const snap: ContextSnapshot = {
+      contextId: ctx.contextId,
+      version: ctx.version,
+      context: JSON.parse(JSON.stringify(ctx)),
+      timestamp: ctx.assembledAt,
+    }
+    existing.push(snap)
+    this.snapshots.set(contextId, existing)
+    this.currentVersions.set(contextId, ctx.version)
+
+    return ctx
+  }
+
+  /**
    * clear — 清空所有快照（仅用于测试）
    */
   clear(): void {
     this.snapshots.clear()
     this.currentVersions.clear()
+  }
+
+  /**
+   * getPersistence — 获取持久化层实例
+   */
+  getPersistence(): ContextPersistence | undefined {
+    return this.persistence
   }
 }

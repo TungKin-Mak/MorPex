@@ -122,7 +122,7 @@ export { ArtifactGraph, ArtifactLineage, ArtifactEvaluator, ArtifactDependencyRe
 export type { ArtifactNode, ArtifactEdge, ArtifactCapability, ArtifactDependency, ArtifactUsageRecord, ArtifactEvaluation, LineageQuery, LineagePath, ArtifactEmbedding as ArtifactEmbeddingType } from './planes/knowledge-plane/artifacts/index.js';
 
 // ── v9.1 Independent Artifact Plane ──
-export { ArtifactPlane, ArtifactManager, ArtifactRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactEventEmitter, ArtifactLineageTracker } from './planes/artifact-plane/index.js';
+export { ArtifactPlane, ArtifactManager, ArtifactRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactEventEmitter, ArtifactLineageTracker, ArtifactSqliteRepository } from './planes/artifact-plane/index.js';
 export type {
   ArtifactType as ArtifactPlaneType,
   ArtifactStatus as ArtifactPlaneStatus,
@@ -274,6 +274,7 @@ export {
   ContextVersioner,
   ContextTemplateRepository,
   ContextEnricherPipeline,
+  ContextPersistence,
 } from './context/index.js'
 export type {
   ExecutionContext as ContextAssemblyExecutionContext,

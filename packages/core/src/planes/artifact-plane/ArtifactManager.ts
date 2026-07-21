@@ -17,6 +17,7 @@ import { ArtifactValidator } from './ArtifactValidator.js'
 import { ArtifactVerifier } from './ArtifactVerifier.js'
 import { ArtifactVersionService } from './ArtifactVersionService.js'
 import { ArtifactEventEmitter } from './ArtifactEventEmitter.js'
+import type { ArtifactSqliteRepository } from './ArtifactSqliteRepository.js'
 
 // ── ArtifactManagerConfig ──
 
@@ -56,6 +57,7 @@ export class ArtifactManager {
   private verifier: ArtifactVerifier
   private versionService: ArtifactVersionService
   private eventEmitter: ArtifactEventEmitter
+  private sqliteRepo: ArtifactSqliteRepository | null
   private config: ArtifactManagerConfig
   private idCounter = 0
 
@@ -66,7 +68,9 @@ export class ArtifactManager {
     verifier?: ArtifactVerifier,
     versionService?: ArtifactVersionService,
     eventEmitter?: ArtifactEventEmitter,
-    config?: Partial<ArtifactManagerConfig>
+    config?: Partial<ArtifactManagerConfig>,
+    /** ★ v9.1 Stage 1: 可选的 SQLite 持久化层 */
+    sqliteRepo?: ArtifactSqliteRepository | null
   ) {
     this.repository = repository ?? new ArtifactRepository()
     this.stagingArea = stagingArea ?? new ArtifactStagingArea()
@@ -74,6 +78,7 @@ export class ArtifactManager {
     this.verifier = verifier ?? new ArtifactVerifier()
     this.versionService = versionService ?? new ArtifactVersionService()
     this.eventEmitter = eventEmitter ?? new ArtifactEventEmitter()
+    this.sqliteRepo = sqliteRepo ?? null
     this.config = { ...DEFAULT_MANAGER_CONFIG, ...config }
   }
 
@@ -116,6 +121,14 @@ export class ArtifactManager {
     }
 
     this.repository.save(record)
+    if (this.sqliteRepo) {
+      this.sqliteRepo.save(record)
+      this.sqliteRepo.saveVersion(
+        `ver_${id}_1`, id, 1, input.content,
+        'Initial creation', record.createdBy,
+        undefined, Date.now(),
+      )
+    }
     this.versionService.createVersion(record, 'Initial creation')
     this.eventEmitter.emitCreated(record, record.createdBy)
 
@@ -139,6 +152,9 @@ export class ArtifactManager {
     if (!record) throw new Error(`Artifact not found: ${artifactId}`)
 
     const entry = this.stagingArea.stage(record, newContent, stagedBy)
+    if (this.sqliteRepo) {
+      this.sqliteRepo.createStage(entry.stageId, artifactId, newContent, stagedBy)
+    }
     this.eventEmitter.emitStaged(record, stagedBy, entry.stageId)
 
     return entry.stageId
@@ -211,6 +227,10 @@ export class ArtifactManager {
     }
 
     this.repository.save(updatedRecord)
+    if (this.sqliteRepo) {
+      this.sqliteRepo.save(updatedRecord)
+      this.sqliteRepo.updateStageStatus(stageId, 'committed')
+    }
     this.stagingArea.markCommitted(stageId)
     this.versionService.createVersion(updatedRecord, changeLog ?? `Version ${entry.version}`)
     this.eventEmitter.emitCommitted(updatedRecord, entry.stagedBy)
@@ -288,6 +308,9 @@ export class ArtifactManager {
     record.status = 'archived'
     record.updatedAt = Date.now()
     this.repository.save(record)
+    if (this.sqliteRepo) {
+      this.sqliteRepo.save(record)
+    }
     this.eventEmitter.emitArchived(record, actor)
     return record
   }
@@ -302,6 +325,9 @@ export class ArtifactManager {
     record.status = 'deprecated'
     record.updatedAt = Date.now()
     this.repository.save(record)
+    if (this.sqliteRepo) {
+      this.sqliteRepo.save(record)
+    }
     this.eventEmitter.emitDeprecated(record, actor)
     return record
   }
