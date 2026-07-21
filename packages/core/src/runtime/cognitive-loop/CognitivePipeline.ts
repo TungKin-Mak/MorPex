@@ -26,6 +26,7 @@
 import { EventBus } from '../../common/EventBus.js';
 import type { IncomingMessage } from '../../interaction/types.js';
 import type { CognitiveContext, CognitivePhase } from './types.js';
+import type { ErrorHandlerService } from '../../common/resilience/ErrorHandlerService.js';
 
 // ═══════════════════════════════════════════════════════════════
 // CognitiveStage 接口
@@ -58,20 +59,24 @@ export interface CognitiveStage {
 export class CognitivePipeline {
   private stages: CognitiveStage[];
   private bus: EventBus;
+  private errorHandler: ErrorHandlerService | null;
 
   /**
    * @param stages - 按执行顺序排列的阶段列表
    * @param bus - EventBus 实例
+   * @param errorHandler - 可选错误处理服务 (v9.2 Phase 1)
    */
-  constructor(stages: CognitiveStage[], bus: EventBus) {
+  constructor(stages: CognitiveStage[], bus: EventBus, errorHandler?: ErrorHandlerService) {
     this.stages = stages;
     this.bus = bus;
+    this.errorHandler = errorHandler ?? null;
   }
 
   /**
    * process — 按顺序执行所有阶段
    *
    * 每个阶段接收上一个阶段的输出，执行后更新 context。
+   * 如果 errorHandler 已注入, 每个阶段通过 executeWithRecovery 执行。
    * 任何阶段抛出异常都会中止流水线，context 标记为 failed。
    *
    * @param msg - 用户消息
@@ -95,8 +100,22 @@ export class CognitivePipeline {
     for (const stage of this.stages) {
       ctx.phase = stage.name as CognitivePhase;
       try {
-        const updated = await stage.execute(ctx, this.bus);
-        // Merge updated fields back into ctx
+        const stageExecution = async () => stage.execute(ctx, this.bus);
+        let updated: CognitiveContext;
+
+        if (this.errorHandler) {
+          updated = await this.errorHandler.executeWithRecovery(stageExecution, {
+            stage: stage.name,
+            missionId: ctx.message.sessionId || 'unknown',
+            operation: `cognitive-stage:${stage.name}`,
+            compensator: async (error) => {
+              ctx.errors.push(`[${stage.name}:compensation] ${error.message}`);
+            },
+          });
+        } else {
+          updated = await stageExecution();
+        }
+
         Object.assign(ctx, updated);
       } catch (err: any) {
         ctx.errors.push(`[${stage.name}] ${err?.message || String(err)}`);

@@ -59,3 +59,7 @@ export type { BudgetConfig, BudgetStatus } from './budget/index.js';
 // ── v8.8 Compensation ──
 export { CompensationEngine } from './compensation/index.js';
 export type { CompensationStep, SagaDefinition, CompensationResult } from './compensation/index.js';
+
+// ── v9.2 Phase 1: Resilience ──
+export { RetryPolicy, CircuitBreaker, CircuitOpenError, ErrorHandlerService } from '../common/resilience/index.js';
+export type { RetryPolicyConfig, BackoffStrategy, CircuitState, CircuitBreakerConfig, ExecutionContext, ErrorRecord } from '../common/resilience/index.js';

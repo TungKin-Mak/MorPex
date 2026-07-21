@@ -611,6 +611,11 @@ export type { BudgetConfig, BudgetStatus } from './runtime/budget/index.js';
 export { CompensationEngine } from './runtime/compensation/index.js';
 export type { CompensationStep, SagaDefinition, CompensationResult } from './runtime/compensation/index.js';
 
+// ── v9.2 Phase 1: Resilience (RetryPolicy + CircuitBreaker + ErrorHandlerService) ──
+export { RetryPolicy, CircuitBreaker, CircuitOpenError, ErrorHandlerService } from './runtime/index.js';
+export type { RetryPolicyConfig, BackoffStrategy, CircuitState, CircuitBreakerConfig, ExecutionContext as ErrorHandlerContext, ErrorRecord } from './runtime/index.js';
+export type { MissionCheckpoint } from './runtime/checkpoint/index.js';
+
 // ── v8.8 Observability ──
 export { MetricsCollector } from './observability/index.js';
 export type { MetricPoint } from './observability/index.js';
