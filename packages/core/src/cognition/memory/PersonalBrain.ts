@@ -36,6 +36,7 @@ import type {
 import { LAYER_TTL } from './types.js';
 import { WorkflowMemory } from './WorkflowMemory.js';
 import { DecisionMemory } from './DecisionMemory.js';
+import type Database from 'better-sqlite3';
 
 // ═══════════════════════════════════════════════════════════════
 // PersonalBrain
@@ -54,7 +55,11 @@ export class PersonalBrain {
   /** 清理定时器 */
   private cleanupTimer: ReturnType<typeof setInterval> | null = null;
 
-  constructor() {
+  /** ★ P1: SQLite 数据库引用（可选） */
+  private db: Database.Database | null = null;
+
+  constructor(db?: Database.Database) {
+    if (db) this.db = db;
     // 初始化 5 层
     for (const layer of ['working', 'episodic', 'semantic', 'preference', 'workflow'] as MemoryLayer[]) {
       this.layers.set(layer, new Map());
@@ -67,6 +72,82 @@ export class PersonalBrain {
     this.cleanupTimer = setInterval(() => this.cleanup(), 5 * 60 * 1000);
     if (this.cleanupTimer) {
       this.cleanupTimer.unref();
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ★ P1: SQLite 持久化
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * persistEntryToDb — 将单条记忆持久化到 SQLite
+   */
+  private persistEntryToDb(layer: string, id: string, content: string, metadata?: Record<string, unknown>, tags?: string[]): void {
+    if (!this.db) return;
+    try {
+      this.db.prepare(`
+        INSERT OR REPLACE INTO memory_entries (id, mem_type, content, source, tags, importance, pool, created_at)
+        VALUES (?, 'brain_memory', ?, 'personal-brain', ?, 3, 'main', unixepoch())
+      `).run(
+        `brain:${layer}:${id}`,
+        JSON.stringify({ content, metadata, layer, id }),
+        tags?.join(',') ?? `layer:${layer}`
+      );
+    } catch (err) {
+      console.warn('[PersonalBrain] DB persist failed:', err);
+    }
+  }
+
+  /**
+   * loadFromDb — 从 SQLite 恢复记忆
+   */
+  async loadFromDb(): Promise<void> {
+    if (!this.db) return;
+    try {
+      const rows = this.db.prepare(
+        "SELECT * FROM memory_entries WHERE mem_type = 'brain_memory'"
+      ).all() as any[];
+
+      for (const row of rows) {
+        const prefix = row.id as string;
+        const parts = prefix.split(':');
+        if (parts.length < 3) continue;
+        const layer = parts[1] as MemoryLayer;
+        if (!this.layers.has(layer)) continue;
+
+        let entry: any;
+        try { entry = JSON.parse(row.content || '{}'); } catch { entry = { content: row.content }; }
+
+        const memoryEntry: MemoryEntry = {
+          id: parts.slice(2).join(':'),
+          layer: layer as any,
+          content: entry.content ?? row.content ?? '',
+          createdAt: row.created_at ? row.created_at * 1000 : Date.now(),
+          lastAccessedAt: Date.now(),
+          importance: row.importance ?? 3,
+          confidence: 0.5,
+          metadata: {},
+          accessCount: 0,
+          tags: (row.tags ?? '').split(',').filter(Boolean),
+        };
+        if (entry.metadata) memoryEntry.metadata = entry.metadata;
+
+        this.layers.get(layer)!.set(memoryEntry.id, memoryEntry);
+      }
+    } catch (err) {
+      console.warn('[PersonalBrain] loadFromDb failed:', err);
+    }
+  }
+
+  /**
+   * persistToDb — 将所有记忆全量持久化到 SQLite
+   */
+  persistToDb(): void {
+    if (!this.db) return;
+    for (const [layer, entries] of this.layers) {
+      for (const [id, entry] of entries) {
+        this.persistEntryToDb(layer, id, entry.content || '', entry.metadata as Record<string, unknown> | undefined);
+      }
     }
   }
 
@@ -118,6 +199,11 @@ export class PersonalBrain {
    */
   clearWorking(): void {
     this.layers.get('working')?.clear();
+    if (this.db) {
+      try {
+        this.db.prepare("DELETE FROM memory_entries WHERE mem_type = 'brain_memory' AND tags LIKE '%layer:working%'").run();
+      } catch {}
+    }
   }
 
   // ═══════════════════════════════════════════════════════════

@@ -23,6 +23,7 @@ import { EventType } from '../../../protocol/events/EventType.js'
 import type { MissionRuntime } from '../../mission/MissionRuntime.js'
 import type { CognitiveContext } from '../types.js'
 import type { CognitiveStage } from '../CognitivePipeline.js'
+import type { IEventStore } from '../../../protocol/events/store/IEventStore.js'
 
 export class ExecutionStage implements CognitiveStage {
   readonly name = 'execution' as const
@@ -56,6 +57,7 @@ export class ExecutionStage implements CognitiveStage {
     verificationEngine?: any,
     artifactLineage?: any,
     options?: {
+      eventStore?: IEventStore
       maxRetries?: number
       contractValidator?: any
       compensationEngine?: any
@@ -87,7 +89,11 @@ export class ExecutionStage implements CognitiveStage {
     this.collaborationManager = options?.collaborationManager ?? null
     this.agentMessageBus = options?.agentMessageBus ?? null
     this.negotiationEngine = options?.negotiationEngine ?? null
+    this.eventStore = options?.eventStore ?? null
   }
+
+  /** ★ P0: EventStore 引用 */
+  private eventStore: IEventStore | null = null
 
   async execute(ctx: CognitiveContext, bus: EventBus): Promise<CognitiveContext> {
     if (!ctx.mission) {
@@ -411,6 +417,29 @@ export class ExecutionStage implements CognitiveStage {
     // Trace: end span
     if (this.traceManager && execSpan) {
       try { this.traceManager.endSpan(execSpan.spanId, verificationScore >= PASS_THRESHOLD ? 'completed' : 'failed', { verificationScore, duration: execDuration }) } catch {}
+    }
+
+    // ★ P0: 持久化执行结果到 EventStore
+    if (this.eventStore) {
+      try {
+        this.eventStore.append({
+          id: `evt_mission_${missionId}_${Date.now()}`,
+          type: result?.state === 'COMPLETED' ? 'execution.completed' : 'execution.failed',
+          timestamp: Date.now(),
+          executionId: missionId,
+          source: 'cognitive-pipeline:execution',
+          payload: {
+            missionId,
+            state: result?.state,
+            stepsCompleted: result?.stepsCompleted,
+            duration: execDuration,
+            verificationScore,
+            errors: verificationErrors,
+          },
+        })
+      } catch (err) {
+        console.warn('[ExecutionStage] EventStore append failed:', err)
+      }
     }
 
     return {

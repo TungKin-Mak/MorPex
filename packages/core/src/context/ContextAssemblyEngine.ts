@@ -21,6 +21,7 @@ import { ContextBuilder } from './ContextBuilder.js'
 import { ContextVersioner } from './ContextVersioner.js'
 import { ContextTemplateRepository } from './ContextTemplateRepository.js'
 import { ContextEnricherPipeline } from './ContextEnricher.js'
+import type { ContextPersistence } from './ContextPersistence.js'
 
 // ── ContextAssemblyConfig — 组装配置 ──
 
@@ -63,7 +64,8 @@ export class ContextAssemblyEngine {
     versioner?: ContextVersioner,
     templates?: ContextTemplateRepository,
     enricherPipeline?: ContextEnricherPipeline,
-    config?: Partial<ContextAssemblyConfig>
+    config?: Partial<ContextAssemblyConfig>,
+    private persistence?: ContextPersistence
   ) {
     this.registry = registry ?? new ContextFragmentRegistry()
     this.builder = builder ?? new ContextBuilder()
@@ -136,6 +138,15 @@ export class ContextAssemblyEngine {
       this.versioner.snapshot(enrichedContext, `Assembly from template "${template?.templateId ?? 'none'}"`)
     }
 
+    // ★ P0: 持久化到 SQLite（如果配置了）
+    if (this.persistence) {
+      try {
+        this.persistence.save(enrichedContext)
+      } catch (err) {
+        console.warn('[ContextAssemblyEngine] Persistence save failed:', err)
+      }
+    }
+
     return enrichedContext
   }
 
@@ -148,6 +159,13 @@ export class ContextAssemblyEngine {
   getContext(contextId: string): ExecutionContext | undefined {
     const snap = this.versioner.getCurrent(contextId)
     return snap?.context
+  }
+
+  /**
+   * loadContext — 从持久化存储加载上下文
+   */
+  loadContext(contextId: string): ExecutionContext | undefined {
+    return this.persistence?.loadLatest(contextId)
   }
 
   /**

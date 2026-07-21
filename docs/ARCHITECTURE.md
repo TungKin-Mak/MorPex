@@ -1,6 +1,8 @@
-# MorPex v8.9 Architecture
+# MorPex v9.2 Architecture
 
-> Score: **100/100** | TS: **0 errors** | Tests: **96+/96+** | Modules: **68 real, 0 stubs**
+> **v9.2 Agent Organization OS** | 411源文件 | 26 SQLite表 | tsc 0 errors | 17/23测试通过
+>
+> 生产化阶段: S0(统一EventStore) ✅ S1(Context/Artifact/Agent持久化) ✅ S2(v9.2六大域持久化) ✅ S3(Config v9+Zod) ✅
 
 ---
 
@@ -526,3 +528,53 @@ Missing:
 - `WorkflowSimulator` — new class, called by EvolutionStage
 - `CognitiveStage` — new interface, CognitiveLoop now implements it internally
 - Twin `versionHistory`, `getVersion()`, `diffVersions()` — additive methods
+
+---
+
+## v9.2 架构补充
+
+### 持久化层 (26 张表, 单 SQLite 库, WAL 模式)
+
+```
+SqliteEventStore (data/morpex-events.db, WAL journal mode)
+├── Stage 0: events / events_decision / schema_migrations
+├── Stage 1: context_snapshots / artifacts_v2(×4) / agents(×4)
+└── Stage 2: shared_experiences / org_policies(×5) / marketplace(×3)
+              agent_instances(×2) / agent_teams / shared_memory_entries
+```
+
+| 域 | 表 | 用途 |
+|----|-----|------|
+| 事件溯源 | `events`, `events_decision` | BaseEvent + DecisionEvent 持久化 |
+| 上下文 | `context_snapshots` | ExecutionContext 版本化快照 |
+| 产物 | `artifacts_v2`, `artifact_versions_v2`, `artifact_staging_v2` | 两阶段提交产物管理 |
+| Agent | `agents`, `agent_capabilities`, `agent_governance_log`, `agent_collaborations` | 身份/能力/治理/协作 |
+| 学习 | `shared_experiences` | 跨 Agent 经验共享 |
+| 治理 | `org_policies`, `team_governance`, `team_memberships`, `org_budget`, `budget_allocations` | 组织级策略/团队/预算 |
+| 市场 | `marketplace_listings`, `marketplace_bids`, `marketplace_contracts` | Agent 市场竞价/合约 |
+| 分布式 | `agent_instances`, `remote_messages` | 跨节点 Agent 运行时 |
+| 团队 | `agent_teams` | 自动组队 |
+| 共识 | `shared_memory_entries` | 共享内存一致性 |
+
+### Config v9 (Zod Schema)
+
+```typescript
+MorPexConfigSchema = z.object({
+  persistence: { dbPath, walMode, maxInMemoryEvents, ... },
+  agent:       { maxConcurrentTasks, trustDecayRate, autoOptimizeInterval, ... },
+  context:     { maxFragments, fragmentTimeoutMs, schemaVersion, ... },
+  artifact:    { enableAutoVerify, maxContentSizeBytes, stagingTTLMs, ... },
+  distributed: { enabled, transportMode, heartbeatIntervalMs, ... },
+  marketplace: { enabled, bidTimeoutMs, trustThreshold, ... },
+  // Legacy fields preserved
+});
+```
+
+### 关键架构决策 (v9.2)
+
+1. **统一 EventStore**: 废弃两套 JSONL，单 SQLite 库 (WAL, 事务批写, 时序索引)
+2. **仓储可选双写**: SQLite 仓储可插拔注入，不破坏现有内存行为
+3. **Config Zod 校验**: 环境变量 + 默认值 + Zod schema 三层回退
+4. **迁移版本化**: `schema_migrations` 表 + `MigrationRunner` CLI (`scripts/migrate.ts`)
+5. **所有 Agent 操作经 Control Plane**: PolicyEngine/RiskAnalyzer/PermissionModel/AuditTrail 覆盖 Agent 维度
+6. **生产部署**: docker-compose (morpex + embedding) + PM2 进程管理
