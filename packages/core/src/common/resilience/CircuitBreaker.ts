@@ -51,11 +51,15 @@ export class CircuitBreaker {
 
   private config: CircuitBreakerConfig;
 
+  private eventBus?: { emit: (type: string, payload: any) => void }
+
   constructor(
     public readonly name: string,
-    config?: Partial<CircuitBreakerConfig>
+    config?: Partial<CircuitBreakerConfig>,
+    eventBus?: { emit: (type: string, payload: any) => void }
   ) {
     this.config = { ...DEFAULT_CONFIG, ...config };
+    this.eventBus = eventBus;
   }
 
   /**
@@ -96,8 +100,10 @@ export class CircuitBreaker {
       this.successCount++;
       this.halfOpenPending = Math.max(0, this.halfOpenPending - 1);
       if (this.successCount >= this.config.successThreshold) {
+        const prevState = this.state;
         this.state = 'CLOSED';
         this.successCount = 0;
+        this.eventBus?.emit('circuit.closed', { name: this.name, successCount: this.successCount, timestamp: Date.now() });
       }
     } else {
       this.state = 'CLOSED';
@@ -111,14 +117,18 @@ export class CircuitBreaker {
     this.successCount = 0;
 
     if (this.state === 'HALF_OPEN') {
+      const prevState = this.state;
       this.state = 'OPEN';
       this.halfOpenPending = Math.max(0, this.halfOpenPending - 1);
+      this.eventBus?.emit('circuit.open', { name: this.name, failureCount: this.failureCount, timestamp: Date.now() });
       return;
     }
 
     this.failureCount++;
     if (this.failureCount >= this.config.failureThreshold) {
+      const prevState = this.state;
       this.state = 'OPEN';
+      this.eventBus?.emit('circuit.open', { name: this.name, failureCount: this.failureCount, timestamp: Date.now() });
     }
   }
 
@@ -154,6 +164,7 @@ export class CircuitBreaker {
     if (this.state === 'OPEN' && Date.now() - this.lastFailureTime >= this.config.openTimeoutMs) {
       this.state = 'HALF_OPEN';
       this.successCount = 0;
+      this.eventBus?.emit('circuit.half_open', { name: this.name, timestamp: Date.now() });
     }
   }
 }

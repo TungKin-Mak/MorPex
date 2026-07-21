@@ -9,3 +9,9 @@ export type { WorkflowMetricsSnapshot } from './WorkflowMetrics.js'
 
 export { CompactionService } from './CompactionService.js'
 export type { CompactionConfig, CompactionResult } from './CompactionService.js'
+
+export { PrometheusExporter } from './PrometheusExporter.js'
+export type { PrometheusMetrics } from './PrometheusExporter.js'
+
+export { HealthCheckService } from './HealthCheckService.js'
+export type { HealthStatus, HealthCheck } from './HealthCheckService.js'
