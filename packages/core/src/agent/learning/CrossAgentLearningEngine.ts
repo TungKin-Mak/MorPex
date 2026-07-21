@@ -38,18 +38,28 @@ export class CrossAgentLearningEngine {
     outcome: any,
     sourceAgentType: string
   ): GeneralizedExperience[] {
+    console.log(`🔄 [CrossAgentLearningEngine] learnFromOutcome — Mission: ${missionId}, Agent: ${sourceAgentType}`)
+
     let rawExperiences: GeneralizedExperience[] = []
 
     // 1. 根据 outcome 类型选择提炼策略
     if (outcome.reasoning && outcome.decision) {
+      console.log(`   → 路由到 distillFromDecision`)
       rawExperiences = this.distiller.distillFromDecision(outcome)
     } else if (outcome.success !== undefined) {
+      console.log(`   → 路由到 distillFromMission (success=${outcome.success})`)
       rawExperiences = this.distiller.distillFromMission(outcome, 0)
     } else if (outcome.completedTasks || outcome.failedTasks) {
+      console.log(`   → 路由到 distillFromCollaboration`)
       rawExperiences = this.distiller.distillFromCollaboration(outcome)
     }
 
-    if (rawExperiences.length === 0) return []
+    if (rawExperiences.length === 0) {
+      console.log(`   ⚠️  没有产生经验 (outcome 不匹配任何提炼策略)`)
+      return []
+    }
+
+    console.log(`   📝 原始提炼: ${rawExperiences.length} 条`)
 
     // 2. 合并重复经验
     const merged = this.distiller.mergeDuplicate(rawExperiences)
@@ -63,10 +73,15 @@ export class CrossAgentLearningEngine {
     }))
 
     // 4. 存储并传播
+    let storedCount = 0
     for (const exp of experiences) {
       this.repository.store(exp)
       this.propagator.propagateToAll(exp)
+      storedCount++
     }
+
+    console.log(`   💾 存储完成: ${storedCount} 条 | 传播: 已广播到所有 Agent 类型`)
+    console.log(`✅ [CrossAgentLearningEngine] 完成 — 最终经验: ${experiences.length} 条`)
 
     return experiences
   }

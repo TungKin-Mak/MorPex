@@ -16,7 +16,10 @@ export class KnowledgeDistiller {
    * 将 decisionEvent 中的 reasoning + decision 映射为 problem→solution 模式。
    */
   distillFromDecision(decisionEvent: any): GeneralizedExperience[] {
-    if (!decisionEvent || !decisionEvent.reasoning || !decisionEvent.decision) return []
+    if (!decisionEvent || !decisionEvent.reasoning || !decisionEvent.decision) {
+      console.log(`   [KnowledgeDistiller] distillFromDecision: 跳过 (无 reasoning/decision)`)
+      return []
+    }
 
     const experiences: GeneralizedExperience[] = []
 
@@ -44,6 +47,7 @@ export class KnowledgeDistiller {
     }
 
     experiences.push(exp)
+    console.log(`   [KnowledgeDistiller] distillFromDecision → 1 条经验 (category: ${exp.category}, confidence: ${exp.effectiveness.successRate})`)
     return experiences
   }
 
@@ -124,6 +128,15 @@ export class KnowledgeDistiller {
    * 将具有相似 problemPattern 的经验合并，平均 effectiveness，合并 sourceMissionIds。
    */
   mergeDuplicate(experiences: GeneralizedExperience[]): GeneralizedExperience[] {
+    const inputCount = experiences.length
+    const merged = this.doMerge(experiences)
+    if (inputCount > merged.length) {
+      console.log(`   [KnowledgeDistiller] mergeDuplicate: ${inputCount} → ${merged.length} (合并了 ${inputCount - merged.length} 条相似经验)`)
+    }
+    return merged
+  }
+
+  private doMerge(experiences: GeneralizedExperience[]): GeneralizedExperience[] {
     const merged: GeneralizedExperience[] = []
     const used = new Set<number>()
 

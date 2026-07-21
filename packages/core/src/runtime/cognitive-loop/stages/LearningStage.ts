@@ -154,12 +154,17 @@ export class LearningStage implements CognitiveStage {
   }
 
   async execute(ctx: CognitiveContext, bus: EventBus): Promise<CognitiveContext> {
+    const missionId = ctx.mission?.id || ctx.message?.sessionId || 'unknown'
+    console.log(`🔄 [LearningStage] 开始执行 — Mission: ${missionId}`)
+
     if (!ctx.mission || !ctx.result) {
+      console.log(`   ⏭️  跳过: 无 Mission 或 Result`)
       return { ...ctx, phase: 'learning' }
     }
 
     // ── Step 1: 收集原始观察 ──
     const outcome = ctx.result.state === 'COMPLETED' ? 'success' : 'failure'
+    console.log(`   📋 Mission 结果: ${outcome} | 步骤: ${ctx.result.stepsCompleted || 0}/${ctx.result.stepsTotal || 0}`)
 
     // 从执行结果生成源事件 ID
     const sourceEvent = `mission_${ctx.mission.id}_${outcome}`
@@ -215,12 +220,21 @@ export class LearningStage implements CognitiveStage {
     }
 
     // ── Step 2: Evidence Aggregation — 聚合证据，生成 TwinCandidate ──
+    let candidateCount = 0
     if (this.behaviorTwin) {
       try {
         const currentProfile = this.behaviorTwin.buildProfile() as unknown as Record<string, unknown>
         const newCandidates = this.evidenceAggregator.aggregate(currentProfile)
+        candidateCount = newCandidates.length
+
+        if (candidateCount > 0) {
+          console.log(`   🧬 EvidenceAggregator 生成 ${candidateCount} 个 TwinCandidate:`)
+        } else {
+          console.log(`   📊 EvidenceAggregator: 证据不足，无候选 (snapshot: ${JSON.stringify(this.evidenceAggregator.getSnapshot())})`)
+        }
 
         for (const candidate of newCandidates) {
+          console.log(`      → ${candidate.field}: "${candidate.oldValue}" → "${candidate.newValue}" (置信度: ${(candidate.confidence * 100).toFixed(0)}%, 证据: ${candidate.evidenceCount}条)`)
           // 不重复添加同一字段的候选
           const existing = this.pendingCandidates.find(
             c => c.field === candidate.field && c.status === 'pending',
@@ -264,6 +278,8 @@ export class LearningStage implements CognitiveStage {
         stepsTotal: ctx.result.stepsTotal,
       },
     })
+
+    console.log(`✅ [LearningStage] 完成 — candidates: ${this.pendingCandidates.filter(c => c.status === 'pending').length} pending, ${this.evidenceAggregator.getSnapshot().length} fields observed`)
 
     return {
       ...ctx,
