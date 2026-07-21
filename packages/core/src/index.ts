@@ -671,6 +671,10 @@ export type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamSt
 export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService, SharedMemorySqliteRepository as AgentSharedMemorySqliteRepo } from './agent/index.js'
 export type { SharedMemoryConfig, MemoryConsistencyLevel, MemoryScope, ConsensusProposal, MemoryLock, ConflictResolutionStrategy, ConflictRecord, MemorySnapshot } from './agent/index.js'
 
+// ── v9 Config Schema (Zod)
+export { MorPexConfigSchema } from '../config/MorPexConfig.js';
+export type { MorPexConfig, ConfigChangeListener } from '../config/MorPexConfig.js';
+
 // ── 唯一入口（v2.4 门面模式） — 对外只暴露 bootstrapMorPexCore
 export { bootstrapMorPexCore } from '../bootstrap.js';
 export type { BootstrapConfig } from '../bootstrap.js';
