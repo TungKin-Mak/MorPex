@@ -18,7 +18,7 @@ export function createAskUserTool(handler: AskUserHandler, harnessId: string): A
       `用户可从按钮选择，也可在输入框自由输入。`,
     parameters: Type.Object({
       question: Type.String({ description: '问题' }),
-      options: Type.Array(Type.String(), { description: '必须提供的选项，如 ["企业官网","个人博客","电商平台"]' }),
+      options: Type.Array(Type.String({ description: '必须提供的选项' })),
     }),
     execute: async (_toolCallId: string, params: unknown) => {
       const { question, options } = params as { question: string; options: string[] };

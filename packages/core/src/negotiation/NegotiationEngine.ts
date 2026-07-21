@@ -258,7 +258,7 @@ export class NegotiationEngine {
     let suggestions: string[];
     try {
       suggestions = await this.generateSuggestions(ticket, positionA, positionB);
-    } catch (err: any) {
+    } catch (err) {
       console.warn('[NegotiationEngine] LLM 仲裁建议生成失败:', err.message);
       suggestions = ['建议双方重新评估各自立场，寻找折中方案。'];
     }

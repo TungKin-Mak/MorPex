@@ -46,7 +46,7 @@ export class ArtifactWriter {
 
       fs.writeFileSync(path.join(artifactDir, fileName), content, 'utf-8');
       console.log(`[Artifact] ✅ 已写入: ${path.join(artifactDir, fileName)} (${content.length} 字节)`);
-    } catch (err: any) {
+    } catch (err) {
       console.error(`[Artifact] 写入失败: ${err.message}`);
     }
   }

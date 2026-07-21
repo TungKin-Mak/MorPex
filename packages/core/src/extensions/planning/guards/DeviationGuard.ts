@@ -101,8 +101,9 @@ export class DeviationGuard {
     this.deviationHistory.set(record.eventId, record);
 
     // 写入 JSONL 追踪
-    this.appendTraceToFile(record).catch((err: any) => {
-      console.error(`[DeviationGuard] 写入 JSONL 追踪失败: ${err.message}`);
+    this.appendTraceToFile(record).catch((err: unknown) => {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[DeviationGuard] 写入 JSONL 追踪失败: ${msg}`);
     });
 
     // ★ MemoryWiki 持久化
@@ -197,7 +198,7 @@ export class DeviationGuard {
   async appendLog(entry: MemoryBusLogEntry): Promise<void> {
     try {
       this.logWriter!.append(entry);
-    } catch (err: any) {
+    } catch (err) {
       console.error(`[DeviationGuard] appendLog 失败: ${err}`);
       // 不抛出异常，日志写入失败不应影响主流程
     }

@@ -1,0 +1,63 @@
+{
+  "timestamp": "2026-07-20T19:40:43.875Z",
+  "summary": {
+    "totalProductionFiles": 91,
+    "totalLayers": 7
+  },
+  "layers": {
+    "interaction": {
+      "productionFiles": 9,
+      "testFiles": 0,
+      "moduleCount": 3
+    },
+    "protocol": {
+      "productionFiles": 8,
+      "testFiles": 0,
+      "moduleCount": 3
+    },
+    "runtime": {
+      "productionFiles": 31,
+      "testFiles": 0,
+      "moduleCount": 9
+    },
+    "cognition": {
+      "productionFiles": 23,
+      "testFiles": 0,
+      "moduleCount": 6
+    },
+    "evolution": {
+      "productionFiles": 7,
+      "testFiles": 0,
+      "moduleCount": 2
+    },
+    "control": {
+      "productionFiles": 6,
+      "testFiles": 0,
+      "moduleCount": 1
+    },
+    "common": {
+      "productionFiles": 7,
+      "testFiles": 0,
+      "moduleCount": 1
+    }
+  },
+  "boundaries": {
+    "violations": [],
+    "score": 100
+  },
+  "eventCoverage": {
+    "totalEventTypes": 41,
+    "emittedCount": 32,
+    "coverageScore": 64
+  },
+  "testCoverage": {
+    "totalModules": 44,
+    "tested": 6,
+    "untested": 38,
+    "score": 68
+  },
+  "architectureScore": 86,
+  "recommendations": [
+    "Add unit tests for untested modules (P0: CognitiveLoop done, next: MissionRuntime, EventStore)"
+  ]
+}

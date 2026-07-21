@@ -4,15 +4,31 @@
  * 这是整个 MorPexCore 的类型基础。
  * Event Schema 最先冻结，之后所有 planes/ 插件的开发都基于它展开。
  *
+ * ═══ MorPex v8 Phase 1 ═══
+ * 事件协议已标准化为 protocol/events/ 模块。
+ * 新代码应优先使用以下协议类型：
+ *   import { EventType } from '../protocol/events/EventType.js';
+ *   import type { BaseEvent } from '../protocol/events/BaseEvent.js';
+ * 本文件保持向后兼容，将在后续版本逐步迁移。
+ * ═══════════════════════════
+ *
  * 设计约束：
  *   - 所有事件必须携带 executionId
  *   - 事件类型命名空间：{domain}.{action}
  *   - Mirror 是 observer，不是 controller
  */
 
+// MorPex v8 事件协议见 ../protocol/events/ （不破坏现有引用）
+
 // ── MorPexEvent — 标准化事件（最先冻结） ──
 
-/** 标准化事件结构 */
+/**
+ * 标准化事件结构
+ *
+ * @deprecated MorPex v8 起推荐使用 protocol/events/BaseEvent.ts 中的 BaseEvent 接口。
+ * BaseEvent 提供相同的结构，但 type 字段支持 EventType 枚举约束。
+ * 本接口保持向后兼容，将在后续版本逐步迁移。
+ */
 export interface MorPexEvent {
   id: string;            // evt_{YYYYMMDD}_{shortUUID}
   type: string;          // {domain}.{action} 如 runtime.tool.called
@@ -21,6 +37,10 @@ export interface MorPexEvent {
   source: string;        // 事件来源（pi, gateway, kernel, ...）
   payload: any;          // 事件数据
 }
+
+// 新代码请直接使用 protocol/events/ 中的类型:
+//   import type { BaseEvent } from '../protocol/events/BaseEvent.js';
+//   import { EventType } from '../protocol/events/EventType.js';
 
 // ── ExecutionIdentity — 全链路身份 ──
 

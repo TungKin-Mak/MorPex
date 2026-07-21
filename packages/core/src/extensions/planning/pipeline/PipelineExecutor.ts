@@ -24,7 +24,6 @@
  *   - knowledgeGraph (KG entity search for Stage 1)
  *   - vectorStore (semantic search for Stage 2)
  *   - artifactRegistry (resource token reservation for Stage 7)
- *   - memoryBus (decision trace persistence)
  *
  * DESIGN CONSTRAINTS:
  *   - Single Responsibility: only pipeline execution, no extension lifecycle, no event bridging
@@ -209,15 +208,15 @@ export interface PipelineExecutorConfig {
 export interface PipelineDeps {
   pipelineLogger: PipelineLogger;
   /** LLM provider for Stage 3 candidate generation */
-  modelRegistry: any;
+  modelRegistry: ModelRegistry;
   /** DES config (merged with defaults) */
   desConfig: typeof DEFAULT_DES_CONFIG;
   /** Plan experience store */
   store: PlanExperienceStore;
   /** Knowledge graph for Stage 1 intent analysis */
-  knowledgeGraph: any;
+  knowledgeGraph: KnowledgeGraphService;
   /** Vector store for Stage 2 experience retrieval */
-  vectorStore: any;
+  vectorStore: VectorStoreService;
   /** Topology explorer (DAG ordering optimization) */
   topologyExplorer: TopologyExplorer | null;
   /** Plan analyzer for MCDA topology comparison */
@@ -227,9 +226,7 @@ export interface PipelineDeps {
   /** Base path for trace logs */
   traceLogPath: string;
   /** Artifact registry for resource token reservation */
-  artifactRegistry: any;
-  /** MemoryBus for decision trace persistence */
-  memoryBus: any;
+  artifactRegistry: ArtifactRegistryService;
   /** ★ v2.6 Optional: HierarchicalPlanningEngine components for statistical candidate generation (replaces LLM S3) */
   hierarchicalPlanner?: { candidateGenerator: HierarchicalCandidateGenerator; simulator: StatisticalPlanSimulator; evaluator: WeightedPlanEvaluator } | null;
   /** ★ Phase 4: MemoryWiki for SQLite-first reads */
@@ -237,6 +234,19 @@ export interface PipelineDeps {
   /** ★ Agent 记忆优先检索 */
   memoryRetriever?: MemoryRetriever | null;
 }
+
+// ── External service types (opaque: external lib APIs, unpinned types) ──
+// These services are injected at runtime from pi-ai/pi-agent-core.
+// The `unknown` base prevents unsound access while eslint-disable allows
+// the dynamic property access that the external API requires.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ModelRegistry = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type KnowledgeGraphService = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type VectorStoreService = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ArtifactRegistryService = any;
 
 export interface PipelineInput {
   userInput: string;
@@ -254,18 +264,17 @@ export interface PipelineInput {
 export class PipelineExecutor {
   // ── Dependencies (assigned in constructor) ──
   private pipelineLogger: PipelineLogger;
-  private modelRegistry: any;
+  private modelRegistry: ModelRegistry;
   private desConfig: typeof DEFAULT_DES_CONFIG;
   private store: PlanExperienceStore;
-  private knowledgeGraph: any;
-  private vectorStore: any;
+  private knowledgeGraph: KnowledgeGraphService;
+  private vectorStore: VectorStoreService;
   private topologyExplorer: TopologyExplorer | null;
   private hierarchicalPlanner: { candidateGenerator: HierarchicalCandidateGenerator; simulator: StatisticalPlanSimulator; evaluator: WeightedPlanEvaluator } | null;
   private analyzer: PlanAnalyzer;
   private deviationGuard: DeviationGuard;
   private traceLogPath: string;
-  private artifactRegistry: any;
-  private memoryBus: any;
+  private artifactRegistry: ArtifactRegistryService;
   /** ★ MemoryWiki 实例（SQLite 优先读取） */
   private wiki: MemoryWiki | null = null;
   /** ★ Agent 记忆优先检索 */
@@ -289,7 +298,6 @@ export class PipelineExecutor {
     this.deviationGuard = deps.deviationGuard;
     this.traceLogPath = deps.traceLogPath;
     this.artifactRegistry = deps.artifactRegistry;
-    this.memoryBus = deps.memoryBus;
     this.wiki = deps.wiki ?? null;
     this.memoryRetriever = deps.memoryRetriever ?? null;
     // 初始化 JSONLWriter（微批处理）
@@ -354,7 +362,7 @@ export class PipelineExecutor {
           aborted = true;
           abortReason = intentResult.abortReason ?? `Intent confidence ${intentResult.confidenceScore.toFixed(3)} below threshold ${PIPELINE_ABORT_THRESHOLDS.intentConfidenceMin}`;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         const sResult: PipelineStageResult = {
           stage: 1, status: 'failed', durationMs: Date.now() - sStart,
           output: {
@@ -365,15 +373,15 @@ export class PipelineExecutor {
             explicitConstraints: {},
             implicitConstraints: [],
             confidenceScore: 0.2,
-            abortReason: err.message,
+            abortReason: (err as Error).message,
             analyzedAt: Date.now(),
           } as IntentAnalysisResult,
-          error: err.message,
+          error: (err as Error).message,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
         aborted = true;
-        abortReason = err.message;
+        abortReason = (err as Error).message;
       }
     }
 
@@ -389,7 +397,7 @@ export class PipelineExecutor {
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
-      } catch (err: any) {
+      } catch (err: unknown) {
         experienceResult = {
           positiveSamples: [],
           negativeSamples: [],
@@ -400,7 +408,7 @@ export class PipelineExecutor {
         const sResult: PipelineStageResult = {
           stage: 2, status: 'failed', durationMs: Date.now() - sStart,
           output: experienceResult,
-          error: err.message,
+          error: (err as Error).message,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
@@ -429,13 +437,13 @@ export class PipelineExecutor {
           aborted = true;
           abortReason = `Candidate generation validation failed: ${(candidatesOutput.validationErrors ?? ['unknown']).join('; ')}`;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Fallback: generate a minimal defensive template
         candidatesOutput = await this.generateFallbackCandidates(userInput, tags, executionId);
         const sResult: PipelineStageResult = {
           stage: 3, status: 'completed', durationMs: Date.now() - sStart,
           output: candidatesOutput,
-          error: `LLM generation failed, using fallback: ${err.message}`,
+          error: `LLM generation failed, using fallback: ${(err as Error).message}`,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
@@ -463,16 +471,16 @@ export class PipelineExecutor {
           aborted = true;
           abortReason = `No profile meets minimum survival threshold (${PIPELINE_ABORT_THRESHOLDS.simulationSurvivalMin})`;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         const sResult: PipelineStageResult = {
           stage: 4, status: 'failed', durationMs: Date.now() - sStart,
           output: [] as IShadowSimulationReport[],
-          error: err.message,
+          error: (err as Error).message,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
         aborted = true;
-        abortReason = err.message;
+        abortReason = (err as Error).message;
       }
     } else {
       stages.push(skippedStage(4));
@@ -503,7 +511,7 @@ export class PipelineExecutor {
           aborted = true;
           abortReason = `Winner score ${scorecard.winnerScore.toFixed(3)} below threshold ${PIPELINE_ABORT_THRESHOLDS.winnerScoreMin}`;
         }
-      } catch (err: any) {
+      } catch (err: unknown) {
         const sResult: PipelineStageResult = {
           stage: 5, status: 'failed', durationMs: Date.now() - sStart,
           output: {
@@ -519,12 +527,12 @@ export class PipelineExecutor {
             winnerScore: 0,
             scoreBreakdown: [],
           } as IEvaluationScorecard,
-          error: err.message,
+          error: (err as Error).message,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
         aborted = true;
-        abortReason = err.message;
+        abortReason = (err as Error).message;
       }
     } else {
       stages.push(skippedStage(5));
@@ -548,7 +556,7 @@ export class PipelineExecutor {
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
-      } catch (err: any) {
+      } catch (err: unknown) {
         const sResult: PipelineStageResult = {
           stage: 6, status: 'failed', durationMs: Date.now() - sStart,
           output: {
@@ -562,7 +570,7 @@ export class PipelineExecutor {
             riskAppetite: 'balanced',
             writtenToDisk: false,
           } as DecisionTrace,
-          error: err.message,
+          error: (err as Error).message,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
@@ -590,13 +598,13 @@ export class PipelineExecutor {
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
-      } catch (err: any) {
+      } catch (err: unknown) {
         // Last resort: pick defensive profile
         activationResult = this.buildFallbackActivation(candidatesOutput!, decisionTrace, executionId);
         const sResult: PipelineStageResult = {
           stage: 7, status: 'completed', durationMs: Date.now() - sStart,
           output: activationResult,
-          error: `Selection failed, using fallback: ${err.message}`,
+          error: `Selection failed, using fallback: ${(err as Error).message}`,
         };
         stages.push(sResult);
         this.pipelineLogger.logStage(sResult);
@@ -963,8 +971,8 @@ export class PipelineExecutor {
           this.memoryContext = retrieval.context;
           console.log(`[MemoryRetriever] ✅ ${retrieval.source}: ${retrieval.snippets.length} snippets`);
         }
-      } catch (err: any) {
-        console.warn(`[MemoryRetriever] ⚠️ ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`[MemoryRetriever] ⚠️ ${(err as Error).message}`);
       }
     }
 
@@ -982,7 +990,7 @@ export class PipelineExecutor {
                 pos.push({
                   executionId: record.executionId,
                   templateId: record.inputTags?.join('_') ?? 'unknown',
-                  dagNodes: dagNodes.map((n: any) => ({
+                  dagNodes: dagNodes.map((n: Record<string, unknown>) => ({
                     role: n.role,
                     domain: n.domain,
                     dependsOn: [] as string[],
@@ -994,7 +1002,7 @@ export class PipelineExecutor {
                 neg.push({
                   executionId: record.executionId,
                   templateId: record.inputTags?.join('_') ?? 'unknown',
-                  dagNodes: dagNodes.map((n: any) => ({
+                  dagNodes: dagNodes.map((n: Record<string, unknown>) => ({
                     role: n.role,
                     domain: n.domain,
                     dependsOn: [] as string[],
@@ -1116,8 +1124,8 @@ export class PipelineExecutor {
             fallbackTemplateUsed: false,
           };
         }
-      } catch (hErr: any) {
-        console.warn(`[PipelineExecutor] HierarchicalPlanningEngine failed: ${hErr.message}`);
+      } catch (hErr: unknown) {
+        console.warn(`[PipelineExecutor] HierarchicalPlanningEngine failed: ${hErr instanceof Error ? hErr.message : String(hErr)}`);
       }
       // 统计引擎无结果 → 继续走 LLM
     }
@@ -1167,16 +1175,16 @@ export class PipelineExecutor {
     }
 
     if (positiveExamples.length > 0) {
-      prompt += `## Historical Success Patterns\n${JSON.stringify(positiveExamples.map(e => ({
-        dagNodes: (e as any).dagNodes.map((n: any) => ({ role: n.role, domain: n.domain })),
-        durationMs: (e as any).totalDurationMs ?? 0,
+      prompt += `## Historical Success Patterns\n${JSON.stringify(positiveExamples.map((e: unknown) => ({
+        dagNodes: ((e as unknown as Record<string, unknown>).dagNodes as Array<Record<string, unknown>>).map((n: Record<string, unknown>) => ({ role: n.role as string, domain: n.domain as string })),
+        durationMs: ((e as unknown as Record<string, unknown>).totalDurationMs ?? 0) as number,
       })), null, 2)}\n\n`;
     }
 
     if (negativeExamples.length > 0) {
-      prompt += `## Historical Failure Patterns\n${JSON.stringify(negativeExamples.map(e => ({
-        dagNodes: (e as any).dagNodes.map((n: any) => ({ role: n.role, domain: n.domain })),
-        errorCategory: (e as any).errorCategory ?? 'unknown',
+      prompt += `## Historical Failure Patterns\n${JSON.stringify(negativeExamples.map((e: unknown) => ({
+        dagNodes: ((e as Record<string, unknown>).dagNodes as Array<Record<string, unknown>>).map((n: Record<string, unknown>) => ({ role: n.role as string, domain: n.domain as string })),
+        errorCategory: ((e as unknown as Record<string, unknown>).errorCategory ?? 'unknown') as string,
       })), null, 2)}\n\n`;
     }
 
@@ -1238,7 +1246,7 @@ export class PipelineExecutor {
     const jsonMatch = content.match(/\{[\s\S]*\}/);
     if (jsonMatch) jsonStr = jsonMatch[0];
 
-    let parsed: any;
+    let parsed: Record<string, any>;
     try {
       parsed = JSON.parse(jsonStr);
     } catch {
@@ -1322,7 +1330,7 @@ export class PipelineExecutor {
         profileId,
         strategy: raw.strategy ?? 'defensive',
         dag: {
-          nodes: raw.dag.nodes.map((n: any, idx: number) => ({
+          nodes: raw.dag.nodes.map((n: Record<string, unknown>, idx: number) => ({
             taskId: n.taskId,
             type: n.type ?? 'action',
             domain: n.domain ?? 'general',
@@ -1333,7 +1341,7 @@ export class PipelineExecutor {
             agentConstraint: n.agentConstraint,
           })),
           isMultiDomain: raw.dag.isMultiDomain ?? (raw.dag.involvedDomains?.length > 1),
-          involvedDomains: raw.dag.involvedDomains ?? [...new Set(raw.dag.nodes.map((n: any) => n.domain ?? 'general'))],
+          involvedDomains: raw.dag.involvedDomains ?? [...new Set(raw.dag.nodes.map((n: Record<string, unknown>) => n.domain ?? 'general'))],
           domainDependencies: raw.dag.domainDependencies ?? [],
           globalIntent: raw.dag.globalIntent ?? userInput.slice(0, 200),
           reasoning: raw.dag.reasoning ?? raw.rationale ?? '',
@@ -1380,13 +1388,16 @@ export class PipelineExecutor {
     const baseDomain = tags.find(t => ['ai_ml', 'web_dev', 'mobile', 'data_engineering', 'devops', 'hardware', 'security', 'testing', 'startup'].includes(t)) ?? 'general';
 
     // Build three candidate profiles using the fallback node factory
-    const makeNode = (taskId: string, description: string, deps: string[] = [], requires: string[] = []): any => ({
+    type FallbackNode = { taskId: string; type: string; domain: string; description: string; deps: string[]; requires: string[] };
+
+    const makeNode = (taskId: string, description: string, deps: string[] = [], requires: string[] = []): FallbackNode => ({
       taskId, type: 'action', domain: baseDomain, description, deps, requires,
     });
 
-    const makePlan = (profileId: string, strategy: 'aggressive' | 'defensive' | 'fallback', nodes: any[], reasoning: string, latencyMs: number, source: string): CandidatePlanProfile => ({
+    const makePlan = (profileId: string, strategy: 'aggressive' | 'defensive' | 'fallback', nodes: FallbackNode[], reasoning: string, latencyMs: number, source: string): CandidatePlanProfile => ({
       profileId, strategy,
-      dag: { nodes: nodes as any, isMultiDomain: false, involvedDomains: [baseDomain], domainDependencies: [], globalIntent: userInput.slice(0, 200), reasoning } as any,
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      dag: { nodes, isMultiDomain: false, involvedDomains: [baseDomain], domainDependencies: [], globalIntent: userInput.slice(0, 200), reasoning } as any,
       rationale: reasoning,
       estimatedLatencyMs: latencyMs,
       riskProfile: { nodeCount: nodes.length, criticalPathLength: nodes.length, externalDependencies: 0, securityCheckpoints: 0, visionAlignmentNodes: 0, fridaHooksCount: 0 },
@@ -1454,8 +1465,8 @@ export class PipelineExecutor {
             candidate.dag = report.selectedDAG;
             console.log(`[TopologyExplorer] ${candidate.strategy}: ${report.totalVariantsSimulated} variants → improved ${(report.improvement * 100).toFixed(1)}% (${report.bestVariant.ordering})`);
           }
-        } catch (err: any) {
-          console.warn(`[TopologyExplorer] ${candidate.strategy} 探索失败: ${err.message}`);
+        } catch (err: unknown) {
+          console.warn(`[TopologyExplorer] ${candidate.strategy} 探索失败: ${(err as Error).message}`);
         }
       }
     }
@@ -1876,50 +1887,9 @@ export class PipelineExecutor {
       riskAdjustedWeights: { ...scorecard.weightConfiguration },
     };
 
-    // Write to MemoryBus Local Map Cache
+    // Write to JSONL (decision trace persistence)
     let writtenToDisk = false;
-    if (this.memoryBus) {
-      try {
-        const traceEntry = {
-          type: 'decision_trace',
-          traceId,
-          sessionId,
-          executionId,
-          winner: scorecard.winner,
-          winnerScore: scorecard.winnerScore,
-          riskAppetite,
-          deviationCount,
-          candidateEliminations: candidateEliminations.map(e => ({ profile: e.profile, reason: e.reason.slice(0, 200), score: e.score })),
-          timestamp: Date.now(),
-        };
-        // Write to MemoryBus cache (in-memory)
-        if (typeof this.memoryBus.remember === 'function') {
-          await this.memoryBus.remember({
-            content: JSON.stringify(traceEntry),
-            source: 'MetaPlanner',
-            sourceId: traceId,
-            tags: ['decision_trace', scorecard.winner, riskAppetite],
-            importance: 0.9,
-          });
-        }
-        // Append to JSONL
-        if (typeof this.memoryBus.appendLog === 'function') {
-          await this.memoryBus.appendLog({
-            sessionId,
-            executionId,
-            intervention: 'decision_trace',
-            reason: `Winner: ${scorecard.winner} (score: ${scorecard.winnerScore.toFixed(4)})`,
-            timestamp: Date.now(),
-            affectedNodes: [],
-            patchDetails: traceEntry as any,
-          });
-          writtenToDisk = true;
-        }
-      } catch { /* non-critical */ }
-    }
-
-    // Also write directly to JSONL as fallback（微批处理）
-    if (!writtenToDisk) {
+    {
       try {
         this.decisionWriter!.append({
           type: 'decision_trace',

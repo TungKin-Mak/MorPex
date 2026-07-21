@@ -123,7 +123,7 @@ export class EventStore {
         state.totalEvents++;
         this.applyEvent(state, event);
       }
-    } catch (err: any) {
+    } catch (err) {
       // 文件不存在或无法读取 → 返回空状态
       if (err.code !== 'ENOENT') {
         console.warn('[EventStore] 重放失败:', err.message);
@@ -267,7 +267,7 @@ export class EventStore {
     const dir = path.dirname(this.logPath);
     try {
       await fsp.mkdir(dir, { recursive: true });
-    } catch (err: any) {
+    } catch (err) {
       if (err.code !== 'EEXIST') throw err;
     }
   }

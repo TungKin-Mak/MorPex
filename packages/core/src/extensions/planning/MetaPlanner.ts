@@ -30,7 +30,7 @@ import type {
   MetaPlannerConfig, PlanExecutionRecord, DAGNodeRecord, FailureDetail,
   IPlanningExtension, PrePlanContext, PrePlanResult, PostPlanContext, PostPlanResult,
   RuntimeEventContext, RuntimeEventResult, IRuntimeController,
-  MemoryBusLogEntry, MetaPlannerV2Config, Milestone, DeviationEvent, SemanticTag,
+  MemoryBusLogEntry, MetaPlannerV2Config, Milestone, DeviationEvent, SemanticTag, PlanTemplate,
 } from './types.js';
 import { DEFAULT_META_PLANNER_CONFIG, DEFAULT_META_PLANNER_V2_CONFIG } from './types.js';
 import { PlanExperienceStore } from './PlanExperienceStore.js';
@@ -67,14 +67,18 @@ import { PipelineExecutor, type PipelineInput } from './pipeline/PipelineExecuto
 
 // ★ MemoryWiki import
 import { MemoryWiki, MemoryRetriever } from '../../../../memory/src/index.js';
+import type { EventBus } from '../../common/EventBus.js';
+import type { KnowledgeGraph } from '../../planes/knowledge-plane/knowledge/KnowledgeGraph.js';
+import type { ArtifactRegistry } from '../../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import type { ZVecStorage } from '../../../../memory/src/index.js';
 
-type OrchestrateFn = (userInput: string, sessionCtx?: SessionContext) => Promise<{ dag: ExecutionDAG; result: any }>;
+type OrchestrateFn = (userInput: string, sessionCtx?: SessionContext) => Promise<{ dag: ExecutionDAG; result: unknown }>;
 type WrappedOrchestrateFn = OrchestrateFn;
 
 export class MetaPlanner implements ExtensionDefinition {
   public readonly name = 'MetaPlanner';
   public readonly version = '2.5.0';
-  public readonly dependencies: string[] = ['LineageTracker', 'ContextPruner'];
+  public readonly dependencies: string[] = [];
 
   private _enabled: boolean;
   private _config: MetaPlannerConfig;
@@ -103,9 +107,8 @@ export class MetaPlanner implements ExtensionDefinition {
   private toolQuality: ToolQualityManager;
   private templateManager: TemplateManager;
 
-  // v2.5 管道基础设施
+  // v2.5 Pipeline infrastructure
   private pipelineLogger: PipelineLogger;
-  private modelRegistry: any | null = null; // LLM provider for Stage 3
   private desConfig = { ...DEFAULT_DES_CONFIG };
   private pipeline: PipelineExecutor | null = null;
 
@@ -120,12 +123,11 @@ export class MetaPlanner implements ExtensionDefinition {
   private memoryRetriever: MemoryRetriever | null = null;
 
   // 外部引用
-  private memoryBus: any = null;
-  private dagEngine: any = null;
-  private knowledgeGraph: any = null;
-  private artifactRegistry: any = null;
-  private vectorStore: any = null;
-  private _eventBus: any = null;
+  private knowledgeGraph: KnowledgeGraph | null = null;
+  private artifactRegistry: ArtifactRegistry | null = null;
+  private vectorStore: ZVecStorage | null = null;
+  private modelRegistry: Record<string, unknown> | null = null;
+  private _eventBus: EventBus | null = null;
 
   // 运行时状态
   private _pendingRecord: PlanExecutionRecord | null = null;
@@ -133,19 +135,17 @@ export class MetaPlanner implements ExtensionDefinition {
 
   constructor(config?: Partial<MetaPlannerConfig> & {
     v2?: Partial<MetaPlannerV2Config>;
-    knowledgeGraph?: any;
-    artifactRegistry?: any;
-    vectorStore?: any;
-    memoryBus?: any;
-    dagEngine?: any;
-    eventBus?: any;
+    knowledgeGraph?: KnowledgeGraph | null;
+    artifactRegistry?: ArtifactRegistry | null;
+    vectorStore?: ZVecStorage | null;
+    eventBus?: EventBus | null;
     pipelineLogger?: PipelineLogger;
-    modelRegistry?: any;
+    modelRegistry?: Record<string, unknown> | null;
     desConfig?: Partial<typeof DEFAULT_DES_CONFIG>;
     wiki?: MemoryWiki;
     memoryRetriever?: MemoryRetriever;
   }) {
-    const { v2: v2Config, knowledgeGraph, artifactRegistry, vectorStore, memoryBus, dagEngine, eventBus, pipelineLogger, modelRegistry, desConfig, wiki, memoryRetriever, ...rest } = config ?? {};
+    const { v2: v2Config, knowledgeGraph, artifactRegistry, vectorStore, eventBus, pipelineLogger, modelRegistry, desConfig, wiki, memoryRetriever, ...rest } = config ?? {};
     this._config = { ...DEFAULT_META_PLANNER_CONFIG, ...rest };
     this._v2Config = { ...DEFAULT_META_PLANNER_V2_CONFIG, ...v2Config };
     this._enabled = this._config.enabled;
@@ -154,11 +154,10 @@ export class MetaPlanner implements ExtensionDefinition {
     this.analyzer = new PlanAnalyzer(this.store);
 
     this.deviationGuard = new DeviationGuard({ maxDeviationsPerSession: this._v2Config.maxDeviationCount, traceLogPath: this._v2Config.traceLogPath + 'deviation-traces.jsonl' });
-    this.memoryBus = memoryBus ?? null;
-    this.dagEngine = dagEngine ?? null;
     this.knowledgeGraph = knowledgeGraph ?? null;
     this.artifactRegistry = artifactRegistry ?? null;
     this.vectorStore = vectorStore ?? null;
+    this.modelRegistry = modelRegistry ?? null;
     this._eventBus = eventBus ?? null;
     this.wiki = wiki ?? null;
     this.memoryRetriever = memoryRetriever ?? null;
@@ -171,7 +170,6 @@ export class MetaPlanner implements ExtensionDefinition {
 
     // v2.5 管道基础设施
     this.pipelineLogger = pipelineLogger ?? new PipelineLogger({ traceLogPath: this._v2Config.traceLogPath });
-    this.modelRegistry = modelRegistry ?? null;
     if (desConfig) {
       this.desConfig = { ...this.desConfig, ...desConfig };
     }
@@ -194,7 +192,7 @@ export class MetaPlanner implements ExtensionDefinition {
     // Initialize PipelineExecutor (7-stage pipeline engine, with v2.6 upgrade modules)
     this.pipeline = new PipelineExecutor({
       pipelineLogger: this.pipelineLogger,
-      modelRegistry: this.modelRegistry,
+      modelRegistry: this.modelRegistry as any,
       desConfig: this.desConfig,
       store: this.store,
       knowledgeGraph: this.knowledgeGraph,
@@ -204,7 +202,6 @@ export class MetaPlanner implements ExtensionDefinition {
       deviationGuard: this.deviationGuard,
       traceLogPath: this._v2Config.traceLogPath,
       artifactRegistry: this.artifactRegistry,
-      memoryBus: this.memoryBus,
       wiki: this.wiki,
       memoryRetriever: this.memoryRetriever,
       // ★ v2.6: HierarchicalPlanningEngine components for S3 candidate generation
@@ -217,19 +214,19 @@ export class MetaPlanner implements ExtensionDefinition {
 
     // 注册 StrategicDeconstructor
     if (this._v2Config.enableStrategicDeconstructor) {
-      this.strategicDeconstructor = new StrategicDeconstructor({ knowledgeGraph: this.knowledgeGraph, artifactRegistry: this.artifactRegistry, enabled: true });
+      this.strategicDeconstructor = new StrategicDeconstructor({ knowledgeGraph: this.knowledgeGraph as any, artifactRegistry: this.artifactRegistry as any, enabled: true });
       this.extensions.push(this.strategicDeconstructor);
     }
 
     // 注册 LookAheadSimulator
     if (this._v2Config.enableLookAheadSimulator) {
-      this.lookAheadSimulator = new LookAheadSimulator({ vectorStore: this.vectorStore, store: this.store, riskThreshold: this._v2Config.simulationRejectionThreshold, enabled: true });
+      this.lookAheadSimulator = new LookAheadSimulator({ vectorStore: this.vectorStore as any, store: this.store, riskThreshold: this._v2Config.simulationRejectionThreshold, enabled: true });
       this.extensions.push(this.lookAheadSimulator);
     }
 
     // 注册 DynamicReflexEngine
     if (this._v2Config.enableDynamicReflexEngine) {
-      this.dynamicReflexEngine = new DynamicReflexEngine({ memoryBus: this.memoryBus, dagEngine: this.dagEngine, guard: this.deviationGuard, enabled: true });
+      this.dynamicReflexEngine = new DynamicReflexEngine({ guard: this.deviationGuard, enabled: true });
       this.extensions.push(this.dynamicReflexEngine);
     }
 
@@ -279,9 +276,9 @@ export class MetaPlanner implements ExtensionDefinition {
       }
       if (alert.suggestedAction === 'fix_template') {
         const allTemplates = this.store.getAllTemplates();
-        const templates = allTemplates.filter((tpl: any) =>
-          tpl.tags?.includes?.(alert.domain) ||
-          tpl.nodeSkeletons?.some?.((s: any) => s.domain === alert.domain || s.role === alert.toolName)
+        const templates = allTemplates.filter((tpl: PlanTemplate) =>
+          (tpl.tags as string[])?.includes?.(alert.domain) ||
+          (tpl.nodeSkeletons as unknown as Array<Record<string, unknown>>)?.some?.((s: Record<string, unknown>) => s.domain === alert.domain || s.role === alert.toolName)
         );
         for (const tpl of templates) {
           const fixed = await this.templateManager.fixTemplate(tpl.templateId);
@@ -318,7 +315,7 @@ export class MetaPlanner implements ExtensionDefinition {
     this._startedAt = Date.now();
 
     // ★ v3.0 Sync templates from TemplateFileSystem → PlanExperienceStore
-    await this.syncTemplatesFromFS().catch((err: any) =>
+    await this.syncTemplatesFromFS().catch((err: unknown) =>
       console.warn('[MetaPlanner] TemplateFileSystem sync error (non-fatal):', err)
     );
 
@@ -338,7 +335,7 @@ export class MetaPlanner implements ExtensionDefinition {
     for (const evtType of runtimeEvents) {
       const bus = this._eventBus ?? this._context?.eventBus;
       if (bus?.on) {
-        bus.on(evtType, (event: any) => {
+        bus.on(evtType, (event: Record<string, unknown>) => {
           const rawEvent = {
             type: evtType === 'runtime.node.failed' ? 'NODE_FAILED'
               : evtType === 'runtime.deviation' ? 'STATE_DEVIATION'
@@ -349,8 +346,8 @@ export class MetaPlanner implements ExtensionDefinition {
             timestamp: event?.timestamp ?? Date.now(),
             payload: event?.payload ?? {},
           };
-          this.bridgeMemoryBusEvent(rawEvent).catch((err: any) => {
-            console.warn(`[MetaPlanner] 桥接运行时事件异常: ${err.message}`);
+          this.bridgeMemoryBusEvent(rawEvent).catch((err: unknown) => {
+            console.warn(`[MetaPlanner] 桥接运行时事件异常: ${(err as Error).message}`);
           });
         });
       }
@@ -480,14 +477,16 @@ export class MetaPlanner implements ExtensionDefinition {
       const prePlanCtx: PrePlanContext = {
         sessionId, executionId, userInput, tags,
         sessionContext: sessionCtx as any,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         knowledgeGraph: mp.knowledgeGraph ? {
-          searchEntities: (q: any) => mp.knowledgeGraph.searchEntities(q),
-          getNeighborhood: (id: string, d?: number) => mp.knowledgeGraph.getNeighborhood(id, d),
-          findPath: (f: string, t: string) => mp.knowledgeGraph.findPath(f, t),
+          searchEntities: (q: string) => (mp.knowledgeGraph as any).searchEntities(q),
+          getNeighborhood: (id: string, d?: number) => mp.knowledgeGraph!.getNeighborhood(id, d),
+          findPath: (f: string, t: string) => mp.knowledgeGraph!.findPath(f, t),
         } : undefined,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         artifactRegistry: mp.artifactRegistry ? {
-          search: (q: any) => mp.artifactRegistry.search?.(q),
-          listByDomain: (d: string) => mp.artifactRegistry.listByDomain?.(d),
+          search: (q: string) => (mp.artifactRegistry as any).search?.(q),
+          listByDomain: (d: string) => (mp.artifactRegistry as any).listByDomain?.(d),
         } : undefined,
       };
 
@@ -502,8 +501,8 @@ export class MetaPlanner implements ExtensionDefinition {
             enrichedSessionCtx = mp.injectContext(enrichedSessionCtx, result.enrichedContext as string[], userInput);
           }
           if (result.milestones) milestones.push(...result.milestones);
-        } catch (err: any) {
-          console.warn(`[MetaPlanner] 扩展 "${ext.name}" onPrePlan 异常: ${err.message}`);
+        } catch (err: unknown) {
+          console.warn(`[MetaPlanner] 扩展 "${ext.name}" onPrePlan 异常: ${(err as Error).message}`);
         }
       }
 
@@ -529,16 +528,17 @@ export class MetaPlanner implements ExtensionDefinition {
 
         // Log final one-line status
         console.log(oneLinePipelineStatus(pipelineTrace));
-      } catch (pipelineErr: any) {
-        console.warn(`[MetaPlanner] 7-Stage Pipeline 异常: ${pipelineErr.message}，降级到原始 orchestrate`);
-        mp._lastError = `Pipeline failed: ${pipelineErr.message}`;
+      } catch (pipelineErr: unknown) {
+        const pipelineMsg = pipelineErr instanceof Error ? pipelineErr.message : String(pipelineErr);
+        console.warn(`[MetaPlanner] 7-Stage Pipeline 异常: ${pipelineMsg}，降级到原始 orchestrate`);
+        mp._lastError = `Pipeline failed: ${pipelineMsg}`;
       }
 
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       // DAG 执行：使用 Pipeline 生成的 DAG 或降级到原始 orchestrate
       // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
       let dag: ExecutionDAG;
-      let result: any;
+      let result: Record<string, any> | undefined;
 
       if (pipelineActivation?.readyForExecution && pipelineActivation.activatedPlan) {
         // Use pipeline-generated DAG
@@ -547,27 +547,28 @@ export class MetaPlanner implements ExtensionDefinition {
         if (mp.artifactRegistry && pipelineActivation.resourceTokens.length > 0) {
           try {
             for (const token of pipelineActivation.resourceTokens) {
-              mp.artifactRegistry.reserveToken?.(token);
+              (mp.artifactRegistry as any).reserveToken?.(token);
             }
           } catch { /* non-critical */ }
         }
         // Execute the DAG through the original orchestrator
         try {
           const output = await originalOrchestrate(userInput, enrichedSessionCtx);
-          result = output.result;
+          result = output.result as Record<string, any>;
           if (output.dag !== dag) {
             console.log(`[MetaPlanner] Pipeline DAG injected (${dag.nodes.length} nodes vs original ${output.dag.nodes.length})`);
           }
-        } catch (execErr: any) {
-          mp._lastError = execErr.message;
+        } catch (execErr: unknown) {
+          const execMsg = execErr instanceof Error ? execErr.message : String(execErr);
+          mp._lastError = execMsg;
           const rec: PlanExecutionRecord = {
             recordId, executionId, userInput, inputTags: tags, dagNodes: [],
             success: false, totalDurationMs: Date.now() - startTime, totalTokensUsed: 0,
             artifactCount: 0, selfHealingRetries: 0, pruningTokensSaved: 0, score: 0, createdAt: Date.now(),
-            failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: execErr.message.slice(0, 500), timestamp: Date.now() }],
+            failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: execMsg.slice(0, 500), timestamp: Date.now() }],
           };
           await mp.store.saveRecord(rec).catch(() => {});
-          mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: execErr.message });
+          mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: execMsg });
           throw execErr;
         }
       } else {
@@ -575,17 +576,17 @@ export class MetaPlanner implements ExtensionDefinition {
         try {
           const output = await originalOrchestrate(userInput, enrichedSessionCtx);
           dag = output.dag;
-          result = output.result;
-        } catch (err: any) {
-          mp._lastError = err.message;
+          result = output.result as Record<string, any>;
+        } catch (err: unknown) {
+          mp._lastError = (err as Error).message;
           const rec: PlanExecutionRecord = {
             recordId, executionId, userInput, inputTags: tags, dagNodes: [],
             success: false, totalDurationMs: Date.now() - startTime, totalTokensUsed: 0,
             artifactCount: 0, selfHealingRetries: 0, pruningTokensSaved: 0, score: 0, createdAt: Date.now(),
-            failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: err.message.slice(0, 500), timestamp: Date.now() }],
+            failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: (err as Error).message.slice(0, 500), timestamp: Date.now() }],
           };
           await mp.store.saveRecord(rec).catch(() => {});
-          mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: err.message });
+          mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: (err as Error).message });
           throw err;
         }
       }
@@ -606,8 +607,8 @@ export class MetaPlanner implements ExtensionDefinition {
             planRejected = true;
             if (ppResult.rejectionReasons) rejectionReasons.push(...ppResult.rejectionReasons);
           }
-        } catch (err: any) {
-          console.warn(`[MetaPlanner] 扩展 "${ext.name}" onPostPlan 异常: ${err.message}`);
+        } catch (err: unknown) {
+          console.warn(`[MetaPlanner] 扩展 "${ext.name}" onPostPlan 异常: ${(err as Error).message}`);
         }
       }
 
@@ -619,13 +620,8 @@ export class MetaPlanner implements ExtensionDefinition {
         throw new PlanningRejectedError(msg, rejectionReasons, dag);
       }
 
-      // ── Phase 4: 设置运行时 MemoryBus 桥接 ──
+      // ── Phase 4: 设置运行时上下文 ──
       mp._activeExecutionCtx = { sessionId, executionId };
-      if (mp.memoryBus && mp.dynamicReflexEngine) {
-        mp.dynamicReflexEngine.subscribeToMemoryBus(mp.memoryBus, (exId: string, sessId: string) =>
-          new RuntimeController(mp.dagEngine, sessId),
-        );
-      }
 
       // ── Phase 5: 构建执行记录 ──
       const record: PlanExecutionRecord = {
@@ -637,7 +633,7 @@ export class MetaPlanner implements ExtensionDefinition {
 
       // ── Phase 6: 收尾 ──
       const duration = Date.now() - startTime;
-      record.success = result?.success ?? true;
+      record.success = (result as Record<string, unknown>)?.success as boolean ?? true;
       record.totalDurationMs = duration;
       record.totalTokensUsed = mp.extractTokenUsage(result);
       record.dagNodes = mp.extractDAGNodes(dag, result);
@@ -672,8 +668,8 @@ export class MetaPlanner implements ExtensionDefinition {
         const template = await mp.templateManager.captureFromExecution(record);
         if (template) {
           mp._context?.logger.info('📦 CAPTURED 新模板', { templateId: template.templateId, name: template.name, evolutionType: 'captured' });
-          await mp.templateManager.exportTemplate(template).catch((err: any) =>
-            console.warn('[MetaPlanner] 模板文件同步失败:', err.message)
+          await mp.templateManager.exportTemplate(template).catch((err: unknown) =>
+            console.warn('[MetaPlanner] 模板文件同步失败:', (err as Error).message)
           );
         } else {
           const oldTemplate = await mp.store.extractTemplate(record);
@@ -691,8 +687,8 @@ export class MetaPlanner implements ExtensionDefinition {
 
       // ★ v2.6 自主学习回路：异步执行（不阻塞主流程）
       if (mp.planningIntelligence && pipelineTrace && record.success) {
-        mp.planningIntelligence.evolveTemplates().catch((err: any) =>
-          console.warn('[MetaPlanner] 自主学习回路异常:', err.message)
+        mp.planningIntelligence.evolveTemplates().catch((err: unknown) =>
+          console.warn('[MetaPlanner] 自主学习回路异常:', (err as Error).message)
         );
       }
 
@@ -765,33 +761,32 @@ export class MetaPlanner implements ExtensionDefinition {
       }
 
       return null;
-    } catch (err: any) {
-      console.warn(`[MetaPlanner] replanPipeline 异常: ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`[MetaPlanner] replanPipeline 异常: ${(err as Error).message}`);
       return null;
     }
   }
 
   // ── MemoryBus 桥接 ──
-  private async bridgeMemoryBusEvent(rawEvent: any): Promise<void> {
+  private async bridgeMemoryBusEvent(rawEvent: Record<string, unknown>): Promise<void> {
     if (!this._activeExecutionCtx) return;
     const { sessionId, executionId } = this._activeExecutionCtx;
 
     const deviationEvent: DeviationEvent = {
-      type: rawEvent.type,
+      type: rawEvent.type as DeviationEvent['type'],
       sessionId,
       executionId,
-      timestamp: rawEvent.timestamp ?? Date.now(),
-      payload: rawEvent.payload ?? {},
+      timestamp: (rawEvent.timestamp as number) ?? Date.now(),
+      payload: (rawEvent.payload as Record<string, unknown>) ?? {},
     };
 
     const ctx: RuntimeEventContext = {
       sessionId,
       executionId,
       event: deviationEvent,
-      dagEngine: undefined,
     };
 
-    const controller = new RuntimeController(this.dagEngine, sessionId);
+    const controller = new RuntimeController(null, sessionId);
 
     for (const ext of this.extensions) {
       if (!ext.enabled || !ext.onRuntimeEvent) continue;
@@ -801,22 +796,22 @@ export class MetaPlanner implements ExtensionDefinition {
           console.warn(`[MetaPlanner] 扩展 "${ext.name}" 触发熔断: ${result.reason}`);
           break;
         }
-      } catch (err: any) {
-        console.warn(`[MetaPlanner] 扩展 "${ext.name}" onRuntimeEvent 异常: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`[MetaPlanner] 扩展 "${ext.name}" onRuntimeEvent 异常: ${(err as Error).message}`);
       }
     }
   }
 
   // ── EventBus 处理器（v1 保留） ──
 
-  private onWorkflowCompleted(event: any): void {
+  private onWorkflowCompleted(event: Record<string, any>): void {
     if (this._pendingRecord) {
       this._pendingRecord.success = true;
       this._pendingRecord.totalDurationMs = event.payload?.totalDurationMs ?? this._pendingRecord.totalDurationMs;
     }
   }
 
-  private onWorkflowFailed(event: any): void {
+  private onWorkflowFailed(event: Record<string, any>): void {
     const errorMessage = event.payload?.error ?? 'unknown error';
     const errorType = event.type ?? 'workflow.failed';
 
@@ -852,7 +847,7 @@ export class MetaPlanner implements ExtensionDefinition {
     // 错误修正检索已移至 Gateway Layer 3 (AgentReasoningInterceptor.processObservation)
   }
 
-  private onCheckpointRollback(event: any): void {
+  private onCheckpointRollback(event: Record<string, any>): void {
     if (this._pendingRecord) this._pendingRecord.selfHealingRetries++;
   }
 
@@ -922,17 +917,17 @@ export class MetaPlanner implements ExtensionDefinition {
     return [...tags].slice(0, 8);
   }
 
-  private extractTokenUsage(result: any): number {
+  private extractTokenUsage(result: Record<string, any> | undefined): number {
     if (!result) return 0;
-    if (typeof result.totalTokensUsed === 'number') return result.totalTokensUsed;
-    if (result.finalState?.metadata?.totalTokensUsed) return result.finalState.metadata.totalTokensUsed;
-    const steps = result.finalState?.stepResults ?? [];
+    if (typeof result.totalTokensUsed === 'number') return result.totalTokensUsed as number;
+    if ((result.finalState as Record<string, any>)?.metadata?.totalTokensUsed) return (result.finalState as Record<string, any>).metadata.totalTokensUsed;
+    const steps: Record<string, any>[] = (result.finalState as Record<string, any>)?.stepResults ?? [];
     let total = 0;
     for (const sr of steps) { if (sr.output?.tokenUsage?.total) total += sr.output.tokenUsage.total; }
     return total;
   }
 
-  private extractDAGNodes(dag: ExecutionDAG, result: any): DAGNodeRecord[] {
+  private extractDAGNodes(dag: ExecutionDAG, result: Record<string, any> | undefined): DAGNodeRecord[] {
     const nodes: DAGNodeRecord[] = [];
     for (const dagNode of dag.nodes) {
       const nodeId = dagNode.taskId;
@@ -943,21 +938,21 @@ export class MetaPlanner implements ExtensionDefinition {
         domain: dagNode.domain ?? 'unknown',
         status: nr?.status === 'completed' ? 'success' : 'failed',
         durationMs: nr?.duration ?? 0, tokensUsed: 0,
-        artifactUris: (nr?.artifacts ?? []).map((a: any) => a.uri ?? ''),
+        artifactUris: (nr?.artifacts ?? []).map((a: Record<string, unknown>) => String(a.uri ?? '')),
         retries: 0, error: nr?.error,
       });
     }
     return nodes;
   }
 
-  private findNodeResult(result: any, taskId: string): any | undefined {
+  private findNodeResult(result: Record<string, any> | undefined, taskId: string): Record<string, any> | undefined {
     if (!result) return undefined;
-    const results = result.results ?? result.finalState?.stepResults ?? [];
+    const results = result.results ?? (result.finalState as Record<string, any>)?.stepResults ?? [];
     for (const r of results) { if (r.stepId === taskId || r.taskId === taskId) return r; }
     return undefined;
   }
 
-  private extractArtifactCount(result: any): number {
+  private extractArtifactCount(result: Record<string, any> | undefined): number {
     if (!result) return 0;
     const results = result.results ?? [];
     let count = 0;

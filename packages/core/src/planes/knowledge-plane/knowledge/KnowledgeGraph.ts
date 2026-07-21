@@ -118,7 +118,7 @@ export class KnowledgeGraph {
             console.warn('[KG] ⚠️ 跳过损坏的实体行');
           }
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn(`[KG] ⚠️ 读取实体文件失败: ${err.message}`);
       }
     }
@@ -152,7 +152,7 @@ export class KnowledgeGraph {
             console.warn('[KG] ⚠️ 跳过损坏的关系行');
           }
         }
-      } catch (err: any) {
+      } catch (err) {
         console.warn(`[KG] ⚠️ 读取关系文件失败: ${err.message}`);
       }
     }

@@ -41,6 +41,7 @@ import type { DAGNode as DAGEngineNode } from '../../planes/runtime-kernel/dag/t
  * 新任务到来时，MetaPlanner 匹配最相似的模板进行实例化。
  */
 export interface PlanTemplate {
+  [key: string]: unknown;
   /** 模板唯一 ID */
   templateId: string;
 
@@ -121,6 +122,7 @@ export interface PlanNodeSkeleton {
  * 用于后续的相似度匹配、质量评估和模式挖掘。
  */
 export interface PlanExecutionRecord {
+  [key: string]: unknown;
   /** 记录唯一 ID */
   recordId: string;
 
@@ -740,17 +742,6 @@ export interface RuntimeEventContext {
   executionId: string;
   /** 原始 MemoryBus 偏离事件 */
   event: DeviationEvent;
-  /** DAGEngine 引用（可选注入，用于 hotPatch） */
-  dagEngine?: {
-    getNode: (nodeId: string) => any | undefined;
-    getAllNodes: () => any[];
-    removeNode: (nodeId: string) => boolean;
-    addNode: (node: any) => boolean;
-    insertAfter: (afterNodeId: string, newNode: any) => boolean;
-    rerouteNode: (nodeId: string, alternateId?: string) => boolean;
-    validate: () => { valid: boolean; errors: any[] };
-    getStatus: () => any;
-  };
 }
 
 // ═══════════════════════════════════════════════════════════════

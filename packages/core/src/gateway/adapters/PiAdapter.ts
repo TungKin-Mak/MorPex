@@ -185,7 +185,7 @@ export class PiAdapter implements AgentRuntimeAdapter {
         artifacts: (piResponse.toolCalls ?? []).map((tc: any) => tc.name ?? ''),
         duration,
       };
-    } catch (err: any) {
+    } catch (err: unknown) {
       const duration = Date.now() - startTime;
 
       // 发射失败事件 — 使用标准化 Event ID
@@ -195,7 +195,7 @@ export class PiAdapter implements AgentRuntimeAdapter {
         timestamp: Date.now(),
         executionId: request.executionId,
         source: this.runtimeName,
-        payload: { error: err.message },
+        payload: { error: (err as Error).message },
       });
 
       return {

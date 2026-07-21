@@ -111,7 +111,7 @@ export class VectorStore {
           console.log(`[VectorStore] ✅ 已删除文件（不创建目录，由 zvec 负责）`);
         }
       }
-    } catch (fsErr: any) {
+    } catch (fsErr) {
       console.warn(`[VectorStore] ⚠️ 无法准备数据目录: ${fsErr.message}`);
     }
 
@@ -136,18 +136,18 @@ export class VectorStore {
       try {
         this.collection = this.zvec.ZVecOpen(dataPath);
         console.log(`[VectorStore] 📂 打开已有向量库: ${dataPath}`);
-      } catch (openErr: any) {
+      } catch (openErr) {
         // 打开失败，尝试创建新库
         try {
           this.collection = this.zvec.ZVecCreateAndOpen(dataPath, schema);
           console.log(`[VectorStore] 🆕 创建新向量库: ${dataPath}`);
-        } catch (createErr: any) {
+        } catch (createErr) {
           // 创建也失败（路径存在但版本不兼容）→ 备份旧数据，重建
           const backupPath = dataPath + '.backup.' + Date.now();
           console.warn(`[VectorStore] ⚠️ 旧向量库不兼容，备份到: ${path.basename(backupPath)}`);
           try {
             fs.renameSync(dataPath, backupPath);
-          } catch (renameErr: any) {
+          } catch (renameErr) {
             console.warn(`[VectorStore] ⚠️ 备份失败，删除重建: ${renameErr.message}`);
             fs.rmSync(dataPath, { recursive: true, force: true });
           }
@@ -168,7 +168,7 @@ export class VectorStore {
 
       this.registerShutdown();
 
-    } catch (err: any) {
+    } catch (err) {
       console.error(`[VectorStore] ❌ zvec init failed: ${err.message}`);
       throw new Error(`VectorStore zvec 初始化失败: ${err.message}`);
     }
@@ -309,7 +309,7 @@ export class VectorStore {
         fields: { doc_id: id, tags: tags || [] },
       });
       return true;
-    } catch (err: any) {
+    } catch (err) {
       console.warn(`[VectorStore] index failed: ${err.message}`);
       return false;
     }
@@ -327,7 +327,7 @@ export class VectorStore {
         outputFields: ['doc_id'],
       });
       return results.map((r: any) => r.doc_id || r.id);
-    } catch (err: any) {
+    } catch (err) {
       console.warn(`[VectorStore] search failed: ${err.message}`);
       return [];
     }
@@ -351,7 +351,7 @@ export class VectorStore {
         console.log('[VectorStore] closing zvec...');
         this.collection.closeSync();
         console.log('[VectorStore] ✅ zvec closed');
-      } catch (e: any) {
+      } catch (e) {
         console.warn(`[VectorStore] ⚠️ close error: ${e.message}`);
       }
       this.collection = null;

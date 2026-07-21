@@ -24,6 +24,7 @@ import type { SessionContext } from '../common/types.js';
 import type { ArtifactRef } from '../domains/types.js';
 import { DomainClusterManager } from '../domains/DomainClusterManager.js';
 import { AsyncResourceLocker } from '../utils/AsyncResourceLocker.js';
+import type { AgentHarness } from '@earendil-works/pi-agent-core';
 
 // ★ v3.0 OpenSpace Fusion import
 import type { ToolQualityManager } from '../extensions/planning/ToolQualityManager.js';
@@ -33,7 +34,7 @@ export interface NodeResult {
   taskId: string;
   domain: string;
   status: 'completed' | 'failed';
-  output?: any;
+  output?: unknown;
   error?: string;
   duration: number;
   artifacts?: Array<{ type: string; name: string; uri: string }>;
@@ -68,7 +69,7 @@ export class DomainDispatcher {
   onNodeAwaitingInput: ((node: DAGNode, result: NodeResult) => boolean | Promise<boolean>) | null = null;
 
   /** ★ v3.2: 获取 AgentHarness 的回调（由 SessionManager 注入） */
-  onGetHarness: ((domainId: string, taskId: string, goal: string) => Promise<any>) | null = null;
+  onGetHarness: ((domainId: string, taskId: string, goal: string) => Promise<AgentHarness>) | null = null;
   /** ★ v3.2: 释放 AgentHarness 的回调（由 SessionManager 注入） */
   onReleaseHarness: ((taskId: string) => Promise<void>) | null = null;
   /** 暂停状态：被 user reply 重新唤醒的节点上下文 */
@@ -84,8 +85,11 @@ export class DomainDispatcher {
     this._resumeContext = null;
   }
   /** 协商引擎（跨领域冲突时触发 InterrogationTicket） */
+  /** 协商引擎（跨领域冲突时触发 InterrogationTicket） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private negotiationEngine?: any;
   /** 仲裁处理器（协商升级时裁决） */
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private arbitrationHandler?: any;
   /** L1: per-resource async mutex (批次冲突节点串行化执行) */
   private _locker?: AsyncResourceLocker;
@@ -104,7 +108,9 @@ export class DomainDispatcher {
   constructor(
     clusterManager: DomainClusterManager,
     maxParallel?: number,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     negotiationEngine?: any,
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     arbitrationHandler?: any,
     locker?: AsyncResourceLocker,
   ) {
@@ -286,7 +292,7 @@ export class DomainDispatcher {
       };
     }
 
-    let harness: any = null;
+    let harness: AgentHarness | null = null;
     try {
       // ★ v3.2: 通过回调获取 harness（由 SessionManager 创建）
       if (this.onGetHarness) {
@@ -319,9 +325,9 @@ export class DomainDispatcher {
       return {
         taskId: node.taskId, domain: node.domain, status: 'completed',
         output: result, duration,
-        artifacts: artifacts.map((a: any) => ({ type: a.type ?? 'unknown', name: a.name ?? node.taskId, uri: a.uri ?? `artifact://${node.domain}/output/${node.taskId}` })),
+        artifacts: artifacts.map((a: { type?: string; name?: string; uri?: string }) => ({ type: a.type ?? 'unknown', name: a.name ?? node.taskId, uri: a.uri ?? `artifact://${node.domain}/output/${node.taskId}` })),
       };
-    } catch (err: any) {
+    } catch (err) {
       const duration = Date.now() - startTime;
       console.error(`[DomainDispatcher] ❌ 节点失败: ${node.taskId} (${err.message})`);
 
@@ -347,7 +353,7 @@ export class DomainDispatcher {
               targetDomain: node.domain,
             });
           }
-        } catch (negErr: any) {
+        } catch (negErr) {
           console.error(`[DomainDispatcher] 协商失败: ${negErr.message}`);
         }
       }
@@ -526,7 +532,7 @@ export class DomainDispatcher {
               targetDomain: 'all',
             });
           }
-        } catch (err: any) {
+        } catch (err) {
           console.warn(`[DomainDispatcher] 冲突组协商失败: ${err.message}`);
         }
       }

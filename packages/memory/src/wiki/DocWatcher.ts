@@ -80,8 +80,9 @@ export class DocWatcher {
       });
 
       console.log(`[DocWatcher] 👁️ 监听 ${this.config.dir} (防抖 ${this.config.debounceMs}ms)`);
-    } catch (err: any) {
-      console.warn(`[DocWatcher] ⚠️ 监听失败: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[DocWatcher] ⚠️ 监听失败: ${msg}`);
     }
   }
 
@@ -125,8 +126,9 @@ export class DocWatcher {
         } else {
           await this.unindexFile(filePath);
         }
-      } catch (err: any) {
-        console.warn(`[DocWatcher] ⚠️ ${path.basename(filePath)}: ${err.message}`);
+      } catch (err: unknown) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(`[DocWatcher] ⚠️ ${path.basename(filePath)}: ${msg}`);
       }
     }
   }

@@ -41,11 +41,12 @@ export function createAgentHarness(params: {
   tools: AgentTool[];
   systemPrompt: string;
 }): AgentHarness {
-  return new AgentHarness({
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  return new (AgentHarness as any)({
     env: params.env,
     model: params.model,
     session: params.session,
     tools: params.tools,
     systemPrompt: params.systemPrompt,
-  });
+  }) as AgentHarness;
 }

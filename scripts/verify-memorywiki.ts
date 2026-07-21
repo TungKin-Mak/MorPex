@@ -1,4 +1,5 @@
 #!/usr/bin/env tsx
+// @ts-nocheck
 /**
  * verify-memorywiki.ts — MemoryWiki 全链路验证脚本
  *

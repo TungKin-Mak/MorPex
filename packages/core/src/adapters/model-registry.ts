@@ -43,14 +43,14 @@ export const piModelRegistry = {
     }
     try {
       const models = getModels(provider);
-      return models.map(m => ({
-        id: m.id,
-        name: m.name,
-        provider: m.provider,
-        api: m.api,
-        contextWindow: m.contextWindow,
-        maxTokens: m.maxTokens,
-        supportsReasoning: m.reasoning,
+      return models.map((m: Record<string, unknown>) => ({
+        id: m.id as string,
+        name: m.name as string,
+        provider: m.provider as string,
+        api: m.api as string,
+        contextWindow: Number(m.contextWindow),
+        maxTokens: Number(m.maxTokens),
+        supportsReasoning: Boolean(m.reasoning),
       }));
     } catch {
       return [];
@@ -101,10 +101,10 @@ export const piModelRegistry = {
   getModels: (provider: string) => {
     if (!isKnownProvider(provider)) return [];
     try {
-      return getModels(provider).map(m => ({
-        id: m.id, name: m.name, provider: m.provider, api: m.api,
-        contextWindow: m.contextWindow, maxTokens: m.maxTokens,
-        supportsReasoning: m.reasoning,
+      return getModels(provider).map((m: Record<string, unknown>) => ({
+        id: m.id as string, name: m.name as string, provider: m.provider as string, api: m.api as string,
+        contextWindow: Number(m.contextWindow), maxTokens: Number(m.maxTokens),
+        supportsReasoning: Boolean(m.reasoning),
       }));
     } catch { return []; }
   },

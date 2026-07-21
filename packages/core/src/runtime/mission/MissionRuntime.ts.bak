@@ -1,0 +1,1047 @@
+/**
+ * MissionRuntime — Mission 运行时主引擎
+ *
+ * Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。
+ *
+ * 职责：
+ *   1. 从 IncomingMessage 创建 Mission
+ *   2. 管理 Mission 的完整生命周期（MissionState 流转）
+ *   3. 委托 Planner 生成执行计划
+ *   4. 委托 Executor 执行计划
+ *   5. 通过 EventBus 发射所有状态转换事件
+ *   6. 支持 Mission 取消
+ *
+ * 与现有组件的关系：
+ *   - MissionRuntime 使用接口（MissionPlanner, MissionExecutor）而非直接依赖
+ *   - MissionPlanner 的实现可以是 MetaPlanner（现有）
+ *   - MissionExecutor 的实现可以是 DAGRuntime + CrossDomainDispatcher（现有）
+ *   - ExecutionFSM 继续管理 Agent / 节点级状态（Mission 之下）
+ *
+ * Mission 生命周期:
+ *   CREATED → PLANNING → EXECUTING ⇄ WAIT_APPROVAL → VERIFYING → COMPLETED
+ *      ↓          ↓           ↓                                 ↓
+ *   CANCELLED   FAILED     FAILED                             FAILED
+ *
+ * 状态转换事件:
+ *   每个转换都发射对应的 EventType 事件:
+ *   - CREATED     → EventType.MISSION_CREATED
+ *   - PLANNING    → EventType.MISSION_UPDATED (state: PLANNING)
+ *   - EXECUTING   → EventType.EXECUTION_STARTED
+ *   - WAIT_APPROVAL → EventType.APPROVAL_REQUIRED
+ *   - VERIFYING   → EventType.MISSION_UPDATED (state: VERIFYING)
+ *   - COMPLETED   → EventType.MISSION_COMPLETED
+ *   - FAILED      → EventType.MISSION_FAILED
+ */
+
+import { EventBus } from '../../common/EventBus.js';
+import { EventType } from '../../protocol/events/EventType.js';
+import type { IncomingMessage } from '../../interaction/types.js';
+import {
+  MissionState,
+  MISSION_VALID_TRANSITIONS,
+} from './types.js';
+import type {
+  Mission,
+  MissionPlan,
+  MissionResult,
+  MissionPermissions,
+  MissionStateTransitionEvent,
+} from './types.js';
+
+// 可选引擎（类型安全地引用，避免编译时强依赖）
+import type { VerificationEngine } from '../verification/VerificationEngine.js';
+import type { ApprovalEngine } from '../approval/ApprovalEngine.js';
+
+// ── Event Sourcing (Phase 4 / v8.5, 可选) ──
+import type { EventStore } from '../../protocol/events/store/EventStore.js';
+
+// ═══════════════════════════════════════════════════════════════
+// MissionPlanner 接口
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * MissionPlanner — 规划器接口
+ *
+ * MissionRuntime 通过此接口委托规划工作。
+ * 具体实现可以是 MetaPlanner（现有 7-Stage Pipeline）。
+ *
+ * MissionRuntime 不关心规划器内部实现，只关心输出。
+ */
+export interface MissionPlanner {
+  /**
+   * 为 Mission 生成执行计划
+   *
+   * @param mission - 待规划的 Mission
+   * @returns MissionPlan（包含步骤列表、风险等级、预估时间）
+   */
+  createPlan(mission: Mission): Promise<MissionPlan>;
+
+  /**
+   * 在运行时重新规划（replan）
+   *
+   * @param mission - 需要重新规划的 Mission
+   * @param reason - 重新规划的原因
+   * @returns 更新后的 MissionPlan
+   */
+  replan?(mission: Mission, reason: string): Promise<MissionPlan>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MissionExecutor 接口
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * MissionExecutor — 执行器接口
+ *
+ * MissionRuntime 通过此接口委托执行工作。
+ * 具体实现可以是 DAGRuntime + CrossDomainDispatcher（现有）。
+ */
+export interface MissionExecutor {
+  /**
+   * 执行 Mission 的计划
+   *
+   * @param mission - 待执行的 Mission
+   * @param plan - 待执行的计划
+   * @returns MissionResult（执行结果）
+   */
+  execute(mission: Mission, plan: MissionPlan): Promise<MissionResult>;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MissionRuntime 配置
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * MissionRuntimeConfig — MissionRuntime 配置
+ */
+export interface MissionRuntimeConfig {
+  /** 默认权限设置（创建 Mission 时使用） */
+  defaultPermissions?: Partial<MissionPermissions>;
+
+  /** 是否默认自动执行（false 则需要审批） */
+  autoExecuteByDefault?: boolean;
+
+  /** ⭐ P0: 验证引擎（可选，提供时启用自动验证） */
+  verificationEngine?: VerificationEngine;
+
+  /** ⭐ P0: 审批引擎（可选，提供时启用标准化审批流程） */
+  approvalEngine?: ApprovalEngine;
+}
+
+// ═══════════════════════════════════════════════════════════════
+// MissionRuntime
+// ═══════════════════════════════════════════════════════════════
+
+export class MissionRuntime {
+  /** EventBus 引用 */
+  private bus: EventBus;
+
+  /** 所有活跃 Mission（missionId → Mission） */
+  private missions: Map<string, Mission> = new Map();
+
+  /** 规划器（由上层注入） */
+  private planner: MissionPlanner | null = null;
+
+  /** 执行器（由上层注入） */
+  private executor: MissionExecutor | null = null;
+
+  /** ⭐ P0: 验证引擎（可选） */
+  private verificationEngine: VerificationEngine | null = null;
+
+  /** ⭐ P0: 审批引擎（可选） */
+  /** Event Sourcing 存储（可选，Phase 4 / v8.5） */
+  private eventStore: EventStore | null = null;
+  private approvalEngine: ApprovalEngine | null = null;
+
+  /** 配置 */
+  private config: {
+    defaultPermissions: MissionPermissions;
+    autoExecuteByDefault: boolean;
+  };
+
+  /** ID 计数器 */
+  private idCounter = 0;
+
+  constructor(
+    bus: EventBus,
+    config?: MissionRuntimeConfig
+  ) {
+    this.bus = bus;
+    const defPerm = config?.defaultPermissions ?? {};
+    const autoExec = config?.autoExecuteByDefault ?? true;
+    this.config = {
+      defaultPermissions: {
+        allowAutoExecute: defPerm.allowAutoExecute ?? autoExec,
+        requireApproval: defPerm.requireApproval ?? false,
+        allowedTools: defPerm.allowedTools ?? ['*'],
+      },
+      autoExecuteByDefault: autoExec,
+    };
+
+    // ⭐ P0: 挂载可选引擎
+    this.verificationEngine = config?.verificationEngine ?? null;
+    this.approvalEngine = config?.approvalEngine ?? null;
+    if (this.verificationEngine) {
+      console.log('[MissionRuntime] VerificationEngine attached');
+    }
+    if (this.approvalEngine) {
+      console.log('[MissionRuntime] ApprovalEngine attached');
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 依赖注入
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * setPlanner — 注册规划器
+   *
+   * @param planner - 实现 MissionPlanner 接口的规划器
+   */
+  setPlanner(planner: MissionPlanner): void {
+    this.planner = planner;
+    console.log('[MissionRuntime] Planner registered');
+  }
+
+  /**
+   * setExecutor — 注册执行器
+   *
+   * @param executor - 实现 MissionExecutor 接口的执行器
+   */
+  setExecutor(executor: MissionExecutor): void {
+    this.executor = executor;
+    console.log('[MissionRuntime] Executor registered');
+  }
+
+  /**
+   * setEventStore — 注册 Event Sourcing 存储（可选）
+   *
+   * 当设置 EventStore 后，所有 Mission 状态转换会同时写入事件存储。
+   * 状态可通过 EventProjection 从事件流投影，而非修改 mission.state。
+   *
+   * @param store - EventStore 实例
+   */
+  setEventStore(store: EventStore): void {
+    this.eventStore = store;
+    console.log('[MissionRuntime] EventStore attached');
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // Mission CRUD
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * createMission — 从 IncomingMessage 创建 Mission
+   *
+   * 这是 Mission 的唯二入口之一（另一入口是 createMissionFromGoal）。
+   * 所有用户消息都应通过 MessageGateway → MissionRuntime 流转。
+   *
+   * 流程:
+   *   1. 生成 Mission ID
+   *   2. 构造 Mission 对象
+   *   3. 存入 missions Map
+   *   4. 发射 MISSION_CREATED 事件
+   *
+   * @param msg - 来自 MessageGateway 的 IncomingMessage
+   * @returns 创建的 Mission 对象
+   */
+  async createMission(msg: IncomingMessage): Promise<Mission> {
+    const id = this.generateId();
+    const now = Date.now();
+
+    const mission: Mission = {
+      id,
+      goal: msg.content,
+      owner: msg.userId,
+      context: {
+        channel: msg.channel,
+        sessionId: msg.sessionId,
+        originalMessage: msg.content,
+        metadata: { ...msg.metadata },
+      },
+      state: MissionState.CREATED,
+      permissions: {
+        allowAutoExecute: this.config.defaultPermissions.allowAutoExecute,
+        requireApproval: this.config.defaultPermissions.requireApproval,
+        allowedTools: [...this.config.defaultPermissions.allowedTools],
+      },
+      createdAt: now,
+      updatedAt: now,
+      metadata: {},
+    };
+
+    this.missions.set(id, mission);
+    console.log(`[MissionRuntime] ✅ Mission created: ${id} — "${mission.goal.substring(0, 60)}"`);
+
+    // 发射 MISSION_CREATED 事件
+    this.bus.emit({
+      id: `evt_${id}`,
+      type: EventType.MISSION_CREATED,
+      timestamp: now,
+      executionId: id,
+      source: 'mission-runtime',
+      payload: {
+        missionId: mission.id,
+        goal: mission.goal,
+        owner: mission.owner,
+        channel: mission.context.channel,
+        state: mission.state,
+      },
+    });
+
+    return mission;
+  }
+
+  /**
+   * createMissionFromGoal — 从目标描述直接创建 Mission
+   *
+   * 适用于非消息来源的场景（如定时触发的复盘任务）。
+   *
+   * @param goal - 目标描述
+   * @param owner - 用户 ID
+   * @param channel - 来源渠道（默认 'system'）
+   * @returns 创建的 Mission 对象
+   */
+  async createMissionFromGoal(
+    goal: string,
+    owner: string,
+    channel: string = 'system'
+  ): Promise<Mission> {
+    const id = this.generateId();
+    const now = Date.now();
+
+    const mission: Mission = {
+      id,
+      goal,
+      owner,
+      context: {
+        channel,
+        sessionId: `sys_${now}`,
+        originalMessage: goal,
+        metadata: {},
+      },
+      state: MissionState.CREATED,
+      permissions: {
+        allowAutoExecute: true,
+        requireApproval: false,
+        allowedTools: ['*'],
+      },
+      createdAt: now,
+      updatedAt: now,
+      metadata: {},
+    };
+
+    this.missions.set(id, mission);
+
+    this.bus.emit({
+      id: `evt_${id}`,
+      type: EventType.MISSION_CREATED,
+      timestamp: now,
+      executionId: id,
+      source: 'mission-runtime',
+      payload: {
+        missionId: mission.id,
+        goal: mission.goal,
+        owner: mission.owner,
+        channel: 'system',
+        state: mission.state,
+      },
+    });
+
+    return mission;
+  }
+
+  /**
+   * getMission — 获取 Mission
+   *
+   * @param missionId - Mission ID
+   * @returns Mission 对象，不存在返回 undefined
+   */
+  getMission(missionId: string): Mission | undefined {
+    return this.missions.get(missionId);
+  }
+
+  /**
+   * listMissions — 列出所有 Mission
+   *
+   * @param filter - 可选状态过滤器
+   * @returns Mission 列表
+   */
+  listMissions(filter?: MissionState): Mission[] {
+    const all = [...this.missions.values()];
+    if (filter !== undefined) {
+      return all.filter(m => m.state === filter);
+    }
+    return all;
+  }
+
+  /**
+   * listActiveMissions — 列出所有活跃中的 Mission
+   *
+   * 活跃 = 未进入终态（COMPLETED / FAILED / CANCELLED）
+   */
+  listActiveMissions(): Mission[] {
+    return [...this.missions.values()].filter(
+      m => m.state !== MissionState.COMPLETED
+        && m.state !== MissionState.FAILED
+        && m.state !== MissionState.CANCELLED
+    );
+  }
+
+  /**
+   * countMissions — 统计 Mission 数量
+   */
+  countMissions(): number {
+    return this.missions.size;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // Mission 执行生命周期
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * executeMission — 执行 Mission 的完整生命周期
+   *
+   * 这是 Mission 的主执行路径。包含以下阶段:
+   *
+   *   1. CREATED → PLANNING   调用 Planner
+   *   2. PLANNING → EXECUTING 调用 Executor
+   *   3. 执行期间可能进入 WAIT_APPROVAL（等待用户批准）
+   *   4. EXECUTING → VERIFYING 验证结果
+   *   5. VERIFYING → COMPLETED 完成
+   *
+   * @param missionId - Mission ID
+   * @returns MissionResult
+   */
+  async executeMission(missionId: string): Promise<MissionResult> {
+    const mission = this.missions.get(missionId);
+    if (!mission) {
+      throw new Error(`[MissionRuntime] Mission not found: ${missionId}`);
+    }
+
+    const startTime = Date.now();
+    console.log(`[MissionRuntime] 🚀 Executing mission: ${missionId} — "${mission.goal.substring(0, 60)}"`);
+
+    try {
+      await this.transitionState(mission, MissionState.PLANNING, 'start_planning');
+
+      if (!this.planner) {
+        throw new Error('[MissionRuntime] No planner registered. Call setPlanner() first.');
+      }
+
+      const plan = await this.planner.createPlan(mission);
+      mission.plan = plan;
+      console.log(`[MissionRuntime] 📋 Plan created: ${plan.steps.length} steps, risk=${plan.riskLevel}`);
+
+      // 发射 PLAN_CREATED 事件
+      this.bus.emit({
+        id: `evt_${missionId}_plan`,
+        type: EventType.PLAN_CREATED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId,
+          goal: mission.goal,
+          steps: plan.steps.map(s => ({ id: s.id, name: s.name, domain: s.domain, deps: s.deps })),
+          riskLevel: plan.riskLevel,
+          estimatedDuration: plan.estimatedDuration,
+          reasoning: plan.reasoning,
+        },
+      });
+
+      // ═══ 检查是否需要审批 (skip if resuming from approval) ═══
+      if (mission.state !== MissionState.EXECUTING && (plan.riskLevel === 'high' || mission.permissions.requireApproval)) {
+        await this.transitionState(mission, MissionState.WAIT_APPROVAL, 'high_risk_approval');
+
+        // ⭐ P0: 使用 ApprovalEngine（如果已注入）
+        if (this.approvalEngine) {
+          const approvalRequest = await this.approvalEngine.requestApproval(
+            missionId,
+            'execute_plan',
+            `Execute plan for: ${mission.goal.substring(0, 200)}`,
+            plan.riskLevel,
+            { steps: plan.steps.length, reasoning: plan.reasoning }
+          );
+
+          if (approvalRequest.status === 'approved') {
+            console.log(`[MissionRuntime] ✅ Low-risk auto-approved via ApprovalEngine`);
+            // 低风险自动批准，继续执行
+          } else {
+            console.log(`[MissionRuntime] ⏸️ Mission ${missionId} waiting for approval (risk=${plan.riskLevel})`);
+            return {
+              missionId,
+              state: MissionState.WAIT_APPROVAL,
+              stepsCompleted: 0,
+              stepsTotal: plan.steps.length,
+              artifacts: [],
+              duration: Date.now() - startTime,
+            };
+          }
+        } else {
+          // 回退：发射 APPROVAL_REQUIRED 事件，等待外部调用 approveMission()
+          this.bus.emit({
+            id: `evt_${missionId}_approval`,
+            type: EventType.APPROVAL_REQUIRED,
+            timestamp: Date.now(),
+            executionId: missionId,
+            source: 'mission-runtime',
+            payload: {
+              missionId,
+              goal: mission.goal,
+              riskLevel: plan.riskLevel,
+              steps: plan.steps.length,
+              reasoning: plan.reasoning,
+            },
+          });
+
+          console.log(`[MissionRuntime] ⏸️ Mission ${missionId} waiting for approval (risk=${plan.riskLevel})`);
+          return {
+            missionId,
+            state: MissionState.WAIT_APPROVAL,
+            stepsCompleted: 0,
+            stepsTotal: plan.steps.length,
+            artifacts: [],
+            duration: Date.now() - startTime,
+          };
+        }
+      }
+
+      // ═══ Step 2: PLANNING → EXECUTING ═══
+      await this.transitionState(mission, MissionState.EXECUTING, 'start_execution');
+
+      // 发射 EXECUTION_STARTED 事件
+      this.bus.emit({
+        id: `evt_${missionId}_exec`,
+        type: EventType.EXECUTION_STARTED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId,
+          goal: mission.goal,
+          stepsTotal: plan.steps.length,
+        },
+      });
+
+      // ═══ Step 3: 执行 ═══
+      if (!this.executor) {
+        throw new Error('[MissionRuntime] No executor registered. Call setExecutor() first.');
+      }
+
+      const result = await this.executor.execute(mission, plan);
+
+      // 保存 Execution ID
+      mission.executionId = result.missionId;
+
+      // ═══ Step 4: EXECUTING → VERIFYING ═══
+      await this.transitionState(mission, MissionState.VERIFYING, 'execution_complete');
+      return this.finalizeExecution(mission, result, startTime);
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      mission.error = errorMsg;
+
+      if (mission.state !== MissionState.FAILED && mission.state !== MissionState.CANCELLED) {
+        await this.transitionState(mission, MissionState.FAILED, errorMsg);
+      }
+
+      this.bus.emit({
+        id: `evt_${missionId}_fail`,
+        type: EventType.EXECUTION_FAILED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId,
+          goal: mission.goal,
+          error: errorMsg,
+          stepsCompleted: 0,
+          stepsTotal: mission.plan?.steps.length || 0,
+        },
+      });
+
+      console.error(`[MissionRuntime] ❌ Mission ${missionId} failed: ${errorMsg}`);
+
+      return {
+        missionId,
+        state: MissionState.FAILED,
+        stepsCompleted: 0,
+        stepsTotal: mission.plan?.steps.length || 0,
+        artifacts: [],
+        duration: Date.now() - startTime,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * finalizeExecution — Finalize mission after executor completes
+   *
+   * ★ v8.5: Extracted to a helper so both normal execution and approval-resume paths share the same logic.
+   */
+  private async finalizeExecution(
+    mission: Mission,
+    result: import('./types.js').MissionResult,
+    startTime: number
+  ): Promise<import('./types.js').MissionResult> {
+    const MissionState = (await import('./types.js')).MissionState;
+    const EventType = (await import('../../protocol/events/EventType.js')).EventType;
+    const missionId = mission.id;
+
+    try {
+
+      // ⭐ P0: 使用 VerificationEngine（如果已注入）
+      if (this.verificationEngine && result.state !== MissionState.FAILED) {
+        const verification = await this.verificationEngine.verify(mission, result);
+        console.log(`[MissionRuntime] 🔍 Verification: ${verification.passed ? 'PASS' : 'FAIL'} (score=${verification.score})`);
+
+        if (!verification.passed) {
+          console.warn(`[MissionRuntime] ⚠️ Verification failed for ${missionId}: ${verification.summary}`);
+          // 验证失败但继续 — 记录问题但不阻止完成
+          mission.metadata = mission.metadata || {};
+          (mission.metadata as Record<string, unknown>).verification = verification;
+        }
+      }
+
+      // ═══ Step 5: VERIFYING → COMPLETED / FAILED ═══
+      if (result.state === MissionState.FAILED) {
+        mission.error = result.error;
+        await this.transitionState(mission, MissionState.FAILED, result.error || 'execution_failed');
+
+        // 发射 EXECUTION_FAILED 事件
+        this.bus.emit({
+          id: `evt_${missionId}_fail`,
+          type: EventType.EXECUTION_FAILED,
+          timestamp: Date.now(),
+          executionId: missionId,
+          source: 'mission-runtime',
+          payload: {
+            missionId,
+            goal: mission.goal,
+            error: result.error,
+            stepsCompleted: result.stepsCompleted,
+            stepsTotal: result.stepsTotal,
+          },
+        });
+      } else {
+        mission.completedAt = Date.now();
+        await this.transitionState(mission, MissionState.COMPLETED, 'all_steps_completed');
+
+        // 发射 MISSION_COMPLETED 事件
+        this.bus.emit({
+          id: `evt_${missionId}_done`,
+          type: EventType.MISSION_COMPLETED,
+          timestamp: Date.now(),
+          executionId: missionId,
+          source: 'mission-runtime',
+          payload: {
+            missionId,
+            goal: mission.goal,
+            stepsCompleted: result.stepsCompleted,
+            stepsTotal: result.stepsTotal,
+            duration: Date.now() - startTime,
+            artifacts: result.artifacts,
+          },
+        });
+
+        console.log(`[MissionRuntime] ✅ Mission ${missionId} completed in ${Date.now() - startTime}ms`);
+      }
+
+      return {
+        missionId,
+        state: mission.state,
+        stepsCompleted: result.stepsCompleted,
+        stepsTotal: result.stepsTotal,
+        output: result.output,
+        artifacts: result.artifacts,
+        duration: Date.now() - startTime,
+        error: mission.error,
+      };
+
+    } catch (err: unknown) {
+      const errorMsg = err instanceof Error ? err.message : String(err);
+      mission.error = errorMsg;
+
+      // 确保状态转换到 FAILED
+      if (mission.state !== MissionState.FAILED && mission.state !== MissionState.CANCELLED) {
+        await this.transitionState(mission, MissionState.FAILED, errorMsg);
+      }
+
+      // 发射 EXECUTION_FAILED 事件
+      this.bus.emit({
+        id: `evt_${missionId}_fail`,
+        type: EventType.EXECUTION_FAILED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId,
+          goal: mission.goal,
+          error: errorMsg,
+          stepsCompleted: 0,
+          stepsTotal: mission.plan?.steps.length || 0,
+        },
+      });
+
+      console.error(`[MissionRuntime] ❌ Mission ${missionId} failed: ${errorMsg}`);
+
+      return {
+        missionId,
+        state: MissionState.FAILED,
+        stepsCompleted: 0,
+        stepsTotal: mission.plan?.steps.length || 0,
+        artifacts: [],
+        duration: Date.now() - startTime,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * approveMission — 审批通过
+   *
+   * 从 WAIT_APPROVAL 状态恢复执行。
+   * ⭐ P0: 如果 ApprovalEngine 已注入，委托给它。
+   *
+   * @param missionId - Mission ID
+   * @param by - 审批人（可选）
+   * @returns 继续执行后的 MissionResult
+   */
+
+  async approveMission(missionId: string, by?: string): Promise<MissionResult> {
+    const mission = this.missions.get(missionId);
+    if (!mission) {
+      throw new Error(`[MissionRuntime] Mission not found: ${missionId}`);
+    }
+    if (mission.state !== MissionState.WAIT_APPROVAL) {
+      throw new Error(`[MissionRuntime] Mission ${missionId} is not in WAIT_APPROVAL state (current: ${mission.state})`);
+    }
+
+    console.log(`[MissionRuntime] ✅ Mission ${missionId} approved${by ? ` by ${by}` : ''}, resuming execution`);
+
+    if (this.approvalEngine) {
+      const pending = this.approvalEngine.getPendingForMission(missionId);
+      if (pending.length > 0) {
+        await this.approvalEngine.approve(pending[0].id, by, 'Approved via mission approval');
+      }
+    }
+
+    this.bus.emit({
+      id: `evt_${missionId}_approved`,
+      type: EventType.APPROVAL_GRANTED,
+      timestamp: Date.now(),
+      executionId: missionId,
+      source: 'mission-runtime',
+      payload: { missionId, goal: mission.goal, approvedBy: by },
+    });
+
+    // ★ Fix: transition WAIT_APPROVAL → EXECUTING, use existing plan directly
+    const plan = mission.plan;
+    if (!plan) {
+      throw new Error(`[MissionRuntime] Mission ${missionId} has no plan to execute`);
+    }
+
+    await this.transitionState(mission, MissionState.EXECUTING, 'approved_resume');
+
+    const startTime = Date.now();
+    if (!this.executor) {
+      throw new Error('[MissionRuntime] No executor registered. Call setExecutor() first.');
+    }
+
+    const result = await this.executor.execute(mission, plan);
+    mission.executionId = result.missionId;
+
+    await this.transitionState(mission, MissionState.VERIFYING, 'execution_complete');
+
+    if (this.verificationEngine && result.state !== MissionState.FAILED) {
+      const verification = await this.verificationEngine.verify(mission, result);
+      if (!verification.passed) {
+        mission.metadata = mission.metadata || {};
+        (mission.metadata as Record<string, unknown>).verification = verification;
+      }
+    }
+
+    if (result.state === MissionState.FAILED) {
+      mission.error = result.error;
+      await this.transitionState(mission, MissionState.FAILED, result.error || 'execution_failed');
+      this.bus.emit({
+        id: `evt_${missionId}_fail`,
+        type: EventType.EXECUTION_FAILED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId, goal: mission.goal, error: result.error,
+          stepsCompleted: result.stepsCompleted, stepsTotal: result.stepsTotal,
+        },
+      });
+    } else {
+      mission.completedAt = Date.now();
+      await this.transitionState(mission, MissionState.COMPLETED, 'all_steps_completed');
+      this.bus.emit({
+        id: `evt_${missionId}_done`,
+        type: EventType.MISSION_COMPLETED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-runtime',
+        payload: {
+          missionId, goal: mission.goal,
+          stepsCompleted: result.stepsCompleted, stepsTotal: result.stepsTotal,
+          duration: Date.now() - startTime, artifacts: result.artifacts,
+        },
+      });
+    }
+
+    return {
+      missionId,
+      state: mission.state,
+      stepsCompleted: result.stepsCompleted,
+      stepsTotal: result.stepsTotal,
+      output: result.output,
+      artifacts: result.artifacts,
+      duration: Date.now() - startTime,
+      error: mission.error,
+    };
+  }
+
+  /**
+   * denyMission — 拒绝审批
+   *
+   * 从 WAIT_APPROVAL 状态取消 Mission。
+   * ⭐ P0: 如果 ApprovalEngine 已注入，委托给它。
+   *
+   * @param missionId - Mission ID
+   * @param reason - 拒绝原因
+   * @param by - 拒绝人（可选）
+   */
+  async denyMission(missionId: string, reason?: string, by?: string): Promise<void> {
+    const mission = this.missions.get(missionId);
+    if (!mission) {
+      throw new Error(`[MissionRuntime] Mission not found: ${missionId}`);
+    }
+    if (mission.state !== MissionState.WAIT_APPROVAL) {
+      throw new Error(`[MissionRuntime] Mission ${missionId} is not in WAIT_APPROVAL state (current: ${mission.state})`);
+    }
+
+    // ⭐ P0: 通知 ApprovalEngine
+    if (this.approvalEngine) {
+      const pending = this.approvalEngine.getPendingForMission(missionId);
+      if (pending.length > 0) {
+        await this.approvalEngine.deny(pending[0].id, by, reason || 'Denied via mission denial');
+      }
+    }
+
+    // 发射 APPROVAL_DENIED 事件
+    this.bus.emit({
+      id: `evt_${missionId}_denied`,
+      type: EventType.APPROVAL_DENIED,
+      timestamp: Date.now(),
+      executionId: missionId,
+      source: 'mission-runtime',
+      payload: { missionId, goal: mission.goal, reason: reason || 'User denied', deniedBy: by },
+    });
+
+    await this.transitionState(mission, MissionState.CANCELLED, reason || 'approval_denied');
+    console.log(`[MissionRuntime] ❌ Mission ${missionId} denied: ${reason || 'User denied'}`);
+  }
+
+  /**
+   * cancelMission — 取消 Mission
+   *
+   * 从任何活跃状态取消 Mission。
+   *
+   * @param missionId - Mission ID
+   * @param reason - 取消原因
+   */
+  async cancelMission(missionId: string, reason?: string): Promise<void> {
+    const mission = this.missions.get(missionId);
+    if (!mission) {
+      throw new Error(`[MissionRuntime] Mission not found: ${missionId}`);
+    }
+
+    const allowedFrom = MISSION_VALID_TRANSITIONS[mission.state];
+    if (!allowedFrom.includes(MissionState.CANCELLED)) {
+      throw new Error(
+        `[MissionRuntime] Cannot cancel mission ${missionId} from state ${mission.state}`
+      );
+    }
+
+    await this.transitionState(mission, MissionState.CANCELLED, reason || 'user_cancelled');
+    console.log(`[MissionRuntime] 🛑 Mission ${missionId} cancelled: ${reason || 'user_cancelled'}`);
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 状态管理
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * transitionState — Mission 状态转换
+   *
+   * 验证转换有效性 → 更新状态 → 发射事件。
+   *
+   * @param mission - Mission 对象（会原地修改）
+   * @param newState - 目标状态
+   * @param reason - 转换原因
+   */
+  private async transitionState(
+    mission: Mission,
+    newState: MissionState,
+    reason?: string
+  ): Promise<void> {
+    const from = mission.state;
+
+    // 验证转换
+    const allowed = MISSION_VALID_TRANSITIONS[from];
+    if (!allowed.includes(newState)) {
+      throw new Error(
+        `[MissionRuntime] Invalid state transition: ${from} → ${newState}. ` +
+        `Allowed: [${allowed.join(', ')}]`
+      );
+    }
+
+    // 更新状态
+    const oldState = mission.state;
+    mission.state = newState;
+    mission.updatedAt = Date.now();
+
+    console.log(`[MissionRuntime] 🔄 Mission ${mission.id}: ${oldState} → ${newState}${reason ? ` (${reason})` : ''}`);
+
+    // ★ v8.5 Event Sourcing: 追加状态转换事件到 EventStore
+    if (this.eventStore) {
+      const event = {
+        id: `evt_${mission.id}_${Date.now()}`,
+        type: this.stateToEventType(newState),
+        timestamp: Date.now(),
+        executionId: mission.id,
+        source: 'mission-runtime',
+        payload: {
+          missionId: mission.id,
+          fromState: oldState,
+          toState: newState,
+          reason: reason || '',
+          goal: mission.goal,
+        },
+      };
+      await this.eventStore.append(event).catch((err: Error) => {
+        console.warn('[MissionRuntime] EventStore append failed:', err.message);
+      });
+    }
+
+    // 发射状态转换事件
+    const transitionEvent: MissionStateTransitionEvent = {
+      missionId: mission.id,
+      goal: mission.goal,
+      from: oldState,
+      to: newState,
+      timestamp: Date.now(),
+      reason,
+      error: newState === MissionState.FAILED ? mission.error : undefined,
+    };
+
+    // 根据目标状态选择对应的事件类型
+    let eventType: string;
+    switch (newState) {
+      case MissionState.CREATED:
+        eventType = EventType.MISSION_CREATED;
+        break;
+      case MissionState.PLANNING:
+      case MissionState.VERIFYING:
+        eventType = EventType.MISSION_UPDATED;
+        break;
+      case MissionState.EXECUTING:
+        eventType = EventType.EXECUTION_STARTED;
+        break;
+      case MissionState.WAIT_APPROVAL:
+        eventType = EventType.APPROVAL_REQUIRED;
+        break;
+      case MissionState.COMPLETED:
+        eventType = EventType.MISSION_COMPLETED;
+        break;
+      case MissionState.FAILED:
+        eventType = EventType.MISSION_FAILED;
+        break;
+      case MissionState.CANCELLED:
+        eventType = EventType.EXECUTION_CANCELLED;
+        break;
+      default:
+        eventType = EventType.MISSION_UPDATED;
+    }
+
+    this.bus.emit({
+      id: `evt_${mission.id}_${newState}`,
+      type: eventType,
+      timestamp: transitionEvent.timestamp,
+      executionId: mission.id,
+      source: 'mission-runtime',
+      payload: { ...transitionEvent },
+    });
+  }
+
+  /**
+   * stateToEventType — 将 MissionState 映射为 EventType
+   *
+   * 用于 EventStore 记录和 EventBus 事件发射。
+   */
+  private stateToEventType(state: MissionState): EventType {
+    switch (state) {
+      case MissionState.CREATED:
+        return EventType.MISSION_CREATED;
+      case MissionState.PLANNING:
+        return EventType.MISSION_UPDATED;
+      case MissionState.EXECUTING:
+        return EventType.EXECUTION_STARTED;
+      case MissionState.WAIT_APPROVAL:
+        return EventType.APPROVAL_REQUIRED;
+      case MissionState.VERIFYING:
+        return EventType.MISSION_UPDATED;
+      case MissionState.COMPLETED:
+        return EventType.MISSION_COMPLETED;
+      case MissionState.FAILED:
+        return EventType.MISSION_FAILED;
+      case MissionState.CANCELLED:
+        return EventType.EXECUTION_CANCELLED;
+      default:
+        return EventType.MISSION_UPDATED;
+    }
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // ID 生成
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * generateId — 生成 Mission ID
+   *
+   * 格式: mis_{YYYYMMDD}_{counter}
+   */
+  private generateId(): string {
+    const date = new Date();
+    const yyyymmdd = `${date.getFullYear()}${String(date.getMonth() + 1).padStart(2, '0')}${String(date.getDate()).padStart(2, '0')}`;
+    const counter = ++this.idCounter;
+    return `mis_${yyyymmdd}_${String(counter).padStart(6, '0')}`;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 统计信息
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * getStats — 获取 MissionRuntime 统计信息
+   */
+  getStats(): {
+    totalMissions: number;
+    activeMissions: number;
+    completedMissions: number;
+    failedMissions: number;
+    cancelledMissions: number;
+  } {
+    const all = [...this.missions.values()];
+    return {
+      totalMissions: all.length,
+      activeMissions: all.filter(m => m.state !== MissionState.COMPLETED && m.state !== MissionState.FAILED && m.state !== MissionState.CANCELLED).length,
+      completedMissions: all.filter(m => m.state === MissionState.COMPLETED).length,
+      failedMissions: all.filter(m => m.state === MissionState.FAILED).length,
+      cancelledMissions: all.filter(m => m.state === MissionState.CANCELLED).length,
+    };
+  }
+}

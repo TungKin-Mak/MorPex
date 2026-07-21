@@ -17,7 +17,7 @@
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
-import { JSONLWriter } from '../../../../memory/src/index.js';
+import { JSONLWriter, MemoryWiki } from '../../../../memory/src/index.js';
 
 // ═══════════════════════════════════════════════════════════════
 // Types
@@ -378,7 +378,7 @@ export class ToolQualityManager {
     if (!this.jsonlWriter) {
       this.jsonlWriter = new JSONLWriter({ filePath: this.config.storePath });
     }
-    for (const r of rotatedRecords) {
+    for (const r of this.records.values()) {
       this.jsonlWriter.append(r);
     }
 

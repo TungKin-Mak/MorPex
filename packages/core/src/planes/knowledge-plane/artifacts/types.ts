@@ -87,7 +87,99 @@ export interface ArtifactVersion {
   createdBy?: string;
 }
 
-// ── Artifact 图谱关系 ──
+// ── Artifact 增强属性（Phase 3 — Artifact Intelligence）──
+
+/** 产物能力标记 */
+export interface ArtifactCapability {
+  name: string;
+  type: 'transform' | 'analyze' | 'generate' | 'validate' | 'orchestrate';
+  description: string;
+  confidence: number; // 0-1
+}
+
+/** 产物依赖 */
+export interface ArtifactDependency {
+  artifactId: string;
+  type: 'import' | 'extends' | 'references' | 'generates';
+  version?: string;
+  optional?: boolean;
+}
+
+/** 产物使用记录 */
+export interface ArtifactUsageRecord {
+  timestamp: number;
+  action: 'created' | 'read' | 'updated' | 'deployed' | 'evaluated';
+  context: string;
+  result?: string;
+  duration?: number;
+}
+
+/** Artifact Node — 增强版产物节点（含语义属性） */
+export interface ArtifactNode {
+  id: string;
+  name: string;
+  type: ArtifactType;
+  status: ArtifactStatus;
+  version: string;
+  creator: string;
+  description: string;
+  capabilities: ArtifactCapability[];
+  dependencies: ArtifactDependency[];
+  successRate: number; // 0-1
+  usageHistory: ArtifactUsageRecord[];
+  createdAt: number;
+  updatedAt: number;
+  metadata?: Record<string, any>;
+}
+
+/** Artifact Edge — 产物关系边 */
+export interface ArtifactEdge {
+  from: string;
+  to: string;
+  type: 'dependency' | 'derivation' | 'supersedes' | 'references';
+  weight?: number;
+}
+
+/** 血缘查询 */
+export interface LineageQuery {
+  artifactId: string;
+  direction: 'upstream' | 'downstream' | 'both';
+  maxDepth?: number;
+  types?: ArtifactType[];
+}
+
+/** 血缘路径 */
+export interface LineagePath {
+  nodes: ArtifactNode[];
+  edges: ArtifactEdge[];
+  depth: number;
+}
+
+/** 评估结果 */
+export interface ArtifactEvaluation {
+  artifactId: string;
+  score: number; // 0-1
+  dimensions: {
+    completeness: number;
+    consistency: number;
+    usability: number;
+    performance?: number;
+  };
+  issues: string[];
+  recommendations: string[];
+  evaluatedAt: number;
+}
+
+/** Embedding 向量 */
+export interface ArtifactEmbedding {
+  artifactId: string;
+  vector: number[];
+  model: string;
+  dimensions: number;
+  createdAt: number;
+}
+
+// ── Artifact 图谱关系（原有）──
 
 /** Artifact 关系类型 */
 export type ArtifactRelation = 'parent' | 'child' | 'supersedes' | 'superseded_by' | 'depends_on';

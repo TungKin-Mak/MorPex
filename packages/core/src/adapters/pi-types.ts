@@ -24,9 +24,8 @@ import type { ThinkingLevel as _PiThinkingLevel } from '@earendil-works/pi-ai';
 /** MorPex AgentTool — wraps pi-agent-core AgentTool */
 export type MPAgentTool = _PiAgentTool;
 
-/** MorPex AgentToolResult — re-exported from pi-agent-core with generic passthrough */
-// eslint-disable-next-line @typescript-eslint/no-explicit-any
-export type MPAgentToolResult<T = any> = _PiAgentToolResult<T>;
+/** MorPex AgentToolResult — pi 0.80.10 no longer generic */
+export type MPAgentToolResult = _PiAgentToolResult;
 
 /** MorPex AgentMessage */
 export type MPAgentMessage = _PiAgentMessage;
@@ -49,7 +48,7 @@ export type MPExecutionEnv = _PiExecutionEnv;
 
 export type AgentTool = MPAgentTool;
 /** Concrete AgentToolResult (backward compat) */
-export type AgentToolResult = MPAgentToolResult<any>;
+export type AgentToolResult = _PiAgentToolResult;
 /** Concrete AgentToolResult (backward compat, alias) */
 export type AgentToolResult_T = AgentToolResult;
 export type AgentMessage = MPAgentMessage;

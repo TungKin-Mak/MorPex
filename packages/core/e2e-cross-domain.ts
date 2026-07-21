@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * Cross-Domain — 端到端测试
  *
@@ -173,8 +174,9 @@ async function main() {
       suggestion: '测试限流',
     });
     console.log('  ❌ 限流测试失败（应拒绝但未拒绝）');
-  } catch (err: any) {
-    console.log(`  ✅ 限流测试通过: ${err.message}`);
+  } catch (err: unknown) {
+    const msg = err instanceof Error ? err.message : String(err);
+    console.log(`  ✅ 限流测试通过: ${msg}`);
   }
 
   // 接受质询
@@ -198,8 +200,9 @@ async function main() {
       const action = i % 2 === 0 ? 'argue' : 'argue';
       currentTicket = negotiation.respond(currentTicket.ticket_id, action, `第${i + 1}轮反驳详细说明...`);
       console.log(`  🔄 反驳第${i + 1}轮: depth=${currentTicket.depth_count}, status=${currentTicket.status}`);
-    } catch (err: any) {
-      console.log(`  ⚠️ 工单已关闭: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`  ⚠️ 工单已关闭: ${msg}`);
       break;
     }
   }

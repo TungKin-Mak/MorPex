@@ -14,6 +14,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
+// @ts-ignore - ghost v7 module reference
 import { HierarchicalCandidateGenerator, CapabilityRegistry, StatisticalPlanSimulator, WeightedPlanEvaluator } from '../packages/core/src/extensions/planning/engines/HierarchicalPlanningEngine.js';
 import { PlanExperienceStore } from '../packages/core/src/extensions/planning/PlanExperienceStore.js';
 import type { PlanExecutionRecord } from '../packages/core/src/extensions/planning/types.js';

@@ -201,3 +201,95 @@ export interface ChatHistoryResponse {
   count: number;
   messages: ChatHistoryMessage[];
 }
+
+// ── v7 Architecture Health ──────────────────────────────────
+
+export interface HealthReport {
+  score: number;
+  breakdown: HealthDimension[];
+  runtimeCoverage: RuntimeCoverage;
+  events: number;
+  deadModules: number;
+}
+
+export interface HealthDimension {
+  dimension: string;
+  score: number;
+  max: number;
+  status: string;
+}
+
+export interface RuntimeCoverage {
+  total: number;
+  active: number;
+  publicApi: number;
+  dead: number;
+}
+
+// ── v7 Runtime Executions ───────────────────────────────────
+
+export interface Execution {
+  id: string;
+  state: string;
+  transitions: string[];
+}
+
+export interface ExecutionDetail {
+  execution: {
+    latest: Record<string, unknown>;
+    snapshots: unknown[];
+    dagResult: unknown;
+  };
+}
+
+// ── v7 Artifacts ────────────────────────────────────────────
+
+export interface ArtifactV7 {
+  id: string;
+  name: string;
+  type: string;
+  version: string;
+  status: string;
+}
+
+export interface GraphData {
+  nodes: { id: string; label: string; type: string }[];
+  edges: { source: string; target: string; type: string }[];
+}
+
+export interface LineageData {
+  ancestors: string[];
+  descendants: string[];
+  ancestorNodes: ArtifactV7[];
+  descendantNodes: ArtifactV7[];
+}
+
+// ── v7 Memory ───────────────────────────────────────────────
+
+export interface MemoryContext {
+  executionStatus: string;
+  goal: string;
+}
+
+export interface MemoryResult {
+  memories: unknown[];
+  activationScore: number;
+  contextBias: string;
+}
+
+// ── v7 Learning ─────────────────────────────────────────────
+
+export interface LearningStats {
+  templateEvolution: {
+    totalTemplates: number;
+    avgSuccessRate: number;
+  };
+}
+
+// ── v7 System Health ────────────────────────────────────────
+
+export interface SystemHealth {
+  architectureCoverage: number;
+  scenarioSuccessRate: number;
+  testsPassed: number;
+}

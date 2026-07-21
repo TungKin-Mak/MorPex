@@ -16,12 +16,6 @@ export type {
   MemoryStorageAdapter,
   WriteDecision,
   MemorySystemConfig,
-  MemType,
-  MemoryGateConfig,
-  MemoryGateSignal,
-  StageDefinition,
-  CompactResult,
-  FeedbackResult,
 } from '../../../../../memory/src/index.js';
 
 // Legacy aliases

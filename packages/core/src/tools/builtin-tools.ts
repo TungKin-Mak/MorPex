@@ -84,7 +84,7 @@ export const calculatorTool: AgentTool = {
         content: textContent(`计算结果：${result}`),
         details: { expression, result },
       };
-    } catch (err: any) {
+    } catch (err) {
       return {
         content: textContent(`计算失败：${err.message}`),
         details: { expression, error: err.message },

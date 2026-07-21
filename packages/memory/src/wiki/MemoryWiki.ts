@@ -279,7 +279,7 @@ export class MemoryWiki {
    *   IntelligenceState → intelligence_state (upsert singleton)
    *   MemoryEntry     → memory_entries
    */
-  private buildDomainInsert(item: MemoryItem): ReturnType<typeof import('better-sqlite3').default['prototype']['prepare']> | null {
+  private buildDomainInsert(item: MemoryItem): any {
     if (!this.db) return null;
     const d = (item.data ?? {}) as Record<string, unknown>;
 

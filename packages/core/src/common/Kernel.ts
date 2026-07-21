@@ -137,9 +137,10 @@ export class MorPexKernel {
         this._contractGateway!.register('pi-bridge', bridge);
         this._contractGateway!.setDefaultAdapter('pi-bridge');
         console.log('[Kernel] 注册 ContractGateway PiAdapterBridge...');
+      } else if (!this._piAdapter) {
+        console.log('[Kernel] 信息: PiAdapter 将通过 registerPiRuntime() 延迟注册');
       } else {
-        console.log('[Kernel] 警告: 未提供 piAgentRuntime，PiAdapter 未注册。' +
-          '请调用 kernel.registerPiRuntime(runtime) 或通过 config.piRuntime 传入。');
+        console.log('[Kernel] PiAdapter 已通过 registerPiRuntime() 注册');
       }
 
       // ★ NEW: Register agent runtime port if provided

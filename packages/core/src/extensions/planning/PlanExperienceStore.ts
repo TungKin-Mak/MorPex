@@ -23,6 +23,10 @@
 import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 import * as crypto from 'node:crypto';
+import { ExperienceExtractor } from '../../learning/ExperienceExtractor.js';
+import { PlanEvaluator } from '../../learning/PlanEvaluator.js';
+import { StrategyOptimizer } from '../../learning/StrategyOptimizer.js';
+import { TemplateEvolutionEngine } from '../../learning/TemplateEvolutionEngine.js';
 import { MemoryWiki } from '../../../../memory/src/index.js';
 import type {
   PlanExecutionRecord,
@@ -59,8 +63,31 @@ export class PlanExperienceStore {
   /** 初始化完成标志 */
   private initialized = false;
 
+  /** Phase 6: Learning loop integration */
+  private _experienceExtractor: ExperienceExtractor | null = null;
+  private _planEvaluator: PlanEvaluator | null = null;
+  private _strategyOptimizer: StrategyOptimizer | null = null;
+  private _templateEvolution: TemplateEvolutionEngine | null = null;
+
   constructor(config?: Partial<MetaPlannerConfig>) {
     this.config = { ...DEFAULT_META_PLANNER_CONFIG, ...config };
+  }
+
+  getExperienceExtractor(): ExperienceExtractor {
+    if (!this._experienceExtractor) this._experienceExtractor = new ExperienceExtractor();
+    return this._experienceExtractor;
+  }
+  getPlanEvaluator(): PlanEvaluator {
+    if (!this._planEvaluator) this._planEvaluator = new PlanEvaluator();
+    return this._planEvaluator;
+  }
+  getStrategyOptimizer(): StrategyOptimizer {
+    if (!this._strategyOptimizer) this._strategyOptimizer = new StrategyOptimizer();
+    return this._strategyOptimizer;
+  }
+  getTemplateEvolution(): TemplateEvolutionEngine {
+    if (!this._templateEvolution) this._templateEvolution = new TemplateEvolutionEngine();
+    return this._templateEvolution;
   }
 
   // ── 初始化 ──

@@ -94,12 +94,8 @@ export { DEFAULT_EXTENSIONS_CONFIG } from './types.js';
 // ── 扩展注册表 ──
 export { ExtensionRegistryImpl } from './ExtensionRegistry.js';
 
-// ── Phase 1-2: 产物血缘 + 上下文智能 ──
-export { LineageTracker } from './LineageTracker.js';
-export { ContextPruner, createPrunedWakeAgent } from './ContextPruner.js';
-
-// ── Phase 3: 自愈运行时 ──
-export { McpProcessGuard } from './McpProcessGuard.js';
+// ── Phase 1-2: 产物血缘 + 上下文智能 (removed — ghost modules) ──
+// LineageTracker, ContextPruner, McpProcessGuard were ghost modules
 
 // ── Phase 4: Planning Intelligence Layer (MetaPlanner + PipelineExecutor + PIE + SEE) ──
 export { MetaPlanner, PlanExperienceStore, PlanAnalyzer, PipelineExecutor, SessionErrorExtractor, PlanningIntelligenceEngine } from './planning/index.js';

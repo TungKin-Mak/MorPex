@@ -15,7 +15,8 @@ import type { MorPexKernel, MorPexEvent } from '../../core/index.js';
 import type { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
 import type { DomainDispatcher } from '../../core/src/router/DomainDispatcher.js';
 import type { DomainClusterManager } from '../../core/src/domains/DomainClusterManager.js';
-import type { MemoryBus } from '../../memory/src/core/MemoryBus.js';
+// Memory now goes through MemoryBridge (MemoryWiki)
+import { MemoryBridge } from '../../core/src/adapters/memory/index.js';
 import type { MemoryRetriever } from '../../memory/src/wiki/MemoryRetriever.js';
 import { LLMProvider } from '../../core/src/services/LLMProvider.js';
 import type { SessionStore } from './SessionStore.js';
@@ -27,13 +28,13 @@ export interface ExecutionRecord {
   executionId: string;
   status: 'running' | 'completed' | 'failed';
   input: string;
-  output?: any;
+  output?: unknown;
   error?: string;
-  dag?: any;
-  nodes: Map<string, { taskId: string; domain: string; goal: string; status: string; result?: any; error?: string }>;
+  dag?: unknown;
+  nodes: Map<string, { taskId: string; domain: string; goal: string; status: string; result?: unknown; error?: string }>;
   startedAt: number;
   completedAt?: number;
-  result?: any;
+  result?: unknown;
 }
 
 // ── StudioOrchestrator ──
@@ -43,7 +44,7 @@ export class StudioOrchestrator {
   private crossDomainRouter?: CrossDomainRouter;
   private domainDispatcher?: DomainDispatcher;
   private domainManager?: DomainClusterManager;
-  private memoryBus?: MemoryBus;
+  // @deprecated MemoryBus replaced by MemoryWiki
   private memoryRetriever?: MemoryRetriever;
   private sessionStore?: SessionStore;
   private artifactWriter?: ArtifactWriter;
@@ -67,7 +68,8 @@ export class StudioOrchestrator {
     crossDomainRouter?: CrossDomainRouter;
     domainDispatcher?: DomainDispatcher;
     domainManager?: DomainClusterManager;
-    memoryBus?: MemoryBus;
+    /** @deprecated MemoryBus → MemoryWiki */
+    // @deprecated memoryBus removed — use MemoryBridge instead
     memoryRetriever?: MemoryRetriever;
     sessionStore?: SessionStore;
     artifactWriter?: ArtifactWriter;
@@ -76,7 +78,7 @@ export class StudioOrchestrator {
     this.crossDomainRouter = deps.crossDomainRouter;
     this.domainDispatcher = deps.domainDispatcher;
     this.domainManager = deps.domainManager;
-    this.memoryBus = deps.memoryBus;
+    // memoryBus removed — use MemoryBridge instead
     this.memoryRetriever = deps.memoryRetriever;
     this.sessionStore = deps.sessionStore;
     this.artifactWriter = deps.artifactWriter;
@@ -127,14 +129,16 @@ export class StudioOrchestrator {
 
     // 无 @ 标签 → 默认闲聊（流式推送）
     const reply = await this.generateDirectReply(finalContent, execId, sessionId);
-    if (this.memoryBus) {
-      await this.memoryBus.remember({
-        content: `[Chat] ${finalContent.substring(0, 200)}`,
-        source: 'chat', sourceId: execId,
-        tags: ['chat', 'direct_chat'], importance: 1,
-        metadata: { executionId: execId, sessionId },
-      }).catch(() => {});
-    }
+    // Chat memory written to MemoryWiki
+    try {
+      const wiki = MemoryBridge.getWiki();
+      wiki?.remember({
+        id: `chat_${execId}_${Date.now()}`,
+        type: 'MemoryEntry',
+        name: `Chat: ${finalContent.substring(0, 80)}`,
+        data: { content: finalContent, source: 'chat', tags: ['chat', 'direct_chat'], importance: 1, executionId: execId, sessionId },
+      });
+    } catch { /* MemoryWiki not initialized — skip */ }
     return { ok: true, type: 'direct_chat', output: reply, executionId: execId, sessionId };
   }
 
@@ -173,11 +177,13 @@ export class StudioOrchestrator {
   // 执行状态追踪 (ExecutionHandle)
   // ═══════════════════════════════════════════════════════════════
 
-  registerExecution(execId: string, input: string, dag?: any): void {
+  registerExecution(execId: string, input: string, dag?: unknown): void {
     if (this.executionStore.has(execId)) return;
-    const nodeMap = new Map<string, { taskId: string; domain: string; goal: string; status: string; result?: any; error?: string }>();
-    if (dag?.nodes) {
-      for (const n of dag.nodes) {
+    const nodeMap = new Map<string, { taskId: string; domain: string; goal: string; status: string; result?: unknown; error?: string }>();
+    const dagObj = dag as { nodes?: Array<Record<string, string>> } | undefined;
+    if (dagObj?.nodes) {
+      const nodes = dagObj.nodes as Array<{ taskId: string; domain: string; goal: string; status?: string }>;
+      for (const n of nodes) {
         nodeMap.set(n.taskId, { taskId: n.taskId, domain: n.domain, goal: n.goal, status: n.status || 'pending' });
       }
     }
@@ -187,7 +193,7 @@ export class StudioOrchestrator {
     });
   }
 
-  updateNodeStatus(execId: string, taskId: string, update: Partial<{ status: string; result: any; error: string }>): void {
+  updateNodeStatus(execId: string, taskId: string, update: Partial<{ status: string; result: unknown; error: string }>): void {
     const exe = this.executionStore.get(execId);
     if (!exe) return;
     const existing = exe.nodes.get(taskId) ?? { taskId, domain: '', goal: '', status: 'pending' };
@@ -195,7 +201,7 @@ export class StudioOrchestrator {
     exe.nodes.set(taskId, existing);
   }
 
-  finalizeExecution(execId: string, status: 'completed' | 'failed', result?: any, error?: string): void {
+  finalizeExecution(execId: string, status: 'completed' | 'failed', result?: unknown, error?: string): void {
     const exe = this.executionStore.get(execId);
     if (!exe) return;
     exe.status = status;
@@ -261,10 +267,14 @@ export class StudioOrchestrator {
             this.domainDispatcher!.executeDAG(dag.nodes, sessionCtx)
               .then((execResult) => {
                 console.log(`[@鲁班] ✅ 异步完成: ${execId} (${execResult.completedNodes}/${dag.nodes.length} 节点)`);
-                const resultMap = new Map((execResult.results || []).map((r: any) => [r.taskId, r]));
-                const finalNodes = dag.nodes.map((n: any) => {
-                  const r = resultMap.get(n.taskId) as any;
-                  return { ...n, status: (r?.status || 'completed') as string, result: r?.output ?? null, error: r?.error ?? null };
+                const dagObj = dag as unknown as { nodes: Array<Record<string, unknown>> };
+                const resultMap = new Map<string, Record<string, unknown>>();
+                (execResult.results as unknown as Array<Record<string, unknown>> || []).forEach((r: Record<string, unknown>) => resultMap.set(String(r.taskId), r));
+                const finalNodes = dagObj.nodes.map((n: Record<string, unknown>) => {
+                  const tid = String(n.taskId ?? '');
+                  const r = resultMap.get(tid);
+                  const rAny = r as Record<string, unknown> | undefined;
+                  return { ...n, status: String(rAny?.status || 'completed'), result: rAny?.output ?? null, error: rAny?.error ?? null };
                 });
                 this.finalizeExecution(execId, execResult.success ? 'completed' : 'failed', execResult, execResult.error);
                 this.sessionStore?.appendChatMessage(sessionId || '', {
@@ -272,17 +282,19 @@ export class StudioOrchestrator {
                   region: '系统', status: 'completed', executionId: execId,
                   dag: { ...dag, nodes: finalNodes },
                 });
-                if (this.memoryBus) {
-                  this.memoryBus.remember({
-                    content: `[Task] ${content.substring(0, 200)}`,
-                    source: 'chat', sourceId: execId,
-                    tags: ['task', '鲁班'], importance: 3,
-                    metadata: { executionId: execId, sessionId, agent: '鲁班' },
-                  }).catch(() => {});
-                }
-              }).catch((err: any) => {
-                console.error(`[@鲁班] ❌ 异步失败: ${execId}`, err.message);
-                this.finalizeExecution(execId, 'failed', undefined, err.message);
+                // Task memory written to MemoryWiki
+                try {
+                  const wiki = MemoryBridge.getWiki();
+                  wiki?.remember({
+                    id: `task_${execId}_${Date.now()}`,
+                    type: 'MemoryEntry',
+                    name: `Task: ${content.substring(0, 80)}`,
+                    data: { content, source: 'chat', tags: ['task', '鲁班'], importance: 3, executionId: execId, sessionId, agent: '鲁班' },
+                  });
+                } catch { /* skip */ }
+              }).catch((err: unknown) => {
+                console.error(`[@鲁班] ❌ 异步失败: ${execId}`, (err as Error).message);
+                this.finalizeExecution(execId, 'failed', undefined, (err as Error).message);
               });
           });
         }
@@ -294,22 +306,23 @@ export class StudioOrchestrator {
             reasoning: dag.reasoning, agent: '@鲁班',
           },
         };
-      } catch (err: any) {
-        return { ok: false, error: err.message };
+      } catch (err: unknown) {
+        return { ok: false, error: (err as Error).message };
       }
     });
 
     // ── @司马迁：记忆检索模式 ──
     this.agentDispatchMap.set('司马迁', async (content, execId, sessionId) => {
       try {
-        const result = await this.memoryBus?.recall?.({ text: content, topK: 5 });
-        const items = result?.items ?? [];
-        const reply = items.length > 0
-          ? `📖 找到 ${items.length} 条相关记忆：\n\n${items.map((r: any, i: number) => `[${i+1}] ${r.content?.substring(0,200) ?? '(无内容)'}`).join('\n---\n')}`
+        const retriever = MemoryBridge.getRetriever();
+        const retrieval = retriever ? await retriever.retrieveForTask(content, ['memory']) : null;
+        const snippets = retrieval?.snippets ?? [];
+        const reply = snippets.length > 0
+          ? `📖 找到 ${snippets.length} 条相关记忆：\n\n${snippets.map((s: string, i: number) => `[${i+1}] ${s.substring(0, 200)}`).join('\n---\n')}`
           : '📭 未找到相关记忆。';
         return { ok: true, type: 'direct_chat', output: reply, agent: '@司马迁', executionId: execId, sessionId };
-      } catch (e: any) {
-        return { ok: true, type: 'direct_chat', output: `⚠️ 记忆检索暂不可用：${e.message}`, executionId: execId, sessionId };
+      } catch (e: unknown) {
+        return { ok: true, type: 'direct_chat', output: `⚠️ 记忆检索暂不可用：${(e as Error).message}`, executionId: execId, sessionId };
       }
     });
 
@@ -332,7 +345,7 @@ export class StudioOrchestrator {
     }
   }
 
-  private emit(type: string, payload: any, execId?: string): void {
+  private emit(type: string, payload: Record<string, unknown>, execId?: string): void {
     this.kernel.eventBus.emit({
       id: this.kernel.executionIdentity.createEventId(),
       type,

@@ -211,21 +211,25 @@ export class PlanningIntelligenceEngine {
    * and compares against post-execution reality.
    */
   analyzeExecutionGap(
-    pipelineTrace: any,
+    pipelineTrace: Record<string, any>,
     actualRecord: PlanExecutionRecord,
   ): ExecutionGapAnalysis {
     // Extract predictions from pipeline trace stages
-    const stage4 = pipelineTrace?.stages?.[3];   // Stage 4: DES simulation
-    const stage5 = pipelineTrace?.stages?.[4];   // Stage 5: MCDA scorecard
-    const stage7 = pipelineTrace?.stages?.[6];   // Stage 7: activation
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const stages = pipelineTrace.stages as any[] | undefined;
+    const stage4 = stages?.[3];   // Stage 4: DES simulation
+    const stage5 = stages?.[4];   // Stage 5: MCDA scorecard
+    const stage7 = stages?.[6];   // Stage 7: activation
 
-    const simReports = stage4?.output ?? [];
-    const scorecard = stage5?.output ?? null;
-    const activation = stage7?.output ?? null;
+    const simReports = (stage4 as Record<string, unknown>)?.output as Array<Record<string, unknown>> ?? [];
+    const scorecard = (stage5 as Record<string, unknown>)?.output as Record<string, unknown> | null ?? null;
+    const activation = (stage7 as Record<string, unknown>)?.output as Record<string, unknown> | null ?? null;
 
     // Predicted survival: average across all simulated profiles
-    const predictedSurvival = Array.isArray(simReports) && simReports.length > 0
-      ? simReports.reduce((s: number, r: any) => s + (r.survivalProbability ?? 0), 0) / simReports.length
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const reportsArr: any[] = Array.isArray(simReports) ? simReports as any[] : [];
+    const predictedSurvival = reportsArr.length > 0
+      ? reportsArr.reduce((s: number, r: any) => s + (r.survivalProbability ?? 0.5), 0) / reportsArr.length
       : 0.5;
 
     // Actual survival: 1.0 if success, 0.0 if failed, ratio of passed dagNodes
@@ -234,15 +238,16 @@ export class PlanningIntelligenceEngine {
     const actualSurvival = actualNodeCount > 0 ? passedNodes / actualNodeCount : (actualRecord.success ? 1.0 : 0.0);
 
     // Predicted latency: simulated total from winner profile
-    const winnerStrategy = activation?.activatedPlan?.strategy;
-    const winnerSim = Array.isArray(simReports)
-      ? simReports.find((r: any) => r.strategy === winnerStrategy)
+    const activationRecord = activation as Record<string, unknown> | undefined;
+    const winnerStrategy = (activationRecord?.['activatedPlan'] as Record<string, unknown> | undefined)?.['strategy'] as string | undefined;
+    const winnerSim = reportsArr.length > 0
+      ? reportsArr.find((r: any) => r.strategy === winnerStrategy)
       : null;
-    const predictedLatency = winnerSim?.totalSimulatedLatencyMs ?? 30000;
+    const predictedLatency: number = (winnerSim as Record<string, unknown> | null)?.['totalSimulatedLatencyMs'] as number ?? 30000;
     const actualLatency = actualRecord.totalDurationMs;
 
     // Predicted score: MCDA winner composite
-    const predictedScore = scorecard?.winnerScore ?? 0.5;
+    const predictedScore = (scorecard as Record<string, unknown> | undefined)?.['winnerScore'] as number ?? 0.5;
     const actualScore = actualRecord.score;
 
     // Per-dimension gaps
@@ -250,10 +255,11 @@ export class PlanningIntelligenceEngine {
     const significantGaps: string[] = [];
     const dims = ['stability', 'latency', 'security', 'alignment', 'healing', 'knowledge'];
 
-    const winnerProfile = scorecard?.profiles?.[scorecard?.winner ?? 'defensive'];
-    if (winnerProfile) {
+    const scorecardRecord = scorecard as Record<string, unknown> | undefined;
+    const winner = (scorecardRecord?.['profiles'] as Record<string, unknown> | undefined)?.[(scorecardRecord?.['winner'] as string) ?? 'defensive'] as Record<string, unknown> | undefined;
+    if (winner) {
       for (const dim of dims) {
-        const predicted = winnerProfile[dim] ?? 0;
+        const predicted: number = typeof winner?.[dim] === 'number' ? winner[dim] as number : 0;
         // Map actual to dimension equivalents:
         // stability → success rate, latency → 1 - (duration/maxDuration), others inferred
         let actual: number;
@@ -401,21 +407,23 @@ export class PlanningIntelligenceEngine {
 
       case 'boost_template': {
         // Boost a template's quality score
-        const template = this.metaPlanner.store.getAllTemplates?.()
-          .find((t: any) => t.templateId === action.target);
+        const templates = (this.metaPlanner.store.getAllTemplates?.() ?? []) as Record<string, unknown>[];
+        const template = templates
+          .find((t: Record<string, unknown>) => t.templateId === action.target);
         if (template) {
-          (template as any).qualityScore = action.after;
+          template.qualityScore = action.after;
         }
         break;
       }
 
       case 'update_template_quality': {
         // Similar to boost but can go either direction
-        const template = this.metaPlanner.store.getAllTemplates?.()
-          .find((t: any) => t.templateId === action.target);
+        const templates = (this.metaPlanner.store.getAllTemplates?.() ?? []) as Record<string, unknown>[];
+        const template = templates
+          .find((t: Record<string, unknown>) => t.templateId === action.target);
         if (template) {
-          const oldScore = (template as any).qualityScore ?? 0.5;
-          (template as any).qualityScore = Math.max(0, Math.min(1, oldScore + (action.after - action.before)));
+          const oldScore = (template.qualityScore as number) ?? 0.5;
+          template.qualityScore = Math.max(0, Math.min(1, oldScore + (action.after - action.before)));
         }
         break;
       }
@@ -487,7 +495,7 @@ export class PlanningIntelligenceEngine {
         const qs = (t as any).qualityScore ?? 0.5;
         return qs >= this.config.templateQualityMin; // Only consider non-pruned
       })
-      .sort((a: any, b: any) => b.qualityScore - a.qualityScore);
+      .sort((a: Record<string, unknown>, b: Record<string, unknown>) => (b.qualityScore as number) - (a.qualityScore as number));
     const top10PercentIdx = Math.max(1, Math.floor(sorted.length * 0.1));
     const topThreshold = sorted.length > 0 ? sorted[top10PercentIdx]?.qualityScore ?? 0.5 : 0.5;
 

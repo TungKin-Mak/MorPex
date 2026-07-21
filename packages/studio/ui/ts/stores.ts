@@ -4,6 +4,14 @@
    ═══════════════════════════════════════════════════════════════════════ */
 
 import { create } from 'zustand';
+import {
+  fetchRuntimeExecutions as apiFetchRuntimeExecutions,
+  fetchArtifactsV7 as apiFetchArtifactsV7,
+  fetchArtifactLineage as apiFetchArtifactLineage,
+  fetchArchitectureHealth as apiFetchArchitectureHealth,
+  validateSystem as apiValidateSystem,
+  activateMemory as apiActivateMemory,
+} from './api';
 
 // ── 多 Session 模式 ──
 export type ChatMode = 'chat' | 'luban' | 'simq';
@@ -24,7 +32,8 @@ export interface LiveStreamItem {
 
 export type ZoneBTab =
   | { type: 'logs' }
-  | { type: 'node'; taskId: string; executionId: string; label: string };
+  | { type: 'node'; taskId: string; executionId: string; label: string }
+  | { type: 'artifacts' };
 
 export interface DagFlow {
   id: string;
@@ -165,6 +174,8 @@ export interface AstroStore {
   activeMode: ChatMode;
   switchChatMode: (mode: ChatMode) => void;
   pushToChatMode: (mode: ChatMode, item: LiveStreamItem) => void;
+  /** 将指定 mode 最后一条 running 替换为 completed，可选替换文本 */
+  finalizeStream: (mode: ChatMode, finalText?: string) => void;
 
   // ── ZoneB 节点 tab ──
   zoneBActiveTab: ZoneBTab;
@@ -176,6 +187,36 @@ export interface AstroStore {
   // ── 命令栏脉冲 ──
   commandSubmitted: boolean;
   triggerCommandPulse: () => void;
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Runtime Slice
+  // ═══════════════════════════════════════════════════════════════
+  runtimeExecutions: import('./types').Execution[];
+  selectedExecution: string | null;
+  fetchRuntimeExecutions: () => Promise<void>;
+  selectRuntimeExecution: (id: string | null) => void;
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Artifact Slice
+  // ═══════════════════════════════════════════════════════════════
+  v7Artifacts: import('./types').ArtifactV7[];
+  artifactGraph: import('./types').GraphData | null;
+  artifactLineage: import('./types').LineageData | null;
+  fetchV7Artifacts: () => Promise<void>;
+  selectV7Artifact: (id: string | null) => Promise<void>;
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Health Slice
+  // ═══════════════════════════════════════════════════════════════
+  healthReport: import('./types').HealthReport | null;
+  fetchHealth: () => Promise<void>;
+  validateSystem: () => Promise<{ passed: boolean; healthScore: number } | null>;
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Memory Slice
+  // ═══════════════════════════════════════════════════════════════
+  memoryActivationResult: import('./types').MemoryResult | null;
+  activateMemory: (context: import('./types').MemoryContext) => Promise<void>;
 }
 
 export const useAstroStore = create<AstroStore>((set) => ({
@@ -396,6 +437,10 @@ export const useAstroStore = create<AstroStore>((set) => ({
     set((s) => {
       const stream = s.modeStates[mode]?.liveStream ?? [];
       const last = stream[stream.length - 1];
+      // 护栏：已收口（最后一条是 completed/failed）则忽略后续 running delta
+      if (item.status === 'running' && last && (last.status === 'completed' || last.status === 'failed')) {
+        return s;
+      }
       // 连续同状态 running 合并（流式输出）
       if (last && last.status === item.status && item.status === 'running' && last.region === item.region) {
         const merged = { ...last, message: last.message + item.message, timestamp: Date.now(), agent: item.agent || last.agent };
@@ -408,6 +453,18 @@ export const useAstroStore = create<AstroStore>((set) => ({
           ...s.modeStates,
           [mode]: { ...s.modeStates[mode], liveStream: [...stream.slice(-200), item] },
         },
+      };
+    }),
+  finalizeStream: (mode, finalText) =>
+    set((s) => {
+      const stream = [...(s.modeStates[mode]?.liveStream ?? [])];
+      if (stream.length === 0) return s;
+      const last = stream[stream.length - 1];
+      if (last.status !== 'running') return s;
+      // 用 HTTP 全量文本覆盖 SSE 累积文本，确保完整
+      stream[stream.length - 1] = { ...last, status: 'completed' as const, message: finalText ?? last.message };
+      return {
+        modeStates: { ...s.modeStates, [mode]: { ...s.modeStates[mode], liveStream: stream } },
       };
     }),
 
@@ -446,5 +503,67 @@ export const useAstroStore = create<AstroStore>((set) => ({
   triggerCommandPulse: () => {
     set({ commandSubmitted: true });
     setTimeout(() => set({ commandSubmitted: false }), 400);
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Runtime Slice
+  // ═══════════════════════════════════════════════════════════════
+  runtimeExecutions: [],
+  selectedExecution: null,
+  fetchRuntimeExecutions: async () => {
+    try {
+      const res = await apiFetchRuntimeExecutions();
+      set({ runtimeExecutions: res.executions });
+    } catch { /* backend unreachable */ }
+  },
+  selectRuntimeExecution: (id) => set({ selectedExecution: id }),
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Artifact Slice
+  // ═══════════════════════════════════════════════════════════════
+  v7Artifacts: [],
+  artifactGraph: null,
+  artifactLineage: null,
+  fetchV7Artifacts: async () => {
+    try {
+      const res = await apiFetchArtifactsV7();
+      set({ v7Artifacts: res.artifacts });
+    } catch { /* backend unreachable */ }
+  },
+  selectV7Artifact: async (id) => {
+    set({ artifactLineage: null });
+    if (!id) return;
+    try {
+      const lineage = await apiFetchArtifactLineage(id);
+      set({ artifactLineage: lineage });
+    } catch { /* backend unreachable */ }
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Health Slice
+  // ═══════════════════════════════════════════════════════════════
+  healthReport: null,
+  fetchHealth: async () => {
+    try {
+      const report = await apiFetchArchitectureHealth();
+      set({ healthReport: report });
+    } catch { /* backend unreachable */ }
+  },
+  validateSystem: async () => {
+    try {
+      const result = await apiValidateSystem();
+      return { passed: result.passed, healthScore: result.healthScore };
+    } catch { return null; }
+  },
+
+  // ═══════════════════════════════════════════════════════════════
+  // v7 Memory Slice
+  // ═══════════════════════════════════════════════════════════════
+  memoryActivationResult: null,
+  activateMemory: async (context) => {
+    try {
+      const result = await apiActivateMemory(context);
+      set({ memoryActivationResult: result });
+    } catch { /* backend unreachable */ }
   },
 }));

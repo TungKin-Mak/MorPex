@@ -121,10 +121,11 @@ export class JSONLCompactor {
     try {
       await fsp.writeFile(tmpPath, compactedLines.join('\n') + (compactedLines.length > 0 ? '\n' : ''), 'utf-8');
       await fsp.rename(tmpPath, this.filePath);
-    } catch (err: any) {
+    } catch (err: unknown) {
       // 清理临时文件
       try { await fsp.unlink(tmpPath); } catch { /* ignore */ }
-      console.warn(`[JSONLCompactor] ⚠️ 压缩失败: ${err.message}`);
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[JSONLCompactor] ⚠️ 压缩失败: ${msg}`);
       return { before, after: before }; // 失败时返回原始数
     }
 

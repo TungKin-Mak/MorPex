@@ -17,12 +17,12 @@ import type { DAGPatch, IRuntimeController, DAGPatchOperation } from './types.js
  * RuntimeController — 运行时影子控制句柄
  */
 export class RuntimeController implements IRuntimeController {
-  private _dagEngine: any;
+  private _dagEngine: any | null; // DAGEngine-like duck-typed service
   private _sessionId: string;
   private _isPaused = false;
   private _pauseCount = 0;
 
-  constructor(dagEngine: any, sessionId: string) {
+  constructor(dagEngine: any | null, sessionId: string) {
     this._dagEngine = dagEngine;
     this._sessionId = sessionId;
   }
@@ -46,7 +46,7 @@ export class RuntimeController implements IRuntimeController {
           console.warn(`[RuntimeController] 操作失败: ${op.type} ${op.nodeId}`);
           allSuccess = false;
         }
-      } catch (err: any) {
+      } catch (err) {
         console.error(`[RuntimeController] 操作异常: ${op.type} ${op.nodeId}: ${err.message}`);
         allSuccess = false;
       }
@@ -67,10 +67,12 @@ export class RuntimeController implements IRuntimeController {
     if (!this._dagEngine) {
       return { nodeCount: 0, completedCount: 0, pendingCount: 0, isPaused: this._isPaused };
     }
-    const nodes: any[] = this._dagEngine.getAllNodes() ?? [];
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const eng: any = this._dagEngine;
+    const nodes: any[] = eng?.getAllNodes?.() ?? [];
     const nodeCount = nodes.length;
-    const completedCount = nodes.filter((n: any) => n.status === 'success' || n.status === 'failed' || n.status === 'skipped').length;
-    const pendingCount = nodes.filter((n: any) => n.status === 'pending' || n.status === 'ready').length;
+    const completedCount = nodes.filter(n => (n.status as string) === 'success' || (n.status as string) === 'failed' || (n.status as string) === 'skipped').length;
+    const pendingCount = nodes.filter(n => (n.status as string) === 'pending' || (n.status as string) === 'ready').length;
     return { nodeCount, completedCount, pendingCount, isPaused: this._isPaused };
   }
 
@@ -113,7 +115,7 @@ export class RuntimeController implements IRuntimeController {
       }
 
       default:
-        console.warn(`[RuntimeController] 未知操作类型: ${(op as any).type}`);
+        console.warn(`[RuntimeController] 未知操作类型: ${op.type}`);
         return false;
     }
   }

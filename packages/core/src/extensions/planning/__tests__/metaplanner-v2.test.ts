@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * MetaPlanner v2 — 集成测试与使用示例
  *

@@ -207,7 +207,7 @@ export class PluginSystem {
       await plugin.initialize(context);
       record.status = 'initialized';
       console.log(`[PluginSystem] 已初始化: ${plugin.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       console.error(`[PluginSystem] 初始化失败: ${plugin.name}:`, err.message);
@@ -225,7 +225,7 @@ export class PluginSystem {
       await plugin.start();
       record.status = 'running';
       console.log(`[PluginSystem] 已启动: ${plugin.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       console.error(`[PluginSystem] 启动失败: ${plugin.name}:`, err.message);
@@ -243,7 +243,7 @@ export class PluginSystem {
       await plugin.stop();
       record.status = 'stopped';
       console.log(`[PluginSystem] 已停止: ${plugin.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       console.error(`[PluginSystem] 停止失败: ${plugin.name}:`, err.message);

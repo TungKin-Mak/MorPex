@@ -104,8 +104,9 @@ async function main() {
       await manager.sleep(firstClusterId);
       console.log(`  状态: ${cluster.status}`);
       console.log('  💤 领域集群已休眠');
-    } catch (err: any) {
-      console.log(`  ⚠️ 唤醒测试: ${err.message}（LLM 可能不可用，但这不影响领域协议验证）`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.log(`  ⚠️ 唤醒测试: ${msg}（LLM 可能不可用，但这不影响领域协议验证）`);
     }
   }
 

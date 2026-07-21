@@ -83,7 +83,6 @@
     "clean:all": "rm -rf packages/studio/ui/dist data/mirror data/sessions/*.jsonl",
     "reset": "rm -rf data/zvec data/sessions/logs/*.log",
     "══════════ 适配器契约测试 ══════════": "",
-    "test:adapter:contract": "npx tsx packages/adapters/__tests__/contract-tests.ts",
     "test:adapter:mock": "npx tsx packages/adapters/__tests__/contract-tests.ts --mock",
     "test:adapter:all": "npx tsx packages/adapters/__tests__/contract-tests.ts --all",
     "══════════ 依赖边界检查 ══════════": "",
@@ -93,9 +92,9 @@
     "verify:upgrade": "npm run core:typecheck && npm run depcheck && npm run test:adapter-contracts"
   },
   "dependencies": {
-    "@earendil-works/pi-agent-core": "0.79.10",
-    "@earendil-works/pi-ai": "0.79.10",
-    "@earendil-works/pi-coding-agent": "0.79.10",
+    "@earendil-works/pi-agent-core": "0.80.10",
+    "@earendil-works/pi-ai": "^0.79.10",
+    "@earendil-works/pi-coding-agent": "0.80.10",
     "@playwright/test": "^1.61.1",
     "@zvec/zvec": "^0.5.0",
     "better-sqlite3": "^12.11.1",

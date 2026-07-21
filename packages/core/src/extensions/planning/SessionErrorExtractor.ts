@@ -257,8 +257,7 @@ export class SessionErrorExtractor {
    */
   extractSessionErrors(
     sessionId: string,
-    dagEngine?: any,
-    memoryBus?: any,
+    allDagNodes?: Array<{ nodeId: string; domain?: string; role?: string; deps?: string[]; status?: string }>,
   ): SessionErrorReport {
     const rawErrors = this.sessionErrors.get(sessionId) ?? [];
     const deviationCount = this.sessionDeviations.get(sessionId) ?? 0;
@@ -282,11 +281,11 @@ export class SessionErrorExtractor {
     }
 
     // 1. 富化错误上下文
-    const allDagNodes = this.extractDagNodes(dagEngine);
-    const enriched = this.enrichErrorContext(rawErrors, dagEngine, allDagNodes);
+    const dagNodes: Array<{ nodeId: string; domain?: string; role?: string; deps?: string[]; status?: string }> = [];
+    const enriched = this.enrichErrorContext(rawErrors, dagNodes);
 
     // 2. 关联因果链
-    const chains = this.correlateErrors(enriched, allDagNodes);
+    const chains = this.correlateErrors(enriched, dagNodes);
 
     // 3. 分类根因
     const rootCauses = chains.map(c => this.classifyRootCause(c));
@@ -352,16 +351,15 @@ export class SessionErrorExtractor {
    */
   enrichErrorContext(
     errors: RawError[],
-    dagEngine?: any,
-    allDagNodes?: Array<{ nodeId: string; domain?: string; role?: string; deps?: string[]; status?: string }>,
+    allDagNodes: Array<{ nodeId: string; domain?: string; role?: string; deps?: string[]; status?: string }>,
   ): EnrichedError[] {
-    const nodeMap = new Map<string, any>();
+    const nodeMap = new Map<string, Record<string, unknown>>();
     if (allDagNodes) {
-      for (const n of allDagNodes) nodeMap.set(n.nodeId, n);
+      for (const n of allDagNodes) nodeMap.set(n.nodeId, n as unknown as Record<string, unknown>);
     }
 
     // 获取所有节点状态
-    const allNodes = allDagNodes ?? this.extractDagNodes(dagEngine);
+    const allNodes = allDagNodes;
     const totalNodes = allNodes.length;
     const completedNodes = allNodes.filter(n => n.status === 'success' || n.status === 'completed').length;
     const pendingNodes = allNodes.filter(n => n.status === 'pending' || n.status === 'ready').length;
@@ -369,7 +367,7 @@ export class SessionErrorExtractor {
 
     return errors.map((raw, idx) => {
       const dagNode = nodeMap.get(raw.nodeId);
-      const deps: string[] = dagNode?.deps ?? [];
+      const deps: string[] = (dagNode?.deps as string[]) ?? [];
       // downstream: nodes that depend on this node
       const downstream = allNodes.filter(n => (n.deps ?? []).includes(raw.nodeId)).map(n => n.nodeId);
 
@@ -377,10 +375,12 @@ export class SessionErrorExtractor {
       const cascadeCount = idx > 0 ? errors.slice(0, idx).filter(e => deps.includes(e.nodeId)).length : 0;
       const severity = computeSeverity(category, raw.retryCount, cascadeCount);
 
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const dNode = dagNode as any;
       return {
         raw,
-        nodeDomain: dagNode?.domain ?? 'unknown',
-        nodeRole: dagNode?.role ?? dagNode?.nodeId ?? raw.nodeId,
+        nodeDomain: dNode?.domain ?? 'unknown',
+        nodeRole: dNode?.role ?? dNode?.nodeId ?? raw.nodeId,
         upstreamDeps: deps,
         downstreamDeps: downstream,
         artifactUris: [],
@@ -506,20 +506,7 @@ export class SessionErrorExtractor {
 
   // ── 内部方法 ──
 
-  private extractDagNodes(dagEngine?: any): Array<{ nodeId: string; domain?: string; role?: string; deps?: string[]; status?: string }> {
-    if (!dagEngine?.getAllNodes) return [];
-    try {
-      return dagEngine.getAllNodes().map((n: any) => ({
-        nodeId: n.id ?? n.nodeId ?? n.taskId ?? '',
-        domain: n.domain,
-        role: n.role ?? n.agentType,
-        deps: n.deps ?? [],
-        status: n.status,
-      }));
-    } catch {
-      return [];
-    }
-  }
+
 
   private isTransitiveDependency(
     targetId: string,

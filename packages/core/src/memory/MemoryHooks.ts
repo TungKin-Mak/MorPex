@@ -6,6 +6,7 @@
 
 import type { AgentEvent, AgentMessage } from '../adapters/pi-types.js';
 import type { EventBus, MorPexEvent } from '../common/types.js';
+import type { MemoryActivationEngine, ActivationContext } from './MemoryActivationEngine.js';
 
 /** 记忆总线接口 */
 export interface MemoryBus {
@@ -103,8 +104,8 @@ export function createAutoMemoryHook(
       sourceId: executionId,
       tags: ['conversation', domainId],
       importance,
-    }).catch((err: any) => {
-      console.error('[MemoryHooks] 自动写回失败:', err.message);
+    }).catch((err: unknown) => {
+      console.error('[MemoryHooks] 自动写回失败:', (err as Error).message);
     });
   };
 }
@@ -143,7 +144,7 @@ export function createReasoningMemoryHook(
         const hintMsg = buildHintMessage(memories);
         return { messages: [...event.messages, hintMsg] };
       }
-    } catch (err: any) {
+    } catch (err) {
       console.warn('[MemoryHooks] 记忆检索失败:', err.message);
     }
 
@@ -183,4 +184,22 @@ function extractText(msg: any): string {
   }
 
   return '';
+}
+
+/**
+ * Phase 4: createActivationMemoryHook — 使用 MemoryActivationEngine 的增强钩子
+ * 支持 state-aware / task-aware / execution-aware 记忆召回
+ */
+export function createActivationMemoryHook(
+  activationEngine: MemoryActivationEngine,
+  contextBuilder: (event: AgentEvent) => Partial<ActivationContext>,
+) {
+  return {
+    onAgentEvent: async (event: AgentEvent) => {
+      const ctx = contextBuilder(event);
+      const memories = await activationEngine.activate(ctx as ActivationContext);
+      // Attach activated memories to event for downstream consumers
+      (event as any).__activatedMemories = memories;
+    },
+  };
 }

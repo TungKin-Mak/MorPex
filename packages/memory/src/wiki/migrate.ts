@@ -241,7 +241,7 @@ export async function migrateJSONLtoSQLite(
       }
 
       console.log(`  ✅ ${path.basename(source.path)}: ${result.rowsWritten}/${result.rowsRead} rows → ${source.table}`);
-    } catch (err: unknown) {
+    } catch (err) {
       const msg = (err as Error).message ?? String(err);
       if (msg.includes('ENOENT') || msg.includes('no such file')) {
         console.log(`  ⊘ ${path.basename(source.path)}: 文件不存在，跳过`);

@@ -159,7 +159,34 @@ export class KnowledgeGraphPlugin implements MorPexPlugin {
       }),
     );
 
-    console.log('[KnowledgeGraphPlugin] 已启动，正在监听 knowledge.* 事件');
+    // Phase 12: Cross-sync bridge — listen for artifact.created and auto-import
+    this.unsubscribers.push(
+      this.eventBus.on('artifact.created', async (event: MorPexEvent) => {
+        const data = event.payload as any;
+        if (data?.artifactId || data?.artifact?.id) {
+          const artifact = data.artifact || { id: data.artifactId, name: data.name, type: data.type };
+          try {
+            await this.graph.importFromArtifact(artifact);
+            this.emitEvent('knowledge.imported', { source: 'artifact-auto-sync', entity: artifact });
+          } catch { /* skip failed imports */ }
+        }
+      }),
+    );
+
+    // Also listen for artifact.updated to update knowledge graph
+    this.unsubscribers.push(
+      this.eventBus.on('artifact.updated', async (event: MorPexEvent) => {
+        const data = event.payload as any;
+        if (data?.artifactId || data?.artifact?.id) {
+          const artifact = data.artifact || { id: data.artifactId, name: data.name, type: data.type };
+          try {
+            await this.graph.importFromArtifact(artifact);
+          } catch { /* skip */ }
+        }
+      }),
+    );
+
+    console.log('[KnowledgeGraphPlugin] 已启动，正在监听 knowledge.* + artifact.* 事件');
   }
 
   async stop(): Promise<void> {

@@ -7,6 +7,7 @@ import React, { useEffect, useRef, useState, useCallback } from 'react';
 import { useAstroStore } from './stores';
 import { api } from './api';
 import './LeftTerminal.css';
+import ArtifactPanel from './ArtifactPanel';
 
 const TYPE_ICONS: Record<string, string> = {
   code: '{}', document: '¶', config: '⚙',
@@ -234,9 +235,9 @@ const ZoneB_LeftPane: React.FC = () => {
     return `${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}:${String(d.getSeconds()).padStart(2, '0')}`;
   };
 
-  // 检查是否有节点 tab（排除 logs tab）
+  // 检查是否有非 logs tab
   const nodeTabs = zoneBTabs.filter((t): t is { type: 'node'; taskId: string; executionId: string; label: string } => t.type === 'node');
-  const showTabRow = nodeTabs.length > 0;
+  const showTabRow = true;
 
   return (
     <div className="left-terminal-wrapper">
@@ -249,6 +250,13 @@ const ZoneB_LeftPane: React.FC = () => {
             onClick={() => switchZoneBTab({ type: 'logs' })}
           >
             日志
+          </span>
+          {/* v7 产物 tab */}
+          <span
+            className={`zoneb-tab${zoneBActiveTab.type === 'artifacts' ? ' zoneb-tab-active' : ''}`}
+            onClick={() => switchZoneBTab({ type: 'artifacts' })}
+          >
+            产物
           </span>
           {nodeTabs.map((tab) => (
             <span key={tab.taskId} className={`zoneb-tab${zoneBActiveTab.type === 'node' && zoneBActiveTab.taskId === tab.taskId ? ' zoneb-tab-active' : ''}`}>
@@ -319,6 +327,12 @@ const ZoneB_LeftPane: React.FC = () => {
             </div>
           </div>
         </>
+      ) : zoneBActiveTab.type === 'artifacts' ? (
+        /* v7 产物 tab */
+        <div className="term-half" style={{ height: '100%' }}>
+          <div className="term-title">产物列表</div>
+          <ArtifactPanel />
+        </div>
       ) : (
         /* ★ v3.2: 节点详情 tab */
         <div className="term-half" style={{ height: '100%' }}>

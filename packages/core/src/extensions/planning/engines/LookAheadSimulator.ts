@@ -20,6 +20,7 @@ import type {
 } from '../types.js';
 import type { PlanExperienceStore } from '../PlanExperienceStore.js';
 import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { DAGNodeData, ExecutionRecordData, FailurePatternData, VectorStoreService } from '../pipeline/service-types.js';
 
 const DEFAULT_RISK_THRESHOLD = 0.7;
 
@@ -35,17 +36,18 @@ export class LookAheadSimulator implements IPlanningExtension {
   public readonly priority = 30;
   public enabled = true;
 
-  private vectorStore: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private vectorStore: any = undefined;
   private store: PlanExperienceStore | null;
   private riskThreshold: number;
 
   constructor(config?: {
-    vectorStore?: any;
+    vectorStore?: VectorStoreService;
     store?: PlanExperienceStore;
     riskThreshold?: number;
     enabled?: boolean;
   }) {
-    this.vectorStore = config?.vectorStore;
+    this.vectorStore = config?.vectorStore ?? undefined;
     this.store = config?.store ?? null;
     this.riskThreshold = config?.riskThreshold ?? DEFAULT_RISK_THRESHOLD;
     if (config?.enabled !== undefined) this.enabled = config.enabled;
@@ -93,14 +95,14 @@ export class LookAheadSimulator implements IPlanningExtension {
         simulationReport: report,
         enrichedPlan: rejected ? { additionalInstructions: reasons } : undefined,
       };
-    } catch (err: any) {
-      console.warn(`[LookAheadSimulator] 异常: ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`[LookAheadSimulator] 异常: ${(err as Error).message}`);
       return { simulationReport: this.emptyReport(startTime) };
     }
   }
 
-  private async searchSimilarRecords(userInput: string, tags: string[]): Promise<any[]> {
-    const records: any[] = [];
+  private async searchSimilarRecords(userInput: string, tags: string[]): Promise<ExecutionRecordData[]> {
+    const records: ExecutionRecordData[] = [];
     if (this.vectorStore?.search) {
       try {
         const ids = await this.vectorStore.search(userInput, 10);
@@ -110,19 +112,19 @@ export class LookAheadSimulator implements IPlanningExtension {
     if (this.store?.queryByTags) {
       try {
         const tagged = this.store.queryByTags(tags, 5);
-        records.push(...tagged.map((r: any) => ({ id: r.recordId ?? r.id, source: 'store', ...r })));
+        records.push(...tagged.map((r: ExecutionRecordData) => ({ id: r.recordId ?? r.id, source: 'store', ...r })));
       } catch { /* ignore */ }
     }
     return records.slice(0, 15);
   }
 
-  private buildDependencyGraph(nodes: any[]): Map<string, string[]> {
+  private buildDependencyGraph(nodes: DAGNodeData[]): Map<string, string[]> {
     const g = new Map<string, string[]>();
     for (const n of nodes) g.set(n.id ?? n.taskId, n.deps ?? []);
     return g;
   }
 
-  private detectCycles(graph: Map<string, string[]>, nodes: any[]): DeadlockWarning[] {
+  private detectCycles(graph: Map<string, string[]>, nodes: DAGNodeData[]): DeadlockWarning[] {
     const warnings: DeadlockWarning[] = [];
     const visited = new Set<string>();
     const inStack = new Set<string>();
@@ -157,8 +159,8 @@ export class LookAheadSimulator implements IPlanningExtension {
   }
 
   private evaluateNodeRisks(
-    nodes: any[],
-    similarRecords: any[],
+    nodes: DAGNodeData[],
+    similarRecords: ExecutionRecordData[],
     failurePatterns: Array<{ nodeRole: string; category: string; occurrenceCount: number }>,
   ): RiskNode[] {
     const risks: RiskNode[] = [];
@@ -199,14 +201,15 @@ export class LookAheadSimulator implements IPlanningExtension {
     return risks.sort((a, b) => b.riskScore - a.riskScore);
   }
 
-  private failureRisk(role: string, domain: string, patterns: any[]): { score: number; riskType: string | null } {
-    const relevant = patterns.filter((p: any) => p.nodeRole === role || p.nodeRole === domain);
+  private failureRisk(role: string, domain: string, patterns: FailurePatternData[]): { score: number; riskType: string | null } {
+    const relevant = patterns.filter((p: FailurePatternData) => p.nodeRole === role || p.nodeRole === domain);
     if (relevant.length === 0) return { score: 0, riskType: null };
     let max = 0;
     let rt: string | null = null;
     for (const p of relevant) {
-      const s = (FAILURE_CATEGORY_RISK[p.category] ?? 0.3) * 0.6 + Math.min(1, p.occurrenceCount / 10) * 0.4;
-      if (s > max) { max = s; rt = p.category; }
+      const cat = p.category ?? 'unknown';
+      const s = (FAILURE_CATEGORY_RISK[cat] ?? 0.3) * 0.6 + Math.min(1, p.occurrenceCount / 10) * 0.4;
+      if (s > max) { max = s; rt = cat; }
     }
     return { score: max, riskType: rt };
   }
@@ -218,7 +221,7 @@ export class LookAheadSimulator implements IPlanningExtension {
     return m[domain] ?? 0.2;
   }
 
-  private criticalityRisk(deps: string[], nodes: any[]): number {
+  private criticalityRisk(deps: string[], nodes: DAGNodeData[]): number {
     let count = 0;
     const myId = deps[0] ?? '';
     for (const n of nodes) {

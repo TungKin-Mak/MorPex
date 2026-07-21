@@ -33,10 +33,10 @@ import {
 import type { DomainManifest, ClusterStatus, ClusterStatusReport } from './types.js';
 // LLMProvider, extractJson removed in v2.4 (decomposeSingleIntent/SubIntent deleted)
 import { compileExpertPrompt } from '../prompts/expert-prompt.js';
-import { ForkExecuteTool } from '../tool/ForkExecuteTool.js';
-import { AgentCreateTool } from '../tool/AgentCreateTool.js';
-import { TeamSayTool, type AgentRegistry } from '../tool/TeamSayTool.js';
-import { ReadArtifactTool } from '../tool/ReadArtifactTool.js';
+import { ForkExecuteTool } from '../tools/ForkExecuteTool.js';
+import { AgentCreateTool } from '../tools/AgentCreateTool.js';
+import { TeamSayTool, type AgentRegistry } from '../tools/TeamSayTool.js';
+import { ReadArtifactTool } from '../tools/ReadArtifactTool.js';
 import { createAskUserTool } from '../tools/ask-user-tool.js';
 import type { ArtifactRegistry } from '../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
 
@@ -139,8 +139,8 @@ export class DomainCluster {
       this._status = 'active';
       this.onStatusChange?.(this._status, prev2);
       console.log(`[DomainCluster:${this.manifest.domain_id}] ✅ 已唤醒 (active)`);
-    } catch (err: any) {
-      console.error(`[DomainCluster:${this.manifest.domain_id}] ❌ 唤醒失败:`, err.message);
+    } catch (err: unknown) {
+      console.error(`[DomainCluster:${this.manifest.domain_id}] ❌ 唤醒失败:`, (err as Error).message);
       this._status = 'sleeping';
       this.onStatusChange?.(this._status, 'waking');
       throw err;
@@ -160,8 +160,8 @@ export class DomainCluster {
       this._status = 'sleeping';
       this.onStatusChange?.(this._status, prev2);
       console.log(`[DomainCluster:${this.manifest.domain_id}] 💤 已休眠`);
-    } catch (err: any) {
-      console.error(`[DomainCluster:${this.manifest.domain_id}] ❌ 休眠失败:`, err.message);
+    } catch (err: unknown) {
+      console.error(`[DomainCluster:${this.manifest.domain_id}] ❌ 休眠失败:`, (err as Error).message);
       this._status = prevStatus;
       this.onStatusChange?.(this._status, 'draining');
     }
@@ -229,7 +229,7 @@ export class DomainCluster {
       new AgentCreateTool(this),
       new TeamSayTool(this.deps.agentRegistry ?? new Map(), this.manifest.domain_id),
       new ReadArtifactTool(this.deps.artifactRegistry!),
-    ];
+    ] as AgentTool[];
   }
 
   // decomposeSingleIntent / decomposeSubIntent removed in v2.4 (superseded by CrossDomainRouter Single-Shot)
@@ -306,7 +306,7 @@ export class DomainCluster {
     }
 
     // 4. 注入 ForkExecute 工具
-    const toolsWithFork = [...tools, new ForkExecuteTool()];
+    const toolsWithFork = [...tools, new ForkExecuteTool()] as AgentTool[];
 
     // 5. 创建子 Agent（仍使用内部 repo + AgentHarness）
     const sessionId = `sub_${params.name}_${Date.now()}`;
@@ -439,8 +439,8 @@ export class DomainCluster {
         } else {
           console.warn(`  ├─ Skill: ${skillName} ⚠️ 未找到`);
         }
-      } catch (err: any) {
-        console.warn(`  ├─ Skill: ${skillName} ❌ 加载失败: ${err.message}`);
+      } catch (err: unknown) {
+        console.warn(`  ├─ Skill: ${skillName} ❌ 加载失败: ${(err as Error).message}`);
       }
     }
   }

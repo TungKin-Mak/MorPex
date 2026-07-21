@@ -5,12 +5,13 @@
  * Uses ModelResolver for type-safe model resolution (no `as any`).
  */
 
-import {
-  clampThinkingLevel,
-  getSupportedThinkingLevels,
-} from '@earendil-works/pi-ai';
-import type { ThinkingLevel } from '@earendil-works/pi-ai';
+import { clampThinkingLevel, getSupportedThinkingLevels } from '@earendil-works/pi-ai';
+import type { ThinkingLevel, Model, Api } from '@earendil-works/pi-ai';
 import { resolveModel } from './model-resolver.js';
+
+// pi-ai 0.80.10's Model<TApi> generic is invariant; bridge via explicit cast
+const _getSupportedLevels = (m: Model<Api>) => (getSupportedThinkingLevels as unknown as (m: Model<Api>) => ThinkingLevel[])(m);
+const _clampLevel = (m: Model<Api>, l: ThinkingLevel) => (clampThinkingLevel as unknown as (m: Model<Api>, l: ThinkingLevel) => ThinkingLevel)(m, l);
 
 export type { ThinkingLevel };
 
@@ -41,7 +42,7 @@ export const thinkingLevelControl = {
   getSupportedLevels(modelId: string, provider?: string): ThinkingLevel[] {
     try {
       const model = getCachedModel(provider ?? 'deepseek', modelId);
-      return getSupportedThinkingLevels(model).filter(l => l !== 'off') as ThinkingLevel[];
+      return _getSupportedLevels(model).filter(l => l !== 'off') as ThinkingLevel[];
     } catch {
       return THINKING_LEVELS;
     }
@@ -50,7 +51,7 @@ export const thinkingLevelControl = {
   clampLevel(modelId: string, level: ThinkingLevel, provider?: string): ThinkingLevel {
     try {
       const model = getCachedModel(provider ?? 'deepseek', modelId);
-      return clampThinkingLevel(model, level) as ThinkingLevel;
+      return _clampLevel(model, level);
     } catch {
       return level;
     }

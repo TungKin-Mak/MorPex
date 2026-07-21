@@ -39,7 +39,7 @@ export class SessionStore {
         const data = JSON.parse(raw);
         if (data && typeof data === 'object') this.sessionNames = new Map(Object.entries(data));
       }
-    } catch (e: any) {
+    } catch (e) {
       console.warn(`[SessionNames] 加载失败: ${e.message}`);
     }
   }
@@ -54,7 +54,7 @@ export class SessionStore {
       const dir = path.dirname(this.sessionNamesPath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.writeFileSync(this.sessionNamesPath, JSON.stringify(Object.fromEntries(this.sessionNames), null, 2), 'utf-8');
-    } catch (e: any) {
+    } catch (e) {
       console.warn(`[SessionNames] 保存失败: ${e.message}`);
     }
   }
@@ -72,7 +72,7 @@ export class SessionStore {
       const dir = path.dirname(filePath);
       if (!fs.existsSync(dir)) fs.mkdirSync(dir, { recursive: true });
       fs.appendFileSync(filePath, JSON.stringify({ ...message, timestamp: message.timestamp ?? Date.now() }) + '\n', 'utf-8');
-    } catch (err: any) {
+    } catch (err) {
       console.error(`[ChatHistory] 写入失败: ${err.message}`);
     }
   }

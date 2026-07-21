@@ -1,0 +1,1193 @@
+/**
+ * StudioServer — MorPexCore ↔ Studio 前端桥接层
+ *
+ * 职责：
+ *   1. 启动 MorPexCore Kernel
+ *   2. 注册全部插件（FSM、DAG、Memory、KG、Orchestrator、Intent 等）
+ *   3. 暴露 REST API + SSE 端点供 Studio 前端消费
+ *   4. 将 EventBus 事件实时转发到前端 SSE
+ *
+ * 架构：
+ *   - SessionManager:   会话历史持久化（文件 I/O）
+ *   - ArtifactWriter:   产物文件系统落盘（文件 I/O）
+ *   - StudioOrchestrator: Agent 路由分发 + 执行编排（业务逻辑）
+ *   - StudioServer:     组装依赖 + HTTP/SSE 传输（薄桥接）
+ *
+ * 事件流：
+ *   MorPexCore EventBus → StudioServer SSE → 前端 EventSource
+ *   前端 POST → StudioServer REST → StudioOrchestrator → MorPexCore Gateway/EventBus
+ */
+
+import express from 'express';
+import cors from 'cors';
+import { createServer, type Server as HttpServer } from 'http';
+import path from 'path';
+import * as fs from 'fs';
+
+import { MorPexKernel, IndustryPlugin } from '../../core/index.js';
+// ── v8 模块 ──
+import { MessageGateway, WebAdapter } from '../../core/src/interaction/index.js';
+import { MissionRuntime, MissionState } from '../../core/src/runtime/mission/index.js';
+import { MetaPlannerAdapter, DAGExecutorAdapter, GatewayMissionHandler } from '../../core/src/runtime/mission/adapters/index.js';
+import { VerificationEngine } from '../../core/src/runtime/verification/index.js';
+import { ApprovalEngine } from '../../core/src/runtime/approval/index.js';
+import { RiskAnalyzer } from '../../core/src/control/index.js';
+import { AuditTrail } from '../../core/src/control/index.js';
+
+// ── v8.5 升级模块 ──
+import { CognitiveLoop } from '../../core/src/runtime/cognitive-loop/CognitiveLoop.js';
+import { BehaviorTwin } from '../../core/src/cognition/twin/BehaviorTwin.js';
+import { DecisionTwin } from '../../core/src/cognition/decision/DecisionTwin.js';
+import { PreferenceModel } from '../../core/src/cognition/twin/PreferenceModel.js';
+import { PersonalBrain, BrainPersistor } from '../../core/src/cognition/memory/index.js';
+import { WorkflowMiner } from '../../core/src/evolution/workflow/WorkflowMiner.js';
+import { WorkflowRegistry } from '../../core/src/evolution/workflow/WorkflowRegistry.js';
+import { WorkflowExecutor } from '../../core/src/evolution/workflow/WorkflowExecutor.js';
+import { EventStore as EventSourcingStore, EventProjection } from '../../core/src/protocol/events/store/index.js';
+import { registerRuntimeRoutes } from './RuntimeAPI.js';
+import { KnowledgeGraph } from '../../core/src/planes/knowledge-plane/knowledge/KnowledgeGraph.js';
+import { ArtifactRegistry } from '../../core/src/planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import { IntentPlugin } from '../../core/src/planes/control-plane/intent/plugin.js';
+
+import { DomainClusterManager } from '../../core/src/domains/DomainClusterManager.js';
+import { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
+import { DomainDispatcher } from '../../core/src/router/DomainDispatcher.js';
+import { NegotiationEngine } from '../../core/src/negotiation/NegotiationEngine.js';
+import { ArbitrationHandler } from '../../core/src/router/ArbitrationHandler.js';
+import { MetaPlanner } from '../../core/src/extensions/planning/MetaPlanner.js';
+import { PermissionEngine } from '../../core/src/permission/PermissionEngine.js';
+import { SessionProjection } from '../../core/src/projection/SessionProjection.js';
+import { LLMProvider } from '../../core/src/services/LLMProvider.js';
+import { PiAgentCoreRuntime } from '../../core/src/adapters/pi-agent-runtime.js';
+
+import type { MorPexEvent, KernelStatus, MorPexPlugin } from '../../core/src/common/types.js';
+import {
+  HistoryStore, MemoryWiki, DocWatcher, DocTopology, MemoryRetriever,
+  ZVecStorage,
+} from '../../memory/src/index.js';
+import { createMemorySearchTool } from '../../core/index.js';
+import type { AgentTool } from '../../core/src/adapters/pi-types.js';
+
+// ── 拆分后的子模块 ──
+import { SessionStore } from './SessionStore.js';
+import { SessionManager } from './SessionManager.js';
+import { ArtifactWriter } from './ArtifactWriter.js';
+import { StudioOrchestrator } from './StudioOrchestrator.js';
+
+// ── 配置 ──
+
+export interface StudioServerConfig {
+  port: number;
+  mirrorBasePath?: string;
+  sessionsRoot?: string;
+  frontendDist?: string;
+  kernelPlugins?: MorPexPlugin[];
+}
+
+// ── SSE Client 管理 ──
+
+interface SSEClient {
+  id: string;
+  res: express.Response;
+  connectedAt: number;
+  filter?: string;
+}
+
+// ── StudioServer ──
+
+export class StudioServer {
+  private kernel!: MorPexKernel;
+  private app!: express.Express;
+  private httpServer!: HttpServer;
+  private config: StudioServerConfig;
+  private _ready = false;
+  private _startedAt: number | null = null;
+
+  // ── 拆分后的子模块 ──
+  private sessionStore!: SessionStore;
+  private sessionManager!: SessionManager;
+  private artifactWriter!: ArtifactWriter;
+  private orchestrator!: StudioOrchestrator;
+
+  // 引擎组件 (ghost engines removed)
+  private knowledgeGraph!: KnowledgeGraph;
+  private artifacts!: ArtifactRegistry;
+  private history!: HistoryStore;
+  private wiki?: MemoryWiki;
+  private docWatcher?: DocWatcher;
+  private docTopology?: DocTopology;
+  private memoryRetriever?: MemoryRetriever;
+  // MemoryBus replaced by MemoryWiki
+  private zvec!: ZVecStorage;
+  private repo!: import('@earendil-works/pi-agent-core').InMemorySessionRepo;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private controlModel: any; // getModel('deepseek', 'deepseek-v4-flash') — pi-ai Model generic constraint incompatible
+  private intentPlugin?: IntentPlugin;
+  private industryPlugin?: IndustryPlugin;
+  private domainManager?: DomainClusterManager;
+  private crossDomainRouter?: CrossDomainRouter;
+  private domainDispatcher?: DomainDispatcher;
+  private negotiationEngine?: NegotiationEngine;
+  private arbitrationHandler?: ArbitrationHandler;
+  private metaPlanner?: MetaPlanner;
+
+  // ── v8 模块 ──
+  private v8Gateway?: MessageGateway;
+  private v8MissionRuntime?: MissionRuntime;
+  private v8Verification?: VerificationEngine;
+  private v8Approval?: ApprovalEngine;
+  private v8RiskAnalyzer?: RiskAnalyzer;
+  private v8AuditTrail?: AuditTrail;
+
+  // ── v8.5 升级模块 ──
+  private v8CognitiveLoop?: CognitiveLoop;
+  private v8BehaviorTwin?: BehaviorTwin;
+  private v8DecisionTwin?: DecisionTwin;
+  private v8PreferenceModel?: PreferenceModel;
+  private v8PersonalBrain?: PersonalBrain;
+  private v8WorkflowRegistry?: WorkflowRegistry;
+  private v8WorkflowMiner?: WorkflowMiner;
+  private v8WorkflowExecutor?: WorkflowExecutor;
+  private v8EventSourcingStore?: EventSourcingStore;
+  private v8PeriodicTimer?: ReturnType<typeof setInterval>;
+  private globalLocker?: import('../../core/src/utils/AsyncResourceLocker.js').AsyncResourceLocker;
+  private permissionEngine?: PermissionEngine;
+  private sessionProjection?: SessionProjection;
+  private memorySearchTool?: AgentTool;
+  private dagCheckpointManager?: import('@earendil-works/pi-ai').Model; // keep as reference
+
+  // SSE
+  private sseClients: Map<string, SSEClient> = new Map();
+  private sseIdCounter = 0;
+  private _sseDisconnectTimer: ReturnType<typeof setTimeout> | null = null;
+
+  /** SSE 客户端断开时：等 3 秒无重连则清理 harness */
+  private onSseDisconnect(): void {
+    if (this._sseDisconnectTimer) clearTimeout(this._sseDisconnectTimer);
+    this._sseDisconnectTimer = setTimeout(async () => {
+      if (this.sseClients.size === 0) {
+        console.log('[SSE] 所有客户端已断开，清理 harness...');
+        await this.abortAllHarnesses();
+      }
+    }, 3000);
+  }
+
+  constructor(config: StudioServerConfig) {
+    this.config = config;
+    this.app = express();
+    this.setupMiddleware();
+  }
+
+  // ── 启动 ──
+
+  async start(): Promise<void> {
+    this._startedAt = Date.now();
+    this.kernel = new MorPexKernel();
+
+    // 先创建拆分模块（会话/产物写入在组件初始化前准备好）
+    this.sessionStore = new SessionStore(this.config.sessionsRoot);
+    this.artifactWriter = new ArtifactWriter(this.config.mirrorBasePath);
+
+    await this.initComponents();
+
+    // ★ v3.2: 初始化 SessionManager（pi Session 生命周期管理）
+    this.sessionManager = new SessionManager({
+      crossDomainRouter: this.crossDomainRouter,
+      domainDispatcher: this.domainDispatcher,
+      domainManager: this.domainManager,
+      sessionStore: this.sessionStore,
+    });
+
+    // ★ v3.2: 接线 DomainDispatcher 回调 → SessionManager
+    this.wireDispatcherCallbacks();
+
+    // 创建编排器（在组件初始化后，依赖已就绪）
+    this.orchestrator = new StudioOrchestrator({
+      kernel: this.kernel,
+      crossDomainRouter: this.crossDomainRouter,
+      domainDispatcher: this.domainDispatcher,
+      domainManager: this.domainManager,
+      memoryRetriever: this.memoryRetriever,
+      sessionStore: this.sessionStore,
+      artifactWriter: this.artifactWriter,
+    });
+
+    this.setupRoutes();
+    this.setupSSE();
+    this.setupStaticFiles();
+    await this.kernel.start();
+    await new Promise<void>((resolve) => {
+      this.httpServer = createServer(this.app);
+      this.httpServer.listen(this.config.port, () => {
+        this._ready = true;
+        console.log(`\n[Studio] ✅ StudioServer 已就绪`);
+        console.log(`  ├─ REST API:    http://localhost:${this.config.port}/api`);
+        console.log(`  ├─ SSE Stream:  http://localhost:${this.config.port}/api/stream/global`);
+        console.log(`  ├─ 前端:        http://localhost:${this.config.port}`);
+        console.log(`  └─ Mirror:      ${this.config.mirrorBasePath}\n`);
+        resolve();
+      });
+    });
+  }
+
+  async stop(): Promise<void> {
+    await this.kernel.stop();
+    return new Promise((resolve) => {
+      if (this.httpServer) {
+        this.httpServer.close(() => resolve());
+      } else {
+        resolve();
+      }
+    });
+  }
+
+  // ── 初始化引擎组件 ──
+
+  private async initComponents(): Promise<void> {
+    const bus = this.kernel.eventBus;
+    const identity = this.kernel.executionIdentity;
+
+    await this.initBaseServices();
+    // initAIEngines removed — ghost modules deleted
+    await this.initMemoryStorage(bus, identity);
+    await this.initControlPlane(bus, identity);
+    this.memorySearchTool = createMemorySearchTool(() => this.memoryRetriever ?? null);
+    await this.initCrossDomainModules();
+    await this.initMetaPlanner();
+    await this.initV8Modules(bus, identity);
+
+    if (this.wiki) {
+      this.history.setWiki(this.wiki);
+    }
+  }
+
+  private async initBaseServices(): Promise<void> {
+    this.history = new HistoryStore(path.join(this.config.mirrorBasePath || './data', 'history'));
+    this.repo = new (await import('@earendil-works/pi-agent-core')).InMemorySessionRepo();
+    console.log(`  ├─ HistoryStore   ✅`);
+    console.log(`  ├─ SessionRepo    ✅`);
+  }
+
+  // initAIEngines removed — ghost modules deleted
+
+  private async initMemoryStorage(bus: import('../../core/src/common/EventBus.js').EventBus, identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity): Promise<void> {
+    this.knowledgeGraph = new KnowledgeGraph();
+    this.artifacts = new ArtifactRegistry();
+    this.artifacts.onArtifactCreated = (artifact) => {
+      console.log(`[ArtifactRegistry] onArtifactCreated: ${artifact.id} (${artifact.name})`);
+      if (!artifact.metadata) artifact.metadata = {};
+      if (!artifact.metadata.executionId && this.orchestrator?.dagExecId) {
+        artifact.metadata.executionId = this.orchestrator.dagExecId;
+      }
+      const dagExecId = this.orchestrator?.dagExecId || artifact.metadata?.executionId || '';
+      this.artifactWriter.saveArtifact(artifact, dagExecId).catch(err => {
+        console.error('[StudioServer] 保存 Artifact 文件失败:', (err as Error).message);
+      });
+      bus.emit({
+        id: identity.createEventId(),
+        type: 'artifact.created',
+        timestamp: Date.now(),
+        executionId: dagExecId,
+        source: 'artifact-registry',
+        payload: {
+          uuid: artifact.id,
+          name: artifact.name,
+          type: artifact.type,
+          size: typeof artifact.content === 'string' ? artifact.content.length : 0,
+          timestamp: artifact.createdAt || artifact.updatedAt || Date.now(),
+          executionId: dagExecId,
+        },
+      });
+    };
+
+    this.zvec = new ZVecStorage({ dataPath: './data/zvec' });
+    const wiki = new MemoryWiki({ zvecPath: './data/wiki' });
+    this.wiki = wiki;
+    this.docWatcher = new DocWatcher(wiki, { dir: './data/wiki' });
+    this.docTopology = new DocTopology(wiki, './data/wiki');
+    this.memoryRetriever = new MemoryRetriever(wiki);
+    console.log(`  ├─ KnowledgeGraph ✅`);
+    console.log(`  ├─ Artifacts      ✅`);
+    console.log(`  ├─ ZVec           ✅`);
+    console.log(`  ├─ MemoryWiki     ✅`);
+  }
+
+  private async initControlPlane(bus: import('../../core/src/common/EventBus.js').EventBus, identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity): Promise<void> {
+    const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai');
+    this.controlModel = getModel('deepseek', 'deepseek-v4-flash');
+    const rawCallLLM = async (prompt: string, systemPrompt?: string): Promise<string> => {
+      try {
+        const stream = streamSimple(this.controlModel, {
+          systemPrompt: systemPrompt ?? '你是一个有用的助手。',
+          messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
+        }, { maxTokens: 2000, temperature: 0.3 });
+
+        let fullText = '';
+        const finalPromise = stream.result();
+        // SSE 流式推送：聊天（currentSessionId）和 DAG 任务执行（dagExecId）都需要
+        const execId = this.orchestrator?.dagExecId || this.orchestrator?.currentSessionId || '';
+
+        const iterate = async () => {
+          for await (const event of stream) {
+            if (event.type === 'text_delta') {
+              fullText += event.delta ?? '';
+              if (execId) {
+                if (fullText.length <= 80) console.log(`[SSE→] message_update execId=${execId} delta="${(event.delta ?? '').substring(0, 30)}"`);
+                this.kernel.eventBus.emit({
+                  id: this.kernel.executionIdentity.createEventId(),
+                  type: 'message_update',
+                  timestamp: Date.now(),
+                  executionId: execId,
+                  source: 'llm',
+                  payload: { delta: event.delta ?? '' },
+                });
+              }
+            }
+          }
+        };
+
+        const winner = await Promise.race([
+          finalPromise.then(() => 'done' as const),
+          iterate().then(() => 'done' as const),
+          new Promise<'timeout'>((resolve) => setTimeout(() => resolve('timeout'), 30000)),
+        ]);
+
+        if (winner === 'timeout') {
+          console.warn('[StudioServer] streamSimple 超时，降级 completeSimple');
+        } else {
+          console.log(`[StudioServer] streamSimple 完成，${fullText.length} 字符`);
+          if (fullText.trim()) {
+            if (execId) {
+              this.kernel.eventBus.emit({
+                id: this.kernel.executionIdentity.createEventId(),
+                type: 'message_complete',
+                timestamp: Date.now(),
+                executionId: execId,
+                source: 'llm',
+                payload: { fullText: fullText.trim() },
+              });
+            }
+            return fullText.trim();
+          }
+        }
+      } catch (err: unknown) {
+        console.warn('[StudioServer] streamSimple 异常:', (err as Error).message);
+      }
+
+      const msg = await completeSimple(this.controlModel, {
+        systemPrompt: systemPrompt ?? '你是一个有用的助手。',
+        messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
+      }, { maxTokens: 2000, temperature: 0.3 });
+      const textParts = msg.content.filter((c: { type: string; text?: string }) => c.type === 'text').map((c: { type: string; text?: string }) => c.text);
+      const fallbackText = textParts.join('').trim();
+      if (fallbackText) {
+        const execId2 = this.orchestrator?.dagExecId || this.orchestrator?.currentSessionId || '';
+        if (execId2) {
+          this.kernel.eventBus.emit({
+            id: this.kernel.executionIdentity.createEventId(),
+            type: 'message_complete',
+            timestamp: Date.now(),
+            executionId: execId2,
+            source: 'llm',
+            payload: { fullText: fallbackText },
+          });
+        }
+      }
+      return fallbackText;
+    };
+    LLMProvider.set(rawCallLLM);
+    // ── Register PiAgentCoreRuntime with ExecutionGateway ──
+    const piRuntime = new PiAgentCoreRuntime();
+    this.kernel.registerPiRuntime(piRuntime);
+    console.log(`  ├─ PiRuntime      ✅`);
+    this.intentPlugin = new IntentPlugin();
+    this.kernel.registerPlugin(this.intentPlugin);
+    this.industryPlugin = new IndustryPlugin();
+    this.kernel.registerPlugin(this.industryPlugin);
+    console.log(`  ├─ IntentPlugin   ✅`);
+    console.log(`  ├─ IndustryPlugin ✅`);
+  }
+
+  private async initCrossDomainModules(): Promise<void> {
+    const { DomainManifestLoader } = await import('../../core/src/domains/DomainManifestLoader.js');
+    const { DomainClusterManager } = await import('../../core/src/domains/DomainClusterManager.js');
+    const { CrossDomainRouter } = await import('../../core/src/router/CrossDomainRouter.js');
+    const { DomainDispatcher } = await import('../../core/src/router/DomainDispatcher.js');
+    const { NegotiationEngine } = await import('../../core/src/negotiation/NegotiationEngine.js');
+    const { ArbitrationHandler } = await import('../../core/src/router/ArbitrationHandler.js');
+
+    const domainLoader = new DomainManifestLoader();
+    const manifests = await domainLoader.loadAll();
+    console.log(`  ├─ DomainLoader   ✅ (${manifests.length} 个清单)`);
+
+    const { createArtifactRegistrySkill } = await import('../../core/src/tools/artifact-registry-skill.js');
+    const globalTools = [
+      createArtifactRegistrySkill(this.artifacts),
+      ...(this.memorySearchTool ? [this.memorySearchTool] : []),
+    ];
+
+    this.domainManager = new DomainClusterManager({
+      knowledgeGraph: this.knowledgeGraph,
+      artifactRegistry: this.artifacts,
+      builtinTools: globalTools,
+    });
+    manifests.forEach((m: import('../../core/src/domains/types.js').DomainManifest) => this.domainManager!.register(m));
+
+    // 接线：节点执行中 agent 询问时挂起等待用户回复
+    const clusterIds = manifests.map((m: import('../../core/src/domains/types.js').DomainManifest) => m.domain_id);
+    for (const id of clusterIds) {
+      const cluster = this.domainManager.getCluster(id);
+      if (!cluster) continue;
+      cluster.onUserInputNeeded = async (question: string, harnessId: string, taskId?: string, options?: string[]) => {
+        const tid = taskId || (cluster as any)._currentTaskId || 'unknown';
+        const dagExecId = this.orchestrator?.dagExecId || '';
+        console.log(`[StudioServer] onUserInputNeeded: taskId=${tid} dagExecId=${dagExecId} question="${question}"`);
+        this.kernel.eventBus.emit({
+          id: this.kernel.executionIdentity.createEventId(),
+          type: 'runtime.task.awaiting_input',
+          timestamp: Date.now(),
+          executionId: dagExecId,
+          source: 'harness',
+          payload: { taskId: tid, question, harnessId, domainId: id, options: options || [], executionId: dagExecId },
+        });
+        return new Promise<string>((resolve) => {
+          this.orchestrator?.addSteerResolver(harnessId, resolve);
+        });
+      };
+    }
+    console.log(`  ├─ DomainManager  ✅ (${manifests.length} 个领域已注册)`);
+
+    this.crossDomainRouter = new CrossDomainRouter(this.domainManager);
+    console.log(`  ├─ CrossRouter    ✅`);
+
+    this.negotiationEngine = new NegotiationEngine();
+    this.arbitrationHandler = new ArbitrationHandler();
+    console.log(`  ├─ Negotiation    ✅`);
+    console.log(`  ├─ Arbitration    ✅`);
+
+    this.domainDispatcher = new DomainDispatcher(this.domainManager, 3, this.negotiationEngine, this.arbitrationHandler, this.globalLocker);
+
+    // 将 DomainDispatcher 回调 → EventBus → SSE → 前端实时更新
+    this.domainDispatcher.onNodeStart = (node: import('../../core/src/domains/types.js').DAGNode) => {
+      const dagExecId = this.orchestrator?.dagExecId || '';
+      console.log(`[SSE→] runtime.task.started taskId=${node.taskId} execId=${dagExecId}`);
+      this.kernel.eventBus.emit({
+        id: this.kernel.executionIdentity.createEventId(),
+        type: 'runtime.task.started',
+        timestamp: Date.now(),
+        executionId: dagExecId,
+        source: 'dispatcher',
+        payload: { taskId: node.taskId, domain: node.domain, goal: node.goal, executionId: dagExecId },
+      });
+    };
+    this.domainDispatcher.onNodeComplete = (result: import('../../core/src/router/DomainDispatcher.js').NodeResult) => {
+      const dagExecId = this.orchestrator?.dagExecId || '';
+      const status = result.status === 'failed' ? 'failed' : 'completed';
+      console.log(`[SSE→] runtime.task.completed taskId=${result.taskId} status=${status} outputLen=${typeof result.output === 'string' ? result.output.length : 0}`);
+      this.kernel.eventBus.emit({
+        id: this.kernel.executionIdentity.createEventId(),
+        type: 'runtime.task.completed',
+        timestamp: Date.now(),
+        executionId: dagExecId,
+        source: 'dispatcher',
+        payload: { taskId: result.taskId, status, output: result.output, domain: result.domain, error: result.error, executionId: dagExecId },
+      });
+      if (status === 'failed') {
+        this.kernel.eventBus.emit({
+          id: this.kernel.executionIdentity.createEventId(),
+          type: 'dag.node.failed',
+          timestamp: Date.now(),
+          executionId: dagExecId,
+          source: 'dispatcher',
+          payload: { taskId: result.taskId, error: result.error },
+        });
+      }
+    };
+    this.domainDispatcher.onNodeFail = (node: import('../../core/src/domains/types.js').DAGNode, error: string) => {
+      const dagExecId = this.orchestrator?.dagExecId || '';
+      this.kernel.eventBus.emit({
+        id: this.kernel.executionIdentity.createEventId(),
+        type: 'runtime.task.completed',
+        timestamp: Date.now(),
+        executionId: dagExecId,
+        source: 'dispatcher',
+        payload: { taskId: node.taskId, status: 'failed', error, domain: node.domain, executionId: dagExecId },
+      });
+      this.kernel.eventBus.emit({
+        id: this.kernel.executionIdentity.createEventId(),
+        type: 'dag.node.failed',
+        timestamp: Date.now(),
+        executionId: dagExecId,
+        source: 'dispatcher',
+        payload: { taskId: node.taskId, error },
+      });
+    };
+    console.log(`  ├─ Dispatcher     ✅ (回调已连 SSE)`);
+  }
+
+  private async initMetaPlanner(): Promise<void> {
+    try {
+      const storePath = path.join(this.config.mirrorBasePath || './data', 'plan-experience');
+      const traceLogPath = path.join(this.config.mirrorBasePath || './data', 'pipeline-traces.jsonl');
+      const { MetaPlanner: MetaPlannerCls } = await import('../../core/src/extensions/planning/MetaPlanner.js');
+      this.metaPlanner = new MetaPlannerCls({
+        experienceStorePath: storePath,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        modelRegistry: { getModel: () => this.controlModel } as any,
+        knowledgeGraph: this.knowledgeGraph,
+        artifactRegistry: this.artifacts,
+        traceLogPath,
+        enabled: false,
+      } as unknown as import('../../core/src/extensions/planning/types.js').MetaPlannerConfig & Record<string, unknown>);
+      console.log(`  ├─ MetaPlanner   ✅`);
+    } catch (err: unknown) {
+      console.warn(`  ├─ MetaPlanner   ⚠️ ${(err as Error).message}`);
+    }
+  }
+
+/** ★ v8: 初始化 v8 模块（MessageGateway + MissionRuntime + CognitiveLoop + 全链路） */
+  private async initV8Modules(
+    bus: import('../../core/src/common/EventBus.js').EventBus,
+    identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity
+  ): Promise<void> {
+    try {
+      // ═══════════════════════════════════════════════════════
+      // v8.5: PersonalBrain + Workflow Evolution 初始化
+      // ═══════════════════════════════════════════════════════
+
+      // ── PersonalBrain（五层记忆） ──
+      this.v8PersonalBrain = new PersonalBrain();
+
+      // ── Workflow Registry + Miner + Executor ──
+      this.v8WorkflowRegistry = new WorkflowRegistry();
+      const workflowMemory = this.v8PersonalBrain.workflow;
+      this.v8WorkflowMiner = new WorkflowMiner(workflowMemory);
+
+      // ── BehaviorTwin + DecisionTwin + PreferenceModel ──
+      this.v8BehaviorTwin = new BehaviorTwin('default');
+      this.v8DecisionTwin = new DecisionTwin();
+      this.v8PreferenceModel = new PreferenceModel();
+
+      // ── Event Sourcing Store（强制执行） ──
+      this.v8EventSourcingStore = new EventSourcingStore({
+        dataDir: './data/event-sourcing-v8',
+      });
+      await this.v8EventSourcingStore.load();
+      console.log('  ├─ v8.5 EventStore   ✅ (Event Sourcing 强制)');
+
+      // ── Restore PersonalBrain from MemoryWiki ──
+      if (this.wiki) {
+        await BrainPersistor.restore(this.v8PersonalBrain, this.wiki);
+        console.log('  ├─ v8.5 BrainRestore ✅ (MemoryWiki)');
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // v8: MessageGateway + MissionRuntime
+      // ═══════════════════════════════════════════════════════
+
+      // ── 1. MessageGateway ──
+      this.v8Gateway = new MessageGateway(bus);
+      const webAdapter = new WebAdapter();
+      this.v8Gateway.registerAdapter(webAdapter);
+      console.log('  ├─ v8 Gateway     ✅');
+
+      // ── 2. Verification + Approval + Risk + Audit ──
+      this.v8Verification = new VerificationEngine();
+      this.v8Approval = new ApprovalEngine(bus);
+      this.v8RiskAnalyzer = new RiskAnalyzer();
+      this.v8AuditTrail = new AuditTrail();
+      console.log('  ├─ v8 Verification ✅');
+      console.log('  ├─ v8 Approval    ✅');
+      console.log('  ├─ v8 RiskAnalyzer ✅');
+      console.log('  ├─ v8 AuditTrail  ✅');
+
+      // ── 3. MissionRuntime ──
+      this.v8MissionRuntime = new MissionRuntime(bus, {
+        verificationEngine: this.v8Verification,
+        approvalEngine: this.v8Approval,
+      });
+
+      // ★ v8.5: 强制启用 Event Sourcing
+      this.v8MissionRuntime.setEventStore(this.v8EventSourcingStore);
+      console.log('  ├─ v8.5 EventSrc   ✅ (已注入 MissionRuntime)');
+
+      // ── 4. Planner Adapter (MetaPlanner + Twin 约束) ──
+      if (this.metaPlanner) {
+        const plannerAdapter = new MetaPlannerAdapter(this.metaPlanner);
+        this.v8MissionRuntime.setPlanner(plannerAdapter);
+        console.log('  ├─ v8 PlannerAdapter ✅ (Twin 约束已注入)');
+      } else {
+        console.warn('  ├─ v8 PlannerAdapter ⚠️ MetaPlanner 未就绪，使用默认规划器');
+      }
+
+      // ── 5. Executor Adapter (委托 DomainDispatcher) ──
+      if (this.domainDispatcher) {
+        const executorAdapter = {
+          execute: async (mission: any, plan: any) => {
+            const startTime = Date.now();
+            let completed = 0; let failed = 0;
+            const errors: string[] = [];
+            for (const step of plan.steps) {
+              try {
+                const node = { taskId: step.id, domain: step.domain, goal: step.description, deps: step.deps || [], status: 'pending' as const };
+                const sessionCtx = { sessionId: mission.context?.sessionId || 'mis_' + mission.id, executionId: mission.id, input: step.description, artifacts: {} as Record<string, any[]>, memory: [] };
+                const result = await this.domainDispatcher!.executeNode(node, sessionCtx);
+                if (result.status === 'completed') completed++;
+                else { failed++; errors.push(step.name + ': ' + (result.error || result.status)); }
+              } catch (err: any) { failed++; errors.push(step.name + ': ' + err.message); }
+            }
+            return { missionId: mission.id, state: failed === 0 ? MissionState.VERIFYING : MissionState.FAILED, stepsCompleted: completed, stepsTotal: plan.steps.length, artifacts: [], duration: Date.now() - startTime, error: errors.length > 0 ? errors.join('; ') : undefined };
+          },
+        };
+        this.v8MissionRuntime.setExecutor(executorAdapter);
+        console.log('  ├─ v8 ExecutorAdapter ✅ (DomainDispatcher)');
+      } else {
+        console.warn('  ├─ v8 ExecutorAdapter ⚠️ DomainDispatcher 未就绪');
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // v8.5: WorkflowExecutor（依赖 MissionRuntime）
+      // ═══════════════════════════════════════════════════════
+
+      this.v8WorkflowExecutor = new WorkflowExecutor(
+        this.v8WorkflowRegistry,
+        this.v8MissionRuntime,
+      );
+      console.log('  ├─ v8.5 WfExec     ✅');
+
+      // ═══════════════════════════════════════════════════════
+      // v8.5: CognitiveLoop — 取代 GatewayMissionHandler
+      // ═══════════════════════════════════════════════════════
+
+      this.v8CognitiveLoop = new CognitiveLoop({
+        bus,
+        missionRuntime: this.v8MissionRuntime,
+        behaviorTwin: this.v8BehaviorTwin,
+        decisionTwin: this.v8DecisionTwin,
+        preferenceModel: this.v8PreferenceModel,
+        personalBrain: this.v8PersonalBrain,
+        workflowMiner: this.v8WorkflowMiner,
+        workflowRegistry: this.v8WorkflowRegistry,
+        workflowExecutor: this.v8WorkflowExecutor,
+      });
+
+      // ── 使用 CognitiveLoop.asMessageHandler() 替换 GatewayMissionHandler ──
+      this.v8Gateway.setMessageHandler(async (msg) => {
+        this.v8AuditTrail?.record({
+          missionId: '',
+          type: 'execution_started',
+          timestamp: Date.now(),
+          actor: msg.userId,
+          details: { channel: msg.channel, content: msg.content },
+        });
+        return this.v8CognitiveLoop!.asMessageHandler()(msg);
+      });
+
+      await this.v8Gateway.start();
+      console.log('  ├─ v8.5 CogLoop    ✅ (全链路 7 阶段编排)');
+
+      // ═══════════════════════════════════════════════════════
+      // v8.5: BehaviorTwin 周期性调度（每 24h）
+      // ═══════════════════════════════════════════════════════
+
+      this.scheduleBehaviorTwinCheck();
+
+      console.log('  └─ v8.5 就绪 ✅ (CogLoop + Brain + WfEvo + EventSrc)');
+    } catch (err: unknown) {
+      console.warn('  └─ v8 Init ⚠️ ' + ((err as Error).message));
+    }
+  }
+
+  /** ★ v3.2: 接线 DomainDispatcher 回调 → SessionManager */
+  private wireDispatcherCallbacks(): void {
+    if (!this.domainDispatcher) return;
+
+    // onGetHarness: 在 DAG 节点执行时，由 DomainDispatcher 回调获取 harness
+    this.domainDispatcher.onGetHarness = async (domainId: string, taskId: string, goal: string) => {
+      const executionId = this.orchestrator?.dagExecId || '';
+      // 查找或创建 task session
+      let taskSession = this.sessionManager.getTaskSession(taskId, executionId);
+      if (!taskSession) {
+        // 如果 session 尚未创建（首次执行），创建它
+        await this.sessionManager.create('task', {
+          taskId,
+          executionId,
+          domainId,
+        });
+      }
+      // 注入 buildTools 和 systemPrompt 回调
+      const sessionId = this.sessionManager.getTaskSession(taskId, executionId)?.id;
+      if (!sessionId) throw new Error(`无法找到/创建 task session: ${taskId}`);
+
+      // 设置 SessionManager 的回调，用于构建领域工具链和 system prompt
+      const cluster = this.domainManager?.getCluster(domainId);
+      if (cluster) {
+        const _cluster = cluster as any;
+        this.sessionManager.onBuildDomainTools = async (dId: string) => {
+          const c = this.domainManager?.getCluster(dId);
+          return c ? await c.buildTools() : [];
+        };
+        this.sessionManager.onGetDomainSystemPrompt = (dId: string) => {
+          const c = this.domainManager?.getCluster(dId);
+          return c?.manifest.master_agent_config.system_prompt || '';
+        };
+        // 桥接 ask_user → onUserInputNeeded（保留现有 steer 机制）
+        _cluster._askHandler = null;
+      }
+
+      const harness = await this.sessionManager.ensureHarness(sessionId);
+      return harness;
+    };
+
+    // onReleaseHarness: 节点执行完成后释放 harness
+    this.domainDispatcher.onReleaseHarness = async (taskId: string) => {
+      const executionId = this.orchestrator?.dagExecId || '';
+      const taskSession = this.sessionManager.getTaskSession(taskId, executionId);
+      if (taskSession) {
+        await this.sessionManager.releaseHarness(taskSession.id);
+      }
+    };
+
+    console.log(`  ├─ Dispatcher回调 ✅ (已接 SessionManager)`);
+  }
+
+
+  // ═══════════════════════════════════════════════════════════
+  // ★ v8.5: BehaviorTwin 周期性调度
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * scheduleBehaviorTwinCheck — 每 24 小时检查 BehaviorTwin
+   *
+   * 职责:
+   *   1. 重建行为画像
+   *   2. 检测行为漂移（与上次快照比较）
+   *   3. 如果 CognitiveLoop 已注入，利用其漂移检测机制
+   *   4. 发射行为度量事件供审计使用
+   */
+  private scheduleBehaviorTwinCheck(): void {
+    if (!this.v8BehaviorTwin) return;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    this.runBehaviorTwinCheck();
+    this.v8PeriodicTimer = setInterval(() => {
+      this.runBehaviorTwinCheck();
+    }, TWENTY_FOUR_HOURS);
+    if (this.v8PeriodicTimer) {
+      this.v8PeriodicTimer.unref();
+    }
+    console.log('  ├─ v8.5 BehaviorChk ✅ (每 24h 周期性调度)');
+  }
+
+  /**
+   * runBehaviorTwinCheck — 执行一次 BehaviorTwin 检查
+   */
+  private runBehaviorTwinCheck(): void {
+    if (!this.v8BehaviorTwin || !this.v8PersonalBrain) return;
+    try {
+      const profile = this.v8BehaviorTwin.buildProfile();
+      this.v8PersonalBrain.storeFact(
+        'BehaviorTwin periodic check: planningStyle=' + profile.planningStyle +
+        ', riskTolerance=' + profile.riskTolerance +
+        ', taskDecomposition=' + profile.taskDecomposition +
+        ', evidenceCount=' + profile.evidenceCount +
+        ', confidence=' + profile.confidence.toFixed(2),
+        ['behavior-twin', 'periodic-check', profile.planningStyle]
+      ).catch(() => {});
+      if (this.kernel?.eventBus) {
+        this.kernel.eventBus.emit({
+          id: 'evt_behavior_check_' + Date.now(),
+          type: 'behavior.drift',
+          timestamp: Date.now(),
+          executionId: 'behavior-twin-scheduler',
+          source: 'studio-server',
+          payload: {
+            action: 'periodic_check',
+            planningStyle: profile.planningStyle,
+            riskTolerance: profile.riskTolerance,
+            taskDecomposition: profile.taskDecomposition,
+            evidenceCount: profile.evidenceCount,
+            confidence: profile.confidence,
+          },
+        });
+      }
+      console.log('[BehaviorTwin] 周期检查完成: ' + profile.planningStyle +
+        ', risk=' + profile.riskTolerance +
+        ', evidence=' + profile.evidenceCount +
+        ', confidence=' + profile.confidence.toFixed(2));
+    } catch (err: unknown) {
+      console.warn('[BehaviorTwin] 周期检查异常:', (err as Error).message);
+    }
+  }
+
+  /** ★ v8.5: 停止周期性调度 */
+  private stopBehaviorTwinCheck(): void {
+    if (this.v8PeriodicTimer) {
+      clearInterval(this.v8PeriodicTimer);
+      this.v8PeriodicTimer = null;
+    }
+  }
+
+  private setupMiddleware(): void {
+    this.app.use(cors());
+    this.app.use(express.json({ limit: '10mb' }));
+    this.app.use((req, _res, next) => {
+      const start = Date.now();
+      _res.on('finish', () => {
+        const dur = Date.now() - start;
+        if (dur > 100) console.log(`[API] ${req.method} ${req.path} ${_res.statusCode} ${dur}ms`);
+      });
+      next();
+    });
+  }
+
+  private setupSSE(): void {
+    this.app.get('/api/stream/global', (req, res) => {
+      const clientId = `sse_${++this.sseIdCounter}`;
+      const filter = req.query.filter as string | undefined;
+      res.writeHead(200, {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        'Connection': 'keep-alive',
+        'X-Accel-Buffering': 'no',
+      });
+      res.write(`data: ${JSON.stringify({ type: 'connected', clientId, timestamp: Date.now() })}\n\n`);
+      const client: SSEClient = { id: clientId, res, connectedAt: Date.now(), filter };
+      this.sseClients.set(clientId, client);
+      if (this._sseDisconnectTimer) { clearTimeout(this._sseDisconnectTimer); this._sseDisconnectTimer = null; }
+      const unsub = this.kernel.eventBus.onProjected((event: MorPexEvent) => {
+        if (filter && !event.type.startsWith(filter.replace('*', ''))) return;
+        try {
+          res.write(`data: ${JSON.stringify(event)}\n\n`);
+        } catch { this.sseClients.delete(clientId); }
+      });
+      const heartbeat = setInterval(() => {
+        try { res.write(`:heartbeat ${Date.now()}\n\n`); }
+        catch { clearInterval(heartbeat); unsub(); this.sseClients.delete(clientId); }
+      }, 15000);
+      req.on('close', () => { clearInterval(heartbeat); unsub(); this.sseClients.delete(clientId); this.onSseDisconnect(); });
+      res.on('close', () => { clearInterval(heartbeat); this.sseClients.delete(clientId); this.onSseDisconnect(); });
+    });
+  }
+
+  private setupStaticFiles(): void {
+    const frontendDist = this.config.frontendDist || './packages/studio/ui/dist';
+    if (fs.existsSync(frontendDist)) {
+      this.app.use(express.static(frontendDist));
+      this.app.get('*', (_req, res) => {
+        res.sendFile(path.resolve(frontendDist, 'index.html'));
+      });
+      console.log(`  └─ 前端静态:     ${frontendDist}`);
+    } else {
+      console.log(`  └─ 前端静态:     ${frontendDist} (未构建，仅 API 模式)`);
+    }
+  }
+
+  // ── 路由 — 委托给子模块 ──
+
+  private setupRoutes(): void {
+    // ── ★ v3.2: 新建 Session ──
+    this.app.post('/api/session/create', async (req, res) => {
+      const { mode } = req.body || {};
+      if (!mode || !['chat', 'luban', 'simq', 'task'].includes(mode)) {
+        return res.status(400).json({ ok: false, error: '缺少或无效 mode (chat/luban/simq/task)' });
+      }
+      try {
+        const sessionId = await this.sessionManager.create(mode);
+        return res.json({ ok: true, sessionId, mode });
+      } catch (err: unknown) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── ★ v3.2: 列出活跃 Session ──
+    this.app.get('/api/sessions', (_req, res) => {
+      const sessions = this.sessionManager.getAll();
+      return res.json({ ok: true, count: sessions.length, sessions });
+    });
+
+    // ── ★ v3.2: 向 Session 发送消息 ──
+    this.app.post('/api/session/:sessionId/send', async (req, res) => {
+      const { sessionId } = req.params;
+      const { content } = req.body || {};
+      if (!content) return res.status(400).json({ ok: false, error: '缺少 content' });
+      try {
+        const result = await this.sessionManager.send(sessionId, content);
+        return res.json({
+          ok: result.type !== 'error',
+          type: result.type,
+          output: result.type === 'direct_chat' ? result.output : undefined,
+          dag: result.type === 'dag_plan' ? result.dag : undefined,
+          executionId: result.type === 'dag_plan' ? result.executionId : undefined,
+          sessionId,
+          error: result.type === 'error' ? result.error : undefined,
+        });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── POST /api/v8/mission — v8 Mission 入口 ──
+    this.app.post('/api/v8/mission', async (req, res) => {
+      const { content } = req.body || {};
+      if (!content) return res.status(400).json({ ok: false, error: '缺少 content' });
+      const sessionId = req.body.session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      try {
+        if (!this.v8Gateway || !this.v8MissionRuntime) {
+          return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+        }
+
+        const incomingMsg = {
+          channel: 'web',
+          userId: 'user',
+          sessionId,
+          content,
+          metadata: { agent: req.body.agent },
+        };
+
+        const result = await this.v8Gateway.receive(incomingMsg);
+        return res.json({
+          ok: true,
+          type: result.type,
+          content: result.content,
+          sessionId,
+          metadata: result.metadata,
+        });
+      } catch (err: unknown) {
+        console.error('[StudioServer] /api/v8/mission 错误:', (err as Error).message);
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── GET /api/v8/missions — 列出所有 Mission ──
+    this.app.get('/api/v8/missions', (_req, res) => {
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      const missions = this.v8MissionRuntime.listMissions();
+      const approvals = this.v8Approval ? this.v8Approval.getPending() : [];
+      const auditReport = this.v8AuditTrail
+        ? this.v8AuditTrail.generateReport(Date.now() - 86400000, Date.now())
+        : null;
+      return res.json({
+        ok: true,
+        count: missions.length,
+        missions: missions.map(m => ({ id: m.id, goal: m.goal, state: m.state, createdAt: m.createdAt })),
+        pendingApprovals: approvals.length,
+        auditSummary: auditReport ? { total: auditReport.totalEntries, approvalRate: auditReport.approvalRate } : null,
+      });
+    });
+
+    // ── POST /api/v8/mission/:missionId/approve — 审批 Mission ──
+    this.app.post('/api/v8/mission/:missionId/approve', async (req, res) => {
+      const { missionId } = req.params;
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      try {
+        const result = await this.v8MissionRuntime.approveMission(missionId);
+        return res.json({ ok: true, missionId, state: result.state });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── POST /api/v8/mission/:missionId/deny — 拒绝 Mission ──
+    this.app.post('/api/v8/mission/:missionId/deny', async (req, res) => {
+      const { missionId } = req.params;
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      try {
+        await this.v8MissionRuntime.denyMission(missionId);
+        const mission = this.v8MissionRuntime.getMission(missionId);
+        return res.json({ ok: true, missionId, state: mission?.state || 'CANCELLED' });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── POST /api/chat/message — 旧版聊天入口（内部委托给 SessionManager） ──
+    this.app.post('/api/chat/message', async (req, res) => {
+      const { content, agent } = req.body || {};
+      let { session_id } = req.body || {};
+      if (!content) return res.status(400).json({ ok: false, error: '缺少 content' });
+      if (!session_id) session_id = `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      const execId = this.kernel.executionIdentity.createExecutionId();
+
+      try {
+        // 委托给 StudioOrchestrator（保持向后兼容）
+        const result = await this.orchestrator.routeMessage(content, execId, session_id, agent);
+        return res.json({ ...result, sessionId: session_id });
+      } catch (err: unknown) {
+        console.error('[StudioServer] /api/chat/message 错误:', (err as Error).message);
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── 会话历史 ──
+    this.app.get('/api/session/:sessionId/history', (req, res) => {
+      const { sessionId } = req.params;
+      const messages = this.sessionStore.getChatHistory(sessionId);
+      res.json({ ok: true, sessionId, count: messages.length, messages });
+    });
+
+    this.app.post('/api/session/:sessionId/message', (req, res) => {
+      const { sessionId } = req.params;
+      const body = req.body || {};
+      if (!body.role || !body.content) return res.status(400).json({ ok: false, error: '缺少 role 或 content' });
+      this.sessionStore.appendChatMessage(sessionId, body);
+      res.json({ ok: true });
+    });
+
+    // ── 节点执行消息 ──
+    this.app.get('/api/task/:execId/:taskId/history', (req, res) => {
+      const { execId, taskId } = req.params;
+      const messages = this.sessionStore.getTaskMessages(execId, taskId);
+      res.json({ ok: true, execId, taskId, count: messages.length, messages });
+    });
+
+    this.app.post('/api/task/:execId/:taskId/message', (req, res) => {
+      const { execId, taskId } = req.params;
+      const { role, content } = req.body || {};
+      if (!role || !content) return res.status(400).json({ ok: false, error: '缺少 role 或 content' });
+      this.sessionStore.appendTaskMessage(execId, taskId, { role, content });
+      res.json({ ok: true });
+    });
+
+    // ── Agent 对话回复（pi 核原生 steering）──
+    this.app.post('/api/harness/:harnessId/steer', (req, res) => {
+      const { harnessId } = req.params;
+      const { reply } = req.body || {};
+      if (!reply) return res.status(400).json({ ok: false, error: '缺少 reply' });
+      const steered = this.orchestrator.resolveSteer(harnessId, reply);
+      res.json({ ok: steered, steered });
+    });
+
+    // ── 任务恢复（刷新后重建 harness，注入历史上下文）──
+    this.app.post('/api/task/resume', async (req, res) => {
+      const { executionId, taskId, input, domain } = req.body || {};
+      if (!executionId || !taskId || !domain) {
+        return res.status(400).json({ ok: false, error: '缺少 executionId/taskId/domain' });
+      }
+      try {
+        if (!this.domainDispatcher) {
+          return res.json({ ok: false, error: 'DomainDispatcher 未就绪' });
+        }
+        const historyMsgs = this.sessionStore.getTaskMessages(executionId, taskId);
+        const contextStr = historyMsgs.slice(-20).map((m: { role: string; content: string }) => `[${m.role}]: ${m.content}`).join('\n');
+        const goal = `以下是你之前执行的任务上下文，请基于上下文继续完成未完成的工作，不要重新开始：\n---\n${contextStr}\n---\n用户最新输入：${input || '继续执行'}`;
+        const node: import('../../core/src/domains/types.js').DAGNode = { taskId, domain, goal, deps: [], status: 'pending' as const };
+        const sessionCtx: import('../../core/src/common/types.js').SessionContext = {
+          sessionId: `resume_${executionId}_${Date.now()}`,
+          executionId, input: goal, artifacts: {}, memory: [],
+        };
+
+        if (this.orchestrator) this.orchestrator.dagExecId = executionId;
+        res.json({ ok: true, resumed: true, taskId, executionId });
+
+        setImmediate(async () => {
+          try {
+            const cluster = this.domainManager?.getCluster(domain);
+            if (cluster) {
+              try {
+                const master = (cluster as any)._master;
+                if (master) { await master.abort().catch(() => {}); (cluster as any)._master = null; }
+                const prevStatus = (cluster as any)._status;
+                (cluster as any)._status = 'sleeping';
+                await cluster.wake();
+                (cluster as any)._status = prevStatus;
+              } catch (e: unknown) { console.warn(`[Resume] 清理 harness 异常: ${e instanceof Error ? e.message : String(e)}`); }
+            }
+            const result = await this.domainDispatcher!.executeNode(node, sessionCtx);
+            console.log(`[Resume] ✅ ${taskId} 恢复完成 (${result.status}), output=${typeof result.output === 'string' ? (result.output as string).substring(0, 50) : 'none'}`);
+            const st = result.status === 'failed' ? 'failed' : 'completed';
+            this.kernel.eventBus.emit({
+              id: this.kernel.executionIdentity.createEventId(),
+              type: 'runtime.task.completed',
+              timestamp: Date.now(),
+              executionId,
+              source: 'resume',
+              payload: { taskId, status: st, output: result.output, domain, error: (result as any).error, executionId },
+            });
+            console.log(`[SSE→] runtime.task.completed taskId=${taskId} status=${st}`);
+          } catch (err: unknown) {
+            console.error(`[Resume] ❌ ${taskId} 恢复失败:`, (err as Error).message);
+          }
+        });
+      } catch (err: unknown) {
+        res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ★ P1 优化: ExecutionHandle — 轮询执行状态
+    this.app.get('/api/execution/:executionId', (req, res) => {
+      const { executionId } = req.params;
+      const record = this.orchestrator?.getExecution(executionId);
+      if (!record) return res.status(404).json({ ok: false, error: '执行记录不存在' });
+      res.json({
+        ok: true,
+        executionId: record.executionId,
+        status: record.status,
+        input: record.input,
+        output: record.output,
+        error: record.error,
+        dag: record.dag,
+        nodes: [...record.nodes.values()],
+        startedAt: record.startedAt,
+        completedAt: record.completedAt,
+      });
+    });
+
+    // ── Agent 建议列表 ──
+    this.app.get('/api/agents/suggestions', (_req, res) => {
+      res.json({ ok: true, agents: this.orchestrator?.getAgentList() ?? [] });
+    });
+
+    // ── 交付物 ──
+    this.app.get('/api/artifacts', (_req, res) => {
+      const workspaceProjects = path.join(this.config.mirrorBasePath || './data', 'workspace', 'projects');
+      try {
+        if (fs.existsSync(workspaceProjects)) {
+          const projects = fs.readdirSync(workspaceProjects)
+            .filter(f => f.startsWith('gen-') || f.startsWith('exe_') || f.startsWith('art_') || f === 'manual');
+          const recent = projects.slice(-20).map(p => {
+            const pdir = path.join(workspaceProjects, p);
+            const files = fs.existsSync(pdir) ? fs.readdirSync(pdir).map(f => {
+              const fp = path.join(pdir, f);
+              const stat = fs.statSync(fp);
+              return { name: f, path: fp, size: stat.size, modifiedAt: stat.mtimeMs };
+            }) : [];
+            return { id: p, files };
+          });
+          return res.json({ ok: true, projects: recent });
+        }
+      } catch { /* ignore */ }
+      res.json({ ok: true, projects: [] });
+    });
+
+    // ── 健康检查 ──
+    this.app.get('/api/health', (_req, res) => {
+      res.json({ ok: this._ready, uptime: this._startedAt ? Date.now() - this._startedAt : 0, kernel: this.kernel.getStatus() });
+    });
+
+    // ── 历史聚合 ──
+    this.app.get('/api/history/:executionId', (req, res) => {
+      res.json({ ok: true, message: 'History aggregate endpoint' });
+    });
+
+    // ── ★ RuntimeAPI: 后端引擎能力路由（零修改现有代码）─
+    registerRuntimeRoutes(this.app);
+  }
+
+  /**
+   * 清理所有领域的 harness（刷新/断开时调用）
+   *
+   * ★ v3.2: DomainCluster 不再管理 harness。
+   * harness 由 SessionManager 统一管理（Round 5 集成后取代此方法）。
+   */
+  private async abortAllHarnesses(): Promise<void> {
+    console.warn('[Abort] abortAllHarnesses: DomainCluster no longer manages harnesses. SessionManager integration pending (Round 5).');
+  }
+}

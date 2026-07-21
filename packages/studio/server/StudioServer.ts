@@ -24,19 +24,31 @@ import { createServer, type Server as HttpServer } from 'http';
 import path from 'path';
 import * as fs from 'fs';
 
-import { MorPexKernel } from '../../core/index.js';
-import { AgentService } from '../../core/src/services/AgentService.js';
-import { FSMEngine } from '../../core/src/planes/runtime-kernel/fsm/FSMEngine.js';
-import { DAGEngine } from '../../core/src/planes/runtime-kernel/dag/DAGEngine.js';
-import { SchedulerEngine } from '../../core/src/planes/runtime-kernel/scheduler/SchedulerEngine.js';
+import { MorPexKernel, IndustryPlugin } from '../../core/index.js';
+// ── v8 模块 ──
+import { MessageGateway, WebAdapter } from '../../core/src/interaction/index.js';
+import { MissionRuntime, MissionState } from '../../core/src/runtime/mission/index.js';
+import { MetaPlannerAdapter } from '../../core/src/runtime/mission/adapters/index.js';
+import { VerificationEngine } from '../../core/src/runtime/verification/index.js';
+import { ApprovalEngine } from '../../core/src/runtime/approval/index.js';
+import { RiskAnalyzer } from '../../core/src/control/index.js';
+import { AuditTrail } from '../../core/src/control/index.js';
+
+// ── v8.5 升级模块 ──
+import { CognitiveLoop } from '../../core/src/runtime/cognitive-loop/CognitiveLoop.js';
+import { BehaviorTwin } from '../../core/src/cognition/twin/BehaviorTwin.js';
+import { DecisionTwin } from '../../core/src/cognition/decision/DecisionTwin.js';
+import { GoalManager } from '../../core/src/cognition/goal/GoalManager.js';
+import { PreferenceModel } from '../../core/src/cognition/twin/PreferenceModel.js';
+import { PersonalBrain, BrainPersistor } from '../../core/src/cognition/memory/index.js';
+import { WorkflowMiner } from '../../core/src/evolution/workflow/WorkflowMiner.js';
+import { WorkflowRegistry } from '../../core/src/evolution/workflow/WorkflowRegistry.js';
+import { WorkflowExecutor } from '../../core/src/evolution/workflow/WorkflowExecutor.js';
+import { EventStore as EventSourcingStore } from '../../core/src/protocol/events/store/index.js';
+import { registerRuntimeRoutes } from './RuntimeAPI.js';
 import { KnowledgeGraph } from '../../core/src/planes/knowledge-plane/knowledge/KnowledgeGraph.js';
 import { ArtifactRegistry } from '../../core/src/planes/knowledge-plane/artifacts/ArtifactRegistry.js';
-import { AgentOrchestrator } from '../../core/src/planes/agent-plane/orchestrator/AgentOrchestrator.js';
 import { IntentPlugin } from '../../core/src/planes/control-plane/intent/plugin.js';
-import { IndustryPlugin } from '../../core/index.js';
-
-import { SwarmEngine } from '../../core/src/planes/agent-plane/swarm/SwarmEngine.js';
-import { ExecutionGraphEngine } from '../../core/src/planes/runtime-kernel/execution-graph/ExecutionGraph.js';
 
 import { DomainClusterManager } from '../../core/src/domains/DomainClusterManager.js';
 import { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
@@ -44,25 +56,18 @@ import { DomainDispatcher } from '../../core/src/router/DomainDispatcher.js';
 import { NegotiationEngine } from '../../core/src/negotiation/NegotiationEngine.js';
 import { ArbitrationHandler } from '../../core/src/router/ArbitrationHandler.js';
 import { MetaPlanner } from '../../core/src/extensions/planning/MetaPlanner.js';
-import { ExtensionRegistryImpl } from '../../core/src/extensions/ExtensionRegistry.js';
-import { LineageTracker } from '../../core/src/extensions/LineageTracker.js';
-import { ContextPruner } from '../../core/src/extensions/ContextPruner.js';
-import { McpProcessGuard } from '../../core/src/extensions/McpProcessGuard.js';
-import type { AsyncResourceLocker } from '../../core/src/utils/AsyncResourceLocker.js';
 import { PermissionEngine } from '../../core/src/permission/PermissionEngine.js';
 import { SessionProjection } from '../../core/src/projection/SessionProjection.js';
-import { ExecutionRecordingEngine } from '../../core/src/mirror/ExecutionRecordingEngine.js';
-import { SlidingWindowCompaction } from '../../core/src/compaction/CompactionPolicy.js';
-import { McpRuntimeManager } from '../../core/src/mcp/McpRuntimeManager.js';
 import { LLMProvider } from '../../core/src/services/LLMProvider.js';
+import { PiAgentCoreRuntime } from '../../core/src/adapters/pi-agent-runtime.js';
 
-import type { MorPexEvent, KernelStatus } from '../../core/src/common/types.js';
+import type { MorPexEvent, KernelStatus, MorPexPlugin } from '../../core/src/common/types.js';
 import {
   HistoryStore, MemoryWiki, DocWatcher, DocTopology, MemoryRetriever,
-  MemoryBus, ZVecStorage, createMemoryBus,
+  ZVecStorage,
 } from '../../memory/src/index.js';
 import { createMemorySearchTool } from '../../core/index.js';
-import type { AgentTool } from '@earendil-works/pi-agent-core';
+import type { AgentTool } from '../../core/src/adapters/pi-types.js';
 
 // ── 拆分后的子模块 ──
 import { SessionStore } from './SessionStore.js';
@@ -77,7 +82,7 @@ export interface StudioServerConfig {
   mirrorBasePath?: string;
   sessionsRoot?: string;
   frontendDist?: string;
-  kernelPlugins?: any[];
+  kernelPlugins?: MorPexPlugin[];
 }
 
 // ── SSE Client 管理 ──
@@ -105,14 +110,7 @@ export class StudioServer {
   private artifactWriter!: ArtifactWriter;
   private orchestrator!: StudioOrchestrator;
 
-  // 引擎组件
-  private agentService!: AgentService;
-  private fsmEngine!: FSMEngine;
-  private dagEngine!: DAGEngine;
-  private schedulerEngine!: SchedulerEngine;
-  private swarmEngine!: SwarmEngine;
-  private execGraphEngine!: ExecutionGraphEngine;
-  private agentOrchestrator!: AgentOrchestrator;
+  // 引擎组件 (ghost engines removed)
   private knowledgeGraph!: KnowledgeGraph;
   private artifacts!: ArtifactRegistry;
   private history!: HistoryStore;
@@ -120,10 +118,11 @@ export class StudioServer {
   private docWatcher?: DocWatcher;
   private docTopology?: DocTopology;
   private memoryRetriever?: MemoryRetriever;
-  private memoryBus?: MemoryBus;
+  // MemoryBus replaced by MemoryWiki
   private zvec!: ZVecStorage;
-  private repo: any;
-  private controlModel: any;
+  private repo!: import('@earendil-works/pi-agent-core').InMemorySessionRepo;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private controlModel: any; // getModel('deepseek', 'deepseek-v4-flash') — pi-ai Model generic constraint incompatible
   private intentPlugin?: IntentPlugin;
   private industryPlugin?: IndustryPlugin;
   private domainManager?: DomainClusterManager;
@@ -132,13 +131,31 @@ export class StudioServer {
   private negotiationEngine?: NegotiationEngine;
   private arbitrationHandler?: ArbitrationHandler;
   private metaPlanner?: MetaPlanner;
-  private extensionRegistry?: ExtensionRegistryImpl;
-  private globalLocker?: AsyncResourceLocker;
+
+  // ── v8 模块 ──
+  private v8Gateway?: MessageGateway;
+  private v8MissionRuntime?: MissionRuntime;
+  private v8Verification?: VerificationEngine;
+  private v8Approval?: ApprovalEngine;
+  private v8RiskAnalyzer?: RiskAnalyzer;
+  private v8AuditTrail?: AuditTrail;
+
+  // ── v8.5 升级模块 ──
+  private v8CognitiveLoop?: CognitiveLoop;
+  private v8BehaviorTwin?: BehaviorTwin;
+  private v8DecisionTwin?: DecisionTwin;
+  private v8PreferenceModel?: PreferenceModel;
+  private v8PersonalBrain?: PersonalBrain;
+  private v8WorkflowRegistry?: WorkflowRegistry;
+  private v8WorkflowMiner?: WorkflowMiner;
+  private v8WorkflowExecutor?: WorkflowExecutor;
+  private v8EventSourcingStore?: EventSourcingStore;
+  private v8PeriodicTimer?: ReturnType<typeof setInterval>;
+  private globalLocker?: import('../../core/src/utils/AsyncResourceLocker.js').AsyncResourceLocker;
   private permissionEngine?: PermissionEngine;
   private sessionProjection?: SessionProjection;
-  private mcpManager?: McpRuntimeManager;
   private memorySearchTool?: AgentTool;
-  private dagCheckpointManager?: any;
+  private dagCheckpointManager?: import('@earendil-works/pi-ai').Model; // keep as reference
 
   // SSE
   private sseClients: Map<string, SSEClient> = new Map();
@@ -179,7 +196,6 @@ export class StudioServer {
       crossDomainRouter: this.crossDomainRouter,
       domainDispatcher: this.domainDispatcher,
       domainManager: this.domainManager,
-      memoryBus: this.memoryBus,
       sessionStore: this.sessionStore,
     });
 
@@ -192,7 +208,6 @@ export class StudioServer {
       crossDomainRouter: this.crossDomainRouter,
       domainDispatcher: this.domainDispatcher,
       domainManager: this.domainManager,
-      memoryBus: this.memoryBus,
       memoryRetriever: this.memoryRetriever,
       sessionStore: this.sessionStore,
       artifactWriter: this.artifactWriter,
@@ -217,6 +232,17 @@ export class StudioServer {
   }
 
   async stop(): Promise<void> {
+    // v8.5: cleanup all resources
+    this.stopBehaviorTwinCheck();
+    if (this.v8Gateway) {
+      try { await this.v8Gateway.stop(); } catch (e) { console.warn("[Studio] Gateway stop:", (e as Error).message); }
+    }
+    if (this.v8EventSourcingStore) {
+      try { await this.v8EventSourcingStore.persist(); } catch (e) { console.warn("[Studio] EventStore persist:", (e as Error).message); }
+    }
+    if (this.v8PersonalBrain) {
+      try { this.v8PersonalBrain.destroy(); } catch (e) { console.warn("[Studio] Brain destroy:", (e as Error).message); }
+    }
     await this.kernel.stop();
     return new Promise((resolve) => {
       if (this.httpServer) {
@@ -234,12 +260,13 @@ export class StudioServer {
     const identity = this.kernel.executionIdentity;
 
     await this.initBaseServices();
-    await this.initAIEngines(bus, identity);
+    // initAIEngines removed — ghost modules deleted
     await this.initMemoryStorage(bus, identity);
     await this.initControlPlane(bus, identity);
     this.memorySearchTool = createMemorySearchTool(() => this.memoryRetriever ?? null);
     await this.initCrossDomainModules();
     await this.initMetaPlanner();
+    await this.initV8Modules(bus, identity);
 
     if (this.wiki) {
       this.history.setWiki(this.wiki);
@@ -248,29 +275,14 @@ export class StudioServer {
 
   private async initBaseServices(): Promise<void> {
     this.history = new HistoryStore(path.join(this.config.mirrorBasePath || './data', 'history'));
-    this.agentService = new AgentService({ artifactRegistry: this.artifacts });
     this.repo = new (await import('@earendil-works/pi-agent-core')).InMemorySessionRepo();
     console.log(`  ├─ HistoryStore   ✅`);
-    console.log(`  ├─ AgentService   ✅`);
-    console.log(`  └─ SessionRepo    ✅`);
+    console.log(`  ├─ SessionRepo    ✅`);
   }
 
-  private async initAIEngines(bus: any, identity: any): Promise<void> {
-    this.fsmEngine = new FSMEngine();
-    this.dagEngine = new DAGEngine();
-    this.schedulerEngine = new SchedulerEngine();
-    this.swarmEngine = new SwarmEngine();
-    this.execGraphEngine = new ExecutionGraphEngine();
-    this.agentOrchestrator = new AgentOrchestrator();
-    console.log(`  ├─ FSM            ✅`);
-    console.log(`  ├─ DAG            ✅`);
-    console.log(`  ├─ Scheduler      ✅`);
-    console.log(`  ├─ Orchestrator   ✅`);
-    console.log(`  ├─ Swarm          ✅`);
-    console.log(`  └─ ExecutionGraph ✅`);
-  }
+  // initAIEngines removed — ghost modules deleted
 
-  private async initMemoryStorage(bus: any, identity: any): Promise<void> {
+  private async initMemoryStorage(bus: import('../../core/src/common/EventBus.js').EventBus, identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity): Promise<void> {
     this.knowledgeGraph = new KnowledgeGraph();
     this.artifacts = new ArtifactRegistry();
     this.artifacts.onArtifactCreated = (artifact) => {
@@ -281,7 +293,7 @@ export class StudioServer {
       }
       const dagExecId = this.orchestrator?.dagExecId || artifact.metadata?.executionId || '';
       this.artifactWriter.saveArtifact(artifact, dagExecId).catch(err => {
-        console.error('[StudioServer] 保存 Artifact 文件失败:', err.message);
+        console.error('[StudioServer] 保存 Artifact 文件失败:', (err as Error).message);
       });
       bus.emit({
         id: identity.createEventId(),
@@ -306,15 +318,13 @@ export class StudioServer {
     this.docWatcher = new DocWatcher(wiki, { dir: './data/wiki' });
     this.docTopology = new DocTopology(wiki, './data/wiki');
     this.memoryRetriever = new MemoryRetriever(wiki);
-    this.memoryBus = createMemoryBus().bus;
     console.log(`  ├─ KnowledgeGraph ✅`);
     console.log(`  ├─ Artifacts      ✅`);
     console.log(`  ├─ ZVec           ✅`);
     console.log(`  ├─ MemoryWiki     ✅`);
-    console.log(`  ├─ MemoryBus      ✅`);
   }
 
-  private async initControlPlane(bus: any, identity: any): Promise<void> {
+  private async initControlPlane(bus: import('../../core/src/common/EventBus.js').EventBus, identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity): Promise<void> {
     const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai');
     this.controlModel = getModel('deepseek', 'deepseek-v4-flash');
     const rawCallLLM = async (prompt: string, systemPrompt?: string): Promise<string> => {
@@ -326,21 +336,22 @@ export class StudioServer {
 
         let fullText = '';
         const finalPromise = stream.result();
+        // SSE 流式推送：聊天（currentSessionId）和 DAG 任务执行（dagExecId）都需要
+        const execId = this.orchestrator?.dagExecId || this.orchestrator?.currentSessionId || '';
 
         const iterate = async () => {
           for await (const event of stream) {
             if (event.type === 'text_delta') {
-              fullText += event.delta;
-              const execId = this.orchestrator?.dagExecId || this.orchestrator?.currentSessionId || '';
+              fullText += event.delta ?? '';
               if (execId) {
-                if (fullText.length <= 80) console.log(`[SSE→] message_update execId=${execId} delta="${event.delta.substring(0, 30)}"`);
+                if (fullText.length <= 80) console.log(`[SSE→] message_update execId=${execId} delta="${(event.delta ?? '').substring(0, 30)}"`);
                 this.kernel.eventBus.emit({
                   id: this.kernel.executionIdentity.createEventId(),
                   type: 'message_update',
                   timestamp: Date.now(),
                   executionId: execId,
                   source: 'llm',
-                  payload: { delta: event.delta },
+                  payload: { delta: event.delta ?? '' },
                 });
               }
             }
@@ -357,20 +368,50 @@ export class StudioServer {
           console.warn('[StudioServer] streamSimple 超时，降级 completeSimple');
         } else {
           console.log(`[StudioServer] streamSimple 完成，${fullText.length} 字符`);
-          if (fullText.trim()) return fullText.trim();
+          if (fullText.trim()) {
+            if (execId) {
+              this.kernel.eventBus.emit({
+                id: this.kernel.executionIdentity.createEventId(),
+                type: 'message_complete',
+                timestamp: Date.now(),
+                executionId: execId,
+                source: 'llm',
+                payload: { fullText: fullText.trim() },
+              });
+            }
+            return fullText.trim();
+          }
         }
-      } catch (err: any) {
-        console.warn('[StudioServer] streamSimple 异常:', err.message);
+      } catch (err: unknown) {
+        console.warn('[StudioServer] streamSimple 异常:', (err as Error).message);
       }
 
       const msg = await completeSimple(this.controlModel, {
         systemPrompt: systemPrompt ?? '你是一个有用的助手。',
         messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
       }, { maxTokens: 2000, temperature: 0.3 });
-      const textParts = msg.content.filter(c => c.type === 'text').map(c => (c as any).text);
-      return textParts.join('').trim();
+      const textParts = msg.content.filter((c: { type: string; text?: string }) => c.type === 'text').map((c: { type: string; text?: string }) => c.text);
+      const fallbackText = textParts.join('').trim();
+      if (fallbackText) {
+        const execId2 = this.orchestrator?.dagExecId || this.orchestrator?.currentSessionId || '';
+        if (execId2) {
+          this.kernel.eventBus.emit({
+            id: this.kernel.executionIdentity.createEventId(),
+            type: 'message_complete',
+            timestamp: Date.now(),
+            executionId: execId2,
+            source: 'llm',
+            payload: { fullText: fallbackText },
+          });
+        }
+      }
+      return fallbackText;
     };
     LLMProvider.set(rawCallLLM);
+    // ── Register PiAgentCoreRuntime with ExecutionGateway ──
+    const piRuntime = new PiAgentCoreRuntime();
+    this.kernel.registerPiRuntime(piRuntime);
+    console.log(`  ├─ PiRuntime      ✅`);
     this.intentPlugin = new IntentPlugin();
     this.kernel.registerPlugin(this.intentPlugin);
     this.industryPlugin = new IndustryPlugin();
@@ -402,10 +443,10 @@ export class StudioServer {
       artifactRegistry: this.artifacts,
       builtinTools: globalTools,
     });
-    manifests.forEach((m: any) => this.domainManager!.register(m));
+    manifests.forEach((m: import('../../core/src/domains/types.js').DomainManifest) => this.domainManager!.register(m));
 
     // 接线：节点执行中 agent 询问时挂起等待用户回复
-    const clusterIds = manifests.map((m: any) => m.domain_id);
+    const clusterIds = manifests.map((m: import('../../core/src/domains/types.js').DomainManifest) => m.domain_id);
     for (const id of clusterIds) {
       const cluster = this.domainManager.getCluster(id);
       if (!cluster) continue;
@@ -439,7 +480,7 @@ export class StudioServer {
     this.domainDispatcher = new DomainDispatcher(this.domainManager, 3, this.negotiationEngine, this.arbitrationHandler, this.globalLocker);
 
     // 将 DomainDispatcher 回调 → EventBus → SSE → 前端实时更新
-    this.domainDispatcher.onNodeStart = (node: any) => {
+    this.domainDispatcher.onNodeStart = (node: import('../../core/src/domains/types.js').DAGNode) => {
       const dagExecId = this.orchestrator?.dagExecId || '';
       console.log(`[SSE→] runtime.task.started taskId=${node.taskId} execId=${dagExecId}`);
       this.kernel.eventBus.emit({
@@ -451,7 +492,7 @@ export class StudioServer {
         payload: { taskId: node.taskId, domain: node.domain, goal: node.goal, executionId: dagExecId },
       });
     };
-    this.domainDispatcher.onNodeComplete = (result: any) => {
+    this.domainDispatcher.onNodeComplete = (result: import('../../core/src/router/DomainDispatcher.js').NodeResult) => {
       const dagExecId = this.orchestrator?.dagExecId || '';
       const status = result.status === 'failed' ? 'failed' : 'completed';
       console.log(`[SSE→] runtime.task.completed taskId=${result.taskId} status=${status} outputLen=${typeof result.output === 'string' ? result.output.length : 0}`);
@@ -474,7 +515,7 @@ export class StudioServer {
         });
       }
     };
-    this.domainDispatcher.onNodeFail = (node: any, error: string) => {
+    this.domainDispatcher.onNodeFail = (node: import('../../core/src/domains/types.js').DAGNode, error: string) => {
       const dagExecId = this.orchestrator?.dagExecId || '';
       this.kernel.eventBus.emit({
         id: this.kernel.executionIdentity.createEventId(),
@@ -503,16 +544,206 @@ export class StudioServer {
       const { MetaPlanner: MetaPlannerCls } = await import('../../core/src/extensions/planning/MetaPlanner.js');
       this.metaPlanner = new MetaPlannerCls({
         experienceStorePath: storePath,
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
         modelRegistry: { getModel: () => this.controlModel } as any,
-        memoryBus: this.memoryBus as any,
         knowledgeGraph: this.knowledgeGraph,
         artifactRegistry: this.artifacts,
         traceLogPath,
         enabled: false,
-      } as any);
+      } as unknown as import('../../core/src/extensions/planning/types.js').MetaPlannerConfig & Record<string, unknown>);
       console.log(`  ├─ MetaPlanner   ✅`);
-    } catch (err: any) {
-      console.warn(`  ├─ MetaPlanner   ⚠️ ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`  ├─ MetaPlanner   ⚠️ ${(err as Error).message}`);
+    }
+  }
+
+/** ★ v8: 初始化 v8 模块（MessageGateway + MissionRuntime + CognitiveLoop + 全链路） */
+  private async initV8Modules(
+    bus: import('../../core/src/common/EventBus.js').EventBus,
+    identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity
+  ): Promise<void> {
+    try {
+      // ═══════════════════════════════════════════════════════
+      // v8.5: PersonalBrain + Workflow Evolution 初始化
+      // ═══════════════════════════════════════════════════════
+
+      // ── PersonalBrain（五层记忆） ──
+      this.v8PersonalBrain = new PersonalBrain();
+
+      // ── Workflow Registry + Miner + Executor ──
+      this.v8WorkflowRegistry = new WorkflowRegistry();
+      const workflowMemory = this.v8PersonalBrain.workflow;
+      this.v8WorkflowMiner = new WorkflowMiner(workflowMemory);
+
+      // ── BehaviorTwin + DecisionTwin + PreferenceModel ──
+      this.v8BehaviorTwin = new BehaviorTwin('default');
+      const dmem = this.v8PersonalBrain?.decision; // use PersonalBrain.decision (already created)
+      this.v8DecisionTwin = new DecisionTwin(dmem);
+      this.v8PreferenceModel = new PreferenceModel();
+
+      // ── Event Sourcing Store（强制执行） ──
+      this.v8EventSourcingStore = new EventSourcingStore({
+        dataDir: './data/event-sourcing-v8',
+      });
+      await this.v8EventSourcingStore.load();
+      console.log('  ├─ v8.5 EventStore   ✅ (Event Sourcing 强制)');
+
+      // ── Restore PersonalBrain from MemoryWiki ──
+      if (this.wiki) {
+        await BrainPersistor.restore(this.v8PersonalBrain, this.wiki);
+        console.log('  ├─ v8.5 BrainRestore ✅ (MemoryWiki)');
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // v8: MessageGateway + MissionRuntime
+      // ═══════════════════════════════════════════════════════
+
+      // ── 1. MessageGateway ──
+      this.v8Gateway = new MessageGateway(bus);
+      const webAdapter = new WebAdapter();
+      this.v8Gateway.registerAdapter(webAdapter);
+      console.log('  ├─ v8 Gateway     ✅');
+
+      // ── 2. Verification + Approval + Risk + Audit ──
+      this.v8Verification = new VerificationEngine();
+      this.v8Approval = new ApprovalEngine(bus);
+      this.v8RiskAnalyzer = new RiskAnalyzer();
+      this.v8AuditTrail = new AuditTrail();
+      console.log('  ├─ v8 Verification ✅');
+      console.log('  ├─ v8 Approval    ✅');
+      console.log('  ├─ v8 RiskAnalyzer ✅');
+      console.log('  ├─ v8 AuditTrail  ✅');
+
+      // ── 3. MissionRuntime ──
+      this.v8MissionRuntime = new MissionRuntime(bus, {
+        verificationEngine: this.v8Verification,
+        approvalEngine: this.v8Approval,
+      });
+
+      // ★ v8.5: 强制启用 Event Sourcing
+      this.v8MissionRuntime.setEventStore(this.v8EventSourcingStore);
+      console.log('  ├─ v8.5 EventSrc   ✅ (已注入 MissionRuntime)');
+
+      // ── 4. Planner Adapter (MetaPlanner + Twin 约束) ──
+      if (this.metaPlanner) {
+        const plannerAdapter = new MetaPlannerAdapter(this.metaPlanner);
+        this.v8MissionRuntime.setPlanner(plannerAdapter);
+        console.log('  ├─ v8 PlannerAdapter ✅ (Twin 约束已注入)');
+      } else {
+        console.warn('  ├─ v8 PlannerAdapter ⚠️ MetaPlanner 未就绪，使用默认规划器');
+      }
+
+      // ── 5. Executor Adapter (DAG-aware: 依赖解析 + 并行执行) ──
+      if (this.domainDispatcher) {
+        const self = this; // capture for closure
+        const executorAdapter = {
+          execute: async (mission: any, plan: any) => {
+            const startTime = Date.now();
+            let completed = 0; let failed = 0;
+            const errors: string[] = [];
+            const results: Map<string, { status: string; error?: string }> = new Map();
+
+            // Build step map and compute dependency levels (topological waves)
+            const stepMap: Map<string, any> = new Map(plan.steps.map((s: any) => [s.id, s]));
+            const levels: Array<Array<any>> = [];
+            const remaining = new Set<string>(plan.steps.map((s: any) => s.id as string));
+            const completedIds = new Set<string>();
+
+            while (remaining.size > 0) {
+              const wave: any[] = [];
+              for (const id of remaining) {
+                const step = stepMap.get(id)!;
+                const deps = (step.deps || []) as string[];
+                if (deps.every((d: string) => completedIds.has(d))) {
+                  wave.push(step);
+                }
+              }
+              if (wave.length === 0) {
+                // Circular or unresolvable deps — execute remaining sequentially
+                for (const id of remaining) wave.push(stepMap.get(id)!);
+              }
+              for (const s of wave) remaining.delete(s.id);
+              levels.push(wave);
+            }
+
+            // Execute wave by wave (parallel within each wave)
+            for (const wave of levels) {
+              const wavePromises = wave.map(async (step: any) => {
+                try {
+                  const node = { taskId: step.id, domain: step.domain, goal: step.description, deps: step.deps || [], status: 'pending' as const };
+                  const sessionCtx = { sessionId: mission.context?.sessionId || 'mis_' + mission.id, executionId: mission.id, input: step.description, artifacts: {} as Record<string, any[]>, memory: [] };
+                  const result = await self.domainDispatcher!.executeNode(node, sessionCtx);
+                  results.set(step.id, { status: result.status, error: result.error });
+                } catch (err: any) {
+                  results.set(step.id, { status: 'failed', error: err.message });
+                }
+              });
+              await Promise.all(wavePromises);
+              for (const step of wave) {
+                completedIds.add(step.id);
+              }
+            }
+
+            // Tally results
+            for (const [, r] of results) {
+              if (r.status === 'completed') completed++;
+              else { failed++; if (r.error) errors.push(r.error); }
+            }
+
+            return { missionId: mission.id, state: failed === 0 ? MissionState.VERIFYING : MissionState.FAILED, stepsCompleted: completed, stepsTotal: plan.steps.length, artifacts: [], duration: Date.now() - startTime, error: errors.length > 0 ? errors.join('; ') : undefined };
+          },
+        };
+        this.v8MissionRuntime.setExecutor(executorAdapter);
+        console.log('  ├─ v8 ExecutorAdapter ✅ (DAG-aware, 依赖解析 + 并行)');
+      } else {
+        console.warn('  ├─ v8 ExecutorAdapter ⚠️ DomainDispatcher 未就绪');
+      }
+
+      // ═══════════════════════════════════════════════════════
+      // v8.5: WorkflowExecutor（依赖 MissionRuntime）
+      // ═══════════════════════════════════════════════════════
+
+      this.v8WorkflowExecutor = new WorkflowExecutor(
+        this.v8WorkflowRegistry,
+        this.v8MissionRuntime,
+      );
+      console.log('  ├─ v8.5 WfExec     ✅');
+
+      // ═══════════════════════════════════════════════════════
+      // ═══════════════════════════════════════════════════════
+
+      // ★ v8.5 fix: GoalManager 接入 CognitiveLoop
+      const goalManager = new GoalManager();
+      this.v8CognitiveLoop = new CognitiveLoop(
+        bus,
+        this.v8MissionRuntime,
+        {
+          goalManager,
+          behaviorTwin: this.v8BehaviorTwin,
+          decisionTwin: this.v8DecisionTwin,
+          preferenceModel: this.v8PreferenceModel,
+          workflowMiner: this.v8WorkflowMiner,
+          workflowRegistry: this.v8WorkflowRegistry,
+          workflowExecutor: this.v8WorkflowExecutor,
+          brain: this.v8PersonalBrain,
+        },
+      );
+      console.log('  ├─ v8 GoalManager   ✅ (已注入 CognitiveLoop)');
+
+      // ★ v8.5: CognitiveLoop 作为 MessageHandler（全链路 9 阶段编排）
+      this.v8Gateway.setMessageHandler(this.v8CognitiveLoop!.asMessageHandler());
+
+      await this.v8Gateway.start();
+      console.log('  ├─ v8 GatewayHandler ✅ (CognitiveLoop 已接入)');
+
+      // ★ v8.5: BehaviorTwin 周期性调度（24h 检测行为漂移）
+      this.v8PeriodicTimer = setInterval(() => {
+        this.runBehaviorTwinCheck();
+      }, 24 * 60 * 60 * 1000);
+      if (this.v8PeriodicTimer) this.v8PeriodicTimer.unref();
+      console.log('  └─ v8 BehaviorTimer ✅ (24h 周期检测)');
+    } catch (err: unknown) {
+      console.warn('  └─ v8 Init ⚠️ ' + ((err as Error).message));
     }
   }
 
@@ -567,6 +798,44 @@ export class StudioServer {
     };
 
     console.log(`  ├─ Dispatcher回调 ✅ (已接 SessionManager)`);
+  }
+
+  /**
+   * runBehaviorTwinCheck — 执行一次 BehaviorTwin 检查
+   */
+  private runBehaviorTwinCheck(): void {
+    // ★ v8.5 人控模式：通过 CognitiveLoop.checkDrift() 检测漂移
+    // 漂移结果存入待确认队列，需人工 accept/reject
+    if (this.v8CognitiveLoop) {
+      try {
+        const drift = this.v8CognitiveLoop.checkDrift();
+        if (drift) {
+          console.log('[BehaviorTwin] 漂移待确认: ' + drift.changes.join(', '));
+        }
+      } catch (err: unknown) {
+        console.warn('[BehaviorTwin] checkDrift 异常:', (err as Error).message);
+      }
+      return;
+    }
+    // Fallback: 如果 CognitiveLoop 未就绪，仍记录到 PersonalBrain
+    if (!this.v8BehaviorTwin || !this.v8PersonalBrain) return;
+    try {
+      const profile = this.v8BehaviorTwin.buildProfile();
+      this.v8PersonalBrain.storeFact(
+        'BehaviorTwin periodic check: ' + profile.planningStyle,
+        ['behavior-twin', 'periodic-check']
+      ).catch(() => {});
+    } catch (err: unknown) {
+      console.warn('[BehaviorTwin] 周期检查异常:', (err as Error).message);
+    }
+  }
+
+  /** ★ v8.5: 停止周期性调度 */
+  private stopBehaviorTwinCheck(): void {
+    if (this.v8PeriodicTimer) {
+      clearInterval(this.v8PeriodicTimer);
+      this.v8PeriodicTimer = undefined;
+    }
   }
 
   private setupMiddleware(): void {
@@ -636,8 +905,8 @@ export class StudioServer {
       try {
         const sessionId = await this.sessionManager.create(mode);
         return res.json({ ok: true, sessionId, mode });
-      } catch (err: any) {
-        return res.status(500).json({ ok: false, error: err.message });
+      } catch (err: unknown) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
       }
     });
 
@@ -663,10 +932,154 @@ export class StudioServer {
           sessionId,
           error: result.type === 'error' ? result.error : undefined,
         });
-      } catch (err: any) {
-        return res.json({ ok: false, error: err.message });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
       }
     });
+
+    // ── POST /api/v8/mission — v8 Mission 入口 ──
+    this.app.post('/api/v8/mission', async (req, res) => {
+      const { content } = req.body || {};
+      if (!content) return res.status(400).json({ ok: false, error: '缺少 content' });
+      const sessionId = req.body.session_id || `sess_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+
+      try {
+        if (!this.v8Gateway || !this.v8MissionRuntime) {
+          return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+        }
+
+        const incomingMsg = {
+          channel: 'web',
+          userId: 'user',
+          sessionId,
+          content,
+          metadata: { agent: req.body.agent },
+        };
+
+        const result = await this.v8Gateway.receive(incomingMsg);
+        return res.json({
+          ok: true,
+          type: result.type,
+          content: result.content,
+          sessionId,
+          metadata: result.metadata,
+        });
+      } catch (err: unknown) {
+        console.error('[StudioServer] /api/v8/mission 错误:', (err as Error).message);
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── GET /api/v8/missions — 列出所有 Mission ──
+    this.app.get('/api/v8/missions', (_req, res) => {
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      const missions = this.v8MissionRuntime.listProjectedMissions();
+      const approvals = this.v8Approval ? this.v8Approval.getPending() : [];
+      const auditReport = this.v8AuditTrail
+        ? this.v8AuditTrail.generateReport(Date.now() - 86400000, Date.now())
+        : null;
+      return res.json({
+        ok: true,
+        count: missions.length,
+        missions: missions.map(m => ({ id: m.id, goal: m.goal, state: m.state, createdAt: m.createdAt })),
+        pendingApprovals: approvals.length,
+        auditSummary: auditReport ? { total: auditReport.totalEntries, approvalRate: auditReport.approvalRate } : null,
+      });
+    });
+
+    // ── POST /api/v8/mission/:missionId/approve — 审批 Mission ──
+    this.app.post('/api/v8/mission/:missionId/approve', async (req, res) => {
+      const { missionId } = req.params;
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      try {
+        const result = await this.v8MissionRuntime.approveMission(missionId);
+        return res.json({ ok: true, missionId, state: result.state });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── POST /api/v8/mission/:missionId/deny — 拒绝 Mission ──
+    this.app.post('/api/v8/mission/:missionId/deny', async (req, res) => {
+      const { missionId } = req.params;
+      if (!this.v8MissionRuntime) {
+        return res.status(503).json({ ok: false, error: 'v8 runtime 未就绪' });
+      }
+      try {
+        await this.v8MissionRuntime.denyMission(missionId);
+        const mission = this.v8MissionRuntime.getProjectedMission(missionId);
+        return res.json({ ok: true, missionId, state: mission?.state || 'CANCELLED' });
+      } catch (err: unknown) {
+        return res.json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+
+    // ═══════════════════════════════════════════════════════
+    // ★ v8.5 人控开关 API
+    // ═══════════════════════════════════════════════════════
+
+    // ── GET /api/v8/human-control/status — 人控状态 ──
+    this.app.get('/api/v8/human-control/status', (_req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      return res.json({ ok: true, ...this.v8CognitiveLoop.getHCConfig() });
+    });
+
+    // ── GET /api/v8/workflow-candidates — 待审批工作流候选 ──
+    this.app.get('/api/v8/workflow-candidates', (_req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      return res.json({ ok: true, candidates: this.v8CognitiveLoop.getAllCandidates() });
+    });
+
+    // ── POST /api/v8/workflow-candidates/:id/approve — 批准候选 ──
+    this.app.post('/api/v8/workflow-candidates/:id/approve', (req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      const result = this.v8CognitiveLoop.approveCandidate(req.params.id, req.body?.by);
+      if (!result) return res.status(404).json({ ok: false, error: '候选不存在或已处理' });
+      return res.json({ ok: true, candidate: result });
+    });
+
+    // ── POST /api/v8/workflow-candidates/:id/deny — 拒绝候选 ──
+    this.app.post('/api/v8/workflow-candidates/:id/deny', (req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      const result = this.v8CognitiveLoop.denyCandidate(req.params.id, req.body?.by);
+      if (!result) return res.status(404).json({ ok: false, error: '候选不存在或已处理' });
+      return res.json({ ok: true, candidate: result });
+    });
+
+    // ── GET /api/v8/behavior-drifts — 待确认行为漂移 ──
+    this.app.get('/api/v8/behavior-drifts', (_req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      return res.json({ ok: true, drifts: this.v8CognitiveLoop.getPendingDrifts() });
+    });
+
+    // ── POST /api/v8/behavior-drifts/:id/accept — 接受漂移 ──
+    this.app.post('/api/v8/behavior-drifts/:id/accept', (req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      const result = this.v8CognitiveLoop.acceptDrift(req.params.id, req.body?.by);
+      if (!result) return res.status(404).json({ ok: false, error: '漂移不存在或已处理' });
+      return res.json({ ok: true, drift: result });
+    });
+
+    // ── POST /api/v8/behavior-drifts/:id/reject — 拒绝漂移 ──
+    this.app.post('/api/v8/behavior-drifts/:id/reject', (req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      const result = this.v8CognitiveLoop.rejectDrift(req.params.id, req.body?.by);
+      if (!result) return res.status(404).json({ ok: false, error: '漂移不存在或已处理' });
+      return res.json({ ok: true, drift: result });
+    });
+
+    // ── POST /api/v8/workflow/:id/execute — 手动执行工作流 ──
+    this.app.post('/api/v8/workflow/:id/execute', async (req, res) => {
+      if (!this.v8CognitiveLoop) return res.status(503).json({ ok: false, error: 'CognitiveLoop 未就绪' });
+      const result = await this.v8CognitiveLoop.execWfManual(req.params.id);
+      return res.json({ ok: result.success, ...result });
+    });
+
 
     // ── POST /api/chat/message — 旧版聊天入口（内部委托给 SessionManager） ──
     this.app.post('/api/chat/message', async (req, res) => {
@@ -681,9 +1094,9 @@ export class StudioServer {
         // 委托给 StudioOrchestrator（保持向后兼容）
         const result = await this.orchestrator.routeMessage(content, execId, session_id, agent);
         return res.json({ ...result, sessionId: session_id });
-      } catch (err: any) {
-        console.error('[StudioServer] /api/chat/message 错误:', err.message);
-        return res.json({ ok: false, error: err.message });
+      } catch (err: unknown) {
+        console.error('[StudioServer] /api/chat/message 错误:', (err as Error).message);
+        return res.json({ ok: false, error: (err as Error).message });
       }
     });
 
@@ -737,10 +1150,10 @@ export class StudioServer {
           return res.json({ ok: false, error: 'DomainDispatcher 未就绪' });
         }
         const historyMsgs = this.sessionStore.getTaskMessages(executionId, taskId);
-        const contextStr = historyMsgs.slice(-20).map((m: any) => `[${m.role}]: ${m.content}`).join('\n');
+        const contextStr = historyMsgs.slice(-20).map((m: { role: string; content: string }) => `[${m.role}]: ${m.content}`).join('\n');
         const goal = `以下是你之前执行的任务上下文，请基于上下文继续完成未完成的工作，不要重新开始：\n---\n${contextStr}\n---\n用户最新输入：${input || '继续执行'}`;
-        const node: any = { taskId, domain, goal, deps: [], status: 'pending' };
-        const sessionCtx: any = {
+        const node: import('../../core/src/domains/types.js').DAGNode = { taskId, domain, goal, deps: [], status: 'pending' as const };
+        const sessionCtx: import('../../core/src/common/types.js').SessionContext = {
           sessionId: `resume_${executionId}_${Date.now()}`,
           executionId, input: goal, artifacts: {}, memory: [],
         };
@@ -759,7 +1172,7 @@ export class StudioServer {
                 (cluster as any)._status = 'sleeping';
                 await cluster.wake();
                 (cluster as any)._status = prevStatus;
-              } catch (e: any) { console.warn(`[Resume] 清理 harness 异常: ${e.message}`); }
+              } catch (e: unknown) { console.warn(`[Resume] 清理 harness 异常: ${e instanceof Error ? e.message : String(e)}`); }
             }
             const result = await this.domainDispatcher!.executeNode(node, sessionCtx);
             console.log(`[Resume] ✅ ${taskId} 恢复完成 (${result.status}), output=${typeof result.output === 'string' ? (result.output as string).substring(0, 50) : 'none'}`);
@@ -773,12 +1186,12 @@ export class StudioServer {
               payload: { taskId, status: st, output: result.output, domain, error: (result as any).error, executionId },
             });
             console.log(`[SSE→] runtime.task.completed taskId=${taskId} status=${st}`);
-          } catch (err: any) {
-            console.error(`[Resume] ❌ ${taskId} 恢复失败:`, err.message);
+          } catch (err: unknown) {
+            console.error(`[Resume] ❌ ${taskId} 恢复失败:`, (err as Error).message);
           }
         });
-      } catch (err: any) {
-        res.json({ ok: false, error: err.message });
+      } catch (err: unknown) {
+        res.json({ ok: false, error: (err as Error).message });
       }
     });
 
@@ -837,6 +1250,9 @@ export class StudioServer {
     this.app.get('/api/history/:executionId', (req, res) => {
       res.json({ ok: true, message: 'History aggregate endpoint' });
     });
+
+    // ── ★ RuntimeAPI: 后端引擎能力路由（零修改现有代码）─
+    registerRuntimeRoutes(this.app);
   }
 
   /**

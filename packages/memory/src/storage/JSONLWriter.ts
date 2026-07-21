@@ -95,8 +95,9 @@ export class JSONLWriter {
     try {
       fs.appendFileSync(this.filePath, lines, 'utf-8');
       this.flushFailCount = 0; // 成功则重置计数
-    } catch (err: any) {
-      console.error(`[JSONLWriter] 刷盘失败 ${this.filePath}: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[JSONLWriter] 刷盘失败 ${this.filePath}: ${msg}`);
       // 失败的行放回缓冲区（防止数据丢失），但限制重试次数避免无限循环
       if (this.flushFailCount < JSONLWriter.MAX_RETRY_FLUSH) {
         this.buffer = lines.trim().split('\n');

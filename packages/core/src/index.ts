@@ -26,19 +26,60 @@ export { PluginSystem } from './common/PluginSystem.js';
 
 // ── Gateway（内部使用，不对外暴露）─
 
+// ── Agent Harness v2 (Phase 2) ──
+export { AgentHarness, ContextBuilder } from './planes/agent-plane/index.js';
+export type {
+  HarnessContext,
+  IntentContext,
+  PlanContext,
+  MemoryContext,
+  ArtifactContext,
+  ExecutionState as HarnessExecutionState,
+  PermissionContext,
+  ExperienceContext,
+} from './planes/agent-plane/index.js';
+export type { MemoryRecord, ArtifactRef as AgentArtifactRef, Experience as AgentExperience, HarnessEventCallback } from './planes/agent-plane/index.js';
+
+// ── Runtime Kernel v2 (Phase 1) ──
+export {
+  ExecutionFSM,
+  ExecutionState,
+  DAGRuntime,
+  TaskNode,
+  TaskGraph,
+  DependencyResolver,
+  Scheduler,
+  ParallelExecutor,
+  CheckpointManager,
+  RecoveryManager,
+  ReplayEngine,
+  RuntimeKernelIntegrator,
+} from './runtime/index.js';
+export type {
+  StateTransitionEvent,
+  ExecutionAuditEntry,
+  ExecutionFSMConfig,
+  FSMSnapshot,
+  DAGResult,
+  ExecutionTraceEntry,
+  DAGRuntimeConfig,
+  TaskNodeStatus,
+  TaskExecutionResult,
+  SchedulerConfig,
+  SchedulerStatus,
+  NodeState,
+  ExecutionSnapshot,
+  CheckpointManagerConfig,
+  RecoveryAction,
+  RecoveryPlan,
+  ReplayEvent,
+  ReplayEventType,
+  RuntimeKernelConfig,
+} from './runtime/index.js';
+
 // ── Mirror ──
 export { ExecutionMirror } from './mirror/ExecutionMirror.js';
-export { ExecutionRecordingEngine } from './mirror/ExecutionRecordingEngine.js';
-export type {
-  ExecutionRecording,
-  ThoughtEntry as RecordedThought,
-  ActionEntry as RecordedAction,
-  ObservationEntry as RecordedObservation,
-  DAGSnapshot as RecordedDAGSnapshot,
-  RecordingConfig,
-  RecordingStats,
-} from './mirror/ExecutionRecordingEngine.js';
-export { DEFAULT_RECORDING_CONFIG } from './mirror/ExecutionRecordingEngine.js';
+// ExecutionRecordingEngine was a ghost module — removed
 export { JSONLStorage } from './mirror/storage/JSONLStorage.js';
 
 // ── Pi 集成模块 ──
@@ -76,6 +117,57 @@ export type {
   ArbitrationVerdict,
 } from './router/ArbitrationHandler.js';
 
+// ── Knowledge Plane — Artifact Intelligence (Phase 3) ──
+export { ArtifactGraph, ArtifactLineage, ArtifactEvaluator, ArtifactDependencyResolver, ArtifactEmbedding } from './planes/knowledge-plane/artifacts/index.js';
+export type { ArtifactNode, ArtifactEdge, ArtifactCapability, ArtifactDependency, ArtifactUsageRecord, ArtifactEvaluation, LineageQuery, LineagePath, ArtifactEmbedding as ArtifactEmbeddingType } from './planes/knowledge-plane/artifacts/index.js';
+
+// ── v9.1 Independent Artifact Plane ──
+export { ArtifactPlane, ArtifactManager, ArtifactRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactEventEmitter, ArtifactLineageTracker } from './planes/artifact-plane/index.js';
+export type {
+  ArtifactType as ArtifactPlaneType,
+  ArtifactStatus as ArtifactPlaneStatus,
+  ArtifactMeta,
+  ArtifactRef as ArtifactPlaneRef,
+  ArtifactRecord,
+  ArtifactVerificationResult,
+  ArtifactEvent,
+  ArtifactEventType,
+  ArtifactQuery as ArtifactPlaneQuery,
+  CreateArtifactInput,
+  ValidationRule,
+  ValidationIssue,
+  ValidationResult as ArtifactValidationResult,
+  VerificationConfig,
+  VersionInfo,
+  VersionTag,
+  VersionDiff,
+  LineageRelation,
+  LineageEdge as ArtifactLineageEdge,
+  LineagePath as ArtifactPlaneLineagePath,
+  StagingConfig,
+} from './planes/artifact-plane/index.js';
+
+// ── Memory Activation Engine (Phase 4) ──
+export { MemoryActivationEngine } from './memory/MemoryActivationEngine.js';
+export type { ActivationContext, ActivationResult } from './memory/MemoryActivationEngine.js';
+
+// ── Intent Intelligence Layer (Phase 5) ──
+export { GoalExtractor, ConstraintAnalyzer, PriorityEngine, RiskDetector, ExecutionPolicyGenerator, IntentResolver } from './planes/control-plane/intent/index.js';
+export type { StructuredGoal } from './planes/control-plane/intent/index.js';
+// Constraints exported from common/types.js below (canonical)
+export type { Constraints as IntentConstraints } from './planes/control-plane/intent/index.js';
+export type { PriorityResult, PriorityFactor } from './planes/control-plane/intent/index.js';
+export type { Risk } from './planes/control-plane/intent/index.js';
+export type { ExecutionPolicy } from './planes/control-plane/intent/index.js';
+
+// ── Learning Loop (Phase 6) ──
+export { ExperienceExtractor, PlanEvaluator, StrategyOptimizer, TemplateEvolutionEngine } from './learning/index.js';
+export type { ExecutionRecord, Experience } from './learning/index.js';
+// PlanEvaluation kept from learning (canonical); extensions re-export aliased below
+export type { PlanEvaluation } from './learning/index.js';
+export type { OptimizationSuggestion } from './learning/index.js';
+export type { PlanTemplate, TemplateRecommendation } from './learning/index.js';
+
 // ── Cross-Domain Events (Phase 11) ──
 export { CrossDomainEventTypes } from './events/CrossDomainEvents.js';
 export type {
@@ -96,19 +188,19 @@ export { EventStore } from './event/EventStore.js';
 export type { SourcingEvent, ReplayState } from './event/EventStore.js';
 
 // ── TeamSayTool (Phase 3.2) ──
-export { TeamSayTool, createTeamSayTool } from './tool/TeamSayTool.js';
-export type { AgentRegistry } from './tool/TeamSayTool.js';
+export { TeamSayTool, createTeamSayTool } from './tools/TeamSayTool.js';
+export type { AgentRegistry } from './tools/TeamSayTool.js';
 
 // ── ReadArtifactTool (Phase 3.4) ──
-export { createReadArtifactTool } from './tool/ReadArtifactTool.js';
+export { createReadArtifactTool } from './tools/ReadArtifactTool.js';
 
 // ── 提示词系统 — 三级分封架构 (Leader→Expert→Fork) ──
 export { compileLeaderPrompt, compileExpertPrompt, createAstroMTrace } from './prompts/index.js';
 export type { PromptTemplate, PromptCompileOptions, AstroMTrace } from './prompts/index.js';
 
 // ── 三级分封工具 (v2.4) ──
-export { AgentCreateTool, createAgentCreateTool } from './tool/AgentCreateTool.js';
-export { ForkExecuteTool, createForkExecuteTool } from './tool/ForkExecuteTool.js';
+export { AgentCreateTool, createAgentCreateTool } from './tools/AgentCreateTool.js';
+export { ForkExecuteTool, createForkExecuteTool } from './tools/ForkExecuteTool.js';
 
 // ── Memory Search Tool (v2.6) — LLM 可主动调用 search_memory ──
 export { createMemorySearchTool } from './tools/memory-search-tool.js';
@@ -148,10 +240,254 @@ export type {
   IndustryAdapter,
   IndustryPluginConfig,
   WorkflowTemplate,
-  WorkflowStep,
+  WorkflowStep as IndustryWorkflowStep,
 } from './industry/types.js';
 
 // ── Skill 工具（内部使用，不对外暴露）─
+
+// ── MorPex v8 Mission Runtime ──
+export {
+  MissionState,
+  MISSION_VALID_TRANSITIONS,
+  MissionRuntime,
+} from './runtime/index.js';
+export type {
+  MissionPlanner,
+  MissionExecutor,
+  MissionRuntimeConfig,
+  Mission,
+  MissionPlan,
+  PlanStep,
+  MissionResult,
+  MissionContext,
+  MissionPermissions,
+} from './runtime/index.js';
+
+// ── Mission Runtime Adapters (P0 架构完善) ──
+export { MetaPlannerAdapter, DAGExecutorAdapter } from './runtime/index.js';
+
+// ── v9.1 Context Assembly Layer ──
+export {
+  ContextAssemblyEngine,
+  ContextFragmentRegistry,
+  ContextBuilder as ContextAssemblyBuilder,
+  ContextVersioner,
+  ContextTemplateRepository,
+  ContextEnricherPipeline,
+} from './context/index.js'
+export type {
+  ExecutionContext as ContextAssemblyExecutionContext,
+  ContextLayer,
+  ContextFragment,
+  FragmentSource,
+  FragmentProvider,
+  ContextAssemblyInput,
+  ContextSnapshot as ContextAssemblySnapshot,
+  DiffEntry,
+  ContextTemplate,
+  ContextEnricher,
+  ContextAssemblyConfig,
+} from './context/index.js'
+
+// ── Governance Layer (Phase 8 / MorPex v8) ──
+export { RiskAnalyzer, AuditTrail, PolicyEngine, PermissionModel } from './control/index.js';
+export type {
+  RiskLevel,
+  RiskAssessment,
+  RiskFactor,
+  AuditEntry,
+  AuditEventType,
+  AuditReport,
+  GovernanceConfig,
+} from './control/index.js';
+export type {
+  PolicyAction,
+  ActionProposal,
+  PolicyDecision,
+  PolicyRule,
+  PolicyEngineConfig,
+  WorkflowTypePolicy,
+  WorkflowSimulationProposal,
+  WorkflowPolicyAction,
+  WorkflowPolicyDecision,
+  AgentPolicyRule,
+  AgentPolicyDecision,
+} from './control/index.js';
+export type {
+  Permission,
+  PermissionSet,
+  PermissionCheck,
+} from './control/index.js';
+export { DEFAULT_GOVERNANCE_CONFIG } from './control/index.js';
+export { DEFAULT_USER_PERMISSIONS } from './control/index.js';
+
+// ── Verification Engine (Phase 4 / MorPex v8) ──
+export { VerificationEngine } from './runtime/index.js';
+export type { VerificationResult, VerificationCheck, VerificationIssue, VerificationEngineConfig } from './runtime/index.js';
+
+// ── Approval Engine (Phase 4 / MorPex v8) ──
+export { ApprovalEngine } from './runtime/index.js';
+export type { ApprovalRequest, ApprovalStatus, ApprovalEngineConfig, ApprovalEventPayload, ApprovalStats } from './runtime/index.js';
+
+// ── Cognitive Runtime Loop (Phase 6 / MorPex v8.5) ──
+export { CognitiveLoop, CognitivePipeline } from './runtime/index.js';
+export type { CognitiveStage, CognitiveContext, CognitivePhase, DetectedIntent, LoopStats, WorkflowCandidateEntry, BehaviorDriftEntry, TwinCandidate, EvidenceAggregation } from './runtime/index.js';
+
+// ── v8.6 Pipeline Stages (v9.1: +ContextStage) ──
+export {
+  ContextStage,
+  IntentStage,
+  GoalStage,
+  TwinStage,
+  PlanningStage,
+  ExecutionStage,
+  LearningStage,
+  EvolutionStage,
+  PersistenceStage,
+} from './runtime/index.js';
+
+// ── Cognitive Layer (Phase 5-6 / MorPex v8) ──
+// Personal Twin Graph
+export { PersonalTwinGraph, BehaviorTwin } from './cognition/index.js';
+export type {
+  TwinNodeType,
+  TwinEdgeType,
+  TwinNode,
+  TwinEdge,
+  UserProperties,
+  GoalProperties,
+  ProjectProperties,
+  DecisionProperties,
+  PreferenceProperties,
+  WorkflowProperties,
+  ExperienceProperties,
+  TwinQuery,
+  TwinStats,
+  DecisionProfile,
+  SubgraphResult,
+  TwinInsight,
+  VersionHistoryEntry,
+  TwinVersion,
+} from './cognition/index.js';
+
+// Personal Brain (Phase 6)
+export { PersonalBrain, WorkflowMemory, DecisionMemory, BrainPersistor } from './cognition/index.js';
+export type {
+  MemoryLayer,
+  MemoryEntry,
+  MemoryQuery,
+  MemoryQueryResult,
+  BrainStats,
+  WorkflowMemoryEntry,
+  DecisionMemoryEntry,
+  PreferenceMemoryEntry,
+} from './cognition/index.js';
+export { ALL_LAYERS } from './cognition/index.js';
+
+// ── Workflow Intelligence (Phase 7) ──
+export { WorkflowIntelligence } from './cognition/index.js';
+export type {
+  WorkflowPattern,
+  WorkflowStep,
+  OptimizationSuggestion as WorkflowOptimizationSuggestion,
+  AutomationAssessment,
+  IntelligenceReport,
+} from './cognition/index.js';
+
+// ── Decision Twin (P1 架构完善) ──
+export { DecisionTwin } from './cognition/index.js';
+export type {
+  DecisionTwinProfile,
+  FactorSummary,
+  DecisionAnalysis,
+  DecisionPrediction,
+} from './cognition/index.js';
+
+// ── Goal Plane (Phase 1 / v8.5) ──
+export { GoalManager, GoalGraph } from './cognition/index.js';
+export type {
+  Goal,
+  GoalStatus,
+  GoalLevel,
+  Objective,
+  KeyResult,
+  GoalGraphNode,
+  GoalCreateInput,
+  GoalStats,
+} from './cognition/index.js';
+
+// ── MorPex v8.6 Evolution Layer ──
+export { WorkflowMiner, WorkflowRegistry, WorkflowOptimizer, WorkflowExecutor, WorkflowSimulator } from './evolution/index.js';
+export type { SimulationResult, SimulationMetrics, SimulatorConfig } from './evolution/index.js';
+export type {
+  WorkflowStatus,
+  WorkflowVersion,
+  WorkflowStepDef,
+  VersionPerformance,
+  RegisteredWorkflow,
+  WorkflowCandidate,
+  EvolutionReport,
+  ExecutionResult as WorkflowExecutionResult,
+  OptimizationPlan,
+} from './evolution/index.js';
+
+// ── v8.8 Workflow Contract ──
+export { ContractValidator } from './evolution/index.js';
+export type {
+  WorkflowContract,
+  ContractValidationResult,
+} from './evolution/index.js';
+
+// ── v8.8 Workflow Testing ──
+export { WorkflowTestRunner } from './evolution/index.js';
+export type {
+  WorkflowTestCase,
+  WorkflowTestResult,
+  WorkflowTestSuiteResult,
+} from './evolution/index.js';
+
+// ── v8.8 Artifact Lineage (aliased to avoid conflict with Phase 3 Knowledge Plane ArtifactLineage) ──
+export { ArtifactLineage as WorkflowArtifactLineage } from './evolution/index.js';
+export type {
+  ArtifactNode as WorkflowArtifactNode,
+  ArtifactEdge as WorkflowArtifactEdge,
+  LineageQuery as WorkflowLineageQuery,
+  LineagePath as WorkflowLineagePath,
+} from './evolution/index.js';
+
+// ── MorPex v8 Event Protocol ──
+export {
+  EventType,
+  EVENT_LAYERS,
+  getAllEventTypes,
+  isStandardEvent,
+  isEventInLayer,
+  extractEventLayer,
+  // Decision Events (v8.6: Cognitive Event Stream)
+  createDecisionEvent,
+  decisionToBaseEvent,
+} from './protocol/index.js';
+export type { BaseEvent, DecisionEvent, DecisionEventQuery } from './protocol/index.js';
+
+// ── Event Sourcing (Phase 4 / v8.5, 别名避免与旧 EventStore 冲突) ──
+export { EventStore as EventSourcingStore, EventRepository, EventProjection } from './protocol/index.js';
+export type { EventStoreConfig as SourcingStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './protocol/index.js';
+
+// ── MorPex v8 Interaction Layer ──
+export {
+  MessageGateway,
+  WebAdapter,
+  CLIAdapter,
+  WeChatAdapter,
+  FeishuAdapter,
+} from './interaction/index.js';
+export type {
+  IncomingMessage,
+  OutgoingMessage,
+  ChannelAdapter,
+  SessionInfo,
+  MessageHandler,
+} from './interaction/index.js';
 
 // ── 类型导出 ──
 export type {
@@ -187,8 +523,7 @@ export type {
   PluginContext,
 } from './common/types.js';
 
-// ── VectorStoreAdapter (Phase 4.1) — MemoryBus 的 VectorStore 实现 ──
-export { VectorStoreAdapter } from './memory/VectorStoreAdapter.js';
+// VectorStoreAdapter was a ghost module — removed
 
 // ── EventStore Subscriber (Conflict 9) — EventBus 中介持久化 ──
 export { EventStoreSubscriber } from './event/EventStoreSubscriber.js';
@@ -201,8 +536,7 @@ export type { AgentSpawnContext } from './services/AgentFactory.js';
 export { ExecutionOrchestrator } from './planes/control-plane/orchestrator/ExecutionOrchestrator.js';
 export type { ExecutionDAG } from './planes/control-plane/orchestrator/ExecutionOrchestrator.js';
 
-// ── MemoryBusListener (Conflict 6) — 事件驱动记忆归档 ──
-export { MemoryBusListener } from './memory/MemoryBusListener.js';
+// MemoryBusListener was a ghost module — removed
 
 // ── 会话上下文 (源自 core/types.ts) ──
 export type {
@@ -212,9 +546,6 @@ export type {
 // ── 内核扩展（v3.1）— 产物血缘 + 上下文智能 + 自愈运行时 + 计划智能 ──
 export {
   ExtensionRegistryImpl,
-  LineageTracker,
-  ContextPruner,
-  McpProcessGuard,
   MetaPlanner,
   PlanExperienceStore,
   PlanAnalyzer,
@@ -226,18 +557,14 @@ export {
 } from './extensions/index.js';
 
 export type {
-  ArtifactNode,
+  ArtifactNode as ExtensionArtifactNode,
   LineageEdge,
   LineageGraph,
-  LineageQuery,
+  LineageQuery as ExtensionLineageQuery,
   LineageQueryResult,
-  LineageTrackerConfig,
-  ContextPrunerConfig,
   ContextSegment,
   PruningDecision,
   PruningResult,
-  McpGuardConfig,
-  McpGuardState,
   BeforeNodeExecutePayload,
   AfterNodeExecutePayload,
   BeforeLLMCallPayload,
@@ -250,13 +577,13 @@ export type {
   ExtensionLogger,
   KernelExtensionsConfig,
   // Planning Intelligence Layer
-  PlanTemplate,
+  PlanTemplate as ExtensionPlanTemplate,
   PlanNodeSkeleton,
   PlanExecutionRecord,
   DAGNodeRecord,
   FailureDetail,
   FailureCategory,
-  PlanEvaluation,
+  PlanEvaluation as ExtensionPlanEvaluation,
   PlanDimensionScores,
   PlanTrend,
   PlanSuggestion,
@@ -272,8 +599,75 @@ export type {
   SessionErrorReport,
 } from './extensions/index.js';
 
-// ── CheckpointManager — DAG 快照回滚（非 ExtensionDefinition，单独导出）──
-export { CheckpointManager } from './extensions/CheckpointManager.js';
+// CheckpointManager was a ghost module — removed
+
+// ── v8.8 Runtime: Sandbox, Budget, Compensation ──
+export { SandboxManager } from './runtime/sandbox/index.js';
+export type { SandboxContext, SandboxExecutionResult } from './runtime/sandbox/index.js';
+export { BudgetManager } from './runtime/budget/index.js';
+export type { BudgetConfig, BudgetStatus } from './runtime/budget/index.js';
+export { CompensationEngine } from './runtime/compensation/index.js';
+export type { CompensationStep, SagaDefinition, CompensationResult } from './runtime/compensation/index.js';
+
+// ── v8.8 Observability ──
+export { MetricsCollector } from './observability/index.js';
+export type { MetricPoint } from './observability/index.js';
+export { TraceManager } from './observability/index.js';
+export type { TraceSpan, MissionTrace } from './observability/index.js';
+export { WorkflowMetrics } from './observability/index.js';
+export type { WorkflowMetricsSnapshot } from './observability/index.js';
+
+// ── v8.9 Reliability Plane ──
+export { ChaosEngine, FaultInjector, BUILTIN_SCENARIOS } from './reliability/index.js';
+export type { FailureScenarioType as FailureScenario, ChaosTestResult, InjectionResult } from './reliability/index.js';
+import { ReplayEngine as RelReplayEngine, EventReplayer } from './reliability/index.js'
+export { ReliabilityScorer, computeProductionScore } from './reliability/index.js';
+export type { ReliabilityMetrics } from './reliability/index.js';
+export { GoldenDatasetManager, RegressionRunner, WorkflowPromotion, WorkflowLifecycleStatus } from './reliability/index.js';
+export type { GoldenTestCase, GoldenDataset, RegressionResult, RegressionReport, WorkflowLifecycleEntry } from './reliability/index.js';
+/** @deprecated Use ReliabilityReplayEngine (from Reliability Plane) instead */
+const ReliabilityReplayEngine = RelReplayEngine
+const ReliabilityEventReplayer = EventReplayer
+export { ReliabilityReplayEngine, ReliabilityEventReplayer }
+export type { ReplayState as ReliabilityReplayState, ReplayComparison } from './reliability/index.js';
+
+// ── v9.0 Agent Organization Plane (aliases to avoid conflicts with existing exports) ──
+import {
+  AgentRegistry as AgentRegistryCore,
+  NegotiationEngine as AgentNegotiationEngine,
+} from './agent/index.js'
+export { AgentProfileManager, AgentScheduler, AssignmentStrategy, AgentMessageBus, AgentContextFactory, ResultAggregator } from './agent/index.js'
+export { AgentRegistry as AgentOrganizationRegistry, NegotiationEngine as AgentNegotiation } from './agent/index.js'
+export type { AgentIdentity, AgentProfile, Capability, CapabilityGraph, CapabilityMatchResult } from './agent/index.js'
+export type { AgentRole, AgentGovernanceMetadata, AgentGovernanceStats } from './agent/index.js'
+export type { TaskRequirement, AgentAssignment, AgentMessage, AgentResponse } from './agent/index.js'
+export type { CollaborationPlan, CollaborationTask, CollaborationResult } from './agent/index.js'
+export type { AgentIdentity as AgentIdentityInterface, AgentProfile as AgentProfileInterface } from './agent/index.js'
+export type { AgentMessage as AgentMessageInterface, AgentMemoryScope, AgentExecutionContext, AssignmentStrategyType, NegotiationRequest, NegotiationResponse } from './agent/index.js'
+
+// ── v9.2 Cross-Agent Learning ──
+export { CrossAgentLearningEngine as AgentLearningEngine, ExperienceRepository as AgentExperienceRepository } from './agent/index.js'
+export type { GeneralizedExperience, ExperienceCategory, ExperienceQuery } from './agent/index.js'
+
+// ── v9.2 Organization Governance ──
+export { OrganizationPolicyEngine as AgentOrgPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit } from './agent/index.js'
+export type { OrgPolicyAction, OrgPolicyRule, OrgPolicyContext, OrgPolicyDecision, TeamPolicy as AgentTeamPolicy, TeamMembership as AgentTeamMembership, OrgBudget, BudgetAllocation, GovernanceAuditEntry } from './agent/index.js'
+
+// ── v9.2 Agent Marketplace ──
+export { MarketplaceRegistry, BidEngine, TrustVerifier as AgentTrustVerifier, MarketplaceContractManager } from './agent/index.js'
+export type { MarketplaceListing, BidRequest, Bid, MarketplaceContract, BidStrategy } from './agent/index.js'
+
+// ── v9.2 Distributed Agent Runtime ──
+export { AgentTransport, RemoteAgentProxy, DistributedScheduler, DistributedRuntimeManager } from './agent/index.js'
+export type { RemoteNode, TransportMessage, HeartbeatStatus, TransportType, NodeStatus } from './agent/index.js'
+
+// ── v9.2 Agent Team Formation ──
+export { TeamFormationEngine, TeamCompositionOptimizer, TeamLifecycleManager } from './agent/index.js'
+export type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamStatus } from './agent/index.js'
+
+// ── v9.2 Shared Memory Consensus ──
+export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService } from './agent/index.js'
+export type { SharedMemoryConfig, MemoryConsistencyLevel, MemoryScope, ConsensusProposal, MemoryLock, ConflictResolutionStrategy, ConflictRecord, MemorySnapshot } from './agent/index.js'
 
 // ── 唯一入口（v2.4 门面模式） — 对外只暴露 bootstrapMorPexCore
 export { bootstrapMorPexCore } from '../bootstrap.js';

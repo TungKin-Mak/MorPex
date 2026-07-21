@@ -28,6 +28,11 @@ import type {
   PostPlanResult,
   Milestone,
 } from '../types.js';
+import type { KnowledgeGraphService, ArtifactRegistryService } from '../pipeline/service-types.js';
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type EntityData = any;
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+type ArtifactData = any;
 
 /**
  * StrategicDeconstructor — 层次化战略拆解器
@@ -39,12 +44,16 @@ export class StrategicDeconstructor implements IPlanningExtension {
   public enabled = true;
 
   /** 知识图谱引用（可选） */
-  private knowledgeGraph: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private knowledgeGraph: any = null;
   /** 产物注册表引用（可选） */
-  private artifactRegistry: any;
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  private artifactRegistry: any = null;
 
   constructor(config?: {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     knowledgeGraph?: any;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     artifactRegistry?: any;
     enabled?: boolean;
   }) {
@@ -90,8 +99,8 @@ export class StrategicDeconstructor implements IPlanningExtension {
         milestones.push(...fallbackMilestones);
       }
 
-    } catch (err: any) {
-      console.warn(`[StrategicDeconstructor] 拆解过程异常: ${err.message}，使用标签推断`);
+    } catch (err: unknown) {
+      console.warn(`[StrategicDeconstructor] 拆解过程异常: ${(err as Error).message}，使用标签推断`);
       const fallbackMilestones = this.inferMilestonesFromTags(tags, executionId);
       milestones.push(...fallbackMilestones);
     }
@@ -129,7 +138,7 @@ export class StrategicDeconstructor implements IPlanningExtension {
     if (!this.knowledgeGraph) return [];
 
     try {
-      const results: any[] = [];
+      const results: Record<string, unknown>[] = [];
 
       // 1. 按标签搜索实体
       if (typeof this.knowledgeGraph.searchEntities === 'function') {
@@ -151,7 +160,7 @@ export class StrategicDeconstructor implements IPlanningExtension {
         });
         if (Array.isArray(textEntities)) {
           for (const entity of textEntities) {
-            if (!results.find((e: any) => e.id === entity.id)) {
+            if (!results.find((e: Record<string, unknown>) => e.id === entity.id)) {
               results.push(entity);
             }
           }
@@ -159,8 +168,8 @@ export class StrategicDeconstructor implements IPlanningExtension {
       }
 
       return results;
-    } catch (err: any) {
-      console.warn(`[StrategicDeconstructor] KnowledgeGraph 查询异常: ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`[StrategicDeconstructor] KnowledgeGraph 查询异常: ${(err as Error).message}`);
       return [];
     }
   }
@@ -174,7 +183,7 @@ export class StrategicDeconstructor implements IPlanningExtension {
     if (!this.artifactRegistry) return [];
 
     try {
-      const results: any[] = [];
+      const results: ArtifactData[] = [];
 
       // 按领域/标签搜索产物
       if (typeof this.artifactRegistry.listByDomain === 'function') {
@@ -191,8 +200,8 @@ export class StrategicDeconstructor implements IPlanningExtension {
       }
 
       return results.slice(0, 30); // 最多取 30 个
-    } catch (err: any) {
-      console.warn(`[StrategicDeconstructor] ArtifactRegistry 查询异常: ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`[StrategicDeconstructor] ArtifactRegistry 查询异常: ${(err as Error).message}`);
       return [];
     }
   }
@@ -209,8 +218,8 @@ export class StrategicDeconstructor implements IPlanningExtension {
    *   4. 参考历史产物确定 expectedArtifacts
    */
   private deriveMilestones(
-    entities: any[],
-    artifacts: any[],
+    entities: Array<Record<string, unknown>>,
+    artifacts: Array<Record<string, unknown>>,
     userInput: string,
     tags: string[],
     executionId: string,
@@ -220,13 +229,13 @@ export class StrategicDeconstructor implements IPlanningExtension {
 
     // 1. 从实体中提取领域信息
     for (const entity of entities) {
-      const domain = entity.domainId ?? entity.domain ?? 'default';
+      const domain = (entity.domainId as string) ?? (entity.domain as string) ?? 'default';
       domainSet.add(domain);
     }
 
     // 2. 从产物中提取领域信息
     for (const artifact of artifacts) {
-      const domain = artifact.domain ?? artifact.domainId ?? 'default';
+      const domain = (artifact.domain as string) ?? (artifact.domainId as string) ?? 'default';
       domainSet.add(domain);
     }
 
@@ -236,10 +245,10 @@ export class StrategicDeconstructor implements IPlanningExtension {
 
     for (const domain of domainList) {
       index++;
-      const domainEntities = entities.filter((e: any) =>
+      const domainEntities = entities.filter((e: Record<string, unknown>) =>
         (e.domainId ?? e.domain ?? 'default') === domain,
       );
-      const domainArtifacts = artifacts.filter((a: any) =>
+      const domainArtifacts = artifacts.filter((a: Record<string, unknown>) =>
         (a.domain ?? a.domainId ?? 'default') === domain,
       );
 
@@ -333,7 +342,7 @@ export class StrategicDeconstructor implements IPlanningExtension {
   /**
    * inferMilestoneName — 推断里程碑名称
    */
-  private inferMilestoneName(domain: string, entities: any[]): string {
+  private inferMilestoneName(domain: string, entities: Array<Record<string, unknown>>): string {
     if (entities.length > 0) {
       // 使用实体名称前缀作为里程碑名称
       const topEntity = entities[0];
@@ -348,8 +357,8 @@ export class StrategicDeconstructor implements IPlanningExtension {
    */
   private inferMilestoneDescription(
     domain: string,
-    entities: any[],
-    artifacts: any[],
+    entities: EntityData[],
+    artifacts: ArtifactData[],
     userInput: string,
   ): string {
     const parts: string[] = [];
@@ -371,7 +380,7 @@ export class StrategicDeconstructor implements IPlanningExtension {
    */
   private inferExpectedArtifacts(
     domain: string,
-    artifacts: any[],
+    artifacts: ArtifactData[],
     tags: string[],
   ): string[] {
     // 1. 从历史产物中提取产物类型

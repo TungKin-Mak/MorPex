@@ -168,3 +168,47 @@ export function connectSSE(handlers: SseHandlerMap & { '*'?: SseEventHandler }):
     if (timer) clearTimeout(timer);
   };
 }
+
+// ═════════════════════════════════════════════════════════════════════
+// v7 API — 架构健康 & 运行时
+// ═════════════════════════════════════════════════════════════════════
+
+export async function fetchArchitectureHealth(): Promise<import('./types').HealthReport> {
+  return get<import('./types').HealthReport>('/api/architecture/health');
+}
+
+export async function fetchRuntimeExecutions(): Promise<{ executions: import('./types').Execution[] }> {
+  return get('/api/runtime/executions');
+}
+
+export async function fetchRuntimeExecution(id: string): Promise<import('./types').ExecutionDetail> {
+  return get(`/api/runtime/execution/${encodeURIComponent(id)}`);
+}
+
+export async function fetchArtifactsV7(): Promise<{ artifacts: import('./types').ArtifactV7[] }> {
+  return get('/api/artifacts/list');
+}
+
+export async function fetchArtifactGraph(): Promise<import('./types').GraphData> {
+  return get('/api/artifacts/graph');
+}
+
+export async function fetchArtifactLineage(id: string): Promise<import('./types').LineageData> {
+  return get(`/api/artifacts/lineage/${encodeURIComponent(id)}`);
+}
+
+export async function activateMemory(context: import('./types').MemoryContext): Promise<import('./types').MemoryResult> {
+  return post('/api/memory/activate', context);
+}
+
+export async function fetchLearningStats(): Promise<import('./types').LearningStats> {
+  return get('/api/learning/stats');
+}
+
+export async function fetchSystemHealth(): Promise<import('./types').SystemHealth> {
+  return get('/api/system/health');
+}
+
+export async function validateSystem(): Promise<{ passed: boolean; healthScore: number; details: unknown }> {
+  return post('/api/system/validate');
+}

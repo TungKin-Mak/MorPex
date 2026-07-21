@@ -20,6 +20,7 @@ import ClarifySlots from './overlays/ClarifySlots';
 import InterrogationMatrix from './overlays/InterrogationMatrix';
 import SlideoverDrawer from './overlays/SlideoverDrawer';
 import KeyboardShortcuts from './overlays/KeyboardShortcuts';
+import HealthOverlay from './overlays/HealthOverlay';
 
 const ANSI_RED = '\x1b[31m';
 const ANSI_RESET = '\x1b[0m';
@@ -327,19 +328,46 @@ const App: React.FC = () => {
       'cross-domain.arbitration': () => dismissInterrogation(),
       'message_update': (data) => {
         const payload = (data.payload || data) as any;
-        logToAll('MSG', `type=${data.type} keys=${Object.keys(payload).join(',')} preview=${JSON.stringify(payload).substring(0, 100)}`);
-        // 尝试所有可能的字段名
         const delta = (payload.delta || payload.text || payload.content || payload.message || payload.output || payload.result || payload.data) as string;
         if (delta) {
-          useAstroStore.getState().pushToChatMode('chat', { status: 'running', message: delta, region: '系统', timestamp: Date.now() });
-          // 同步到正在执行的第一个 running 任务
           const st = useAstroStore.getState();
+          // 优先：如果有正在执行的任务 → 流式推送到任务详情（ZoneB NodeShell）
+          let pushedToTask = false;
           for (const f of st.flows) {
             const running = f.tasks.find(t => t.status === 'running');
             if (running) {
               st.pushTaskMessage(running.taskId, { role: 'assistant', content: delta });
+              pushedToTask = true;
               break;
             }
+          }
+          // 无运行中任务 → 推送到聊天气泡（聊天模式）
+          if (!pushedToTask) {
+            st.pushToChatMode(st.activeMode, { status: 'running', message: delta, region: '系统', timestamp: Date.now() });
+          }
+        }
+      },
+      'message_complete': (data) => {
+        const payload = (data.payload || data) as any;
+        const fullText = (payload.fullText || payload.text || '') as string;
+        if (fullText) {
+          const st = useAstroStore.getState();
+          // 如果有运行中任务 → 只同步到任务消息，不碰聊天气泡
+          let hasRunningTask = false;
+          for (const f of st.flows) {
+            if (f.tasks.some(t => t.status === 'running')) {
+              hasRunningTask = true;
+              break;
+            }
+          }
+          if (hasRunningTask) return;
+          // 聊天模式：收口流式气泡
+          const stream = st.modeStates[st.activeMode]?.liveStream ?? [];
+          const last = stream[stream.length - 1];
+          if (last && last.status === 'running') {
+            st.finalizeStream(st.activeMode, fullText);
+          } else {
+            st.pushToChatMode(st.activeMode, { status: 'completed' as const, message: fullText, region: '系统', timestamp: Date.now() });
           }
         }
       },
@@ -404,6 +432,7 @@ const App: React.FC = () => {
       <InterrogationMatrix />
       <SlideoverDrawer />
       <ClarifySlots />
+      <HealthOverlay />
       <KeyboardShortcuts
         onToggleTerminal={handleToggleTerminal}
         onClearTemp={handleClearTemp}

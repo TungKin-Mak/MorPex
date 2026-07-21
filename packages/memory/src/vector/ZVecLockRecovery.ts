@@ -26,8 +26,8 @@ export function recoverZVecLocks(dataPath: string): { cleaned: number; warning: 
       console.log(`[ZVecLock] ✅ 已删除文件（不创建目录，由 zvec 负责）`);
       return { cleaned: 1, warning };
     }
-  } catch (e: any) {
-    warning.push(`path validation failed: ${e.message}`);
+  } catch (e: unknown) {
+    warning.push(`path validation failed: ${e instanceof Error ? e.message : String(e)}`);
     return { cleaned: 0, warning };
   }
 

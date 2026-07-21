@@ -91,8 +91,8 @@ export class ArtifactPlugin implements MorPexPlugin {
       if (loaded.artifacts > 0 || loaded.relations > 0) {
         console.log(`[ArtifactPlugin] 从存储恢复了 ${loaded.artifacts} 个 Artifact, ${loaded.relations} 个关系`);
       }
-    } catch (err: any) {
-      console.warn('[ArtifactPlugin] 存储恢复失败:', err.message);
+    } catch (err: unknown) {
+      console.warn('[ArtifactPlugin] 存储恢复失败:', (err as Error).message);
     }
 
     // 监听注册请求

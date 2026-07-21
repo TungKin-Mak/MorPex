@@ -91,14 +91,14 @@
 
 ### 2.3 Session 会话管理 (6)
 
-| # | 方法 | 路径 | 功能 |
-|---|------|------|------|
-| 11 | GET | `/api/sessions` | 列出全部会话（含摘要名） |
-| 12 | POST | `/api/sessions` | 创建新会话 |
-| 13 | GET | `/api/sessions/:id/messages` | 获取指定会话的消息历史 |
-| 14 | DELETE | `/api/sessions/:id` | 删除会话 |
-| 15 | POST | `/api/ai/new-session` | 创建 AI 会话（兼容旧 API） |
-| 16 | POST | `/api/ai/abort` | 中止全部执行 |
+| #   | 方法     | 路径                           | 功能                |
+| --- | ------ | ---------------------------- | ----------------- |
+| 11  | GET    | `/api/sessions`              | 列出全部会话（含摘要名）      |
+| 12  | POST   | `/api/sessions`              | 创建新会话             |
+| 13  | GET    | `/api/sessions/:id/messages` | 获取指定会话的消息历史       |
+| 14  | DELETE | `/api/sessions/:id`          | 删除会话              |
+| 15  | POST   | `/api/ai/new-session`        | 创建 AI 会话（兼容旧 API） |
+| 16  | POST   | `/api/ai/abort`              | 中止全部执行            |
 
 ### 2.4 Cycle 周期执行 (7)
 
@@ -114,22 +114,22 @@
 
 ### 2.5 Memory 记忆系统 (14)
 
-| # | 方法 | 路径 | 功能 |
-|---|------|------|------|
-| 24 | GET | `/api/memory/stats` | 内存记忆统计（兼容旧 API） |
-| 25 | GET | `/api/memory/search` | 记忆搜索（向量 + 关键词） |
-| 26 | POST | `/api/memory/write` | 写入单条记忆 |
-| 27 | POST | `/api/memory/write-many` | 批量写入记忆 |
-| 28 | POST | `/api/memory/feedback` | 记忆反馈 — 权重调整 |
-| 29 | POST | `/api/memory/stage-complete` | 阶段完成标记 |
-| 30 | POST | `/api/memory/plan-stages` | 规划记忆阶段 |
-| 31 | POST | `/api/memory/audit` | 记忆审计 — 过期/垃圾清理 |
-| 32 | POST | `/api/memory/intercept` | 用户输入拦截 — 记忆上下文注入 |
-| 33 | POST | `/api/memory/compact` | 记忆压缩 — 长短期记忆整理 |
-| 34 | GET | `/api/memory/summary-chain` | 摘要链查询 |
-| 35 | GET | `/api/memory/temp-pool` | 临时池查询 — Main/Archive/Temp 三池状态 |
-| 36 | GET | `/api/memory-bus/stats` | **MemoryBus v2 统计** — 索引/归档/纠错/阶段数量 |
-| 37 | POST | `/api/memory-bus/remember` | **MemoryBus v2 写入** — 三维一体记忆（语义+向量+图谱） |
+| #   | 方法   | 路径                           | 功能                                     |
+| --- | ---- | ---------------------------- | -------------------------------------- |
+| 24  | GET  | `/api/memory/stats`          | 内存记忆统计（兼容旧 API）                        |
+| 25  | GET  | `/api/memory/search`         | 记忆搜索（向量 + 关键词）                         |
+| 26  | POST | `/api/memory/write`          | 写入单条记忆                                 |
+| 27  | POST | `/api/memory/write-many`     | 批量写入记忆                                 |
+| 28  | POST | `/api/memory/feedback`       | 记忆反馈 — 权重调整                            |
+| 29  | POST | `/api/memory/stage-complete` | 阶段完成标记                                 |
+| 30  | POST | `/api/memory/plan-stages`    | 规划记忆阶段                                 |
+| 31  | POST | `/api/memory/audit`          | 记忆审计 — 过期/垃圾清理                         |
+| 32  | POST | `/api/memory/intercept`      | 用户输入拦截 — 记忆上下文注入                       |
+| 33  | POST | `/api/memory/compact`        | 记忆压缩 — 长短期记忆整理                         |
+| 34  | GET  | `/api/memory/summary-chain`  | 摘要链查询                                  |
+| 35  | GET  | `/api/memory/temp-pool`      | 临时池查询 — Main/Archive/Temp 三池状态         |
+| 36  | GET  | `/api/memory-bus/stats`      | **MemoryBus v2 统计** — 索引/归档/纠错/阶段数量    |
+| 37  | POST | `/api/memory-bus/remember`   | **MemoryBus v2 写入** — 三维一体记忆（语义+向量+图谱） |
 
 ### 2.6 Knowledge 知识图谱 (8)
 

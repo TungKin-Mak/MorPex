@@ -324,7 +324,7 @@ export class ExtensionRegistryImpl implements ExtensionRegistry {
       await record.extension.initialize(ctx);
       record.status = 'initialized';
       this._logger.debug(`已初始化: ${record.extension.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       this._logger.error(`初始化失败: ${record.extension.name}`, { error: err.message });
@@ -341,7 +341,7 @@ export class ExtensionRegistryImpl implements ExtensionRegistry {
       record.status = 'running';
       record.startedAt = Date.now();
       this._logger.debug(`已启动: ${record.extension.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       this._logger.error(`启动失败: ${record.extension.name}`, { error: err.message });
@@ -357,7 +357,7 @@ export class ExtensionRegistryImpl implements ExtensionRegistry {
       await record.extension.stop();
       record.status = 'stopped';
       this._logger.debug(`已停止: ${record.extension.name}`);
-    } catch (err: any) {
+    } catch (err) {
       record.status = 'error';
       record.error = err.message;
       this._logger.error(`停止失败: ${record.extension.name}`, { error: err.message });

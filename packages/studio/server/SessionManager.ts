@@ -27,7 +27,8 @@ import { LLMProvider } from '../../core/src/services/LLMProvider.js';
 import type { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
 import type { DomainDispatcher } from '../../core/src/router/DomainDispatcher.js';
 import type { DomainClusterManager } from '../../core/src/domains/DomainClusterManager.js';
-import type { MemoryBus } from '../../memory/src/core/MemoryBus.js';
+// Memory now goes through MemoryBridge (MemoryWiki)
+import { MemoryBridge } from '../../core/src/adapters/memory/index.js';
 import type { SessionStore } from './SessionStore.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -62,7 +63,7 @@ export interface SessionHandle {
 /** send() 的统一返回值类型 */
 export type SendResult =
   | { type: 'direct_chat'; output: string }
-  | { type: 'dag_plan'; dag: any; executionId: string }
+  | { type: 'dag_plan'; dag: unknown; executionId: string }
   | { type: 'error'; error: string };
 
 // ═══════════════════════════════════════════════════════════════
@@ -80,7 +81,7 @@ export class SessionManager {
   private crossDomainRouter?: CrossDomainRouter;
   private domainDispatcher?: DomainDispatcher;
   private domainManager?: DomainClusterManager;
-  private memoryBus?: MemoryBus;
+  // Memory now goes through MemoryBridge (MemoryWiki)
   private sessionStore?: SessionStore;
 
   /** 定时 GC 句柄 */
@@ -93,23 +94,21 @@ export class SessionManager {
   onGetDomainSystemPrompt: ((domainId: string) => string) | null = null;
 
   /** DAG 节点状态回调（通知前端更新） */
-  onDagCreated: ((executionId: string, dag: any) => void) | null = null;
+  onDagCreated: ((executionId: string, dag: unknown) => void) | null = null;
   onTaskStarted: ((taskId: string, executionId: string, goal: string, domain: string) => void) | null = null;
-  onTaskCompleted: ((taskId: string, executionId: string, status: string, output?: any, error?: string) => void) | null = null;
+  onTaskCompleted: ((taskId: string, executionId: string, status: string, output?: unknown, error?: string) => void) | null = null;
   onNodeAwaitingInput: ((taskId: string, executionId: string, question: string, options: string[], harnessId: string) => void) | null = null;
 
   constructor(deps?: {
     crossDomainRouter?: CrossDomainRouter;
     domainDispatcher?: DomainDispatcher;
     domainManager?: DomainClusterManager;
-    memoryBus?: MemoryBus;
     sessionStore?: SessionStore;
   }) {
     this.repo = new InMemorySessionRepo();
     this.crossDomainRouter = deps?.crossDomainRouter;
     this.domainDispatcher = deps?.domainDispatcher;
     this.domainManager = deps?.domainManager;
-    this.memoryBus = deps?.memoryBus;
     this.sessionStore = deps?.sessionStore;
     this.startGC();
   }
@@ -310,8 +309,8 @@ export class SessionManager {
         try {
           const reply = await LLMProvider.get()(content, handle.systemPrompt || '你是一个有用的助手。');
           return { type: 'direct_chat', output: reply };
-        } catch (err: any) {
-          return { type: 'error', error: `LLM 调用失败: ${err.message}` };
+        } catch (err: unknown) {
+          return { type: 'error', error: `LLM 调用失败: ${(err as Error).message}` };
         }
       }
 
@@ -346,8 +345,8 @@ export class SessionManager {
           setImmediate(async () => {
             try {
               await this.executeDag(dag.nodes, executionId);
-            } catch (err: any) {
-              console.error(`[SessionManager] ❌ DAG 执行失败: ${executionId}`, err.message);
+            } catch (err: unknown) {
+              console.error(`[SessionManager] ❌ DAG 执行失败: ${executionId}`, (err as Error).message);
             }
           });
 
@@ -362,28 +361,25 @@ export class SessionManager {
             },
             executionId,
           };
-        } catch (err: any) {
-          return { type: 'error', error: `规划失败: ${err.message}` };
+        } catch (err: unknown) {
+          return { type: 'error', error: `规划失败: ${(err as Error).message}` };
         }
       }
 
-      // ═══ simq: 记忆检索 ═══
+      // ═══ simq: 记忆检索（已迁移到 StudioOrchestrator @司马迁）═══
       case 'simq': {
-        if (!this.memoryBus) {
-          return { type: 'error', error: 'MemoryBus 未就绪' };
-        }
         try {
-          const result = await this.memoryBus.recall({
-            text: content,
-            topK: 5,
-          });
-          const items = result?.items ?? [];
-          const output = items.length > 0
-            ? `📖 找到 ${items.length} 条相关记忆：\n\n${items.map((r: any, i: number) => `[${i + 1}] ${(r.content || '').substring(0, 200)}`).join('\n---\n')}`
-            : '📭 未找到相关记忆。';
-          return { type: 'direct_chat', output };
-        } catch (err: any) {
-          return { type: 'error', error: `记忆检索失败: ${err.message}` };
+          const wiki = MemoryBridge.getWiki();
+          const queryId = `simq_${Date.now()}`;
+          await wiki.remember({
+            id: queryId,
+            type: 'Query',
+            name: `SIMQ: ${content.substring(0, 80)}`,
+            data: { content, timestamp: Date.now() },
+          }).catch(() => {});
+          return { type: 'direct_chat', output: '📖 记忆已记录（MemoryWiki）' };
+        } catch (err: unknown) {
+          return { type: 'error', error: `记忆操作失败: ${(err as Error).message}` };
         }
       }
 
@@ -394,12 +390,12 @@ export class SessionManager {
           const assistantMsg = await handle.harness!.prompt(content);
           // AssistantMessage.content 是 (TextContent|ThinkingContent|ToolCall)[]
           const textParts = (assistantMsg.content || [])
-            .filter((c: any) => c.type === 'text')
-            .map((c: any) => c.text);
+            .filter((c: { type: string; text?: string }) => c.type === 'text')
+            .map((c: { type: string; text?: string }) => c.text);
           const output = textParts.join('\n').trim() || '执行完成（无文本输出）';
           return { type: 'direct_chat', output };
-        } catch (err: any) {
-          return { type: 'error', error: `任务执行失败: ${err.message}` };
+        } catch (err: unknown) {
+          return { type: 'error', error: `任务执行失败: ${(err as Error).message}` };
         }
       }
 
@@ -418,8 +414,8 @@ export class SessionManager {
    * 由 luban session 的 send() 在 setImmediate 中调用。
    * 每个节点执行时通过 ensureHarness 创建 harness，完成后释放。
    */
-  private async executeDag(nodes: any[], executionId: string): Promise<void> {
-    const nodeMap = new Map(nodes.map((n: any) => [n.taskId, { ...n, status: 'pending' }]));
+  private async executeDag(nodes: import('../../core/src/domains/types.js').DAGNode[], executionId: string): Promise<void> {
+    const nodeMap = new Map<string, import('../../core/src/domains/types.js').DAGNode>(nodes.map((n) => [n.taskId, { ...n, status: 'pending' as const }]));
     const maxParallel = 3;
 
     while (this.hasPendingNodes(nodeMap)) {
@@ -455,10 +451,10 @@ export class SessionManager {
             node.status = 'completed';
             node.result = result;
             this.onTaskCompleted?.(node.taskId, executionId, 'completed', result);
-          } catch (err: any) {
+          } catch (err: unknown) {
             node.status = 'failed';
-            node.error = err.message;
-            this.onTaskCompleted?.(node.taskId, executionId, 'failed', undefined, err.message);
+            node.error = (err as Error).message;
+            this.onTaskCompleted?.(node.taskId, executionId, 'failed', undefined, (err as Error).message);
           } finally {
             // 释放 harness
             await this.releaseHarness(taskSessionId);
@@ -479,21 +475,21 @@ export class SessionManager {
     }
   }
 
-  private hasPendingNodes(nodeMap: Map<string, any>): boolean {
+  private hasPendingNodes(nodeMap: Map<string, import('../../core/src/domains/types.js').DAGNode>): boolean {
     return [...nodeMap.values()].some(n => n.status === 'pending');
   }
 
-  private getReadyNodes(nodeMap: Map<string, any>): any[] {
+  private getReadyNodes(nodeMap: Map<string, import('../../core/src/domains/types.js').DAGNode>): import('../../core/src/domains/types.js').DAGNode[] {
     return [...nodeMap.values()].filter(n => {
       if (n.status !== 'pending') return false;
-      return (n.deps || []).every((depId: string) => {
+      return ((n.deps as string[]) || []).every((depId: string) => {
         const dep = nodeMap.get(depId);
         return dep && dep.status === 'completed';
       });
     });
   }
 
-  private getBlockedNodes(nodeMap: Map<string, any>): any[] {
+  private getBlockedNodes(nodeMap: Map<string, import('../../core/src/domains/types.js').DAGNode>): import('../../core/src/domains/types.js').DAGNode[] {
     return [...nodeMap.values()].filter(n => {
       if (n.status !== 'pending') return false;
       return (n.deps || []).some((depId: string) => {

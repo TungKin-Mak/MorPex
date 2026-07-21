@@ -25,7 +25,7 @@ import { EventBus } from '../common/EventBus.js';
 import { ExecutionIdentity } from '../common/ExecutionIdentity.js';
 
 // ★ v3.0 OpenSpace Fusion import
-import type { ExecutionRecordingEngine } from '../mirror/ExecutionRecordingEngine.js';
+// ExecutionRecordingEngine deleted — using EventStore instead
 
 /** 适配器注册表项 */
 interface AdapterEntry {
@@ -44,7 +44,7 @@ export class ExecutionGateway {
   private defaultAdapterName: string | null = null;
 
   /** ★ v3.0 Optional ExecutionRecordingEngine for full execution recording */
-  private _recordingEngine: ExecutionRecordingEngine | null = null;
+  private _recordingEngine: any = null;  // was ExecutionRecordingEngine (module deleted)
 
   constructor(eventBus: EventBus, identity?: ExecutionIdentity) {
     this.eventBus = eventBus;
@@ -96,7 +96,7 @@ export class ExecutionGateway {
   /**
    * ★ v3.0 Set the ExecutionRecordingEngine for recording execution traces.
    */
-  setRecordingEngine(engine: ExecutionRecordingEngine | null): void {
+  setRecordingEngine(engine: any): void {
     this._recordingEngine = engine;
   }
 

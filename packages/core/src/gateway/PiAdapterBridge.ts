@@ -93,7 +93,7 @@ export class PiAdapterBridge implements AgentRuntimePort {
           timestamp: Date.now(),
         };
       }
-    } catch (err: any) {
+    } catch (err) {
       const msg = err?.message ?? String(err);
       const category = classifyError(msg);
       yield {

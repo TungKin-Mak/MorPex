@@ -52,8 +52,8 @@ export class ZVecStorage implements MemoryStorageAdapter {
         // 如果是目录，什么都不做（zvec 会打开已存在的数据库）
       }
       // 路径不存在时也不创建 — ZVecCreateAndOpen 会负责
-    } catch (fsErr: any) {
-      console.warn(`[Memory:ZVec] ⚠️ 无法准备数据目录: ${fsErr.message}`);
+    } catch (fsErr: unknown) {
+      console.warn(`[Memory:ZVec] ⚠️ 无法准备数据目录: ${fsErr instanceof Error ? fsErr.message : String(fsErr)}`);
     }
 
     // 1. 清理残留 LOCK
@@ -96,12 +96,12 @@ export class ZVecStorage implements MemoryStorageAdapter {
       try {
         this.collection = this.zvec.ZVecOpen(this.dataPath);
         console.log(`[Memory:ZVec] 📂 打开已有向量库: ${this.dataPath}`);
-      } catch (openErr: any) {
+      } catch (openErr: unknown) {
         // 打开失败，尝试创建新库
         try {
           this.collection = this.zvec.ZVecCreateAndOpen(this.dataPath, schema);
           console.log(`[Memory:ZVec] 🆕 创建新向量库: ${this.dataPath}`);
-        } catch (createErr: any) {
+        } catch (createErr: unknown) {
           // 创建也失败（路径存在但版本不兼容）→ 尝试备份旧数据，失败则使用新路径
           // ★ 修复: Windows 上 zvec 可能持有文件句柄导致 rename/rm 失败（EPERM）
           const backupPath = this.dataPath + '.backup.' + Date.now();
@@ -112,10 +112,11 @@ export class ZVecStorage implements MemoryStorageAdapter {
             // 备份成功，在原路径上重建
             this.collection = this.zvec.ZVecCreateAndOpen(this.dataPath, schema);
             console.log(`[Memory:ZVec] 🆕 重建向量库: ${this.dataPath}`);
-          } catch (renameErr: any) {
+          } catch (renameErr: unknown) {
             // ⚠️ Windows 上 rename 可能失败（EPERM），改为使用新路径
             const newPath = this.dataPath + '_' + Date.now();
-            console.warn(`[Memory:ZVec] ⚠️ 备份失败: ${renameErr.message}`);
+            const renameMsg = renameErr instanceof Error ? renameErr.message : String(renameErr);
+            console.warn(`[Memory:ZVec] ⚠️ 备份失败: ${renameMsg}`);
             console.warn(`[Memory:ZVec]    Windows 上使用新路径: ${path.basename(newPath)}`);
             try {
               this.collection = this.zvec.ZVecCreateAndOpen(newPath, schema);
@@ -123,9 +124,9 @@ export class ZVecStorage implements MemoryStorageAdapter {
               this.dataPath = newPath;
               rebuiltOnNewPath = true;
               console.log(`[Memory:ZVec] 🆕 在新路径创建向量库: ${newPath}`);
-            } catch (newPathErr: any) {
+            } catch (newPathErr: unknown) {
               // 新路径也失败 → 跳过 zvec（向量搜索降级）
-              console.warn(`[Memory:ZVec] ⚠️ 新路径也失败: ${newPathErr.message}，向量搜索降级`);
+              console.warn(`[Memory:ZVec] ⚠️ 新路径也失败: ${newPathErr instanceof Error ? newPathErr.message : String(newPathErr)}，向量搜索降级`);
               throw newPathErr;
             }
           }
@@ -138,9 +139,10 @@ export class ZVecStorage implements MemoryStorageAdapter {
 
       const count = this.collection.stats?.docCount ?? 0;
       console.log(`[Memory:ZVec] ✅ 向量库就绪: ${count} 条记录`);
-    } catch (err: any) {
-      console.error(`[Memory:ZVec] ❌ 初始化失败: ${err.message}`);
-      throw new Error(`ZVecStorage 初始化失败: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.error(`[Memory:ZVec] ❌ 初始化失败: ${msg}`);
+      throw new Error(`ZVecStorage 初始化失败: ${msg}`);
     }
   }
 
@@ -163,8 +165,9 @@ export class ZVecStorage implements MemoryStorageAdapter {
         },
       });
       return true;
-    } catch (err: any) {
-      console.warn(`[Memory:ZVec] 写入失败: ${err.message}`);
+    } catch (err: unknown) {
+      const msg = err instanceof Error ? err.message : String(err);
+      console.warn(`[Memory:ZVec] 写入失败: ${msg}`);
       return false;
     }
   }
@@ -249,8 +252,8 @@ export class ZVecStorage implements MemoryStorageAdapter {
         console.log('[Memory:ZVec] 关闭连接...');
         this.collection.closeSync();
         console.log('[Memory:ZVec] ✅ 已关闭');
-      } catch (e: any) {
-        console.warn(`[Memory:ZVec] 关闭异常: ${e.message}`);
+      } catch (e: unknown) {
+        console.warn(`[Memory:ZVec] 关闭异常: ${e instanceof Error ? e.message : String(e)}`);
       }
       this.collection = null;
     }

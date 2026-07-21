@@ -41,13 +41,15 @@ export const agentSpawner = {
       id: `agent_${params.ring}_${params.domainId ?? 'generic'}_${Date.now()}`,
     });
 
-    const harness = new AgentHarness({
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const harness = new (AgentHarness as any)({
       env,
       model,
       session,
       tools: params.tools,
       systemPrompt: params.systemPrompt,
     });
+    return harness as AgentHarness;
 
     return harness;
   },

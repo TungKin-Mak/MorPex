@@ -65,8 +65,8 @@ export class DomainManifestLoader {
           }
         }
       }
-    } catch (err: any) {
-      console.error(`[DomainManifestLoader] ❌ 加载领域清单失败:`, err.message);
+    } catch (err: unknown) {
+      console.error(`[DomainManifestLoader] ❌ 加载领域清单失败:`, (err as Error).message);
     }
 
     return manifests;
@@ -296,8 +296,8 @@ export class DomainManifestLoader {
       };
 
       return manifest;
-    } catch (err: any) {
-      console.warn(`[DomainManifestLoader] ⚠️ 加载文件失败 ${filePath}: ${err.message}`);
+    } catch (err: unknown) {
+      console.warn(`[DomainManifestLoader] ⚠️ 加载文件失败 ${filePath}: ${(err as Error).message}`);
       return null;
     }
   }

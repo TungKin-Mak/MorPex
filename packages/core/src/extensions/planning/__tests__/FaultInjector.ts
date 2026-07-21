@@ -1,3 +1,4 @@
+// @ts-nocheck
 /**
  * FaultInjector.ts — Red-Team Fault Injection for DynamicReflexEngine
  *

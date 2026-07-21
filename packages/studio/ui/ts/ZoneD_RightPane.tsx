@@ -13,6 +13,7 @@ import { useAstroStore, type ChatMode, type LiveStreamItem } from './stores';
 import { api } from './api';
 import './RightChatPanel.css';
 import DagCard from './DagCard';
+import RuntimePanel from './RuntimePanel';
 import type { DagPlanData } from './types';
 
 /** 模式按钮配置 */
@@ -27,6 +28,20 @@ const MODE_LABELS: Record<ChatMode, string> = {
   luban: '任务规划·鲁班',
   simq: '记忆检索·司马迁',
 };
+
+/** 过滤思考过程 */
+function filterThinking(text: string): string {
+  return text
+    .replace(/💭[^\n]*/g, '')
+    .replace(/\/\*THINK[\s\S]*?\*\//gi, '')
+    .replace(/<thinking>[\s\S]*?<\/thinking>/gi, '')
+    .replace(/<thought>[\s\S]*?<\/thought>/gi, '')
+    .replace(/\[思考\][\s\S]*?\[\/思考\]/gi, '')
+    .replace(/\[THINK\][\s\S]*?\[\/THINK\]/gi, '')
+    .replace(/```think[\s\S]*?```/gi, '')
+    .replace(/^\/\*THINK.*$/gm, '')
+    .trim();
+}
 
 const ZoneD_RightPane: React.FC = () => {
   // 从 store 读取多模式状态
@@ -147,16 +162,11 @@ const ZoneD_RightPane: React.FC = () => {
       }
 
       if (res.ok) {
-        if (res.type === 'direct_chat' && res.output) {
-          const stream = store.modeStates[mode].liveStream;
-          const last = stream[stream.length - 1];
-          if (last && last.status === 'running') {
-            // 关闭流式输出
-            store.pushToChatMode(mode, { status: 'completed' as const, message: '', region: '系统', timestamp: Date.now() });
-          } else {
-            store.pushToChatMode(mode, { status: 'completed' as const, message: res.output, region: '系统', timestamp: Date.now() });
+        if (res.type === 'direct_chat') {
+          // SSE 全权负责显示（message_update → message_complete），HTTP 只记账
+          if (res.output) {
+            saveToHistory('system', res.output, '系统', 'completed', res.executionId);
           }
-          saveToHistory('system', res.output, '系统', 'completed', res.executionId);
         } else if (res.type === 'dag_plan' && res.dag) {
           const eid = res.executionId || `dag_${Date.now()}`;
           setDagCards((prev) => [...prev, { executionId: eid, dag: res.dag! }]);
@@ -184,6 +194,7 @@ const ZoneD_RightPane: React.FC = () => {
             });
           }
 
+          // 推 DAG 标记到聊天气泡，DagCard 渲染器会识别 __dag__: 前缀
           const marker = `__dag__:${eid}`;
           store.pushToChatMode(mode, { status: 'running' as const, message: marker, region: '系统', timestamp: Date.now() });
           try {
@@ -252,6 +263,9 @@ const ZoneD_RightPane: React.FC = () => {
         ))}
       </div>
 
+      {/* v7 RuntimePanel — 替换 DagCard 区域 */}
+      <RuntimePanel />
+
       <div className="chat-history" ref={scrollRef}>
         {currentStream.length === 0 ? (
           <div className="chat-row system">
@@ -311,7 +325,7 @@ const ZoneD_RightPane: React.FC = () => {
                     </span>
                   )}
                   <span className="chat-body" style={isError ? { color: '#ff1a1a' } : undefined}>
-                    {item.message}
+                    {isUser ? item.message : filterThinking(item.message)}
                   </span>
                   <span className="chat-time">{fmtTime(item.timestamp)}</span>
                   {isUser && (

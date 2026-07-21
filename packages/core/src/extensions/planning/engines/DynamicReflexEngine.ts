@@ -63,8 +63,6 @@ export class DynamicReflexEngine implements IPlanningExtension {
   public readonly priority = 50;
   public enabled = true;
 
-  private memoryBus: any = null;
-  private dagEngine: any = null;
   private guard: DeviationGuardInterface | null = null;
   private unsubscribers: Array<() => void> = [];
   private eventTimestamps = new Map<string, number>();
@@ -73,14 +71,10 @@ export class DynamicReflexEngine implements IPlanningExtension {
   private replanPipeline: ReplanPipelineFn | null = null;
 
   constructor(config?: {
-    memoryBus?: any;
-    dagEngine?: any;
     guard?: DeviationGuardInterface;
     enabled?: boolean;
     replanPipeline?: ReplanPipelineFn;
   }) {
-    if (config?.memoryBus) this.memoryBus = config.memoryBus;
-    if (config?.dagEngine) this.dagEngine = config.dagEngine;
     if (config?.guard) this.guard = config.guard;
     if (config?.enabled !== undefined) this.enabled = config.enabled;
     if (config?.replanPipeline) this.replanPipeline = config.replanPipeline;
@@ -177,8 +171,8 @@ export class DynamicReflexEngine implements IPlanningExtension {
           let patchSuccess = false;
           try {
             patchSuccess = await controller.patchDAG(replanResult.patch);
-          } catch (err: any) {
-            console.error(`[DynamicReflexEngine] 7-Stage patchDAG 异常: ${err.message}`);
+          } catch (err: unknown) {
+            console.error(`[DynamicReflexEngine] 7-Stage patchDAG 异常: ${(err as Error).message}`);
           }
 
           // 记录偏差
@@ -195,25 +189,6 @@ export class DynamicReflexEngine implements IPlanningExtension {
             this.guard.recordDeviation(devRecord);
           }
 
-          // 写入 MemoryBus JSONL
-          if (patchSuccess && this.memoryBus?.appendLog) {
-            const logEntry: MemoryBusLogEntry = {
-              sessionId,
-              executionId,
-              intervention: '7stage_replan',
-              reason: replanResult.patch.reason,
-              timestamp: Date.now(),
-              affectedNodes: replanResult.patch.affectedNodes,
-              patchDetails: {
-                patchId: replanResult.patch.patchId,
-                operationCount: replanResult.patch.operations.length,
-                operations: replanResult.patch.operations.map(op => ({ type: op.type, nodeId: op.nodeId })),
-                replanSource: '7-stage-pipeline',
-              },
-            };
-            await this.memoryBus.appendLog(logEntry).catch(() => {});
-          }
-
           controller.resume();
 
           return {
@@ -228,9 +203,9 @@ export class DynamicReflexEngine implements IPlanningExtension {
 
         controller.resume();
         console.log('[DynamicReflexEngine] 7-Stage 重规划未产生补丁，降级到局部修补');
-      } catch (err: any) {
+      } catch (err: unknown) {
         controller.resume();
-        console.error(`[DynamicReflexEngine] 7-Stage 重规划异常: ${err.message}，降级到局部修补`);
+        console.error(`[DynamicReflexEngine] 7-Stage 重规划异常: ${(err as Error).message}，降级到局部修补`);
       }
     }
 
@@ -247,8 +222,8 @@ export class DynamicReflexEngine implements IPlanningExtension {
     let patchSuccess = false;
     try {
       patchSuccess = await controller.patchDAG(patch);
-    } catch (err: any) {
-      console.error(`[DynamicReflexEngine] patchDAG 异常: ${err.message}`);
+    } catch (err: unknown) {
+      console.error(`[DynamicReflexEngine] patchDAG 异常: ${(err as Error).message}`);
     } finally {
       controller.resume();
     }
@@ -267,24 +242,6 @@ export class DynamicReflexEngine implements IPlanningExtension {
       this.guard.recordDeviation(devRecord);
     }
 
-    // Step 9: 写入 MemoryBus JSONL
-    if (patchSuccess && this.memoryBus?.appendLog) {
-      const logEntry: MemoryBusLogEntry = {
-        sessionId,
-        executionId,
-        intervention: 'hot_patch',
-        reason: patch.reason,
-        timestamp: Date.now(),
-        affectedNodes: patch.affectedNodes,
-        patchDetails: {
-          patchId: patch.patchId,
-          operationCount: patch.operations.length,
-          operations: patch.operations.map(op => ({ type: op.type, nodeId: op.nodeId })),
-        },
-      };
-      await this.memoryBus.appendLog(logEntry).catch(() => {});
-    }
-
     return {
       handled: patchSuccess,
       action: patchSuccess ? 'patched' : 'rerouted',
@@ -293,39 +250,6 @@ export class DynamicReflexEngine implements IPlanningExtension {
         ? `补丁 ${patch.patchId} 已应用（${patch.operations.length} 个操作）`
         : `补丁应用失败，受影响节点: ${affectedNodes.join(', ')}`,
     };
-  }
-
-  subscribeToMemoryBus(memoryBus: any, controllerFactory: (execId: string, sessId: string) => IRuntimeController): void {
-    this.unsubscribe();
-    if (!memoryBus?.on) return;
-
-    const eventTypes = ['STATE_DEVIATION', 'SELF_HEALING_FAILED', 'NODE_FAILED', 'ARTIFACT_MISSING', 'CONTEXT_EXCEEDED'];
-    for (const et of eventTypes) {
-      const unsub = memoryBus.on(et, async (rawEvent: any) => {
-        const { sessionId, executionId, timestamp, payload, type } = rawEvent;
-        const key = `${executionId}:${et}`;
-        const last = this.eventTimestamps.get(key) ?? 0;
-        if (timestamp - last < 1000) return;
-        this.eventTimestamps.set(key, timestamp);
-
-        const deviationEvent: DeviationEvent = {
-          type: type ?? et,
-          sessionId,
-          executionId,
-          timestamp,
-          payload: payload ?? {},
-        };
-        const ctx: RuntimeEventContext = {
-          sessionId,
-          executionId,
-          event: deviationEvent,
-          dagEngine: undefined,
-        };
-        const controller = controllerFactory(executionId, sessionId);
-        await this.onRuntimeEvent(ctx, controller);
-      });
-      this.unsubscribers.push(unsub);
-    }
   }
 
   unsubscribe(): void {

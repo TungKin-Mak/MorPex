@@ -16,6 +16,7 @@
   color: #d4d4d4;
   box-sizing: border-box;
   z-index: 1;
+  position: relative;
 }
 
 .header-left {

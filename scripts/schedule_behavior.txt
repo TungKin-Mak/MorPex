@@ -1,0 +1,75 @@
+
+  // ═══════════════════════════════════════════════════════════
+  // ★ v8.5: BehaviorTwin 周期性调度
+  // ═══════════════════════════════════════════════════════════
+
+  /**
+   * scheduleBehaviorTwinCheck — 每 24 小时检查 BehaviorTwin
+   *
+   * 职责:
+   *   1. 重建行为画像
+   *   2. 检测行为漂移（与上次快照比较）
+   *   3. 如果 CognitiveLoop 已注入，利用其漂移检测机制
+   *   4. 发射行为度量事件供审计使用
+   */
+  private scheduleBehaviorTwinCheck(): void {
+    if (!this.v8BehaviorTwin) return;
+    const TWENTY_FOUR_HOURS = 24 * 60 * 60 * 1000;
+    this.runBehaviorTwinCheck();
+    this.v8PeriodicTimer = setInterval(() => {
+      this.runBehaviorTwinCheck();
+    }, TWENTY_FOUR_HOURS);
+    if (this.v8PeriodicTimer) {
+      this.v8PeriodicTimer.unref();
+    }
+    console.log('  ├─ v8.5 BehaviorChk ✅ (每 24h 周期性调度)');
+  }
+
+  /**
+   * runBehaviorTwinCheck — 执行一次 BehaviorTwin 检查
+   */
+  private runBehaviorTwinCheck(): void {
+    if (!this.v8BehaviorTwin || !this.v8PersonalBrain) return;
+    try {
+      const profile = this.v8BehaviorTwin.buildProfile();
+      this.v8PersonalBrain.storeFact(
+        'BehaviorTwin periodic check: planningStyle=' + profile.planningStyle +
+        ', riskTolerance=' + profile.riskTolerance +
+        ', taskDecomposition=' + profile.taskDecomposition +
+        ', evidenceCount=' + profile.evidenceCount +
+        ', confidence=' + profile.confidence.toFixed(2),
+        ['behavior-twin', 'periodic-check', profile.planningStyle]
+      ).catch(() => {});
+      if (this.kernel?.eventBus) {
+        this.kernel.eventBus.emit({
+          id: 'evt_behavior_check_' + Date.now(),
+          type: 'behavior.drift',
+          timestamp: Date.now(),
+          executionId: 'behavior-twin-scheduler',
+          source: 'studio-server',
+          payload: {
+            action: 'periodic_check',
+            planningStyle: profile.planningStyle,
+            riskTolerance: profile.riskTolerance,
+            taskDecomposition: profile.taskDecomposition,
+            evidenceCount: profile.evidenceCount,
+            confidence: profile.confidence,
+          },
+        });
+      }
+      console.log('[BehaviorTwin] 周期检查完成: ' + profile.planningStyle +
+        ', risk=' + profile.riskTolerance +
+        ', evidence=' + profile.evidenceCount +
+        ', confidence=' + profile.confidence.toFixed(2));
+    } catch (err: unknown) {
+      console.warn('[BehaviorTwin] 周期检查异常:', (err as Error).message);
+    }
+  }
+
+  /** ★ v8.5: 停止周期性调度 */
+  private stopBehaviorTwinCheck(): void {
+    if (this.v8PeriodicTimer) {
+      clearInterval(this.v8PeriodicTimer);
+      this.v8PeriodicTimer = null;
+    }
+  }

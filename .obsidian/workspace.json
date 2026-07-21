@@ -4,53 +4,24 @@
     "type": "split",
     "children": [
       {
-        "id": "0ed80c5d41031b7b",
+        "id": "401a18f7a362d3d2",
         "type": "tabs",
         "children": [
           {
-            "id": "21d84e5812076f6c",
+            "id": "6fecb76981a3617d",
             "type": "leaf",
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/README.md",
+                "file": "docs/ARCHITECTURE.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "README"
-            }
-          },
-          {
-            "id": "94766cee0d45b140",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/README.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "README"
-            }
-          },
-          {
-            "id": "56c57ed81d227481",
-            "type": "leaf",
-            "state": {
-              "type": "markdown",
-              "state": {
-                "file": "docs/ARCHITECTURE-v4.0.md",
-                "mode": "source",
-                "source": false
-              },
-              "icon": "lucide-file",
-              "title": "ARCHITECTURE-v4.0"
+              "title": "ARCHITECTURE"
             }
           }
-        ],
-        "currentTab": 2
+        ]
       }
     ],
     "direction": "vertical"
@@ -212,44 +183,43 @@
       "bases:新建数据库": false
     }
   },
-  "active": "56c57ed81d227481",
+  "active": "6fecb76981a3617d",
   "lastOpenFiles": [
-    "node_modules/watskeburt/LICENSE",
-    "node_modules/tsconfig-paths-webpack-plugin/node_modules/chalk/readme.md",
-    "node_modules/tsconfig-paths-webpack-plugin/node_modules/chalk/index.d.ts",
-    "node_modules/tsconfig-paths-webpack-plugin/LICENSE",
-    "node_modules/tsconfig-paths-webpack-plugin/jest.config.js",
-    "node_modules/tsconfig-paths-webpack-plugin/CHANGELOG.md",
-    "node_modules/tsconfig-paths/register.js",
-    "node_modules/tsconfig-paths/CHANGELOG.md",
-    "node_modules/teamcity-service-messages/README.md",
-    "node_modules/teamcity-service-messages/LICENSE.txt",
-    "node_modules/teamcity-service-messages/index.d.ts",
-    "node_modules/tapable/tapable.d.ts",
-    "node_modules/supports-preserve-symlinks-flag/README.md",
-    "node_modules/supports-preserve-symlinks-flag/LICENSE",
-    "node_modules/supports-preserve-symlinks-flag/index.js",
-    "node_modules/supports-preserve-symlinks-flag/CHANGELOG.md",
-    "node_modules/supports-preserve-symlinks-flag/browser.js",
-    "node_modules/strip-bom/readme.md",
-    "node_modules/sisteransi/readme.md",
-    "node_modules/safe-regex/README.md",
-    "node_modules/safe-regex/CHANGELOG.md",
-    "node_modules/resolve/SECURITY.md",
-    "node_modules/require-from-string/readme.md",
-    "node_modules/regexp-tree/README.md",
-    "node_modules/rechoir/README.md",
-    "node_modules/rechoir/CHANGELOG.md",
-    "node_modules/picocolors/README.md",
-    "node_modules/path-parse/README.md",
-    "node_modules/memoize/readme.md",
-    "node_modules/kleur/readme.md",
-    "node_modules/json5/README.md",
-    "node_modules/json5/LICENSE.md",
-    "node_modules/json-schema-traverse/README.md",
-    "node_modules/is-path-inside/readme.md",
-    "node_modules/is-installed-globally/readme.md",
-    "node_modules/is-core-module/README.md",
+    "docs/MorPex_v8.6_v9_Evolution_Phase_Plan.md",
+    "data/test-events-1784577934465/event-store.jsonl",
+    "data/test-events-1784577934465",
+    "data/test-es-1784577932575/event-store.jsonl",
+    "data/test-es-1784577932575",
+    "data/test-events-1784577143583/event-store.jsonl",
+    "data/test-events-1784577143583",
+    "data/test-es-1784577141430/event-store.jsonl",
+    "data/test-es-1784577141430",
+    "data/test-es-1784576502251/event-store.jsonl",
+    "data/test-es-1784576502251",
+    "docs/validation/architecture-report.md",
+    "docs/ARCHITECTURE.md",
+    "docs/README.md",
+    "docs/features-and-architecture.md",
+    "docs/whitepaper-morpex-core-v2.3.md",
+    "README.md",
+    "docs/UPGRADE-MEMORY-WIKI.md",
+    "docs/testing-guide.md",
+    "docs/PI-UPGRADE-GUIDE.md",
+    "docs/PI-COMPAT-MATRIX.md",
+    "docs/architecture-cross-reference.md",
+    "docs/test-plans/full-module-concurrent-test.md",
+    "docs/test-plans/coverage-report.md",
+    "docs/multi-session-plan.md",
+    "docs/modules/memory.md",
+    "docs/modules/core-engine.md",
+    "docs/modules/ai-engine.md",
+    "docs/docsARCHITECTURE-v3.2-optimized.md",
+    "docs/dataflow-mermaid.md",
+    "docs/WIKI.md",
+    "docs/MIGRATION-GUIDE.md",
+    "docs/ARCHITECTURE-v4.0.md",
+    "node_modules/@protobufjs/utf8/CHANGELOG.md",
+    "docs/_archive/full-module-concurrent-test.md",
     "node_modules/tsconfig-paths-webpack-plugin/coverage/lcov-report/sort-arrow-sprite.png",
     "node_modules/tsconfig-paths-webpack-plugin/coverage/lcov-report/favicon.png",
     "packages/studio/ui/test-results/diagnostic--ZONE-D-Right-Pane-—-FSM-matrix-chromium/test-failed-1.png",
