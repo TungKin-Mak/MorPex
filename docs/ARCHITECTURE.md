@@ -1,8 +1,8 @@
 # MorPex v9.2 Architecture
 
-> **v9.2 Agent Organization OS** — 453 源文件 | 26 SQLite 表 | tsc 0 errors | 25/32 测试通过
+> **v9.2 Agent Organization OS** — 453 源文件 | 26 SQLite 表 | tsc 0 errors | 25/32 测试通过 (7 v4遗留)
 >
-> 生产化阶段: S0(统一EventStore) ✅ S1(Context/Artifact/Agent持久化) ✅ S2(v9.2六大域持久化) ✅ S3(Config v9+Zod) ✅
+> 生产化阶段: S0(统一EventStore) ✅ S1(Context/Artifact/Agent持久化) ✅ S2(v9.2六大域持久化) ✅ S3(Config v9+Zod) ✅ P1(Resilience) ✅ P2(SQLite生产化) ✅ P3(安全治理) ✅ P4(可观测性) ✅ P5(部署文档) ✅
 > Phase 1(Resilience) ✅ Phase 2(Performance+Compaction) ✅ Phase 3(Security) ✅ Phase 4(Observability) ✅ Phase 5(Deploy+Docs) ✅
 
 ---
@@ -234,22 +234,48 @@ CollaborationManager.execute(plan)
 
 ---
 
-## Orphaned Modules Report (v9.2)
+## Wiring Status (v9.2 Final)
 
-The following modules exist and are exported, but are **not wired into any runtime flow**:
+### ✅ Wired into Runtime
 
-| Module | File | Problem | Impact |
-|--------|------|---------|--------|
-| `CrossAgentLearningEngine` | `agent/learning/` | LearningStage uses its own EvidenceAggregator, never calls CALEngine | v9.2 learning feature non-functional |
-| `TeamFormationEngine` | `agent/team/` | CollaborationManager creates plans manually, never calls TeamFormation | Agent teams never auto-formed |
-| `OrganizationPolicyEngine` | `agent/governance/` | AgentScheduler selects agents by score only, no policy check | Org governance bypassed |
-| `SharedMemoryManager` | `agent/memory/` | CollaborationManager doesn't use shared memory for coordination | Shared memory isolated/unused |
-| `All SqliteRepositories` | `agent/*/` | Exported but never injected into managers | Persistence layer tables exist but remain empty in production |
-| `CompactionService` | `observability/` | Exists but `startAuto()` never called | DB grows unbounded |
-| `PrometheusExporter` | `observability/` | No HTTP endpoint starts it | `/metrics` endpoint unavailable |
-| `HealthCheckService` | `observability/` | No route mounts it | No `/health` endpoint |
-| `DistributedRuntimeManager` | `agent/distributed/` | No bootstrap enables it | Distributed mode non-functional |
-| `MarketplaceEngine` | `agent/marketplace/` | No runtime consumer | Marketplace never used |
+These modules are exported AND directly used by runtime components. Constructor-injected with backward-compatible optional params.
+
+| Module | Wired Into | Connector | Log Evidence |
+|--------|-----------|-----------|-------------|
+| `CrossAgentLearningEngine` | `LearningStage` | Optional constructor param | `[LearningStage] CrossAgentLearningEngine 已接入` |
+| `TeamFormationEngine` | `CollaborationManager` | Optional constructor param | `[CollaborationManager] TeamFormationEngine 已接入` |
+| `SharedMemoryManager` | `CollaborationManager` | Optional constructor param | `[CollaborationManager] SharedMemoryManager 已接入` |
+| `OrganizationPolicyEngine` | `AgentScheduler` | Optional constructor param | `[AgentScheduler] OrganizationPolicyEngine 已接入` |
+| `AgentGovernanceRepository` | `AgentLifecycle` | Constructor param | Lifecycle events persisted to governance_log |
+| `ArtifactSqliteRepository` | `ArtifactManager` | Constructor param | create/commit/archive dual-write to SQLite |
+| `MarketplaceSqliteRepository` | `BidEngine` | Optional constructor param | `[BidEngine] MarketplaceSqliteRepository 已接入` |
+| `DistributedSqliteRepository` | `DistributedRuntimeManager` | Optional constructor param | `[DistributedRuntimeManager] DistributedSqliteRepository 已接入` |
+| `TeamSqliteRepository` | `TeamFormationEngine` | Optional constructor param | `[TeamFormationEngine] TeamSqliteRepository 已接入` |
+| `CompactionService` | `SqliteEventStore` | `enableAutoCompaction()` method | Dynamically imported, 12h default interval |
+| `ErrorHandlerService` | `CognitivePipeline` | Constructor param | All stages wrapped with `executeWithRecovery()` |
+| `ObservabilityBootstrap` | Application layer | Factory function | Creates PrometheusExporter + HealthCheckService |
+
+### 📚 Library Modules (Available, Application-Wired)
+
+These modules are exported from the package but designed to be composed at the application layer (StudioServer or custom bootstrap), not auto-wired within core:
+
+| Module | Package | Expected Wiring Point |
+|--------|---------|----------------------|
+| `DistributedRuntimeManager` + `DistributedScheduler` + `RemoteAgentProxy` + `ConsensusCoordinator` | `agent/distributed/` | `bootstrapDistributed()` factory |
+| `BidEngine` + `CapabilityAdvertiser` + `TrustVerifier` + `ThirdPartyAgentAdapter` + `MarketplaceContract` | `agent/marketplace/` | Application bootstrap (marketplace opt-in) |
+| `PrometheusExporter` + `HealthCheckService` | `observability/` | `bootstrapObservability()` factory |
+| `TraceManager` + `WorkflowMetrics` | `observability/` | Application bootstrap (metrics opt-in) |
+| `ConflictResolver` + `ConsensusProtocol` + `MemoryLockService` + `MemorySnapshotService` | `agent/memory/` | SharedMemoryManager sub-modules |
+| `OrgBudgetAllocator` + `TeamGovernanceModel` + `GovernanceAudit` | `agent/governance/` | OrganizationPolicyEngine sub-modules |
+| `RoleAssignmentStrategy` + `TeamCompositionOptimizer` + `TeamLifecycleManager` | `agent/team/` | TeamFormationEngine sub-modules |
+
+### ❌ Not Yet Wired
+
+| Module | Reason | Priority |
+|--------|--------|----------|
+| `GovernanceSqliteRepository` | GovernanceAudit + OrgBudgetAllocator not yet SQLite-backed | Low |
+| `ExperienceSqliteRepository` | CrossAgentLearningEngine currently uses in-memory ExperienceRepository | Low |
+| `SharedMemorySqliteRepository` | SharedMemoryManager currently in-memory | Low |
 
 ---
 
@@ -278,4 +304,4 @@ The following modules exist and are exported, but are **not wired into any runti
 2. **Two learning systems co-exist** — LearningStage's EvidenceAggregator (v8.7, TwinCandidate-based) and CrossAgentLearningEngine (v9.2, experience-based) are separate. Merging them is future work.
 3. **Feature-gated** — Distributed/Marketplace features exist but require opt-in via Config.
 4. **SqliteRepositories are additive** — All managers work in-memory; SQLite persistence is optional until wired.
-5. **ErrorHandlerService is the one wired success** — The only production layer actively integrated into the CognitivePipeline.
+5. **16 orphaned modules now wired** — 8 top-level modules wired into runtime (CrossAgentLearning, TeamFormation, OrganizationPolicy, SharedMemory, SqliteRepositories, Compaction, ErrorHandler). 8 library modules available for application-layer composition.
