@@ -6,6 +6,7 @@
  */
 
 import type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamStatus } from './types.js'
+import type { TeamSqliteRepository } from './TeamSqliteRepository.js'
 
 export class TeamFormationEngine {
   private formations = new Map<string, TeamFormation>()
@@ -16,8 +17,11 @@ export class TeamFormationEngine {
     private scheduler: any,
     private collaborationManager: any,
     private capabilityGraph: any,
-    private ranking: any
-  ) {}
+    private ranking: any,
+    private sqliteRepo?: TeamSqliteRepository
+  ) {
+    if (this.sqliteRepo) console.log('[TeamFormationEngine] TeamSqliteRepository 已接入')
+  }
 
   /**
    * formTeam — 根据规格组建团队
@@ -65,6 +69,16 @@ export class TeamFormationEngine {
 
     this.formations.set(teamId, formation)
     this.contexts.set(teamId, context)
+
+    // 持久化到 SQLite
+    if (this.sqliteRepo) {
+      try {
+        this.sqliteRepo.createTeam(teamId, formation.missionId, leader?.agentId)
+        this.sqliteRepo.updateComposition(teamId, { members: assignedMembers.map(m => ({ agentId: m.agentId, role: m.role })) })
+      } catch (err) {
+        console.warn('[TeamFormationEngine] SQLite persist failed:', err)
+      }
+    }
 
     return formation
   }

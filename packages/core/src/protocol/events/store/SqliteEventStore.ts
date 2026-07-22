@@ -312,6 +312,7 @@ export class SqliteEventStore implements IEventStore {
   private db: Database.Database;
   private dbPath: string;
   private sequenceCounter: number = 0;
+  private compactionTimer: ReturnType<typeof setInterval> | null = null;
 
   /**
    * @param db - better-sqlite3 Database 实例
@@ -321,6 +322,38 @@ export class SqliteEventStore implements IEventStore {
     this.db = db;
     this.dbPath = (db as any).name ?? ':memory:';
     this.initialize();
+  }
+
+  /**
+   * enableAutoCompaction — 启动自动 Compaction
+   * 定时触发 CompactionService，清理旧数据和 VACUUM。
+   * @param intervalMs - 运行间隔（默认 12 小时）
+   */
+  enableAutoCompaction(intervalMs: number = 12 * 60 * 60 * 1000): void {
+    if (this.compactionTimer) clearInterval(this.compactionTimer)
+    this.compactionTimer = setInterval(async () => {
+      try {
+        const { CompactionService } = await import('../../../observability/CompactionService.js')
+        const svc = new CompactionService(this.db as any)
+        const result = await svc.compact()
+        if (result.eventsPruned > 0 || result.vacuumed) {
+          console.log(`[SqliteEventStore] Auto-compaction: pruned ${result.eventsPruned} events, ${result.snapshotsPruned} snapshots, vacuum=${result.vacuumed}, duration=${result.durationMs}ms`)
+        }
+      } catch (err: any) {
+        console.warn('[SqliteEventStore] Auto-compaction failed:', err.message)
+      }
+    }, intervalMs)
+    console.log(`[SqliteEventStore] Auto-compaction 已启用，间隔 ${Math.round(intervalMs / 60000)} 分钟`)
+  }
+
+  /**
+   * disableAutoCompaction — 停止自动 Compaction
+   */
+  disableAutoCompaction(): void {
+    if (this.compactionTimer) {
+      clearInterval(this.compactionTimer)
+      this.compactionTimer = null
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════

@@ -19,6 +19,8 @@ import type { AgentScheduler } from '../scheduler/AgentScheduler.js'
 import type { AgentRegistry } from '../registry/AgentRegistry.js'
 import type { TaskRequirement } from '../scheduler/AssignmentStrategy.js'
 import { ResultAggregator } from './ResultAggregator.js'
+import type { TeamFormationEngine } from '../team/TeamFormationEngine.js'
+import type { SharedMemoryManager } from '../memory/SharedMemoryManager.js'
 
 export type CollaborationMode = 'sequential' | 'parallel' | 'voting' | 'pipeline'
 
@@ -54,14 +56,27 @@ export class CollaborationManager {
   private registry: AgentRegistry
   private aggregator: ResultAggregator
   private profileManager: any = null       // v9: AgentProfileManager
+  private sharedMemoryManager: SharedMemoryManager | null = null
+  private teamFormation: TeamFormationEngine | null = null
   private stats = { totalCollaborations: 0, successCount: 0, totalDuration: 0 }
 
-  constructor(scheduler: AgentScheduler, messageBus: AgentMessageBus, registry: AgentRegistry, profileManager?: any) {
+  constructor(
+    scheduler: AgentScheduler,
+    messageBus: AgentMessageBus,
+    registry: AgentRegistry,
+    profileManager?: any,
+    teamFormation?: TeamFormationEngine,
+    sharedMemory?: SharedMemoryManager
+  ) {
     this.scheduler = scheduler
     this.messageBus = messageBus
     this.registry = registry
     this.profileManager = profileManager ?? null
+    this.teamFormation = teamFormation ?? null
+    this.sharedMemoryManager = sharedMemory ?? null
     this.aggregator = new ResultAggregator()
+    if (this.teamFormation) console.log('[CollaborationManager] TeamFormationEngine 已接入')
+    if (this.sharedMemoryManager) console.log('[CollaborationManager] SharedMemoryManager 已接入')
   }
 
   async execute(plan: CollaborationPlan): Promise<CollaborationResult> {
@@ -125,6 +140,19 @@ export class CollaborationManager {
     const totalDuration = Date.now() - startTime
     this.stats.successCount += failedTasks.length === 0 ? 1 : 0
     this.stats.totalDuration += totalDuration
+
+    // 持久化协作结果到共享内存
+    if (this.sharedMemoryManager) {
+      try {
+        this.sharedMemoryManager.write(
+          `collab:${plan.missionId}:result`,
+          { completedTasks: completedTasks.length, failedTasks: failedTasks.length, success: failedTasks.length === 0, duration: totalDuration },
+          'team_shared',
+          'collaboration-manager',
+          3600000 // 1h TTL
+        )
+      } catch {}
+    }
 
     return {
       missionId: plan.missionId,

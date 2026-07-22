@@ -6,6 +6,7 @@
 
 import { AgentTransport } from './AgentTransport.js'
 import type { NodeStatus, RemoteNode, TransportType } from './types.js'
+import type { DistributedSqliteRepository } from './DistributedSqliteRepository.js'
 
 export class DistributedRuntimeManager {
   private transport: AgentTransport
@@ -13,9 +14,10 @@ export class DistributedRuntimeManager {
   private heartbeatInterval: ReturnType<typeof setInterval> | null = null
   private missedHeartbeats = new Map<string, number>()
 
-  constructor(localNodeId: string, transport?: AgentTransport) {
+  constructor(localNodeId: string, transport?: AgentTransport, private sqliteRepo?: DistributedSqliteRepository) {
     this.localNodeId = localNodeId
     this.transport = transport ?? new AgentTransport()
+    if (this.sqliteRepo) console.log('[DistributedRuntimeManager] DistributedSqliteRepository 已接入')
   }
 
   /**
@@ -33,6 +35,13 @@ export class DistributedRuntimeManager {
       lastHeartbeat: Date.now(),
       latency: 0,
     })
+
+    // 持久化注册
+    if (this.sqliteRepo) {
+      try {
+        this.sqliteRepo.registerInstance(this.localNodeId, 'runtime', 'local', [])
+      } catch {}
+    }
 
     // 开始心跳广播
     this.heartbeatInterval = setInterval(() => {

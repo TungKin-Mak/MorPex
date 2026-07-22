@@ -8,10 +8,15 @@
  */
 
 import type { BidRequest, Bid, MarketplaceListing } from './types.js'
+import type { MarketplaceSqliteRepository } from './MarketplaceSqliteRepository.js'
 
 export type BidStrategy = 'cheapest' | 'fastest' | 'most_reliable' | 'balanced'
 
 export class BidEngine {
+  constructor(private sqliteRepo?: MarketplaceSqliteRepository) {
+    if (this.sqliteRepo) console.log('[BidEngine] MarketplaceSqliteRepository 已接入')
+  }
+
   /**
    * requestBids — 向匹配的列表发出投标请求
    *
@@ -36,6 +41,22 @@ export class BidEngine {
       }
 
       bids.push(bid)
+
+      // 持久化到 SQLite
+      if (this.sqliteRepo) {
+        try {
+          this.sqliteRepo.placeBid({
+            id: `bid_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            listingId: listing.id,
+            bidderId: listing.agentId,
+            price: bid.price,
+            estimatedDuration: bid.estimatedDuration,
+            confidence: bid.confidence,
+            status: 'pending',
+            createdAt: Date.now(),
+          })
+        } catch {}
+      }
     }
 
     return bids

@@ -17,6 +17,7 @@ import { EventBus } from '../../../common/EventBus.js'
 import { EventType } from '../../../protocol/events/EventType.js'
 import type { CognitiveContext, TwinCandidate, EvidenceAggregation } from '../types.js'
 import type { CognitiveStage } from '../CognitivePipeline.js'
+import type { CrossAgentLearningEngine } from '../../../agent/learning/CrossAgentLearningEngine.js'
 
 // ═══════════════════════════════════════════════════════════════
 // EvidenceAggregator
@@ -145,12 +146,19 @@ export class LearningStage implements CognitiveStage {
   private evidenceAggregator: EvidenceAggregator
   private pendingCandidates: TwinCandidate[] = []
 
-  constructor(brain?: any, behaviorTwin?: any, decisionTwin?: any, eventStore?: any) {
+  constructor(
+    brain?: any,
+    behaviorTwin?: any,
+    decisionTwin?: any,
+    eventStore?: any,
+    private learningEngine?: CrossAgentLearningEngine
+  ) {
     this.brain = brain ?? null
     this.behaviorTwin = behaviorTwin ?? null
     this.decisionTwin = decisionTwin ?? null
     this.eventStore = eventStore ?? null
     this.evidenceAggregator = new EvidenceAggregator()
+    if (this.learningEngine) console.log('[LearningStage] CrossAgentLearningEngine 已接入')
   }
 
   async execute(ctx: CognitiveContext, bus: EventBus): Promise<CognitiveContext> {
@@ -278,6 +286,22 @@ export class LearningStage implements CognitiveStage {
         stepsTotal: ctx.result.stepsTotal,
       },
     })
+
+    // ── Step 3: Cross-Agent Learning (v9.2) ──
+    if (this.learningEngine) {
+      try {
+        const experiences = this.learningEngine.learnFromOutcome(
+          ctx.mission.id,
+          { success: ctx.result.state === 'COMPLETED', errors: ctx.errors, duration: ctx.completedAt ? ctx.completedAt - ctx.startedAt : 0 },
+          'cognitive-pipeline'
+        )
+        if (experiences.length > 0) {
+          console.log(`   🧠 CrossAgentLearning: ${experiences.length} 条经验已存储并传播`)
+        }
+      } catch (err: any) {
+        console.warn(`   ⚠️ CrossAgentLearning 调用失败:`, err.message)
+      }
+    }
 
     console.log(`✅ [LearningStage] 完成 — candidates: ${this.pendingCandidates.filter(c => c.status === 'pending').length} pending, ${this.evidenceAggregator.getSnapshot().length} fields observed`)
 

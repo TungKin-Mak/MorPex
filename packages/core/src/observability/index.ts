@@ -15,3 +15,6 @@ export type { PrometheusMetrics } from './PrometheusExporter.js'
 
 export { HealthCheckService } from './HealthCheckService.js'
 export type { HealthStatus, HealthCheck } from './HealthCheckService.js'
+
+export { bootstrapObservability } from './ObservabilityBootstrap.js'
+export type { ObservabilityConfig } from './ObservabilityBootstrap.js'
