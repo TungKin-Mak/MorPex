@@ -1,580 +1,281 @@
 # MorPex v9.2 Architecture
 
-> **v9.2 Agent Organization OS** | 411源文件 | 26 SQLite表 | tsc 0 errors | 17/23测试通过
+> **v9.2 Agent Organization OS** — 453 源文件 | 26 SQLite 表 | tsc 0 errors | 25/32 测试通过
 >
 > 生产化阶段: S0(统一EventStore) ✅ S1(Context/Artifact/Agent持久化) ✅ S2(v9.2六大域持久化) ✅ S3(Config v9+Zod) ✅
+> Phase 1(Resilience) ✅ Phase 2(Performance+Compaction) ✅ Phase 3(Security) ✅ Phase 4(Observability) ✅ Phase 5(Deploy+Docs) ✅
 
 ---
 
-## Layer Stack (v8.9)
+## Layer Stack (v9.2)
 
 ```
-                 HUMAN
-                   |
-              Experience
-                   |
-             MessageGateway
-                   |
-              Event Gateway
-                   |
-        ======================
-        Event Sourcing Plane
-        ======================
-          (Cognitive Event Stream)
-                   |
-              Cognitive Pipeline
-                   |
-        ┌────────────────────────────────────────┐
-        │                                        │
-        │   Control Plane       Reliability Plane│
-        │   ─────────────       ────────────────│
-        │   Policy/Risk        Chaos/Replay     │
-        │   Permission/Audit   Scoring/Regress  │
-        │   Budget/Escalation  Promotion/Canary │
-        │                                        │
-        └────────────────────────────────────────┘
-          (cross-cutting all layers)
-                   |
-        ┌──────────────────────┐
-        │  Intent → Goal →     │
-        │  Twin → Planning →   │
-        │  Execution → Learn → │
-        │  Evolution → Persist │
-        └──────────────────────┘
-                   |
-        ======================
-           Runtime Kernel
-        ======================
-          Mission FSM (9-state)
-               |
-            DAG Runtime
-               |
-          Execution FSM (10-state)
-                   |
-        ======================
-          Knowledge Plane
-        ======================
-     PersonalBrain | MemoryWiki
-     Zvec | Artifact Store
-                   |
-        ======================
-          Evolution Plane
-        ======================
-     Learning → Workflow Mining
-     → Simulation → Optimization
-                   |
-        ======================
-          Control Plane
-        ======================
-     ╔═══════════════════════╗
-     ║  Policy | Risk        ║
-     ║  Permission | Audit   ║
-     ╚═══════════════════════╝
-       (cross-cutting all layers)
+                            HUMAN / EXTERNAL
+                                  │
+                         MessageGateway
+                                  │
+                              EventBus
+                                  │
+    ┌─────────────────────────────┼──────────────────────────────┐
+    │                             │                              │
+    ▼                             ▼                              ▼
+┌──────────────┐    ┌──────────────────────┐    ┌────────────────────────┐
+│ CONTROL      │    │  COGNITIVE PIPELINE  │    │  RELIABILITY PLANE     │
+│ PLANE        │    │  ──────────────────  │    │  ──────────────────    │
+│ ────────     │    │                      │    │  Chaos / Replay        │
+│ PolicyEngine │◄──►│ ContextStage  (v9.1) │    │  Scoring / Regression  │
+│ RiskAnalyzer │    │ IntentStage          │    │  Promotion / Canary    │
+│ Permission   │    │ GoalStage            │    │  Report                │
+│ AuditTrail   │    │ TwinStage            │    └────────────────────────┘
+│ OrgPolicy★   │    │ PlanningStage        │
+│ (v9.2)       │    │ ExecutionStage       │    ┌────────────────────────┐
+│              │    │   ├─ Contract        │    │  RUNTIME KERNEL        │
+│              │    │   ├─ Permission      │    │  ──────────────────    │
+│              │    │   ├─ Budget          │    │  MissionFSM (19状态)   │
+│              │    │   ├─ Sandbox         │    │  DAG Runtime           │
+│              │    │   ├─ Verification    │    │  ExecutionFSM (10状态) │
+│              │    │   └─ Compensation    │    │  Checkpoint/Recovery   │
+│              │    │ LearningStage        │    │  Sandbox/Budget/Comp   │
+│              │    │ EvolutionStage       │    └────────────────────────┘
+│              │    │ PersistenceStage     │
+└──────────────┘    └──────┬───────────────┘    ┌────────────────────────┐
+                           │                    │  KNOWLEDGE PLANE       │
+                    ┌──────▼──────┐             │  ──────────────────    │
+                    │ EVENT SOURCE│             │  BehaviorTwin (v2)     │
+                    │ ────────────│             │  DecisionTwin          │
+                    │ SqliteEvent │             │  GoalGraph             │
+                    │ Store (26表)│             │  PersonalBrain (5层)   │
+                    └─────────────┘             │  WorkflowIntelligence  │
+                           │                    └────────────────────────┘
+                           ▼
+    ┌──────────────────────────────────────────────────────────────────────────┐
+    │                        AGENT PLANE (v9.2 — 18 子模块, 83 文件)           │
+    │  ─────────────────────────────────────────────────────────────────────  │
+    │                                                                          │
+    │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐  │
+    │  │ Identity │ │ Registry │ │Capability│ │Scheduler │ │ Communication│  │
+    │  │ Profile  │ │  (查找)   │ │  Graph   │ │AssgnStrat│ │  MessageBus  │  │
+    │  │Governance│ │          │ │          │ │          │ │  (异步唯一)   │  │
+    │  └──────────┘ └──────────┘ └──────────┘ └──────────┘ └──────────────┘  │
+    │                                                                          │
+    │  ┌──────────┐ ┌──────────┐ ┌──────────┐ ┌──────────────┐ ┌──────────┐  │
+    │  │Collabor  │ │Negotiatn│ │  Memory  │ │  Lifecycle   │ │ Ranking  │  │
+    │  │ ationMgr │ │ Engine   │ │Isolation │ │  Evolution   │ │Benchmark │  │
+    │  │ResultAgg │ │          │ │SharedMem │ │  Optimizer   │ │          │  │
+    │  └──────────┘ └──────────┘ └──────────┘ └──────────────┘ └──────────┘  │
+    │                                                                          │
+    │  ┌──────────────────┐ ┌──────────────────┐ ┌────────────────────────┐  │
+    │  │ ★ v9.2 NEW       │ │ ★ v9.2 NEW       │ │ ★ v9.2 NEW             │  │
+    │  │ Cross-Agent      │ │ Organization      │ │ Agent Marketplace      │  │
+    │  │ Learning         │ │ Governance        │ │ (BidEngine/Trust/Mktpl)│  │
+    │  │ (ExpRepo/        │ │ (OrgPolicy/       │ └────────────────────────┘  │
+    │  │ Distiller/       │ │  TeamGovernance/  │ ┌────────────────────────┐  │
+    │  │ Propagation/     │ │  Budget)          │ │ ★ v9.2 NEW             │  │
+    │  │ Matcher)         │ └──────────────────┘ │ Distributed Runtime    │  │
+    │  └──────────────────┘                      │ (Transport/Proxy/      │  │
+    │  ┌──────────────────┐ ┌──────────────────┐ │  Scheduler/Consensus)  │  │
+    │  │ ★ v9.2 NEW       │ │ ★ v9.2 NEW       │ └────────────────────────┘  │
+    │  │ Team Formation   │ │ Shared Memory    │                              │
+    │  │ (Formation/      │ │ Consensus        │  ┌────────────────────────┐  │
+    │  │  Composition/    │ │ (ConsensusProto/ │  │ ★ Production Layers    │  │
+    │  │  RoleAssignment/ │ │  LockService/    │  │ Resilience (RetryCB    │  │
+    │  │  Lifecycle)      │ │  ConflictResolve │  │  + CircuitBreaker +    │  │
+    │  └──────────────────┘ │  SnapshotService)│  │  ErrorHandler)         │  │
+    │                       └──────────────────┘  │ Observability         │  │
+    │                                              │ (Metrics/Compaction/  │  │
+    │                                              │  Prometheus/Health)   │  │
+    │  ┌──────────────────────────────────────────┐│ Security (Encryption/ │  │
+    │  │ ★ Persistence Layer (26 表, 9 SqliteRepo)││  Sandbox/Trust)       │  │
+    │  │ ContextPersistence / ArtifactSqliteRepo  │└────────────────────────┘  │
+    │  │ AgentGovernanceRepo / ExperienceSqlite   │                              │
+    │  │ GovernanceSqlite / MarketplaceSqlite     │                              │
+    │  │ DistributedSqlite / TeamSqlite           │                              │
+    │  │ SharedMemorySqlite                       │                              │
+    │  └──────────────────────────────────────────┘                              │
+    └──────────────────────────────────────────────────────────────────────────┘
 ```
-
-### Key Change from v8.5
-
-| v8.5 (Linear) | v8.6 (Layered) | Why |
-|---------------|----------------|-----|
-| Cognition → Evolution → Control | Control Plane **spans all layers** | Risk/Policy/Permission/Audit are cross-cutting, not a downstream step |
-| Evolution → Control | Evolution and Control are separate planes | Control should govern Evolution, not follow it |
-| CognitiveLoop (God Object) | CognitivePipeline (Stages) | Each stage is a standalone CognitiveStage impl, composable as pipeline |
-| EventStore only records MissionRuntime | Event Sourcing Plane records **full cognitive stream** | Enables decision history recovery, not just execution state recovery |
 
 ---
 
-## Core Data Flow (v8.6)
+## Module Inventory (v9.2)
 
-```
-POST /api/v8/mission { content }
-  → StudioServer
-    → MessageGateway.receive(IncomingMessage)
-      → EventBus.emit(USER_MESSAGE_RECEIVED)     ← Cognitive Event Stream starts HERE
-      → CognitivePipeline.process(msg)
-        │
-        ├─ Stage 1: IntentStage
-        │   detectIntent() → { goal, keywords, domain, confidence }
-        │   → EventBus.emit(INTENT_DETECTED)
-        │
-        ├─ Stage 2: GoalStage
-        │   matchGoals() → GoalManager Jaccard matching
-        │   → EventBus.emit(GOAL_MATCHED)
-        │
-        ├─ Stage 3: TwinStage
-        │   retrieveTwin() → BehaviorTwin(v${version}) + DecisionTwin + PreferenceProfile
-        │   → EventBus.emit(TWIN_RETRIEVED)
-        │
-        ├─ Stage 4: PlanningStage
-        │   buildPlannerConstraint() → MetaPlannerAdapter
-        │   createMission() → MissionRuntime.createMission()
-        │   → EventBus.emit(PLAN_CREATED)
-        │
-        ├─ Stage 5: ExecutionStage
-        │   executeMission() → MissionRuntime.executeMission()
-        │   → DAG-aware executor (topological waves, parallel)
-        │   → EventBus.emit(TASK_STARTED / TASK_COMPLETED)
-        │
-        ├─ Stage 6: LearningStage
-        │   recordMission() / recordOutcome() / recordEpisode()
-        │   → EventBus.emit(MEMORY_UPDATED)
-        │
-        ├─ Stage 7: EvolutionStage
-        │   mineWorkflows() → WorkflowMiner
-        │     → WorkflowSimulator (NEW! quality gate before human approval)
-        │     → Candidate queue (requires human approval)
-        │   updateTwin() → BehaviorTwin (versioned, v${n+1})
-        │   → EventBus.emit(WORKFLOW_CREATED)
-        │
-        └─ Stage 8: PersistenceStage
-            persistBrain() → BrainPersistor → MemoryWiki
-            → EventBus.emit(MEMORY_PERSISTED)
+### Control Plane (5 modules)
+| Module | Role | Integrates with |
+|--------|------|-----------------|
+| `PolicyEngine` | Rule-based auto-approve/block/require_approval | CognitivePipeline, ExecutionStage, WorkflowSimulator |
+| `RiskAnalyzer` | 4-dimension mission risk scoring (step/domain/tool/permission) | IntentStage, PlanningStage |
+| `PermissionModel` | User-level permissions (read/write/execute/delete/deploy/approve/admin) + Agent-level (collaborate/access_shared/evolve) | ExecutionStage, Scheduler |
+| `AuditTrail` | Append-only governance log; `recordAgentAction()`, `recordGovernanceCheck()` | All Control+Agent operations |
+| `OrganizationPolicyEngine` ★ | v9.2: Org-level policy evaluation (cross-team, artifact access, senior override) | **NOT wired into AgentScheduler or CollaborationManager** |
 
-  → OutgoingMessage
-```
+### Cognitive Pipeline (9 stages + 3 infrastructure)
+| Stage | Role | Key integration |
+|-------|------|----------------|
+| `ContextStage` (v9.1) | Unify multi-source fragments → 3-layer ExecutionContext | ContextFragmentRegistry, ContextPersistence |
+| `IntentStage` | detectIntent → {goal,domain,confidence} | IntentResolver |
+| `GoalStage` | Jaccard goal matching → GoalManager | GoalGraph |
+| `TwinStage` | BehaviorTwin + DecisionTwin retrieval | BehaviorTwin, DecisionTwin |
+| `PlanningStage` | MetaPlannerAdapter → Mission creation | MissionRuntime |
+| `ExecutionStage` | Full lifecycle: Contract→Permission→Budget→Sandbox→Agent→Verification→Lineage→Compensation→Metrics | ExecutionFSM, DAGRuntime, CompensationEngine, AgentScheduler |
+| `LearningStage` | EvidenceAggregator → TwinCandidate | BehaviorTwin, DecisionTwin, PersonalBrain, EventStore |
+| `EvolutionStage` | WorkflowMiner→Simulator→Policy→Registry | WorkflowMiner, WorkflowSimulator, PolicyEngine |
+| `PersistenceStage` | BrainPersistor bridge→MemoryWiki | PersonalBrain, MemoryWiki |
+| `CognitivePipeline` | Stage orchestrator with error handler | ErrorHandlerService (wired) |
+| `ErrorHandlerService` | RetryPolicy + CircuitBreaker + Compensation | CognitivePipeline (wired) |
 
-### Decision Event Stream (NEW in v8.6)
+### Runtime Kernel (14 modules)
+MissionFSM(19 states), DAGRuntime, ExecutionFSM(10 states), CheckpointManager, RecoveryManager, SandboxManager, BudgetManager, CompensationEngine, VerificationEngine, ApprovalEngine, MetaPlannerAdapter, DAGExecutorAdapter, MissionRuntime.
 
-Every cognitive decision is recorded as a `DecisionEvent`:
+### Knowledge Plane (10 modules)
+BehaviorTwin, PersonalBrain(5-layer memory), DecisionTwin, GoalManager, GoalGraph, WorkflowMemory, DecisionMemory, BrainPersistor, WorkflowIntelligence, PreferenceModel.
 
-```
-USER_MESSAGE_RECEIVED
-        ↓
-INTENT_DETECTED
-        ↓
-GOAL_MATCHED
-        ↓
-TWIN_RETRIEVED
-        ↓
-PLAN_CREATED
-        ↓
-TASK_STARTED
-        ↓
-TASK_COMPLETED
-        ↓
-MEMORY_UPDATED
-        ↓
-WORKFLOW_CREATED
-```
+### Reliability Plane (12 modules)
+ChaosEngine, FaultInjector, EventReplayer(2), ReliabilityScorer, GoldenDatasetManager, RegressionRunner, WorkflowPromotion(2), WorkflowMetrics, ReliabilityReport, CanaryEvaluator.
 
-```typescript
-interface DecisionEvent {
-  id: string
-  timestamp: number
-  input: Record<string, unknown>     // what the agent saw
-  reasoning: string                   // why it decided
-  evidence: string[]                  // what supported the decision
-  decision: string                    // what it decided
-  confidence: number                  // how sure it was
-  twinVersion: number                 // which twin version was active
-}
-```
+### Agent Plane (83 files, 18 sub-modules)
 
-This enables:
-- **Execution History**: "What happened?" (MissionRuntime events)
-- **Decision History**: "Why did the agent decide that?" (DecisionEvents)
+| Sub-module | Files | Contains | Runtime-wired? |
+|-----------|-------|----------|---------------|
+| `identity/` | 3 | AgentIdentity, AgentProfile, GovernanceMetadata | AgentBootstrap |
+| `registry/` | 2 | AgentRegistry (capability lookup) | AgentBootstrap |
+| `capability/` | 2 | Capability, CapabilityGraph | AgentBootstrap |
+| `scheduler/` | 3 | AgentScheduler, AssignmentStrategy | CollaborationManager |
+| `communication/` | 3 | AgentMessage, AgentMessageBus | CollaborationManager, NegotiationEngine |
+| `collaboration/` | 4 | CollaborationManager, NegotiationEngine, ResultAggregator | **TeamFormationEngine NOT wired** |
+| `context/` | 2 | AgentExecutionContext, AgentContextFactory | AgentWorker |
+| `memory/` | 8 | AgentMemoryIsolation, SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService, SharedMemorySqliteRepository | **SharedMemoryManager NOT wired into CollaborationManager** |
+| `lifecycle/` | 2 | AgentLifecycle | AgentBootstrap |
+| `ranking/` | 2 | AgentRanking | AgentBootstrap |
+| `evolution/` | 2 | AgentCapabilityEvolution | AgentBootstrap |
+| `benchmark/` | 2 | AgentBenchmark | standalone |
+| `optimizer/` | 2 | AgentAutoOptimizer | AgentBootstrap |
+| `learning/` ★ | 7 | CrossAgentLearningEngine, ExperienceRepository, KnowledgeDistiller, LearningPropagationService, ExperienceMatcher, ExperienceSqliteRepository, types | **NOT wired into LearningStage** |
+| `governance/` ★ | 6 | OrganizationPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit, AgentGovernanceRepository, GovernanceSqliteRepository | **NOT wired into AgentScheduler/CollaborationManager** |
+| `marketplace/` ★ | 8 | BidEngine, MarketplaceRegistry, CapabilityAdvertiser, TrustVerifier, MarketplaceContract, ThirdPartyAgentAdapter, MarketplaceSqliteRepository, types | **standalone, no runtime consumer** |
+| `distributed/` ★ | 7 | DistributedRuntimeManager, AgentTransport, RemoteAgentProxy, DistributedScheduler, ConsensusCoordinator, DistributedSqliteRepository, types | **standalone, no runtime consumer** |
+| `team/` ★ | 6 | TeamFormationEngine, TeamCompositionOptimizer, RoleAssignmentStrategy, TeamLifecycleManager, TeamSqliteRepository, types | **NOT wired into CollaborationManager** |
+
+### Context Layer (7 files)
+ContextAssemblyEngine, ContextBuilder, ContextVersioner, ContextFragmentRegistry, ContextTemplateRepository, ContextEnricher, ContextPersistence.
+
+### Artifact Plane (11 files)
+ArtifactPlane, ArtifactManager (with optional ArtifactSqliteRepository), ArtifactSqliteRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactLineageTracker, ArtifactEventEmitter, ArtifactRepository, types.
+
+### Resilience Layer (3 files)
+RetryPolicy (4 backoff strategies), CircuitBreaker (CLOSED→OPEN→HALF_OPEN), ErrorHandlerService (integrates both + compensation).
+
+### Observability Layer (6 files)
+MetricsCollector (with V9Metrics), CompactionService, TraceManager, WorkflowMetrics, PrometheusExporter, HealthCheckService.
 
 ---
 
-## CognitivePipeline (v8.6 — replaces CognitiveLoop God Object)
+## Database Schema (26 tables, single SQLite DB)
 
-### Before (v8.5 — God Object)
-
-```
-CognitiveLoop
-  Phase1 intent
-  Phase2 goal
-  Phase3 twin
-  Phase4 mission
-  Phase5 execute
-  Phase6 learn
-  Phase7 mine
-  Phase8 update
-  Phase9 persist
-```
-
-### After (v8.6 — Pipeline)
-
-```
-CognitivePipeline
-        |
-        |
- ┌──────┼──────┬──────────┬──────────┐
- │      │      │          │          │
-Intent Goal  Memory    Evolution  Persistence
-Stage  Stage  Stage     Stage      Stage
-```
-
-```typescript
-interface CognitiveStage {
-  name: string
-  execute(context: CognitiveContext): Promise<CognitiveContext>
-}
-
-// Pipeline composition:
-const pipeline = new CognitivePipeline([
-  new IntentStage(eventBus),
-  new GoalStage(goalManager),
-  new TwinStage(behaviorTwin, decisionTwin, preferenceModel),
-  new PlanningStage(missionRuntime, plannerConstraint),
-  new ExecutionStage(missionRuntime),
-  new LearningStage(brain, behaviorTwin, decisionTwin),
-  new EvolutionStage(workflowMiner, workflowRegistry, workflowSimulator),
-  new PersistenceStage(brainPersistor),
-])
-```
-
-### Benefits
-1. **Single Responsibility**: Each stage owns exactly one concern
-2. **Testability**: Stages can be unit-tested independently
-3. **Extensibility**: New stages can be inserted without modifying existing code
-4. **Multi-Agent future**: Stages can become dedicated agents (PlannerAgent, MemoryAgent, EvolutionAgent)
-5. **Control injection**: Control Plane modules (RiskAnalyzer, PolicyEngine) are injected into specific stages as cross-cutting interceptors
+| Group | Tables | Stage |
+|-------|--------|-------|
+| **Event Sourcing** | `events`, `events_decision`, `schema_migrations` | S0 |
+| **Context** | `context_snapshots` | S1 |
+| **Artifact** | `artifacts_v2`, `artifact_versions_v2`, `artifact_dependencies_v2`, `artifact_staging_v2` | S1 |
+| **Agent Identity** | `agents`, `agent_capabilities`, `agent_governance_log`, `agent_collaborations` | S1 |
+| **Learning** | `shared_experiences` | S2 |
+| **Governance** | `org_policies`, `team_governance`, `team_memberships`, `org_budget`, `budget_allocations` | S2 |
+| **Marketplace** | `marketplace_listings`, `marketplace_bids`, `marketplace_contracts` | S2 |
+| **Distributed** | `agent_instances`, `remote_messages` | S2 |
+| **Team** | `agent_teams` | S2 |
+| **Shared Memory** | `shared_memory_entries` | S2 |
 
 ---
 
-## Control Plane — Cross-Cutting (v8.6)
+## Data Flow
 
-### v8.5 Problem
-
-```
-Evolution
-  |
-Control       ← After evolution = too late
-```
-
-### v8.6 Solution
-
-Control Plane modules cross-cut every layer:
+### Primary Flow: Message → CognitivePipeline → SQLite
 
 ```
-                 Control Plane
-                      |
- ┌────────────────────┼────────────────────┐
- │                    │                    │
-↓                    ↓                    ↓
-Cognitive          Runtime             Evolution
-Pipeline           Kernel              Plane
-│                   │                   │
-├─ IntentStage ←── RiskAnalyzer ──→ WorkflowMiner
-│  (check intent    │                   │
-│   risk early)     │              WorkflowSimulator
-├─ PlanningStage ←──│                   │
-│  (policy check    │              Human Approval
-│   before exec)    │                   │
-│                   │              WorkflowRegistry
-├─ ExecutionStage ←─┤
-│  (audit trail)    │
-│                   │
-└─ EvolutionStage ←─┘
-   (permission check)
+User Request
+    │
+    ▼
+MessageGateway.receive()
+    │
+    ▼
+EventBus.emit(USER_MESSAGE_RECEIVED)
+    │
+    ▼
+CognitivePipeline.process() [with errorHandler wrapping]
+    │
+    ├─ ContextStage → ContextAssemblyEngine.assemble()
+    │   └─ Persist: context_snapshots table
+    ├─ IntentStage → detectIntent()
+    ├─ GoalStage → matchGoals()
+    ├─ TwinStage → BehaviorTwin + DecisionTwin
+    ├─ PlanningStage → createMission()
+    ├─ ExecutionStage → executeMission() [Contract→Permission→Budget→Sandbox→Agent→Verification→Compensation]
+    │   └─ Persist: events table (via EventStore)
+    ├─ LearningStage → EvidenceAggregator → TwinCandidate
+    │   ├─ Persist: events_decision (via EventStore)
+    │   └─ *** CrossAgentLearningEngine NOT wired ***
+    ├─ EvolutionStage → Mine→Simulate→Policy→Register
+    └─ PersistenceStage → BrainPersistor → MemoryWiki
 ```
 
-### Control Modules
+### Secondary Flow: Agent Collaboration (v9.2, partly wired)
 
-| Module | Responsibility | Cross-cutting injection points |
-|--------|---------------|-------------------------------|
-| **RiskAnalyzer** | Assess mission risk before execution | IntentStage (intent risk), PlanningStage (plan risk), EvolutionStage (workflow risk) |
-| **AuditTrail** | Append-only decision log | All stages — records every cognitive decision |
-| **PolicyEngine** | Rule-based policy evaluation | ExecutionStage (auto-approve/block/require_approval), EvolutionStage (workflow policy) |
-| **PermissionModel** | User-level fine-grained permissions | All stages — check user permissions before any action |
+```
+Multi-Agent Mission
+    │
+    ▼
+CollaborationManager.execute(plan)
+    ├─ TeamFormationEngine.formTeam() *** NOT WIRED ***
+    ├─ AgentScheduler.selectAgent()
+    │   └─ OrganizationPolicyEngine.evaluate() *** NOT WIRED ***
+    ├─ AgentMessageBus.request()
+    ├─ SharedMemoryManager.acquireLock() *** NOT WIRED ***
+    └─ ResultAggregator.aggregate()
+```
 
 ---
 
-## DAG + FSM Design (unchanged from v8.5 — correct in original)
+## Orphaned Modules Report (v9.2)
 
-```
-Mission FSM (9-state)
-     |
-     |  contains
-     v
-DAG (task structure)
-     |
-     |  contains
-     v
-Task
-     |
-     |  controlled by
-     v
-Execution FSM (10-state)
-```
+The following modules exist and are exported, but are **not wired into any runtime flow**:
 
-### Relationship
-
-```
-Mission ──contains──> DAG ──contains──> Task ──controlled_by──> ExecutionFSM
-```
-
-### Mission State Machine (9 states)
-
-```
-CREATED → PLANNING → EXECUTING ⇄ WAIT_APPROVAL → VERIFYING → COMPLETED
-   ↓         ↓           ↓                                ↓
-CANCELLED  FAILED      FAILED                          FAILED
-```
-
-Transitions enforced by `MISSION_VALID_TRANSITIONS` map.
+| Module | File | Problem | Impact |
+|--------|------|---------|--------|
+| `CrossAgentLearningEngine` | `agent/learning/` | LearningStage uses its own EvidenceAggregator, never calls CALEngine | v9.2 learning feature non-functional |
+| `TeamFormationEngine` | `agent/team/` | CollaborationManager creates plans manually, never calls TeamFormation | Agent teams never auto-formed |
+| `OrganizationPolicyEngine` | `agent/governance/` | AgentScheduler selects agents by score only, no policy check | Org governance bypassed |
+| `SharedMemoryManager` | `agent/memory/` | CollaborationManager doesn't use shared memory for coordination | Shared memory isolated/unused |
+| `All SqliteRepositories` | `agent/*/` | Exported but never injected into managers | Persistence layer tables exist but remain empty in production |
+| `CompactionService` | `observability/` | Exists but `startAuto()` never called | DB grows unbounded |
+| `PrometheusExporter` | `observability/` | No HTTP endpoint starts it | `/metrics` endpoint unavailable |
+| `HealthCheckService` | `observability/` | No route mounts it | No `/health` endpoint |
+| `DistributedRuntimeManager` | `agent/distributed/` | No bootstrap enables it | Distributed mode non-functional |
+| `MarketplaceEngine` | `agent/marketplace/` | No runtime consumer | Marketplace never used |
 
 ---
 
-## Twin Versioning (NEW in v8.6)
+## Test Status (25/32 passing)
 
-### v8.5 Problem
-
-```typescript
-// No versioning = memory pollution risk
-interface BehaviorProfile {
-  planningStyle: 'top-down' | ...
-  riskTolerance: 'low' | ...
-  // ... no version, no history, no traceability
-}
-```
-
-### v8.6 Solution
-
-```typescript
-interface BehaviorProfile {
-  version: number                     // ⬅ NEW: monotonic version counter
-  profile: { /* existing fields */ }
-  confidence: number
-  createdAt: number                   // ⬅ NEW: when this version was built
-  sourceEvents: string[]              // ⬅ NEW: which events contributed
-}
-
-class BehaviorTwin {
-  private version: number             // current version
-  private versionHistory: Map<number, BehaviorProfile>  // all versions
-
-  buildProfile(): BehaviorProfile     // increments version, stores history
-  getVersion(v: number): BehaviorProfile | undefined
-  getVersionHistory(): VersionMeta[]
-  diffVersions(v1: number, v2: number): string[]
-}
-```
-
-### Why
-
-- **Today's me vs yesterday's me**: "What changed in my behavior profile?"
-- **Experimental twin**: "Try a different planning style, revert if it fails"
-- **Forensic audit**: "Which events caused the twin to change?"
-- **Decision trace**: Each DecisionEvent records `twinVersion` — so you can reconstruct the agent's worldview at decision time
+| Group | Tests | Status |
+|-------|-------|--------|
+| v9.1 Context Assembly | 14 | ✅ All pass |
+| v9.1 Artifact Plane | 10 | ✅ All pass |
+| v9.2 Learning/Governance/Marketplace | 6 | ✅ All pass |
+| v9.2 Distributed/Team/Consensus | 6 | ✅ All pass |
+| Stage 0 Unified EventStore | 12 | ✅ All pass |
+| Stage 1-2 Persistence | 24 | ✅ All pass |
+| Stage 3 Config v9 | 13 | ✅ All pass |
+| E2E Pipeline | 8 | ✅ All pass |
+| Resilience | 13 | ✅ All pass |
+| Phase 2-3 Compaction/Metrics | 10 | ✅ All pass |
+| Phase 4 Prometheus/Health | 2 | ✅ All pass |
+| **v4 Legacy (pre-existing)** | **7** | ❌ Logic failures (unrelated to v9.2) |
 
 ---
 
-## Workflow Evolution with Simulator (NEW in v8.6)
+## Key Design Decisions
 
-### v8.5 Flow
-
-```
-Mission → learn → WorkflowMiner → Candidate → Human approve → Registry
-                                                                    ↑
-                                                          (no validation)
-```
-
-### v8.6 Flow
-
-```
-Mission → learn → WorkflowMiner
-                    |
-                    v
-              WorkflowSimulator   ← NEW: quality gate
-                    |
-            ┌───────┼───────┐
-            |       |       |
-        score<0.5 0.5-0.7  score>0.7
-        auto-reject needs   auto-pass
-                    review
-                     |
-                     v
-              Human Approval
-                     |
-                     v
-              WorkflowRegistry
-```
-
-### WorkflowSimulator
-
-```typescript
-interface SimulationResult {
-  qualityScore: number      // 0-1
-  passed: boolean           // qualityScore >= threshold
-  metrics: {
-    successRate: number
-    avgDuration: number
-    resourceEfficiency: number
-    errorRate: number
-  }
-  recommendations: string[]
-}
-```
-
-The simulator dry-runs the candidate workflow against historical missions to validate that it produces better results before reaching human approval.
-
----
-
-## Event Sourcing Plane (v8.6 — Full Cognitive Stream)
-
-### v8.5 Limitation
-
-```
-EventStore only tracks:
-  MissionRuntime.transitionState()
-  → CREATED, PLANNING, EXECUTING, COMPLETED, FAILED
-
-Missing:
-  - Why was the mission created? (user intent)
-  - What was the agent thinking? (decision reasoning)
-  - Which twin version was active? (worldview snapshot)
-```
-
-### v8.6 Full Event Sourcing
-
-```
-┌─────────────────────────────────────────────┐
-│           Event Sourcing Plane                │
-│                                               │
-│  Execution Events:         Decision Events:   │
-│  ─────────────────        ─────────────────   │
-│  MISSION_CREATED          DECISION_RECORDED   │
-│  PLAN_CREATED             (input, reasoning,  │
-│  TASK_STARTED              evidence,          │
-│  TASK_COMPLETED            decision,          │
-│  MISSION_COMPLETED         confidence,        │
-│  MISSION_FAILED            twinVersion)       │
-│                                               │
-│  Cognitive Events:                            │
-│  ─────────────────                            │
-│  USER_MESSAGE_RECEIVED                        │
-│  INTENT_DETECTED                              │
-│  GOAL_MATCHED                                 │
-│  TWIN_RETRIEVED                               │
-│  MEMORY_UPDATED                               │
-│  WORKFLOW_CREATED                             │
-└─────────────────────────────────────────────┘
-```
-
-### Dual Recovery
-
-| Stream | Answers | Recoverable |
-|--------|---------|-------------|
-| **Execution History** | "What happened?" | Mission state, agent outputs |
-| **Decision History** | "Why did the agent decide that?" | Reasoning, evidence, twin worldview |
-
----
-
-## Module Inventory (v8.6)
-
-**Interaction (5):** MessageGateway, WebAdapter, CLIAdapter, WeChatAdapter, FeishuAdapter
-
-**Protocol (5):** EventBus, EventStore, EventProjection, EventRepository, EventType(48 values)
-
-**Pipeline Stages (8):** IntentStage, GoalStage, TwinStage, PlanningStage, ExecutionStage, LearningStage, EvolutionStage, PersistenceStage
-
-**Pipeline (2):** CognitivePipeline, CognitiveStage (interface)
-
-**Runtime (8):** MissionRuntime, MetaPlannerAdapter, DAGExecutorAdapter, DAGRuntime, ExecutionFSM, CheckpointManager, RecoveryManager — *CognitiveLoop refactored into Pipeline*
-
-**Verification/Approval (2):** VerificationEngine, ApprovalEngine
-
-**Cognition (11):** BehaviorTwin (v2 — versioned), PreferenceModel, PlannerConstraint, DecisionTwin, GoalManager, GoalGraph, PersonalBrain, WorkflowMemory, DecisionMemory, BrainPersistor, WorkflowIntelligence
-
-**Evolution (5):** WorkflowMiner, WorkflowRegistry, WorkflowOptimizer, WorkflowExecutor, **WorkflowSimulator ⬅ NEW**
-
-**Control (4):** RiskAnalyzer, AuditTrail, PolicyEngine, PermissionModel
-
-**Decision Events (1):** DecisionEvent ⬅ NEW
-
-**Total: 48 real modules. Zero stubs. Zero dead code.**
-
----
-
-## Key Decisions (v8.6)
-
-1. **Event Sourcing enforced** — state = project(event_stream)
-2. **CognitivePipeline replaces CognitiveLoop** — 8-stage pipeline with CognitiveStage interface
-3. **Control Plane is cross-cutting** — Risk/Policy/Permission/Audit span all layers
-4. **Human-in-the-loop default** — mining/simulation/drift/execution require approval
-5. **DI over direct calls** — all deps via constructor
-6. **Twin constraints injected** — BehaviorProfile → PlannerConstraint → MetaPlanner
-7. **GoalManager wired** — Jaccard matching, mission→goal linking
-8. **DAG-aware execution** — respect deps, parallel waves
-9. **Immutable modules** — DAG/FSM/Checkpoint/Recovery never modified
-10. **Barrel chain** — 3-level export (sub→parent→core/src/index)
-11. **BrainPersistor bridge** — PersonalBrain ↔ MemoryWiki (SQLite+Zvec)
-12. **WeChat/Feishu real API** — auto-refresh tokens, degrade gracefully
-13. **Zero TS errors** — tsc --noEmit exit 0
-14. **Twin Versioning** — every profile change is versioned and traceable
-15. **Workflow Simulation** — candidates validated before human approval
-16. **Decision Event Stream** — full cognitive trace for forensic audit
-
----
-
-## Migration Path: v8.5 → v8.6
-
-### Breaking Changes
-
-| Area | v8.5 | v8.6 | Migration |
-|------|------|------|-----------|
-| CognitiveLoop | Single class with 9 phases | CognitivePipeline with 8 stages | CognitiveLoop.process() delegates internally to pipeline; public API unchanged |
-| EventType | 41 values | 48 values (+7 cognitive events) | New events are additive; existing code unaffected |
-| BehaviorTwin | Unversioned | Versioned profiles | `buildProfile()` now returns `version` field; old consumers get backward-compatible shape |
-| WorkflowMiner → Registry | Direct | Via WorkflowSimulator | Simulator is opt-in first, then required |
-| Control Plane | Below Evolution | Cross-cutting all layers | No import changes — Control modules remain at same paths |
-| CognitiveContext.phase | 11 phases (string union) | 7 phases + stage names | New phases are backward-compatible superset |
-
-### Non-Breaking Additions
-
-- `DecisionEvent` — new type, no existing code depends on it
-- `WorkflowSimulator` — new class, called by EvolutionStage
-- `CognitiveStage` — new interface, CognitiveLoop now implements it internally
-- Twin `versionHistory`, `getVersion()`, `diffVersions()` — additive methods
-
----
-
-## v9.2 架构补充
-
-### 持久化层 (26 张表, 单 SQLite 库, WAL 模式)
-
-```
-SqliteEventStore (data/morpex-events.db, WAL journal mode)
-├── Stage 0: events / events_decision / schema_migrations
-├── Stage 1: context_snapshots / artifacts_v2(×4) / agents(×4)
-└── Stage 2: shared_experiences / org_policies(×5) / marketplace(×3)
-              agent_instances(×2) / agent_teams / shared_memory_entries
-```
-
-| 域 | 表 | 用途 |
-|----|-----|------|
-| 事件溯源 | `events`, `events_decision` | BaseEvent + DecisionEvent 持久化 |
-| 上下文 | `context_snapshots` | ExecutionContext 版本化快照 |
-| 产物 | `artifacts_v2`, `artifact_versions_v2`, `artifact_staging_v2` | 两阶段提交产物管理 |
-| Agent | `agents`, `agent_capabilities`, `agent_governance_log`, `agent_collaborations` | 身份/能力/治理/协作 |
-| 学习 | `shared_experiences` | 跨 Agent 经验共享 |
-| 治理 | `org_policies`, `team_governance`, `team_memberships`, `org_budget`, `budget_allocations` | 组织级策略/团队/预算 |
-| 市场 | `marketplace_listings`, `marketplace_bids`, `marketplace_contracts` | Agent 市场竞价/合约 |
-| 分布式 | `agent_instances`, `remote_messages` | 跨节点 Agent 运行时 |
-| 团队 | `agent_teams` | 自动组队 |
-| 共识 | `shared_memory_entries` | 共享内存一致性 |
-
-### Config v9 (Zod Schema)
-
-```typescript
-MorPexConfigSchema = z.object({
-  persistence: { dbPath, walMode, maxInMemoryEvents, ... },
-  agent:       { maxConcurrentTasks, trustDecayRate, autoOptimizeInterval, ... },
-  context:     { maxFragments, fragmentTimeoutMs, schemaVersion, ... },
-  artifact:    { enableAutoVerify, maxContentSizeBytes, stagingTTLMs, ... },
-  distributed: { enabled, transportMode, heartbeatIntervalMs, ... },
-  marketplace: { enabled, bidTimeoutMs, trustThreshold, ... },
-  // Legacy fields preserved
-});
-```
-
-### 关键架构决策 (v9.2)
-
-1. **统一 EventStore**: 废弃两套 JSONL，单 SQLite 库 (WAL, 事务批写, 时序索引)
-2. **仓储可选双写**: SQLite 仓储可插拔注入，不破坏现有内存行为
-3. **Config Zod 校验**: 环境变量 + 默认值 + Zod schema 三层回退
-4. **迁移版本化**: `schema_migrations` 表 + `MigrationRunner` CLI (`scripts/migrate.ts`)
-5. **所有 Agent 操作经 Control Plane**: PolicyEngine/RiskAnalyzer/PermissionModel/AuditTrail 覆盖 Agent 维度
-6. **生产部署**: docker-compose (morpex + embedding) + PM2 进程管理
+1. **Single SQLite DB** — All 26 tables in one file (`morpex-events.db`). WAL mode for concurrency.
+2. **Two learning systems co-exist** — LearningStage's EvidenceAggregator (v8.7, TwinCandidate-based) and CrossAgentLearningEngine (v9.2, experience-based) are separate. Merging them is future work.
+3. **Feature-gated** — Distributed/Marketplace features exist but require opt-in via Config.
+4. **SqliteRepositories are additive** — All managers work in-memory; SQLite persistence is optional until wired.
+5. **ErrorHandlerService is the one wired success** — The only production layer actively integrated into the CognitivePipeline.
