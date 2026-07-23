@@ -17,6 +17,7 @@
 export type {
   MPAgentTool, MPAgentToolResult, MPAgentMessage,
   MPAgentEvent, MPSession, MPThinkingLevel, MPExecutionEnv,
+  MPAgentHarness,
   AgentTool, AgentToolResult, AgentMessage, AgentEvent,
   Session, ExecutionEnv, ThinkingLevel,
 } from './pi-types.js';

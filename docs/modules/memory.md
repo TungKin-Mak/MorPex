@@ -4,9 +4,9 @@
 >
 > 设计文档: `docs/architecture/memory-system-v2.md`
 >
-> **v3.1.1 (2026-07-14)**：createMemoryBus() 惰性初始化 — ConfigStore、WorkspaceIndexer、ChatMemoryExtractor、MarkdownIndexer 改为 getter 按需创建。DocWatcher、DocTopology、MemoryRetriever、Compactor、LogRotator 加入 barrel export。
+> **v9.2.1 (2026-07-14)**：createMemoryBus() 惰性初始化 — ConfigStore、WorkspaceIndexer、ChatMemoryExtractor、MarkdownIndexer 改为 getter 按需创建。DocWatcher、DocTopology、MemoryRetriever、Compactor、LogRotator 加入 barrel export。
 >
-> **v3.1 (2026-07-13)**：MemoryRetriever 接入 Gateway 三层拦截 (THOUGHT/ACTION/OBSERVATION)。search_memory AgentTool 供 LLM 主动检索。DocWatcher 文档自维护、DocTopology 关系拓扑。
+> **v9.2 (2026-07-13)**：MemoryRetriever 接入 Gateway 三层拦截 (THOUGHT/ACTION/OBSERVATION)。search_memory AgentTool 供 LLM 主动检索。DocWatcher 文档自维护、DocTopology 关系拓扑。
 >
 > **v3.0 (2026-07-13)**：MemoryWiki SQLite 统一持久化层上线。15 张领域表、16 个高层 API、9 条 setWiki 注入链路。
 >
@@ -104,9 +104,9 @@ packages/memory/
     │   ├── types.ts                # 类型契约
     │   ├── schema.ts               # SQLite DDL（15 张表 + 索引）
     │   ├── MemoryWiki.ts           # 核心类（~800 行）
-    │   ├── MemoryRetriever.ts      # ★ v3.1: 记忆优先检索层
-    │   ├── DocWatcher.ts           # ★ v3.1: 文档自维护监听
-    │   ├── DocTopology.ts          # ★ v3.1: 文档关系拓扑
+    │   ├── MemoryRetriever.ts      # ★ v9.2: 记忆优先检索层
+    │   ├── DocWatcher.ts           # ★ v9.2: 文档自维护监听
+    │   ├── DocTopology.ts          # ★ v9.2: 文档关系拓扑
     │   └── migrate.ts              # JSONL → SQLite 迁移
     │
     ├── core/                       # 核心引擎
@@ -257,7 +257,7 @@ const bus = new MemoryBus({
 
 ---
 
-### 3.4 MemoryRetriever — 记忆优先检索层 (v3.1)
+### 3.4 MemoryRetriever — 记忆优先检索层 (v9.2)
 
 ```typescript
 const retriever = new MemoryRetriever(wiki);
@@ -277,7 +277,7 @@ retriever.retrieveForCode("STM32 GPIO", "c");
 
 #### Gateway 三层拦截集成
 
-`AgentReasoningInterceptor` 在每次 Agent-LLM 通信时自动调用 MemoryRetriever：
+`ExecutionGateway` 在每次 Agent-LLM 通信时自动调用 MemoryRetriever：
 
 | 层级 | 触发 | 方法 | 行为 |
 |------|------|------|------|

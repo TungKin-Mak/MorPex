@@ -24,7 +24,9 @@ import type { SessionContext } from '../common/types.js';
 import type { ArtifactRef } from '../domains/types.js';
 import { DomainClusterManager } from '../domains/DomainClusterManager.js';
 import { AsyncResourceLocker } from '../utils/AsyncResourceLocker.js';
-import type { AgentHarness } from '@earendil-works/pi-agent-core';
+import type { AgentHarness } from '../adapters/pi-types.js';
+import { CheckpointManager } from '../runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../runtime/checkpoint/RecoveryManager.js';
 
 // ★ v3.0 OpenSpace Fusion import
 import type { ToolQualityManager } from '../extensions/planning/ToolQualityManager.js';
@@ -75,6 +77,12 @@ export class DomainDispatcher {
   /** 暂停状态：被 user reply 重新唤醒的节点上下文 */
   private _resumeContext?: { execId: string; reply: string } | null = null;
 
+  // ★ v9.2: 检查点回调 — 由 StudioServer 注入 CheckpointManager 能力
+  /** 保存检查点回调 */
+  onSaveCheckpoint: ((dagId: string, nodeStates: Array<{ taskId: string; domain: string; status: string; result?: unknown; error?: string }>) => Promise<void>) | null = null;
+  /** 加载检查点回调 — 返回已完成的节点 ID 列表 */
+  onLoadCheckpoint: ((dagId: string) => Promise<string[] | null>) | null = null;
+
   /** 设置恢复上下文（外部调用，用户回复后触发） */
   setResumeContext(ctx: { execId: string; reply: string }): void {
     this._resumeContext = ctx;
@@ -100,6 +108,18 @@ export class DomainDispatcher {
   /** ★ v3.0 Set the ToolQualityManager for recording per-node execution quality. */
   setToolQualityManager(tqm: ToolQualityManager | null): void {
     this._toolQualityManager = tqm;
+  }
+
+  /** ★ v9.2 CheckpointManager for crash recovery */
+  private checkpointManager: CheckpointManager | null = null;
+
+  /** ★ v9.2 RecoveryManager for resume planning */
+  private recoveryManager: RecoveryManager | null = null;
+
+  /** Set checkpoint/recovery managers for crash resilience */
+  setCheckpointManagers(cm: CheckpointManager, rm: RecoveryManager): void {
+    this.checkpointManager = cm;
+    this.recoveryManager = rm;
   }
 
   /** 最大并行执行节点数 */
@@ -145,6 +165,20 @@ export class DomainDispatcher {
     }
 
     console.log(`[DomainDispatcher] 🚀 开始执行 DAG (${dag.length} 个节点)`);
+
+    // ★ v9.2: 从检查点恢复 — 标记已完成的节点，跳过重新执行
+    if (this.onLoadCheckpoint) {
+      const dagId = sessionCtx?.executionId || `dag_${startTime}`;
+      const completedNodeIds = await this.onLoadCheckpoint(dagId);
+      if (completedNodeIds && completedNodeIds.length > 0) {
+        console.log(`[DomainDispatcher] 🔄 恢复检查点: ${completedNodeIds.length} 个节点已完成, 跳过执行`);
+        for (const node of nodeMap.values()) {
+          if (completedNodeIds.includes(node.taskId)) {
+            node.status = 'completed';
+          }
+        }
+      }
+    }
 
     // 主循环：持续执行直到所有节点完成或失败
     while (this.hasPendingNodes(nodeMap)) {
@@ -240,6 +274,19 @@ export class DomainDispatcher {
           }
           this.onNodeFail?.(nodeMap.get(result.taskId)!, result.error ?? '未知错误');
         }
+      }
+
+      // ★ v9.2: 保存检查点（记录当前批次结果）
+      if (this.onSaveCheckpoint) {
+        const dagId = sessionCtx?.executionId || `dag_${startTime}`;
+        const nodeStates = Array.from(nodeMap.entries()).map(([id, n]) => ({
+          taskId: id,
+          domain: n.domain,
+          status: n.status || 'pending',
+          result: n.status === 'completed' ? results.find(r => r.taskId === id)?.output : undefined,
+          error: n.status === 'failed' ? results.find(r => r.taskId === id)?.error : undefined,
+        }));
+        await this.onSaveCheckpoint(dagId, nodeStates);
       }
 
       // 如果有节点暂停等待用户输入，退出循环，后续节点等用户回复后重新执行

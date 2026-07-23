@@ -101,13 +101,15 @@
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "lru-cache": "^11.5.2",
-    "pm2": "^7.0.3"
+    "pm2": "^7.0.3",
+    "ws": "^8.21.1"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",
     "@types/cors": "^2.8.17",
     "@types/express": "^5.0.2",
     "@types/node": "^20.19.43",
+    "@types/ws": "^8.18.1",
     "dependency-cruiser": "^16.10.4",
     "tsx": "^4.22.4",
     "typescript": "^5.9.3"

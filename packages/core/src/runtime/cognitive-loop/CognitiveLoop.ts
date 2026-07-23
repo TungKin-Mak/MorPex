@@ -17,9 +17,11 @@
  */
 
 import { EventBus } from '../../common/EventBus.js'
+import { EventType } from '../../protocol/events/EventType.js'
 import { MissionRuntime } from '../mission/MissionRuntime.js'
 import { CognitivePipeline } from './CognitivePipeline.js'
 import {
+  ContextStage,
   IntentStage,
   GoalStage,
   TwinStage,
@@ -29,6 +31,7 @@ import {
   EvolutionStage,
   PersistenceStage,
 } from './stages/index.js'
+import { ContextAssemblyEngine } from '../../context/ContextAssemblyEngine.js'
 import type { IncomingMessage } from '../../interaction/types.js'
 import { MissionState } from '../mission/types.js'
 import type { Mission } from '../mission/types.js'
@@ -63,6 +66,7 @@ export class CognitiveLoop {
   private riskAnalyzer: any = null
   private permissionModel: any = null
   private brainPersistor: any = null
+  private contextEngine: ContextAssemblyEngine | null = null
 
   private stats: LoopStats = {
     totalLoops: 0,
@@ -92,6 +96,7 @@ export class CognitiveLoop {
       this.permissionModel = opts.permissionModel ?? null
       this.workflowSimulator = opts.workflowSimulator ?? null
       this.brainPersistor = opts.brainPersistor ?? null
+      this.contextEngine = opts.contextEngine ?? null
     }
 
     // 构建内部 Pipeline
@@ -103,19 +108,23 @@ export class CognitiveLoop {
       this.behaviorTwin,
     )
 
-    this.pipeline = new CognitivePipeline(
-      [
-        new IntentStage(),
-        new GoalStage(this.goalMgr),
-        new TwinStage(this.behaviorTwin, this.decisionTwin, this.preferenceModel),
-        new PlanningStage(this.mr, this.riskAnalyzer),
-        new ExecutionStage(this.mr, this.permissionModel),
-        new LearningStage(this.brain, this.behaviorTwin, this.decisionTwin),
-        this.evolutionStage,
-        new PersistenceStage(this.brainPersistor),
-      ],
-      this.bus,
+    // Build stages — ContextStage first if engine available
+    const stages: any[] = []
+    if (this.contextEngine) {
+      stages.push(new ContextStage(this.contextEngine))
+    }
+    stages.push(
+      new IntentStage(),
+      new GoalStage(this.goalMgr),
+      new TwinStage(this.behaviorTwin, this.decisionTwin, this.preferenceModel),
+      new PlanningStage(this.mr, this.riskAnalyzer),
+      new ExecutionStage(this.mr, this.permissionModel),
+      new LearningStage(this.brain, this.behaviorTwin, this.decisionTwin),
+      this.evolutionStage,
+      new PersistenceStage(this.brainPersistor),
     )
+
+    this.pipeline = new CognitivePipeline(stages, this.bus)
   }
 
   async process(msg: IncomingMessage): Promise<CognitiveContext> {
@@ -239,7 +248,7 @@ export class CognitiveLoop {
     this.pendingDrift.push(e)
     this.bus.emit({
       id: 'evt_drift_' + e.id,
-      type: 'behavior.drift' as any,
+      type: EventType.BEHAVIOR_DRIFT,
       timestamp: Date.now(),
       executionId: 'bt',
       source: 'cl',

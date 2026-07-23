@@ -296,6 +296,105 @@ const SCHEMA_SQL = `
   CREATE INDEX IF NOT EXISTS idx_context_snapshots_mission_ver ON context_snapshots(mission_id, version);
   CREATE INDEX IF NOT EXISTS idx_artifacts_v2_type_status ON artifacts_v2(type, status);
   CREATE INDEX IF NOT EXISTS idx_shared_memory_key_version ON shared_memory_entries(key, version);
+
+  -- ═══ v10: Simulation Twin ═══
+  CREATE TABLE IF NOT EXISTS simulation_runs (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    twin_id TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'simulated',
+    success_probability REAL NOT NULL DEFAULT 0,
+    expected_cost REAL NOT NULL DEFAULT 0,
+    risk_level TEXT NOT NULL DEFAULT 'medium',
+    estimated_duration_ms INTEGER NOT NULL DEFAULT 0,
+    confidence REAL NOT NULL DEFAULT 0,
+    suggestion TEXT NOT NULL DEFAULT 'review',
+    simulated_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_sr_mission ON simulation_runs(mission_id);
+  CREATE INDEX IF NOT EXISTS idx_sr_risk ON simulation_runs(risk_level);
+
+  CREATE TABLE IF NOT EXISTS prediction_results (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    type TEXT NOT NULL,
+    value REAL NOT NULL,
+    confidence REAL NOT NULL DEFAULT 0,
+    factors_json TEXT NOT NULL DEFAULT '[]',
+    predicted_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_pr_mission ON prediction_results(mission_id);
+  CREATE INDEX IF NOT EXISTS idx_pr_type ON prediction_results(type);
+
+  -- ═══ v10: Behavior Verification ═══
+  CREATE TABLE IF NOT EXISTS behavior_traces (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    trace_type TEXT NOT NULL DEFAULT 'expected',
+    steps_json TEXT NOT NULL DEFAULT '[]',
+    total_duration_ms INTEGER NOT NULL DEFAULT 0,
+    recorded_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_bt_mission ON behavior_traces(mission_id);
+
+  CREATE TABLE IF NOT EXISTS verification_results (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    grade TEXT NOT NULL DEFAULT 'D',
+    violations_json TEXT NOT NULL DEFAULT '[]',
+    comparison_json TEXT NOT NULL DEFAULT '[]',
+    quality_json TEXT NOT NULL DEFAULT '{}',
+    duration_ms INTEGER NOT NULL DEFAULT 0,
+    recorded_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_vr_mission ON verification_results(mission_id);
+  CREATE INDEX IF NOT EXISTS idx_vr_grade ON verification_results(grade);
+  CREATE INDEX IF NOT EXISTS idx_vr_recorded ON verification_results(recorded_at);
+
+  CREATE TABLE IF NOT EXISTS quality_scores (
+    id TEXT PRIMARY KEY,
+    mission_id TEXT NOT NULL,
+    score INTEGER NOT NULL DEFAULT 0,
+    grade TEXT NOT NULL DEFAULT 'D',
+    completeness_score REAL NOT NULL DEFAULT 0,
+    accuracy_score REAL NOT NULL DEFAULT 0,
+    efficiency_score REAL NOT NULL DEFAULT 0,
+    steps_json TEXT NOT NULL DEFAULT '[]',
+    scored_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_qs_mission ON quality_scores(mission_id);
+  CREATE INDEX IF NOT EXISTS idx_qs_grade ON quality_scores(grade);
+
+  -- ═══ v10: Event Schema Registry ═══
+  CREATE TABLE IF NOT EXISTS event_schemas (
+    type TEXT NOT NULL,
+    version INTEGER NOT NULL,
+    schema_json TEXT NOT NULL DEFAULT '{}',
+    backward_compatible INTEGER NOT NULL DEFAULT 1,
+    changelog TEXT,
+    created_at INTEGER NOT NULL,
+    updated_at INTEGER NOT NULL,
+    PRIMARY KEY (type, version)
+  );
+  CREATE INDEX IF NOT EXISTS idx_es_type ON event_schemas(type);
+
+  -- ═══ v10: Learning Experiences ═══
+  CREATE TABLE IF NOT EXISTS learning_experiences (
+    id TEXT PRIMARY KEY,
+    type TEXT NOT NULL,
+    agent_id TEXT,
+    mission_id TEXT,
+    input_json TEXT NOT NULL DEFAULT '{}',
+    output_json TEXT NOT NULL DEFAULT '{}',
+    score REAL NOT NULL DEFAULT 0,
+    feedback TEXT DEFAULT 'neutral',
+    tags TEXT DEFAULT '[]',
+    created_at INTEGER NOT NULL
+  );
+  CREATE INDEX IF NOT EXISTS idx_le_type ON learning_experiences(type);
+  CREATE INDEX IF NOT EXISTS idx_le_agent ON learning_experiences(agent_id);
+  CREATE INDEX IF NOT EXISTS idx_le_score ON learning_experiences(score);
 `;
 
 const PRAGMA_SQL = `

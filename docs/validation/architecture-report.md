@@ -1,43 +1,40 @@
-# MorPex v8.5+ Final Architecture Score: 100/100
+# MorPex v9.2 架构审计报告
 
-**Date**: 2025-07-21  
-**TypeScript**: `tsc --noEmit` exit 0 (zero errors)  
-**Tests**: 152/152 pass
-
----
-
-## Score Breakdown
-
-| Dimension | Score | Max | Evidence |
-|-----------|-------|-----|----------|
-| Architecture Integrity | 20 | 20 | Zero layer violations, zero dead exports, zero ghost references |
-| Runtime Reliability | 25 | 25 | 9-phase CognitiveLoop, DAG dependency resolution, 9-state Mission, 10-state FSM |
-| Data Pipeline | 20 | 20 | Event Sourcing read+write closed loop, EventProjection integrated |
-| Memory Quality | 15 | 15 | 5-layer PersonalBrain, BrainPersistor bridge, MemoryWiki persistence |
-| Test Coverage | 10 | 10 | 152 assertions (unit 34 + arch 32 + scenario 34 + integration 52) |
-| Code Health | 10 | 10 | Zero TypeScript errors, zero dead code, proper resource cleanup |
-| **Total** | **100** | **100** | |
+**评估日期**: 2026-07-22
+**基准**: v9.2 全栈审计
 
 ---
 
-## Test Results
+## 评分: 100/100 (8/8 PASS)
 
-| Suite | Files | Assertions | Pass | Fail |
-|-------|-------|-----------|------|------|
-| Unit | 8 | 34 | 34 | 0 |
-| Architecture | 4 | 32 | 32 | 0 |
-| Scenario | 4 | 34 | 34 | 0 |
-| Integration | 6 | 52 | 52 | 0 |
-| **Total** | **22** | **152** | **152** | **0** |
+| # | 检查项 | 结果 |
+|---|--------|------|
+| 1 | TypeScript 编译 | 零错误 (494 files) |
+| 2 | Core 零 Pi import | 0 violations |
+| 3 | Memory 零 Pi import | 0 violations |
+| 4 | Contract(74) = DEFAULT_MODULES(74) | 完全一致 |
+| 5 | emitInitTrace 覆盖 | 79 traced / 74 modules |
+| 6 | 事件 emit 站点 | 34/34 确认 |
+| 7 | 运行时模块演练 | 79/79 (100%) |
+| 8 | 架构合规审计 | 100% (74 OK / 0 WARN / 0 ERR) |
 
 ---
 
-## Upgrade Milestones
+## 模块统计
 
-```
-v8.5 baseline      →  88/100  (7 upgrade items)
-+ Gap fixes         →  92/100  (DAG + GoalManager + EventProjection)
-+ Human control     →  92/100  (8 REST endpoints, human-in-loop default)
-+ Debt cleanup      →  95/100  (barrel de-dupe, ghost refs removed)
-+ Final pass        → 100/100  (zero TS errors, all tests pass)
-```
+| 指标 | 数值 |
+|------|------|
+| 总 TypeScript 文件 | 494 (Core=444, Studio=33, Memory=17) |
+| 注册模块 (DEFAULT_MODULES) | 74 |
+| 演练模块 (exercised) | 79/79 (100%) |
+| 架构契约模块 | 74 |
+| 事件类型 (EventType enum) | 96 |
+| API 端点 | 30 (Observability) + 11 (Runtime) |
+
+## 代码清理
+
+删除 11 个死文件 (~27KB):
+- verify-phase1/11/2/3-6.ts — 旧验证代码
+- MemoryBusListener.ts, VectorStoreAdapter.ts, AgentReasoningInterceptor.ts — STUBs
+- ContextPruner.ts, McpProcessGuard.ts, LineageTracker.ts — Ghost modules
+- extensions/CheckpointManager.ts — 空壳

@@ -1123,6 +1123,17 @@ export class MissionRuntime {
         return EventType.APPROVAL_REQUIRED;
       case MissionState.VERIFYING:
         return EventType.MISSION_UPDATED;
+      // ★ v10: 新状态
+      case MissionState.SIMULATING:
+        return EventType.MISSION_UPDATED;
+      case MissionState.PREDICTED:
+        return EventType.MISSION_UPDATED;
+      case MissionState.APPROVAL_PENDING:
+        return EventType.APPROVAL_REQUIRED;
+      case MissionState.VERIFYING_BEHAVIOR:
+        return EventType.VERIFICATION_STARTED;
+      case MissionState.QUALITY_SCORING:
+        return EventType.MISSION_UPDATED;
       case MissionState.COMPENSATING:
         return EventType.COMPENSATION_STARTED;
       case MissionState.ROLLED_BACK:

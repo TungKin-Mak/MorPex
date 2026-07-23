@@ -91,6 +91,21 @@ export class EvolutionStage implements CognitiveStage {
         for (const c of candidates) {
           if (c.confidence < 0.6) continue
 
+          // 发射 workflow.candidate 事件 — 发现候选工作流
+          bus.emit({
+            id: `evt_wfc_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+            type: EventType.WORKFLOW_CANDIDATE,
+            timestamp: Date.now(),
+            executionId: 'cl',
+            source: 'cognitive-pipeline:evolution',
+            payload: {
+              candidateName: c.name,
+              confidence: c.confidence,
+              pattern: c.pattern,
+              qualityScore: c.confidence,
+            },
+          })
+
           let qualityScore = c.confidence
           let simulationPassed = true
           let riskScore = 0

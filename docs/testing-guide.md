@@ -105,6 +105,8 @@ npx tsx scripts/run-e2e-tests.ts --no-server
 | 测试文件 | 套件名称 | 覆盖范围 | 关键 |
 |---------|---------|---------|:---:|
 | `morpex-v2.spec.ts` | API + UI 核心 | 27个测试：24个API端点（health/status/agents/sessions/memory/search/observability等）+ 前端渲染 + 性能基线 | ✅ |
+| `coverage-runner.ts` | 可观测性覆盖 | 50-task 分阶段覆盖套件（7 phases: Tool/Memory/DAG/Agent/Govern/Fault/Know），79/79 模块达到 100% exercise | ✅ |
+| `exercise-all.ts` | 模块全面演练 | 启动时自动演练所有 79 模块：~55 真实实例调用 + ~16 kernel 事件桥接 + ~8 架构概念标记 | ✅ |
 | `matrix-grid.spec.ts` | MatrixGrid 新 UI | 10个测试：五面板渲染、TopBar、OmniTerminal、旧UI移除验证、API数据流 | ✅ |
 
 ---

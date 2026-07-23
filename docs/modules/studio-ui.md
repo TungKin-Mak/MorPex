@@ -1,6 +1,6 @@
 # 模块名称：Studio 前端模块（AstroM v3.0）
 
-> 路径: `packages/studio/ui/` | 框架: React 19 + Three.js (R3F) | 构建: Vite 5 | 版本: v3.2
+> 路径: `packages/studio/ui/` | 框架: React 19 + Three.js (R3F) | 构建: Vite 5 | 版本: v9.2
 >
 > 🟢 **v3.0 重构完成 (2026-07-14)** — 42 文件 → 21 文件，删掉 50% 冗余。三合一 Zustand store。BrainScene 零 GC 帧循环。爆炸视图红色光弦。全链路数据对接。
 >
@@ -315,7 +315,7 @@ clearLiveStream: () => void;
 - 输入 `@ `（@+空格）取消附灵，恢复默认聊天模式
 - 模糊搜索：`@工` 可匹配 `@鲁班`（通过 keywords 字段）
 
-### 7.2 DAG 卡片（DagCard.tsx）🔄 v3.2 重构
+### 7.2 DAG 卡片（DagCard.tsx）🔄 v9.2 重构
 
 内联任务列表 + 子 shell 展开，显示在聊天流中：
 - 头部：`▶ 任务名 [Agent]` → `5个节点 跨域 2/5完成 任务1:❓ task需输入`
@@ -328,7 +328,7 @@ clearLiveStream: () => void;
 
 ### 7.3 节点对话框（NodeDialog.tsx）⚠️ 已废弃
 
-v3.2 改为内联子 shell（DagCard 内 TaskShell），不再弹窗。NodeDialog.tsx 保留但不再引用。
+v9.2 改为内联子 shell（DagCard 内 TaskShell），不再弹窗。NodeDialog.tsx 保留但不再引用。
 
 ### 7.4 会话持久化
 

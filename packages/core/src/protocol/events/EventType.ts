@@ -39,6 +39,8 @@ export enum EventType {
   TWIN_RETRIEVED = 'twin.retrieved',
   /** 上下文构建完成 */
   CONTEXT_BUILT = 'context.built',
+  /** 行为画像漂移 */
+  BEHAVIOR_DRIFT = 'behavior.drift',
   /** 上下文组装完成（v9.1 ContextAssemblyEngine） */
   CONTEXT_ASSEMBLED = 'context.assembled',
   /** 读取记忆 */
@@ -149,6 +151,9 @@ export enum EventType {
   CROSS_DOMAIN_ARTIFACT_SHARED = 'cross_domain.artifact_shared',
   /** 跨领域 DAG 创建 */
   CROSS_DOMAIN_DAG_CREATED = 'cross_domain.dag_created',
+  CROSS_DOMAIN_INTERROGATION = 'cross_domain.interrogation',
+  CROSS_DOMAIN_ARBITRATION = 'cross_domain.arbitration',
+  WORKFLOW_CANDIDATE = 'workflow.candidate',
 
   // ── Verification Layer ──
   /** 验证开始 */
@@ -261,6 +266,7 @@ export const EVENT_LAYERS: Record<string, EventType[]> = {
     EventType.MEMORY_WRITE,
     EventType.MEMORY_UPDATED,
     EventType.DECISION_RECORDED,
+    EventType.BEHAVIOR_DRIFT,
   ],
   mission: [
     EventType.MISSION_CREATED,

@@ -1,6 +1,6 @@
-# MorPex v3.1 — 后端全功能手册与架构流程
+# MorPex v9.2 — 后端全功能手册与架构流程
 
-> **版本**: 3.1.0 | **日期**: 2026-07-12 | **覆盖**: 57 个 API 端点 + 27 个引擎模块
+> **版本**: 9.2.0 | **日期**: 2026-07-22 | **覆盖**: 57+ 个 API 端点 + 79 个可观测模块 (100% exercise)
 
 ---
 
@@ -163,13 +163,21 @@
 | 53 | GET | `/api/artifacts` | 查询产物列表（按 executionId 过滤或全部） |
 | 54 | POST | `/api/execute` | 直接调用 Execution Gateway 执行 |
 
-### 2.8 Agent/Worker/Observability (6)
+### 2.8 Agent/Worker/Observability (14)
 
 | # | 方法 | 路径 | 功能 |
 |---|------|------|------|
 | 55 | GET | `/api/orchestrator/status` | Orchestrator 状态 |
 | 56 | GET | `/api/orchestrator/agents` | 全部 Agent 列表 |
-| 57 | GET | `/api/observability/workers` | Worker 状态（id/role/state/specialty） |
+| 57 | GET | `/api/observability/workers` | Worker 状态 |
+| — | GET | `/api/observability/exercise-status` | 模块覆盖率 (79 modules, 100%) |
+| — | GET | `/api/observability/modules-v2` | 模块状态（ObservationCollector） |
+| — | GET | `/api/observability/heartbeats` | 统一健康报告 |
+| — | GET | `/api/observability/generate?mode=full-coverage` | 触发 50-task 覆盖套件 |
+| — | POST | `/api/observability/exercise-all` | 演练所有未演练模块 |
+| — | GET | `/api/observability/topology` | 调用拓扑图 |
+| — | GET | `/api/observability/coverage-v2` | Span 级覆盖报告 |
+| — | GET | `/api/observability/audit` | 架构合规报告 |
 
 ### 2.9 辅助 (6)
 
@@ -264,10 +272,6 @@
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | **ExtensionRegistry** | `extensions/ExtensionRegistry.ts` | 扩展注册中心：register / startAll / stopAll / getStatus |
-| **LineageTracker** | `extensions/LineageTracker.ts` | 产物血缘追踪器：BFS 查询 upstream/downstream/both |
-| **ContextPruner** | `extensions/ContextPruner.ts` | 上下文智能引擎：四阶段剪枝 + Token 预算控制 |
-| **McpProcessGuard** | `extensions/McpProcessGuard.ts` | MCP 看门狗：心跳巡检 + 自愈重启 + 熔断保护 |
-| **CheckpointManager** | `extensions/CheckpointManager.ts` | DAG 快照回滚：executeWithCheckpoints() HOC |
 
 ### 3.8 Planning Intelligence Layer（规划智能层 v3.1）
 
@@ -320,7 +324,6 @@
 | 模块 | 文件 | 职责 |
 |------|------|------|
 | **ExecutionGateway** | `gateway/ExecutionGateway.ts` | 统一执行网关 + 录制引擎注入 |
-| **AgentReasoningInterceptor** | `gateway/AgentReasoningInterceptor.ts` | 三层拦截（Thought/Action/Observation） |
 | **ExecutionRecordingEngine** | `mirror/ExecutionRecordingEngine.ts` | 四维录制回放（Thought/Action/Observation/DAG） |
 | **ExecutionMirror** | `mirror/ExecutionMirror.ts` | EventBus 被动录制 |
 
@@ -700,10 +703,112 @@ interface ArtifactInstance {
 | tool | `tool.*` | 工具调用 |
 | cross_domain | `cross_domain.*` | 跨领域 DAG/产物流转 |
 
+
+## 六、v10 新增模块（Autonomous Organization Intelligence OS）
+
+MorPex v10 在 v9.2 基础上新增 5 个模块组（35 源文件），实现执行前预测、执行后验证、统一学习平面、事件网格和运行时联邦。
+
+### 4.1 Simulation Twin（Phase 2）
+
+**位置**: `packages/studio/server/simulation/`
+
+**流程**:
+```
+Mission Plan → Twin Retrieval → Plan Simulation → Risk Prediction
+  → Cost Estimation → Success Prediction → Aggregated Result
+```
+
+**关键接口**:
+| 方法 | 说明 |
+|------|------|
+| `SimulationEngine.simulate(mission, plan, history?)` | 完整仿真 |
+| `ExecutionPredictor.predict(plan)` | 5维执行预测 |
+
+**输出**: successProbability, estimatedCost, riskLevel, suggestion (approve/reject/review)
+
+### 4.2 Behavior Verification Engine（Phase 1）
+
+**位置**: `packages/studio/server/verification/`
+
+**流程**:
+```
+Plan → ExpectedTrace → RuntimeTrace → Comparator → QualityScore → Violations → Report
+```
+
+**评分公式**（Blueprint §6 对齐）:
+- 30% Execution correctness（执行正确性）
+- 20% Policy compliance（策略合规性）
+- 20% Artifact quality（产物质量）
+- 15% Efficiency（执行效率）
+- 15% Recovery capability（恢复能力）
+
+### 4.3 Learning Plane（Phase 3）
+
+**位置**: `packages/studio/server/learning/`
+
+统一门面，桥接 3 个 v9.2 学习模块：
+- ExperienceLearning → CrossAgentLearningEngine
+- WorkflowLearning → WorkflowIntelligence
+- PreferenceLearning → PreferenceModel
+
+### 4.4 Event Mesh v10（Phase 4）
+
+**位置**: `packages/studio/server/event-mesh/`
+
+升级 EventBus 为完整事件网格：
+- Schema Registry（类型+版本管理）
+- Schema Validation（事件格式校验）
+- Replay Engine（确定性重放）
+- Migration Layer（版本迁移）
+
+### 4.5 Runtime Federation（Phase 5）
+
+**位置**: `packages/studio/server/federation/`
+
+| 组件 | 说明 |
+|------|------|
+| FederationManager | 联邦主编排器 |
+| NodeIdentity | 联邦节点身份（cluster/role/version） |
+| RemoteExecutor | 生产化远程执行器（超时+重试+状态跟踪） |
+| CapabilityDiscovery | 跨节点能力发现 |
+
+### 4.6 v10 REST API 端点
+
+| 端点 | 方法 | 说明 |
+|------|------|------|
+| `/api/v10/simulate` | POST | 仿真执行 |
+| `/api/v10/simulate/simple` | POST | 简化仿真 |
+| `/api/v10/simulate/execution` | POST | 执行预测 |
+| `/api/v10/verify` | POST | 行为验证 |
+| `/api/v10/verify/from-plan` | POST | 从 Plan 验证 |
+| `/api/v10/verify/regression/:missionId` | GET | 回归记录 |
+| `/api/v10/quality/score/:missionId` | GET | 质量评分 |
+| `/api/v10/events/schemas` | GET | Schema 列表 |
+| `/api/v10/events/register` | POST | 注册 Schema |
+| `/api/v10/events/replay` | POST | 事件重放 |
+| `/api/v10/events/emit` | POST | 发射事件 |
+| `/api/v10/federation/status` | GET | 联邦状态 |
+| `/api/v10/federation/nodes` | GET | 节点列表 |
+| `/api/v10/federation/register` | POST | 注册节点 |
+| `/api/v10/federation/capabilities` | GET | 能力发现 |
+| `/api/v10/federation/execute` | POST | 远程执行 |
+| `/api/v10/learning/status` | GET | 学习状态 |
+| `/api/v10/learning/record` | POST | 记录学习 |
+| `/api/v10/health` | GET | v10 聚合健康检查 |
+
+### 4.7 v10 FSM 扩展
+
+Mission 状态从 19 → 24 个（新增 5 状态）：
+
+```
+PLANNING → SIMULATING → PREDICTED → APPROVAL_PENDING → EXECUTING
+                                                              ↓
+COMPLETED ← QUALITY_SCORING ← VERIFYING_BEHAVIOR ← VERIFYING
+```
+
 ---
 
 > **关联文档**:
 > - 全局架构基准 → [`docs/ARCHITECTURE.md`](ARCHITECTURE.md)
-> - 技术白皮书（测试矩阵+数据结构深度剖析）→ [`docs/whitepaper-morpex-core-v2.3.md`](whitepaper-morpex-core-v2.3.md)
-> - Phase 3-4 审计报告 → [`docs/assessments/phase3-4-delivery.md`](assessments/phase3-4-delivery.md)
-> - 可扩展性评估 → [`docs/assessments/phase4-extensibility-assessment.md`](assessments/phase4-extensibility-assessment.md)
+> - v10 升级规范 → `docs/MorPex_v10_Upgrade_Specification.md`
+> - v10 实现蓝图 → `docs/MorPex_v10_Implementation_Blueprint.md`

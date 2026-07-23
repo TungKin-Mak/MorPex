@@ -35,16 +35,66 @@
 packages/studio/server/
 ├── index.ts              # HTTP 服务器入口 (app.listen)
 ├── StudioServer.ts       # 核心：Express 应用构建 + 引擎初始化 + 路由注册
-├── SessionManager.ts     # ★ v3.2 pi Session 生命周期管理器
-├── SessionStore.ts       # ★ v3.2 会话持久化（文件 I/O，原 SessionManager 重命名）
+├── SessionManager.ts     # ★ v9.2 pi Session 生命周期管理器
+├── SessionStore.ts       # ★ v9.2 会话持久化（文件 I/O，原 SessionManager 重命名）
 ├── StudioOrchestrator.ts # Agent 路由分发
-└── ArtifactWriter.ts     # 产物文件系统落盘
+├── ArtifactWriter.ts     # 产物文件系统落盘
+│
+├── V10API.ts             # ★ v10 REST API（17 端点）
+├── V10MissionAdapter.ts  # ★ v10 Mission 生命周期适配器
+├── V10Integration.ts     # ★ v10 统一启动入口
+│
+├── simulation/           # ★ v10 Phase 2: Simulation Twin（9 源文件）
+│   ├── simulation-engine.ts
+│   ├── simulation-twin.ts
+│   ├── plan-simulator.ts
+│   ├── cost-estimator.ts
+│   ├── risk-predictor.ts
+│   ├── success-predictor.ts
+│   ├── execution-predictor.ts
+│   └── types.ts
+│
+├── verification/         # ★ v10 Phase 1: Behavior Verification（8 源文件）
+│   ├── behavior-verification-engine.ts
+│   ├── expected-trace-builder.ts
+│   ├── trace-comparator.ts
+│   ├── quality-score.ts
+│   ├── violation-detector.ts
+│   ├── regression-store.ts
+│   └── types.ts
+│
+├── learning/             # ★ v10 Phase 3: Learning Plane（5 源文件）
+│   ├── learning-plane.ts
+│   ├── experience-learning.ts
+│   ├── workflow-learning.ts
+│   ├── preference-learning.ts
+│   └── index.ts
+│
+├── event-mesh/           # ★ v10 Phase 4: Event Mesh（7 源文件）
+│   ├── event-mesh.ts
+│   ├── event-registry.ts
+│   ├── schema-validator.ts
+│   ├── replay-engine.ts
+│   ├── migration-layer.ts
+│   └── types.ts
+│
+├── federation/           # ★ v10 Phase 5: Runtime Federation（6 源文件）
+│   ├── federation-manager.ts
+│   ├── node-identity.ts
+│   ├── remote-executor.ts
+│   ├── capability-discovery.ts
+│   ├── types.ts
+│   └── index.ts
+│
+├── observability/        # v9.2 Observability Plane（11 文件）
+└── data/                 # 运行时数据目录
 
 packages/studio/ui/
 └── vite.config.ts        # Vite 配置 (开发代理 /api → :8080)
 ```
 
-> 注：所有 API 路由内联在 `StudioServer.ts` 中。SessionManager/SessionStore 为 v3.2 新增/重命名。
+> 注：所有 API 路由内联在 `StudioServer.ts` 中。SessionManager/SessionStore 为 v9.2 新增/重命名。
+> v10 模块通过 `V10Integration.ts` 统一初始化，`V10API.ts` 注册路由。
 
 ---
 
@@ -62,7 +112,7 @@ StudioServer.start()
   │     new AgentService()
   │     // 管理 AgentHarness 生命周期，替代旧的 LLMBridge
   │
-  ├── 2.5. ★ v3.2: 初始化 SessionManager（pi Session 生命周期管理）
+  ├── 2.5. ★ v9.2: 初始化 SessionManager（pi Session 生命周期管理）
   │     new SessionManager({ crossDomainRouter, domainDispatcher, domainManager, memoryBus, sessionStore })
   │     // 接线 DomainDispatcher 回调：
   │     //   onGetHarness → SessionManager.ensureHarness()
@@ -101,8 +151,8 @@ StudioServer.start()
   │ 注：所有 LLM 调用统一通过 pi-ai 的 getModel() + completeSimple()，
   │     API Key 由 pi-ai 的 getEnvApiKey() 自动从环境变量读取。
   │
-  │ 注：旧 SessionManager（文件 I/O）于 v3.2 重命名为 SessionStore。
-  │     新 SessionManager（pi Session 生命周期管理）于 v3.2 新增。
+  │ 注：旧 SessionManager（文件 I/O）于 v9.2 重命名为 SessionStore。
+  │     新 SessionManager（pi Session 生命周期管理）于 v9.2 新增。
   │     SkillLoader / PromptTemplateEngine / HumanInLoopGate /
   │     ClarificationEngine 已删除（Phase 2-3），改用 pi 原生替代。
   │
@@ -214,7 +264,7 @@ SSE: /api/stream/global                    │ 3. AgentEvent 直接透传
   text:"..." }                              │
 ```
 
-#### ★ v3.2 新路径: POST /api/session/:id/send（SessionManager 驱动 — 推荐）
+#### ★ v9.2 新路径: POST /api/session/:id/send（SessionManager 驱动 — 推荐）
 
 ```
 前端 ZoneD (React)                        后端 SessionManager (Express :8080)
@@ -506,7 +556,7 @@ POST /api/prompt                           StudioServer
 
 ---
 
-### 4.3 ★ v3.2 多 Session 端点
+### 4.3 ★ v9.2 多 Session 端点
 
 **POST `/api/session/create`** — 创建新 session
 
@@ -545,7 +595,7 @@ POST /api/prompt                           StudioServer
 
 **POST `/api/session/:id/send`** — 按 mode 路由消息（★ 推荐）
 
-这是 v3.2 的核心路由端点。根据 session 的 mode 自动选择路由逻辑：
+这是 v9.2 的核心路由端点。根据 session 的 mode 自动选择路由逻辑：
 
 | mode | 后端调用 | 需 harness |
 |:----:|----------|:----------:|
@@ -979,10 +1029,10 @@ event: runtime.task.completed
 data: {"type":"runtime.task.completed","executionId":"exe_xxx","payload":{"taskId":"task_1","status":"completed","output":"..."}}
 ```
 
-**流式输出** (v3.2): `rawCallLLM` 使用 `streamSimple` 逐 token 发射 `message_update`，前端合并连续消息。
+**流式输出** (v9.2): `rawCallLLM` 使用 `streamSimple` 逐 token 发射 `message_update`，前端合并连续消息。
 超时 30s 自动降级 `completeSimple`。
 
-**SSE 断开清理** (v3.2): 所有客户端断开 3 秒后自动 `abortAllHarnesses()`，重连时取消。
+**SSE 断开清理** (v9.2): 所有客户端断开 3 秒后自动 `abortAllHarnesses()`，重连时取消。
 
 **异常契约**: SSE 连接断开时前端自动重连（由 `api.ts:connectSSE()` 处理）。
 
@@ -1203,3 +1253,69 @@ app.get(/^(?!\/api\/).*/, (req, res) => {
 ---
 
 > **铁律**: 修改 `StudioServer.ts` 或 `index.ts` 前，必须阅读本文档。修改完成后，必须同步更新本文档的 API 契约。
+
+---
+
+## v10 集成层
+
+### V10Integration
+
+`packages/studio/server/V10Integration.ts` — v10 模块统一启用入口。
+
+**初始化顺序**（有依赖关系的模块按序初始化）：
+```
+1. EventMesh（底层事件基础设施）
+2. SimulationEngine + ExecutionPredictor
+3. BehaviorVerificationEngine + RegressionStore
+4. LearningPlane（门面）
+5. FederationManager
+```
+
+**生命周期方法**：
+- `V10Integration.start(deps)` — 初始化所有模块，创建适配器，注册路由
+- `V10Integration.stop()` — 停止所有模块
+
+### V10MissionAdapter
+
+`packages/studio/server/V10MissionAdapter.ts` — 通过 EventBus 事件驱动，将 v10 功能注入 MissionRuntime 生命周期。
+
+**监听事件**：
+| 事件 | 触发行为 |
+|------|----------|
+| `PLAN_CREATED` | → SimulationEngine.simulate() |
+| `EXECUTION_COMPLETED` | → BehaviorVerificationEngine.verify() |
+| `MISSION_COMPLETED` | → LearningPlane.record() |
+| `MISSION_FAILED` | → LearningPlane.record()（记录失败经验） |
+
+### V10API
+
+`packages/studio/server/V10API.ts` — 24 个 REST 端点，覆盖所有 v10 模块。
+
+**依赖注入模式**：
+```typescript
+interface V10Dependencies {
+  simulationEngine?: SimulationEngine
+  behaviorVerificationEngine?: BehaviorVerificationEngine
+  eventMesh?: EventMesh
+  learningPlane?: LearningPlane
+  federationManager?: FederationManager
+}
+
+function registerV10Routes(app: ExpressRouter, deps: V10Dependencies): void
+```
+
+所有模块为可选注入，缺失时端点返回 501 Not Implemented。
+
+### v10 事件发射
+
+| 事件 | 来源 |
+|------|------|
+| `simulation.started` / `simulation.completed` / `simulation.failed` | SimulationEngine |
+| `verification.behavior.started` / `verification.behavior.completed` / `verification.behavior.failed` | BehaviorVerificationEngine |
+| `quality.generated` | BehaviorVerificationEngine（评分后） |
+| `federation.identity.registered` | NodeIdentity |
+| `federation.execution.sent` / `federation.execution.completed` / `federation.execution.failed` | RemoteExecutor |
+| `federation.discovery.started` / `federation.discovery.completed` | CapabilityDiscovery |
+| `federation.manager.started` / `federation.manager.stopped` | FederationManager |
+| `learning.updated` | LearningPlane |
+| `v10.integration.started` | V10Integration |

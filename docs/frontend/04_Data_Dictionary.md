@@ -459,3 +459,53 @@ interface ArtifactInstance {
 | **背压** | `Backpressure` | 调度器的负载压力指标（0-100%）。超过 80% 表示接近瓶颈。 | 前端 RightPane VU 表展示此指标。通过 SSE `scheduler.backpressure` 事件更新。 |
 | **写闸门** | `WriteGate` | 记忆系统的质量过滤机制。低分数记忆会被自动拒绝。 | 前端底部面板显示拒绝率百分比。如果拒绝率异常高，说明系统在严格过滤低质量输入。 |
 | **四层架构** | — | Control Plane（做什么）→ Multi-Domain（哪些领域）→ Runtime Kernel（怎么执行）→ Knowledge Plane（知道什么） | 前端不直接感知此分层。SSE 事件的 `type` 前缀会暗示来自哪一层（`intent.*`=控制面, `runtime.*`=运行时内核, `memory.*`=知识面）。 |
+
+---
+
+## Observability API (v9.2)
+
+### GET /api/observability/exercise-status Response
+```json
+{
+  "ok": true,
+  "totalModules": 79,
+  "exercisedCount": 79,
+  "coverage": "100.0%",
+  "exercisedModules": ["agent-registry", "agent-scheduler", "..."]
+}
+```
+
+### GET /api/observability/modules-v2 Response
+```json
+{
+  "ok": true,
+  "totalModules": 79,
+  "exercisedModules": 79,
+  "modules": [{
+    "name": "agent-registry",
+    "layer": "runtime",
+    "runtimeState": "ACTIVE",
+    "displayStatus": "online",
+    "callCount": 2,
+    "source": "SPAN",
+    "exercised": true
+  }]
+}
+```
+
+### Cover States Display Rules
+| Icon | State | Meaning |
+|------|-------|---------|
+| checkmark | online + exercised | Module called via real SPAN/EVENT/STATE |
+| warning | online + not exercised | Module registered but never called (HEARTBEAT only) |
+| question | unknown | Module in DEFAULT_MODULES but no heartbeat |
+
+### POST /api/observability/exercise-all Response
+```json
+{
+  "ok": true,
+  "gained": ["session-manager"],
+  "before": 76,
+  "after": 79
+}
+```

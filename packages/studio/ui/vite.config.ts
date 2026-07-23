@@ -18,7 +18,10 @@ export default defineConfig({
     outDir: './dist',
     emptyOutDir: true,
     rollupOptions: {
-      input: resolve(__dirname, 'index.html'),
+      input: {
+        main: resolve(__dirname, 'index.html'),
+        debug: resolve(__dirname, 'debug.html'),
+      },
       output: {
         entryFileNames: 'assets/[name].[hash].js',
         chunkFileNames: 'assets/[name].[hash].js',
@@ -46,6 +49,11 @@ export default defineConfig({
         target: 'http://localhost:8080',
         changeOrigin: true,
         ws: false,
+      },
+      // Observability WebSocket (v9.1)
+      '/api/observability/ws': {
+        target: 'ws://localhost:8080',
+        ws: true,
       },
     },
   },

@@ -12,7 +12,7 @@
  */
 
 // ── pi-agent-core types (type-only imports) ──
-import type { AgentTool as _PiAgentTool, AgentToolResult as _PiAgentToolResult, AgentMessage as _PiAgentMessage, AgentEvent as _PiAgentEvent, Session as _PiSession, ExecutionEnv as _PiExecutionEnv } from '@earendil-works/pi-agent-core';
+import type { AgentTool as _PiAgentTool, AgentToolResult as _PiAgentToolResult, AgentMessage as _PiAgentMessage, AgentEvent as _PiAgentEvent, Session as _PiSession, ExecutionEnv as _PiExecutionEnv, AgentHarness as _PiAgentHarness } from '@earendil-works/pi-agent-core';
 
 // ── pi-ai types (type-only imports) ──
 import type { ThinkingLevel as _PiThinkingLevel } from '@earendil-works/pi-ai';
@@ -42,6 +42,9 @@ export type MPThinkingLevel = _PiThinkingLevel;
 /** MorPex ExecutionEnv */
 export type MPExecutionEnv = _PiExecutionEnv;
 
+/** MorPex AgentHarness */
+export type MPAgentHarness = _PiAgentHarness;
+
 // ═══════════════════════════════════════════════════════════════════
 // Original name aliases (backward compat during migration)
 // ═══════════════════════════════════════════════════════════════════
@@ -56,6 +59,8 @@ export type AgentEvent = MPAgentEvent;
 export type Session = MPSession;
 export type ExecutionEnv = MPExecutionEnv;
 export type ThinkingLevel = MPThinkingLevel;
+/** Backward compat: AgentHarness */
+export type AgentHarness = MPAgentHarness;
 
 // ═══════════════════════════════════════════════════════════════════
 // Re-export key types that core files commonly extract from Pi

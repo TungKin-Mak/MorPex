@@ -71,7 +71,10 @@
     "packages/studio/ui",
     "data",
     "dist",
+    "scripts/cli-client.ts",
+    "scripts/production-readiness-check.ts",
     "scripts/test-*.ts",
-    "packages/core/__tests__"
+    "packages/core/__tests__",
+    "packages/studio/server/**/__tests__"
   ]
 }

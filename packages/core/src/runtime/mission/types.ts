@@ -84,8 +84,18 @@ export enum MissionState {
   MISSION_FAILED = 'MISSION_FAILED',
   /** ★ v8.9.2: 已升级 — 自动恢复失败, 等待人工介入 */
   ESCALATED = 'ESCALATED',
-  /** ★ v8.9.2: 已终止 — 补偿/回滚完成后的终态 */
+    /** ★ v8.9.2: 已终止 — 补偿/回滚完成后的终态 */
   TERMINATED = 'TERMINATED',
+  /** ★ v10: 仿真推演阶段 — 执行前预测质量 */
+  SIMULATING = 'SIMULATING',
+  /** ★ v10: 已预测 — 仿真完成等待审批 */
+  PREDICTED = 'PREDICTED',
+  /** ★ v10: 审批待定 — Policy 审批后执行 */
+  APPROVAL_PENDING = 'APPROVAL_PENDING',
+  /** ★ v10: 行为验证阶段 — 验证运行时行为 */
+  VERIFYING_BEHAVIOR = 'VERIFYING_BEHAVIOR',
+  /** ★ v10: 质量评分阶段 — 执行后质量评估 */
+  QUALITY_SCORING = 'QUALITY_SCORING',
   /** 成功完成 */
   COMPLETED = 'COMPLETED',
   /** 被用户取消 */
@@ -95,12 +105,19 @@ export enum MissionState {
 /** 有效状态转换映射 (v8.9) */
 export const MISSION_VALID_TRANSITIONS: Record<MissionState, MissionState[]> = {
   // 创建后验证或直接规划
-  [MissionState.CREATED]:       [MissionState.VALIDATING, MissionState.PLANNING, MissionState.CANCELLED],
+  [MissionState.CREATED]:       [MissionState.VALIDATING, MissionState.PLANNING, MissionState.SIMULATING, MissionState.CANCELLED],
   // 验证通过 → 规划，失败 → MISSION_FAILED (终态)
   [MissionState.VALIDATING]:    [MissionState.PLANNING, MissionState.MISSION_FAILED, MissionState.CANCELLED],
-  [MissionState.PLANNING]:      [MissionState.EXECUTING, MissionState.WAIT_APPROVAL, MissionState.VALIDATING, MissionState.MISSION_FAILED, MissionState.CANCELLED],
-  // 执行中: 正常→VERIFYING, 单任务失败→TASK_FAILED, Agent 子状态
-  [MissionState.EXECUTING]:     [MissionState.AGENT_ASSIGNING, MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.WAIT_APPROVAL, MissionState.VERIFYING, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.MISSION_FAILED, MissionState.CANCELLED],
+  // PLANNING → 可进入仿真 → 预测 → 审批 → 执行
+  [MissionState.PLANNING]:      [MissionState.SIMULATING, MissionState.EXECUTING, MissionState.WAIT_APPROVAL, MissionState.VALIDATING, MissionState.MISSION_FAILED, MissionState.CANCELLED],
+  // ★ v10: 仿真推演 → 预测完成 → 审批待定
+  [MissionState.SIMULATING]:    [MissionState.PREDICTED, MissionState.PLANNING, MissionState.MISSION_FAILED, MissionState.CANCELLED],
+  // ★ v10: 预测完成 → 审批待定或直接执行
+  [MissionState.PREDICTED]:     [MissionState.APPROVAL_PENDING, MissionState.EXECUTING, MissionState.PLANNING, MissionState.CANCELLED],
+  // ★ v10: 审批待定 → 执行或拒绝
+  [MissionState.APPROVAL_PENDING]: [MissionState.EXECUTING, MissionState.PLANNING, MissionState.CANCELLED],
+  // 执行中: 正常→VERIFYING→VERIFYING_BEHAVIOR→QUALITY_SCORING, 单任务失败→TASK_FAILED
+  [MissionState.EXECUTING]:     [MissionState.AGENT_ASSIGNING, MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.WAIT_APPROVAL, MissionState.VERIFYING, MissionState.VERIFYING_BEHAVIOR, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.MISSION_FAILED, MissionState.CANCELLED],
   // v9 Agent 分配状态
   [MissionState.AGENT_ASSIGNING]: [MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.TASK_FAILED, MissionState.CANCELLED],
   // v9 Agent 执行状态
@@ -110,8 +127,12 @@ export const MISSION_VALID_TRANSITIONS: Record<MissionState, MissionState[]> = {
   // v9 协作状态
   [MissionState.COLLABORATING]:   [MissionState.AGENT_EXECUTING, MissionState.VERIFYING, MissionState.TASK_FAILED, MissionState.MISSION_FAILED],
   [MissionState.WAIT_APPROVAL]: [MissionState.EXECUTING, MissionState.CANCELLED],
-  // 验证结果: 通过→COMPLETED, 不通过→REJECTED
-  [MissionState.VERIFYING]:     [MissionState.COMPLETED, MissionState.REJECTED, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.EXECUTING],
+  // 验证结果: 通过→QUALITY_SCORING 或 COMPLETED, 不通过→REJECTED
+  [MissionState.VERIFYING]:     [MissionState.QUALITY_SCORING, MissionState.VERIFYING_BEHAVIOR, MissionState.COMPLETED, MissionState.REJECTED, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.EXECUTING],
+  // ★ v10: 行为验证 → 质量评分
+  [MissionState.VERIFYING_BEHAVIOR]: [MissionState.QUALITY_SCORING, MissionState.COMPLETED, MissionState.REJECTED, MissionState.EXECUTING],
+  // ★ v10: 质量评分 → 完成
+  [MissionState.QUALITY_SCORING]: [MissionState.COMPLETED, MissionState.REJECTED, MissionState.EXECUTING],
   // 补偿后→ROLLED_BACK 或 MISSION_FAILED
   [MissionState.COMPENSATING]:  [MissionState.ROLLED_BACK, MissionState.MISSION_FAILED, MissionState.CANCELLED],
   [MissionState.ROLLED_BACK]:   [MissionState.TERMINATED],

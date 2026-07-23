@@ -28,7 +28,7 @@
 | **跨领域路由**                 | CrossDomainRouter (LLM DAG 拆解 + Kahn 拓扑排序) + DomainDispatcher (并行调度) — 将复杂任务拆解为跨领域 DAG 并分发执行                                          |
 | **智能体协商**                 | NegotiationEngine — 跨领域质询工单 (InterrogationTicket) + 三闸门防死循环 (深度限制/哈希查重/对级限流)                                                          |
 | **Planning Intelligence** | MetaPlanner v3.0 (7-Stage Pipeline + TemplateManager) + 三大认知引擎 (StrategicDeconstructor/LookAheadSimulator/DynamicReflexEngine) + DeviationGuard 熔断 |
-| **ToolQualityManager 🆕** | 逐工具质量追踪 (滑动窗口 20 次) + 退化检测 (recentRate < historicalRate × 0.7) + 自动修复建议 + AgentReasoningInterceptor Tier 2.5 拦截 |
+| **ToolQualityManager 🆕** | 逐工具质量追踪 (滑动窗口 20 次) + 退化检测 (recentRate < historicalRate × 0.7) + 自动修复建议 + ExecutionGateway 拦截 |
 | **TemplateManager 🆕** | 模板演化 (CAPTURED/DERIVED/FIXED) + 6 种启发式修复 + Lineage 追踪 + TEMPLATE.md 双向同步 + 版本 Diff（合并原 TemplateEvolutionEngine + TemplateFileSystem） |
 | **ExecutionRecordingEngine 🆕** | Thought/Action/Observation/DAG 四维录制 + 回放 + 模板提取 + ExecutionGateway 集成 |
 

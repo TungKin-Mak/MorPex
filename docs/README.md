@@ -1,99 +1,76 @@
-# MorPex 文档中心
+# MorPex v10 文档索引
 
-> **基石协议 · 文档即真理源** | 版本: 3.2.0 | 最后更新: 2026-07-17
+> v10 Autonomous Organization Intelligence OS — Phase 1-5 全部完成
+> 从 v9.2 升级：+35 源文件 | +9 表 | +23 测试 | 145/145 ✅
+> 旧版在 `_archive/`。
 
----
+## 核心文档
 
-## 文档结构
-
-```
-docs/
-├── README.md                              ← 你在这里（文档索引）
-├── ARCHITECTURE.md                        ← ★ 全局架构基准（宪法）
-├── docsARCHITECTURE-v3.2-optimized.md     ← ★ 当前架构文档（详细）
-├── features-and-architecture.md           ← 全功能手册（API + 引擎 + 数据结构）
-├── architecture-cross-reference.md        ← pi / AgentScope 架构对照
-│
-├── modules/                               ← 模块参考
-│   ├── core-engine.md
-│   ├── ai-engine.md
-│   ├── memory.md
-│   ├── studio-server.md
-│   └── studio-ui.md
-│
-├── guides/                                ← 开发指南
-│   ├── getting-started.md
-│   └── development.md
-│
-├── testing-guide.md                       ← E2E 测试指南
-│
-└── _archive/                              ← 🗄️ 历史计划/评估/报告
-    ├── upgrade-plan-openspace-fusion.md   ← v3.0 计划（已交付）
-    ├── morpex-v2.4-upgrade-plan.md        ← v2.4 计划（已交付）
-    ├── metaplanner-split-v3.1.md          ← v3.1 拆分计划（已执行）
-    ├── cross-domain-upgrade-todo.md       ← 跨领域升级（已交付）
-    ├── pi-migration-todo.md               ← pi 迁移（已交付）
-    ├── pi-hooks-implementation.md         ← pi hook 分析
-    ├── prompts-integration-audit.md       ← Prompt 审计
-    ├── test-plan.md                       ← v2.4 测试计划
-    ├── phase3-4-delivery.md               ← Bug 修复报告
-    ├── phase4-extensibility-assessment.md ← 可扩展性评估
-    ├── ...
-```
-
-**活跃文档 17 个**，归档 24 个。清晰分界：当前架构 vs 历史记录。
-
----
-
-## 阅读顺序
-
-### 新成员入门
-
-1. **快速开始** → `guides/getting-started.md`
-2. **全局架构** → `ARCHITECTURE.md`
-3. **当前架构详解** → `docsARCHITECTURE-v3.2-optimized.md`
-4. **按需深入** → 模块文档
-
-### 开发者日常
-
-| 你要做什么             | 先读哪个文档                                          |
-| ----------------- | ----------------------------------------------- |
-| 理解系统分层和设计原则       | `ARCHITECTURE.md`                               |
-| 查看当前 Planning 层架构 | `docsARCHITECTURE-v3.2-optimized.md`            |
-| 查所有 API 端点和引擎模块   | `features-and-architecture.md`                  |
-| 修改引擎核心逻辑          | `ARCHITECTURE.md` → `modules/core-engine.md`    |
-| 调整 LLM 调用方式       | `modules/ai-engine.md`                          |
-| 新增/修改 API 端点      | `modules/studio-server.md`                      |
-| 开发前端页面            | `modules/studio-ui.md`                          |
-| 添加新的事件类型          | `ARCHITECTURE.md` §6 + `modules/core-engine.md` |
-
----
-
-## 核心铁律
-
-> ⚠️ **修改代码必须同步更新文档**
-
-- 修改 `packages/core/` → 同步更新 `modules/core-engine.md`
-- 修改 `@earendil-works/pi-ai` 或 `@earendil-works/pi-agent-core` 的引用方式 → 同步更新 `modules/ai-engine.md`
-- 修改 `packages/studio/server/` → 同步更新 `modules/studio-server.md`
-- 修改 `packages/studio/ui/` → 同步更新 `modules/studio-ui.md`
-- 架构级变更（新模块、新通信方式） → 同步更新 `ARCHITECTURE.md` 和 `docsARCHITECTURE-v3.2-optimized.md`
-
-**Git 联动**: 每次 Merge/PR 前检查 `docs/` 是否有对应的 Diff。
-
----
-
-## 快速链接
-
-| 文档 | 说明 |
+| 文档 | 内容 |
 |------|------|
-| [全局架构基准](ARCHITECTURE.md) | 系统宪法，设计原则 |
-| [v3.2 当前架构](docsARCHITECTURE-v3.2-optimized.md) | 详细架构，模块清单，文件树，数据流 |
-| [全功能手册](features-and-architecture.md) | 57 API + 27 引擎 + 数据结构速查 |
-| [MorPexCore 引擎](modules/core-engine.md) | 引擎核心参考 |
-| [AI 推理引擎](modules/ai-engine.md) | LLM 调用参考 |
-| [Studio 桥接服务](modules/studio-server.md) | API 端点参考 |
-| [Studio 前端](modules/studio-ui.md) | 前端参考 |
-| [快速开始](guides/getting-started.md) | 环境搭建 |
-| [开发指南](guides/development.md) | 开发规范 |
-| [E2E 测试指南](testing-guide.md) | Playwright 自动化测试 |
+| [ARCHITECTURE.md](ARCHITECTURE.md) | 完整架构：v9.2 79 模块 + v10 5 模块组（35 源文件）、分层、FSM（24 状态）、DB（34 表）、架构审计 |
+| [features-and-architecture.md](features-and-architecture.md) | API 端点手册（57+ 端点）、引擎模块 |
+| [testing-guide.md](testing-guide.md) | 测试指南：coverage-runner（50 任务）、exercise-all（100% 演练） |
+
+## 运维文档
+
+| 文档 | 内容 |
+|------|------|
+| [DEPLOY.md](DEPLOY.md) | 部署指南 |
+| [MONITORING.md](MONITORING.md) | 监控配置 |
+| [SECURITY.md](SECURITY.md) | 安全策略 |
+| [PI-COMPAT-MATRIX.md](PI-COMPAT-MATRIX.md) | Pi 兼容性矩阵 |
+
+## 前端文档
+
+| 文档 | 内容 |
+|------|------|
+| [frontend/01_API_Contracts.md](frontend/01_API_Contracts.md) | API 契约 |
+| [frontend/02_Business_Flow.md](frontend/02_Business_Flow.md) | 业务流程 |
+| [frontend/03_Page_Requirements.md](frontend/03_Page_Requirements.md) | 页面需求 |
+| [frontend/04_Data_Dictionary.md](frontend/04_Data_Dictionary.md) | 数据字典 + Observability API |
+
+## 模块文档
+
+| 文档 | 内容 |
+|------|------|
+| [modules/core-engine.md](modules/core-engine.md) | Core 引擎 |
+| [modules/memory.md](modules/memory.md) | Memory 层 |
+| [modules/studio-server.md](modules/studio-server.md) | Studio Server（含 v10 模块） |
+| [modules/studio-ui.md](modules/studio-ui.md) | Studio UI |
+| [modules/ai-engine.md](modules/ai-engine.md) | AI 引擎 |
+
+## v10 模块组一览
+
+| Phase | 模块 | 位置 | 源文件 | 测试 |
+|-------|------|------|--------|------|
+| **Phase 1** | Behavior Verification Engine | `verification/` | 8 | 6 ✅ |
+| **Phase 2** | Simulation Twin | `simulation/` | 9 | 7 ✅ |
+| **Phase 3** | Learning Plane | `learning/` | 5 | 1 ✅ |
+| **Phase 4** | Event Mesh v10 | `event-mesh/` | 7 | 5 ✅ |
+| **Phase 5** | Runtime Federation | `federation/` | 6 | 4 ✅ |
+| **集成层** | V10API + V10MissionAdapter + V10Integration | `studio/server/` | 3 | — |
+
+## 开发指南
+
+| 文档 | 内容 |
+|------|------|
+| [guides/getting-started.md](guides/getting-started.md) | 快速开始 |
+| [guides/development.md](guides/development.md) | 开发指南 |
+
+## 审计
+
+| 文档 | 内容 |
+|------|------|
+| [validation/architecture-report.md](validation/architecture-report.md) | 架构审计：8 项检查 100% 通过 |
+
+---
+
+## 归档文档
+
+`docs/_archive/` — 包含以下历史文档：
+- v8.6 to v9 演进计划
+- v4.0 架构文档
+- 旧版数据流图（DATAFLOW / dataflow-mermaid）
+- 恢复审计报告（recovery/）
+- 旧版升级/迁移指南
