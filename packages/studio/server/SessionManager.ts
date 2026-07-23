@@ -18,10 +18,17 @@
  *   只有 sess_task 才需要 ensureHarness。
  */
 
-import { AgentHarness, InMemorySessionRepo, type Session } from '@earendil-works/pi-agent-core';
-import { NodeExecutionEnv } from '@earendil-works/pi-agent-core/node';
-import { getModel, Type } from '@earendil-works/pi-ai';
-import type { AgentTool } from '@earendil-works/pi-agent-core';
+import { PiBridge, type AgentTool, type AgentSession } from '../../core/src/adapters/pi-bridge/index.js';
+import { getModel, Type } from '@earendil-works/pi-ai/compat';
+
+// PiBridge static exports for backward compat
+import type { AgentHarness as _AgentHarnessType } from '../../core/src/adapters/pi-bridge/index.js';
+import type { Session } from '../../core/src/adapters/pi-types.js';
+const AgentHarness = PiBridge.AgentHarnessClass;
+const InMemorySessionRepo = PiBridge.SessionRepoClass;
+const NodeExecutionEnv = PiBridge.NodeEnvClass;
+type AgentHarnessType = _AgentHarnessType;
+type InMemorySessionRepoType = InstanceType<typeof InMemorySessionRepo>;
 
 import { LLMProvider } from '../../core/src/services/LLMProvider.js';
 import type { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
@@ -45,7 +52,7 @@ export interface SessionHandle {
   /** pi Agent Session 实例 */
   piSession: Session;
   /** AgentHarness（仅 task mode 非 null） */
-  harness: AgentHarness | null;
+  harness: AgentHarnessType | null;
   /** system prompt（创建时设定） */
   systemPrompt: string;
   /** 当前状态 */
@@ -75,7 +82,7 @@ export class SessionManager {
   private sessions: Map<string, SessionHandle> = new Map();
 
   /** pi 内核的 InMemorySessionRepo */
-  private repo: InMemorySessionRepo;
+  private repo: InMemorySessionRepoType;
 
   /** 外部依赖（通过构造函数注入） */
   private crossDomainRouter?: CrossDomainRouter;
@@ -229,7 +236,7 @@ export class SessionManager {
    * @param sessionId - task session 的 ID
    * @returns AgentHarness 实例
    */
-  async ensureHarness(sessionId: string): Promise<AgentHarness> {
+  async ensureHarness(sessionId: string): Promise<AgentHarnessType> {
     const handle = this.sessions.get(sessionId);
     if (!handle) throw new Error(`[SessionManager] Session 不存在: ${sessionId}`);
     if (handle.mode !== 'task') throw new Error(`[SessionManager] 只有 task mode 支持 harness: ${sessionId} (mode=${handle.mode})`);

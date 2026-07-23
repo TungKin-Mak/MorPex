@@ -11,10 +11,20 @@
  *   When Pi API changes, ONLY this file needs updating.
  */
 
-// ── pi-agent-core types (type-only imports) ──
-import type { AgentTool as _PiAgentTool, AgentToolResult as _PiAgentToolResult, AgentMessage as _PiAgentMessage, AgentEvent as _PiAgentEvent, Session as _PiSession, ExecutionEnv as _PiExecutionEnv, AgentHarness as _PiAgentHarness } from '@earendil-works/pi-agent-core';
+// ── pi-agent-core types (through PiBridge for runtime-safe types) ──
+import type {
+  AgentTool as _PiAgentTool,
+  AgentToolResult as _PiAgentToolResult,
+  AgentMessage as _PiAgentMessage,
+  AgentEvent as _PiAgentEvent,
+  AgentExecutionEnv as _PiExecutionEnv,
+  AgentHarness as _PiAgentHarness,
+} from './pi-bridge/index.js';
 
-// ── pi-ai types (type-only imports) ──
+// Session type — pi-agent-core Session is a stable interface, imported directly
+import type { Session as _PiSession } from '@earendil-works/pi-agent-core';
+
+// ── pi-ai types (type-only imports, stable) ──
 import type { ThinkingLevel as _PiThinkingLevel } from '@earendil-works/pi-ai';
 
 // ═══════════════════════════════════════════════════════════════════

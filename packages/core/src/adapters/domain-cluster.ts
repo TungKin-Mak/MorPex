@@ -1,48 +1,36 @@
 /**
  * DomainClusterAdapter — isolates pi-agent-core AgentHarness / InMemorySessionRepo / NodeExecutionEnv
- * for DomainCluster's sub-agent spawning.
  *
- * Only file that directly imports pi-agent-core for DomainCluster-specific agent creation.
- * Uses ModelResolver for type-safe model resolution (no `as any` for getModel).
+ * All pi-agent-core dependencies go through PiBridge static methods.
+ * Types are re-exported from pi-utils.ts (which also goes through PiBridge).
  */
 
-import { AgentHarness, InMemorySessionRepo } from '@earendil-works/pi-agent-core';
-import { NodeExecutionEnv } from '@earendil-works/pi-agent-core/node';
-import type { AgentTool } from '@earendil-works/pi-agent-core';
-import type { Model, Api } from '@earendil-works/pi-ai';
+import type { AgentTool, AgentHarness } from './pi-bridge/index.js';
+import { PiBridge } from './pi-bridge/index.js';
 import { resolveModel } from './model-resolver.js';
 
 export type { AgentTool };
-export type { AgentHarness, InMemorySessionRepo };
-
-export function createInMemorySessionRepo(): InMemorySessionRepo {
-  return new InMemorySessionRepo();
-}
-
-export function createNodeExecutionEnv(cwd?: string): NodeExecutionEnv {
-  return new NodeExecutionEnv({ cwd: cwd ?? process.cwd() });
-}
+export type { AgentHarness };
+export type InMemorySessionRepo = InstanceType<typeof PiBridge.SessionRepoClass>;
 
 export { resolveModel };
 
-/**
- * Create an AgentHarness with validated parameters.
- *
- * @param env     - Node execution environment
- * @param model   - Resolved pi-ai Model (from resolveModel)
- * @param session - Session from InMemorySessionRepo.create()
- * @param tools   - Agent tools
- * @param systemPrompt - System prompt string
- */
+export function createInMemorySessionRepo(): InMemorySessionRepo {
+  return PiBridge.createSessionRepo() as unknown as InMemorySessionRepo;
+}
+
+export function createNodeExecutionEnv(cwd?: string) {
+  return PiBridge.createNodeEnv(cwd);
+}
+
 export function createAgentHarness(params: {
-  env: NodeExecutionEnv;
-  model: Model<Api>;
-  session: Awaited<ReturnType<InMemorySessionRepo['create']>>;
+  env: ReturnType<typeof PiBridge.createNodeEnv>;
+  model: Record<string, unknown>;
+  session: { id: string };
   tools: AgentTool[];
   systemPrompt: string;
-}): AgentHarness {
-  // eslint-disable-next-line @typescript-eslint/no-explicit-any
-  return new (AgentHarness as any)({
+}) {
+  return new (PiBridge.AgentHarnessClass as any)({
     env: params.env,
     model: params.model,
     session: params.session,

@@ -990,101 +990,8 @@ export class MissionRuntime {
       error: newState === MissionState.MISSION_FAILED ? mission.error : undefined,
     };
 
-    // 根据目标状态选择对应的事件类型
-    let eventType: string;
-    switch (newState) {
-      case MissionState.CREATED:
-        eventType = EventType.MISSION_CREATED;
-        break;
-      case MissionState.VALIDATING:
-      case MissionState.PLANNING:
-      case MissionState.VERIFYING:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.EXECUTING:
-        eventType = EventType.EXECUTION_STARTED;
-        break;
-      case MissionState.AGENT_ASSIGNING:
-        eventType = EventType.AGENT_ASSIGNED;
-        break;
-      case MissionState.AGENT_EXECUTING:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.AGENT_REPLACING:
-        eventType = EventType.AGENT_REPLACED;
-        break;
-      case MissionState.COLLABORATING:
-        eventType = EventType.COLLABORATION_STARTED;
-        break;
-      case MissionState.WAIT_APPROVAL:
-        eventType = EventType.APPROVAL_REQUIRED;
-        break;
-      case MissionState.COMPENSATING:
-        eventType = EventType.COMPENSATION_STARTED;
-        break;
-      case MissionState.ROLLED_BACK:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.TERMINATED:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.REJECTED:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.RECOVERING:
-        eventType = EventType.RECOVERY_STARTED;
-        break;
-      case MissionState.RETRYING:
-        eventType = EventType.RETRY_TRIGGERED;
-        break;
-      case MissionState.PAUSED:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.HUMAN_REVIEW:
-        eventType = EventType.APPROVAL_REQUIRED;
-        break;
-      case MissionState.ESCALATED:
-        eventType = EventType.ESCALATED_TO_HUMAN;
-        break;
-      case MissionState.AGENT_ASSIGNING:
-        eventType = EventType.AGENT_ASSIGNED;
-        break;
-      case MissionState.AGENT_EXECUTING:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.AGENT_REPLACING:
-        eventType = EventType.AGENT_REPLACED;
-        break;
-      case MissionState.COLLABORATING:
-        eventType = EventType.COLLABORATION_STARTED;
-        break;
-      case MissionState.TASK_FAILED:
-        eventType = EventType.EXECUTION_FAILED;
-        break;
-      case MissionState.MISSION_FAILED:
-        eventType = EventType.MISSION_FAILED;
-        break;
-      case MissionState.AGENT_ASSIGNING:
-        eventType = EventType.AGENT_ASSIGNED;
-        break;
-      case MissionState.AGENT_EXECUTING:
-        eventType = EventType.MISSION_UPDATED;
-        break;
-      case MissionState.AGENT_REPLACING:
-        eventType = EventType.AGENT_REPLACED;
-        break;
-      case MissionState.COLLABORATING:
-        eventType = EventType.COLLABORATION_STARTED;
-        break;
-      case MissionState.COMPLETED:
-        eventType = EventType.MISSION_COMPLETED;
-        break;
-      case MissionState.CANCELLED:
-        eventType = EventType.EXECUTION_CANCELLED;
-        break;
-      default:
-        eventType = EventType.MISSION_UPDATED;
-    }
+    // 根据目标状态选择对应的事件类型（复用 stateToEventType 映射）
+    const eventType = this.stateToEventType(newState);
 
     this.bus.emit({
       id: `evt_${mission.id}_${newState}`,
@@ -1152,24 +1059,8 @@ export class MissionRuntime {
         return EventType.APPROVAL_REQUIRED;
       case MissionState.ESCALATED:
         return EventType.ESCALATED_TO_HUMAN;
-      case MissionState.AGENT_ASSIGNING:
-        return EventType.AGENT_ASSIGNED;
-      case MissionState.AGENT_EXECUTING:
-        return EventType.MISSION_UPDATED;
-      case MissionState.AGENT_REPLACING:
-        return EventType.AGENT_REPLACED;
-      case MissionState.COLLABORATING:
-        return EventType.COLLABORATION_STARTED;
       case MissionState.TASK_FAILED:
         return EventType.EXECUTION_FAILED;
-      case MissionState.AGENT_ASSIGNING:
-        return EventType.AGENT_ASSIGNED;
-      case MissionState.AGENT_EXECUTING:
-        return EventType.MISSION_UPDATED;
-      case MissionState.AGENT_REPLACING:
-        return EventType.AGENT_REPLACED;
-      case MissionState.COLLABORATING:
-        return EventType.COLLABORATION_STARTED;
       case MissionState.MISSION_FAILED:
         return EventType.MISSION_FAILED;
       case MissionState.COMPLETED:

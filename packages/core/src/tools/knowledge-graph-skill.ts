@@ -27,7 +27,7 @@ export function createKnowledgeGraphSkill(
         // Phase 11: Harness-first path
         if (harness?.isInitialized) {
           const results = harness.queryKnowledge(p.query, p.maxResults ?? 10);
-          const summary = results.map((e: any) =>
+          const summary = results.map((e: Record<string, any>) =>
             `- [${e.type}] ${e.name}${e.description ? ': ' + e.description : ''}`
           ).join('\n');
           const output = results.length > 0
@@ -41,7 +41,7 @@ export function createKnowledgeGraphSkill(
         // Fallback: direct graph access
         const results = kg.searchEntities({ text: p.query, limit: p.maxResults ?? 10 });
         const summary = results.map(e =>
-          `- [${e.type}] ${e.name}${e.description ? ': ' + e.description : ''}`
+          `- [${e.type}] ${e.name}${e.metadata?.description ? ': ' + e.metadata.description : ''}`
         ).join('\n');
         const output = results.length > 0
           ? `找到 ${results.length} 个相关实体:\n${summary}`

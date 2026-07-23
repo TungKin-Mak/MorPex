@@ -317,7 +317,8 @@ export class DomainCluster {
     const modelParts = modelStr.split('/');
     const provider = modelParts.length > 1 ? modelParts[0] : 'deepseek';
     const modelId = modelParts.length > 1 ? modelParts[1] : modelParts[0];
-    const model = resolveModel(provider, modelId);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const model = resolveModel(provider, modelId) as any;
     const harness = createAgentHarness({
       env,
       model,

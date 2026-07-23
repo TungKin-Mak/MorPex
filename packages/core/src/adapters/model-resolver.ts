@@ -1,86 +1,53 @@
 /**
  * ModelResolver — Type-safe wrapper around pi-ai's getModel().
  *
- * Eliminates `as any` casts by validating provider strings against
- * the KnownProvider union at the adapter boundary.
- *
- * ═══════════════════════════════════════════════════════════════════
- * Why this exists:
- *   pi-ai's getModel<TProvider extends KnownProvider, TModelId>(...)
- *   requires compile-time-known provider literals. Our config provides
- *   runtime strings. This wrapper validates and bridges the gap.
- * ═══════════════════════════════════════════════════════════════════
+ * Uses pi-ai/compat for backward compatibility.
  */
 
-import { getModel, getProviders } from '@earendil-works/pi-ai';
-import type { Model, Api, KnownProvider } from '@earendil-works/pi-ai';
+import { getModel, getProviders } from '@earendil-works/pi-ai/compat';
 
-// Cache the valid provider list (stable at runtime)
-let _knownProviders: Set<string> | null = null;
-
+// Known provider set for runtime validation
+const _knownSet = new Set<string>();
 function getKnownProviderSet(): Set<string> {
-  if (!_knownProviders) {
-    _knownProviders = new Set(getProviders());
+  if (_knownSet.size === 0) {
+    try {
+      for (const p of getProviders() as unknown as string[]) {
+        _knownSet.add(p);
+      }
+    } catch { /* ignore */ }
   }
-  return _knownProviders;
+  return _knownSet;
 }
 
-/**
- * Validate that a string is a KnownProvider.
- * Returns the string cast as KnownProvider if valid, or null.
- */
-export function isKnownProvider(value: string): value is KnownProvider {
+export function isKnownProvider(value: string): boolean {
   return getKnownProviderSet().has(value);
 }
 
 /**
- * Type-safe model resolver.
- *
- * Accepts runtime strings, validates against the known provider set,
- * and returns a Model instance. Falls back to a safe default if
- * the provider is unknown.
- *
- * @param provider - Provider name from config (e.g. "deepseek")
- * @param modelId - Model ID from config (e.g. "deepseek-v4-flash")
- * @returns Model instance
- * @throws Error if neither the requested provider nor the fallback work
+ * Resolve a model by provider+modelId strings.
  */
-export function resolveModel(provider: string, modelId: string): Model<Api> {
-  // Try the requested provider first
+export function resolveModel(
+  provider: string,
+  modelId: string,
+): Record<string, unknown> {
+  // Try the requested provider
   if (isKnownProvider(provider)) {
     try {
-      // pi-ai's getModel has strict generic constraints requiring
-      // compile-time-known model IDs from a generated MODELS map.
-      // At the adapter boundary we bridge runtime strings to these types.
-      // The `as never` cast is the minimum-safe escape hatch — the runtime
-      // will throw if the model ID is invalid for the provider.
-      return getModel(provider, modelId as never) as Model<Api>;
-    } catch {
-      // Fall through to default
-    }
+      return getModel(provider as never, modelId as never) as unknown as Record<string, unknown>;
+    } catch { /* fall through */ }
   }
 
-  // Fallback: try known defaults in order
-  const fallbacks: Array<[KnownProvider, string]> = [
+  // Fallback order
+  const fallbacks = [
     ['deepseek', 'deepseek-v4-flash'],
     ['openai', 'gpt-4o-mini'],
   ];
 
   for (const [fbProvider, fbModelId] of fallbacks) {
     try {
-      return getModel(fbProvider, fbModelId as never) as Model<Api>;
-    } catch {
-      continue;
-    }
+      return getModel(fbProvider as never, fbModelId as never) as unknown as Record<string, unknown>;
+    } catch { continue; }
   }
 
-  throw new Error(
-    `[ModelResolver] Cannot resolve model: provider="${provider}" modelId="${modelId}". ` +
-    `Available providers: ${[...getKnownProviderSet()].join(', ')}`
-  );
-}
-
-/** Clear the provider cache (for testing or config reload) */
-export function clearProviderCache(): void {
-  _knownProviders = null;
+  throw new Error(`Cannot resolve model: ${provider}/${modelId}`);
 }

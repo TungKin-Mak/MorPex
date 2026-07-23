@@ -1,57 +1,56 @@
 /**
- * ThinkingLevelAdapter — isolates pi-ai thinking-level control functions.
- *
- * Wraps clampThinkingLevel / getSupportedThinkingLevels.
- * Uses ModelResolver for type-safe model resolution (no `as any`).
+ * ThinkingLevel — 模型推理深度控制
  */
 
-import { clampThinkingLevel, getSupportedThinkingLevels } from '@earendil-works/pi-ai';
-import type { ThinkingLevel, Model, Api } from '@earendil-works/pi-ai';
-import { resolveModel } from './model-resolver.js';
+import { PiBridge } from './pi-bridge/index.js';
 
-// pi-ai 0.80.10's Model<TApi> generic is invariant; bridge via explicit cast
-const _getSupportedLevels = (m: Model<Api>) => (getSupportedThinkingLevels as unknown as (m: Model<Api>) => ThinkingLevel[])(m);
-const _clampLevel = (m: Model<Api>, l: ThinkingLevel) => (clampThinkingLevel as unknown as (m: Model<Api>, l: ThinkingLevel) => ThinkingLevel)(m, l);
+const { clampThinkingLevel, getSupportedThinkingLevels } = PiBridge;
 
-export type { ThinkingLevel };
+export type ThinkingLevel = 'minimal' | 'low' | 'medium' | 'high' | 'xhigh' | 'max';
 
-export const THINKING_LEVELS: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh'];
+export const THINKING_LEVELS: ThinkingLevel[] = ['minimal', 'low', 'medium', 'high', 'xhigh', 'max'];
 
 export const THINKING_LEVEL_LABELS: Record<ThinkingLevel, string> = {
-  minimal: '最低',
-  low: '低',
-  medium: '中',
-  high: '高',
-  xhigh: '最高',
+  minimal: '最低', low: '低', medium: '中', high: '高', xhigh: '很高', max: '最大',
 };
 
 export const DEFAULT_THINKING_LEVEL: ThinkingLevel = 'medium';
 
-// Model cache keyed by "provider:modelId"
-const _modelCache = new Map<string, ReturnType<typeof resolveModel>>();
+// Model cache
+const _cache = new Map<string, Record<string, unknown>>();
 
-function getCachedModel(provider: string, modelId: string) {
+function getCached(provider: string, modelId: string): Record<string, unknown> {
   const key = `${provider}:${modelId}`;
-  if (!_modelCache.has(key)) {
-    _modelCache.set(key, resolveModel(provider, modelId));
+  if (!_cache.has(key)) {
+    try {
+      const { resolveModel } = require('./model-resolver.js') as {
+        resolveModel: (p: string, m: string) => Record<string, unknown>;
+      };
+      _cache.set(key, resolveModel(provider, modelId));
+    } catch {
+      _cache.set(key, {});
+    }
   }
-  return _modelCache.get(key)!;
+  return _cache.get(key)!;
 }
 
 export const thinkingLevelControl = {
-  getSupportedLevels(modelId: string, provider?: string): ThinkingLevel[] {
+  getSupportedLevels(modelId: string, provider = 'deepseek'): ThinkingLevel[] {
     try {
-      const model = getCachedModel(provider ?? 'deepseek', modelId);
-      return _getSupportedLevels(model).filter(l => l !== 'off') as ThinkingLevel[];
+      const model = getCached(provider, modelId);
+      const fn = getSupportedThinkingLevels as (m: Record<string, unknown>) => string[];
+      const levels = fn(model);
+      return levels.filter((l: string) => l !== 'off') as ThinkingLevel[];
     } catch {
       return THINKING_LEVELS;
     }
   },
 
-  clampLevel(modelId: string, level: ThinkingLevel, provider?: string): ThinkingLevel {
+  clampLevel(modelId: string, level: ThinkingLevel, provider = 'deepseek'): ThinkingLevel {
     try {
-      const model = getCachedModel(provider ?? 'deepseek', modelId);
-      return _clampLevel(model, level);
+      const model = getCached(provider, modelId);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      return (clampThinkingLevel as any)(model, level) as ThinkingLevel;
     } catch {
       return level;
     }
@@ -62,7 +61,5 @@ export const thinkingLevelControl = {
     return THINKING_LEVELS.includes(lower) ? lower : defaultLevel;
   },
 
-  clearCache(): void {
-    _modelCache.clear();
-  },
+  clearCache(): void { _cache.clear(); },
 };

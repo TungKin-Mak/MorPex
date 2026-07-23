@@ -1,0 +1,1 @@
+Lock file to prevent fork overwrites - created at 2026-07-23

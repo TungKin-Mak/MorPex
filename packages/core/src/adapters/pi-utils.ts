@@ -2,70 +2,50 @@
  * MorPex Pi Utilities Adapter — Central runtime bridge to Pi packages
  *
  * ═══════════════════════════════════════════════════════════════════
- * IMPORTANT: THIS IS THE ONLY FILE WHERE Pi PACKAGES ARE IMPORTED
- * FOR RUNTIME CODE. ALL other core files must use the re-exports from here.
+ * ALL pi-agent-core classes go through PiBridge static getters.
+ * When pi packages upgrade, only PiBridge needs changing.
  *
- * When:
- *   - uuidv7 changes in pi-agent-core → fix uuidv7 export here
- *   - Type changes in pi-ai → fix mpType export here
- *   - getModel signature changes in pi-ai → fix mpGetModel export here
+ * pi-ai compat functions (Type, getModel, parseJsonWithRepair) still
+ * import directly from compat layer — these are runtime-stable APIs
+ * that rarely change. PiBridge wraps the inference path (generateText).
  * ═══════════════════════════════════════════════════════════════════
  */
 
-// ═══════════════════════════════════════════════════════════════════
-// pi-agent-core runtime imports
-// ═══════════════════════════════════════════════════════════════════
-
-import { uuidv7 as _piUuidv7 } from '@earendil-works/pi-agent-core';
-
-// ═══════════════════════════════════════════════════════════════════
-// pi-ai runtime imports
-// ═══════════════════════════════════════════════════════════════════
-
-import { Type as _piType } from '@earendil-works/pi-ai';
-import { getModel as _piGetModel } from '@earendil-works/pi-ai';
-import { parseJsonWithRepair as _piParseJsonWithRepair } from '@earendil-works/pi-ai';
+import { PiBridge } from './pi-bridge/index.js';
+import { Type as _piType } from '@earendil-works/pi-ai/compat';
+import { parseJsonWithRepair as _piParseJsonWithRepair } from '@earendil-works/pi-ai/compat';
+import { getModel as _piGetModel } from '@earendil-works/pi-ai/compat';
 
 // ═══════════════════════════════════════════════════════════════════
-// pi-agent-core node runtime import
+// pi-ai compat — stable runtime surface
 // ═══════════════════════════════════════════════════════════════════
 
-import { NodeExecutionEnv as _PiNodeExecutionEnv } from '@earendil-works/pi-agent-core/node';
-import { AgentHarness as _PiAgentHarness } from '@earendil-works/pi-agent-core';
-import { InMemorySessionRepo as _PiInMemorySessionRepo } from '@earendil-works/pi-agent-core';
-
-// ═══════════════════════════════════════════════════════════════════
-// Exported utilities — MP prefix for new code
-// ═══════════════════════════════════════════════════════════════════
-
-/** UUID v7 generator (wraps pi-agent-core uuidv7) */
-export const mpUuidv7: () => string = _piUuidv7;
-
-/** TypeBox Type builder (wraps pi-ai Type) */
 export const mpType = _piType;
-
-/** Model resolver (wraps pi-ai getModel) */
 export const mpGetModel = _piGetModel;
-
-/** JSON parser with auto-repair (wraps pi-ai parseJsonWithRepair) */
 export const mpParseJsonWithRepair: ((json: string) => any) | undefined = _piParseJsonWithRepair;
 
-/** NodeExecutionEnv (wraps pi-agent-core/node NodeExecutionEnv) */
-export const MpNodeExecutionEnv = _PiNodeExecutionEnv;
-
-/** AgentHarness (wraps pi-agent-core AgentHarness) */
-export const MpAgentHarness = _PiAgentHarness;
-
-/** InMemorySessionRepo (wraps pi-agent-core InMemorySessionRepo) */
-export const MpInMemorySessionRepo = _PiInMemorySessionRepo;
-
 // ═══════════════════════════════════════════════════════════════════
-// Backward-compat original names (migration bridge)
+// pi-agent-core — through PiBridge statics
 // ═══════════════════════════════════════════════════════════════════
 
-export const uuidv7 = _piUuidv7;
+export const mpUuidv7: () => string = PiBridge.uuidv7;
+
+/** NodeExecutionEnv class (from PiBridge static) */
+export const MpNodeExecutionEnv = PiBridge.NodeEnvClass;
+
+/** AgentHarness class (from PiBridge static) */
+export const MpAgentHarness = PiBridge.AgentHarnessClass;
+
+/** InMemorySessionRepo class (from PiBridge static) */
+export const MpInMemorySessionRepo = PiBridge.SessionRepoClass;
+
+// ═══════════════════════════════════════════════════════════════════
+// Backward-compat aliases (original names)
+// ═══════════════════════════════════════════════════════════════════
+
+export const uuidv7 = PiBridge.uuidv7;
 export const Type = _piType;
 export const getModel = _piGetModel;
-export const NodeExecutionEnv = _PiNodeExecutionEnv;
-export const AgentHarness = _PiAgentHarness;
-export const InMemorySessionRepo = _PiInMemorySessionRepo;
+export const NodeExecutionEnv = PiBridge.NodeEnvClass;
+export const AgentHarness = PiBridge.AgentHarnessClass;
+export const InMemorySessionRepo = PiBridge.SessionRepoClass;

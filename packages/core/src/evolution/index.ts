@@ -2,12 +2,13 @@
  * evolution — MorPex Evolution Layer Barrel
  *
  * Phase 5 / MorPex v8.5: 系统长期成长引擎。
+ * v11: +ExperienceMiner, +FailureAnalyzer, +PatternExtractor
  *
  * 子模块:
- *   evolution/workflow/  — Workflow Evolution Engine (Phase 5)
- *   evolution/behavior/  — Behavior Evolution Engine (预留)
- *   evolution/decision/  — Decision Evolution Engine (预留)
- *   evolution/capability/— Capability Evolution Engine (预留)
+ *   evolution/workflow/   — Workflow Evolution Engine (Phase 5)
+ *   evolution/behavior/   — Behavior Evolution Engine (预留)
+ *   evolution/decision/   — Decision Evolution Engine (预留)
+ *   evolution/capability/ — Capability Evolution Engine (预留)
  */
 
 // ── Workflow Evolution (Phase 5) ──
@@ -39,3 +40,13 @@ export type {
   LineageQuery,
   LineagePath,
 } from './workflow/index.js';
+
+// ── v11 Evolution Engine ──
+export { ExperienceMiner } from './ExperienceMiner.js';
+export type { MinedExperience, MiningConfig } from './ExperienceMiner.js';
+
+export { FailureAnalyzer } from './FailureAnalyzer.js';
+export type { FailureMode, FailureCategory, WorkflowFailureAnalysis, FailureAnalysisConfig } from './FailureAnalyzer.js';
+
+export { PatternExtractor, PATTERN_TEMPLATES } from './PatternExtractor.js';
+export type { ExtractedPattern, PatternCategory, PatternExtractorConfig } from './PatternExtractor.js';

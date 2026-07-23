@@ -97,7 +97,7 @@ console.log('\n📋 4. DomainClusterManager\n');
     ok(typeof manager.findDomainByIntent === 'function', '有 findDomainByIntent 方法');
 
     // 注册一个测试领域
-    const cluster = manager.register({ domainId: 'test', name: 'Test', description: 'd', version: '1.0', skills: [], tools: [], artifacts: [], dependencies: [] });
+    const cluster = manager.register({ domain_id: 'test', domain_name: 'Test', description: 'd', version: '1.0', skills: [], tools: [], artifacts: [], dependencies: [] });
     ok(cluster !== undefined, 'register 返回集群');
     const got = manager.getCluster('test');
     ok(got !== undefined, 'getCluster 返回集群');

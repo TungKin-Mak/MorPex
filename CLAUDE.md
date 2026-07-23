@@ -102,6 +102,35 @@ Kernel → Gateway → Runtime(FSM/DAG) → EventBus → Mirror → Knowledge/Me
 ### 架构漂移检测
 大型升级后检查：新模块是否入架构图、数据模型、EventBus、Runtime。
 
+### PiBridge 隔离铁律（v11+）
+
+```
+┌─────────────────────────────────────────────────────┐
+│  PiBridge.ts — 唯一直接导入 pi-ai / pi-agent-core  │
+│  packages/core/src/adapters/pi-bridge/PiBridge.ts   │
+└────────────────────────┬────────────────────────────┘
+                         │ 对外暴露稳定接口
+         ┌───────────────┼───────────────┐
+         ▼               ▼               ▼
+    pi-utils.ts    pi-types.ts    domain-cluster.ts
+    agent-spawner.ts  SessionManager.ts  ...
+```
+
+| 规则 | 说明 |
+|------|------|
+| **唯一入口** | `PiBridge.ts` 是唯一允许 `import ... from '@earendil-works/pi-ai'` 和 `import ... from '@earendil-works/pi-agent-core'` 运行时导入的文件 |
+| **类型桥接** | `pi-types.ts` 允许 `import type` 从 pi 包导入类型（编译后消失） |
+| **升级隔离** | pi-ai 或 pi-agent-core 升级时，**只需改 PiBridge.ts**，业务代码零修改 |
+| **禁止绕过** | 任何其他文件禁止直接导入 `@earendil-works/pi-ai` 或 `@earendil-works/pi-agent-core`（类型导入除外） |
+| **新增能力** | 需要新的 pi 包能力时，先在 PiBridge 封装，再暴露给业务层 |
+
+**检查方法：**
+```bash
+# 查找违规直接导入（PiBridge 和 pi-types 除外）
+grep -rn "from '@earendil-works/pi-ai'" --include="*.ts" packages/ | grep -v pi-bridge | grep -v pi-types | grep -v compat
+grep -rn "from '@earendil-works/pi-agent-core'" --include="*.ts" packages/ | grep -v pi-bridge | grep -v pi-types
+```
+
 ---
 
 ## 七、Bug 修复流程
@@ -120,6 +149,7 @@ Kernel → Gateway → Runtime(FSM/DAG) → EventBus → Mirror → Knowledge/Me
 
 ```
 □ tsc --noEmit → 零错误
+□ node scripts/production-check.cjs → 8/8 通过
 □ 无残留旧路径引用
 □ 新文件在 barrel 链中
 □ 新模块有实例化 + 调用者
@@ -127,6 +157,29 @@ Kernel → Gateway → Runtime(FSM/DAG) → EventBus → Mirror → Knowledge/Me
 □ 文档已更新
 □ 无幽灵模块（存在但无运行时引用）
 ```
+
+### 生产就绪检查清单
+```bash
+node scripts/production-check.cjs   # 8项全量检查
+npx tsx tests/run-all.ts            # 系统测试 20/20
+npx vitest run packages/studio/server/event-mesh/__tests__/  # EventMesh 31/31
+bash scripts/run-k6-test.sh --smoke # 负载冒烟测试
+```
+
+### 新增测试文件
+| 文件 | 覆盖 |
+|------|------|
+| `packages/core/__tests__/security-prompt-injection.test.ts` | 10类注入攻击 38/38 |
+| `packages/core/__tests__/production-llm-mock.test.ts` | LLM Mock 37/37 |
+| `packages/core/__tests__/production-pipeline.test.ts` | Pipeline 40/40 |
+| `packages/core/__tests__/production-sandbox.test.ts` | Sandbox 38/38 |
+| `packages/core/__tests__/production-memory.test.ts` | Memory 32/32 |
+| `packages/core/__tests__/critical-llm-mock.test.ts` | LLM 隔离 17/17 |
+| `packages/core/__tests__/critical-cognitive-pipeline.test.ts` | 9阶段管线 26/26 |
+| `packages/core/__tests__/critical-sandbox-security.test.ts` | 沙箱安全 52/52 |
+| `packages/core/__tests__/critical-memory-knowledge.test.ts` | 记忆知识 26/26 |
+| `scripts/k6-load-test.js` | k6 阶梯负载测试 |
+| `scripts/run-k6-test.sh` | k6 一键运行器 |
 
 ---
 

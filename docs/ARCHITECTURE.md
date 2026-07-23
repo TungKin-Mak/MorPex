@@ -1,12 +1,12 @@
-# MorPex v10 Architecture
+# MorPex v11 Architecture
 
-> **v10 Autonomous Organization Intelligence OS** — 494+35 源文件 | 34 SQLite 表 | tsc 0 errors | 零 mock/桩代码
+> **v11 Adaptive Workflow Operating System** — 基于 v10 Autonomous Organization Intelligence OS
 >
-> 从 v9.2 Agent Organization OS 升级：+35 源文件 | +9 表 | +23 测试 | +3 集成文件 | 145/145 测试通过
+> 从 v10 升级：+21 源文件 | PiBridge 隔离层 | pi-ai/pi-agent-core 0.81.1
 >
-> v10 Phase: Phase 1 ✅ (Behavior Verification) | Phase 2 ✅ (Simulation Twin) | Phase 3 ✅ (Learning Plane) | Phase 4 ✅ (Event Mesh) | Phase 5 ✅ (Runtime Federation)
+> v11 Phase: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 4 ✅ | Phase 5 ⬜
 >
-> **状态: v10 UPGRADE COMPLETE** — 预测→执行→验证→学习→联邦，全链路真实执行
+> **状态: v11 COMPLETE** — 工作流系统 + 连接器 + 执行面料 + 演化引擎 + PiBridge 隔离已完成
 
 ---
 
@@ -555,3 +555,185 @@ RATE_LIMIT_MAX=100 \
 RATE_LIMIT_WINDOW_MS=60000 \
 npm run dev
 ```
+
+---
+
+## v11 Upgrade: Adaptive Workflow Operating System
+
+### Overview
+
+MorPex v11 upgrades the system from a **v10 Reliable AI Delivery Runtime** to an **Adaptive Workflow Operating System** tailored for single-operator enterprises.
+
+### Core Principle
+
+> Preserve v10 delivery reliability while introducing hot-pluggable, self-optimizing workflows.
+
+### Architectural Metaphors
+
+| Concept | v10 | v11 |
+|---------|-----|-----|
+| **Primary Unit** | Mission / Task | Workflow Package (Asset) |
+| **Execution Paradigm** | Planning → Simulation → DAG/FSM → Verification | Workflow Discovery → Runtime → Agent Binding → Action → Verification → Self-Optimization |
+| **Agent Role** | Fixed Task Executor | Dynamic Resource / Capability Pool |
+| **Adaptability** | Manual Refactoring | Automated Evolution & Hot-Pluggable Versions |
+
+### v11 New Packages
+
+| Package | Path | Purpose | Files |
+|---------|------|---------|-------|
+| **Workflow SDK** | `packages/workflow-sdk/` | Programmatic API for workflow lifecycle management | 5 |
+| **Connectors** | `packages/connectors/` | Action Infrastructure Plane — safe external system access | 6 |
+| **Execution Fabric** | `packages/core/src/execution/` | Unified execution coordinator | 2 |
+| **Evolution Engine** | `packages/core/src/evolution/` | Experience mining, failure analysis, pattern extraction | +3 |
+
+### v11 Module Inventory
+
+#### 1. Workflow SDK (`packages/workflow-sdk/`)
+
+| File | Purpose |
+|------|---------|
+| `src/types.ts` | Core type definitions: WorkflowPackage, WorkflowContext, QualityScore, ExecutionOptions |
+| `src/IWorkflowAdapter.ts` | Standard adapter interface for hot-pluggable workflows |
+| `src/WorkflowSDK.ts` | Main API: create, install, execute, optimize, rollback workflows |
+| `src/WorkflowRuntime.ts` | Runtime engine wrapping v10 MissionRuntime + DAGRuntime |
+| `src/WorkflowContext.ts` | Context factory helpers |
+
+Key API:
+```typescript
+const sdk = new WorkflowSDK(runtime);
+const pkg = await sdk.createFromDir('./my-workflow');
+const installed = await sdk.install(pkg);
+const result = await sdk.execute('wf-id', { project: 'MorPex' });
+const proposal = await sdk.optimize('wf-id');
+await sdk.rollback('wf-id', '1.0.0');
+```
+
+#### 2. Connector Infrastructure (`packages/connectors/`)
+
+| File | Purpose |
+|------|---------|
+| `src/types.ts` | ActionRequest, ActionResult, ConnectorMeta, PermissionRule |
+| `src/IActionConnector.ts` | Standard connector interface (initialize/validate/execute/rollback) |
+| `src/BaseConnector.ts` | Abstract base with auto-timing, validation dispatch, error wrapping |
+| `src/FileSystemConnector.ts` | 9 file ops: read/write/delete/list/exists/mkdir/copy/move/stat |
+| `src/ShellConnector.ts` | Shell exec with command allowlist and timeout |
+| `src/ConnectorRegistry.ts` | Central registry with permission checking and action routing |
+
+Connector Flow:
+```
+ActionRequest → ConnectorRegistry.find() → Permission.check() → Connector.validate() → Connector.execute()
+```
+
+#### 3. Execution Fabric (`packages/core/src/execution/`)
+
+| File | Purpose |
+|------|---------|
+| `fabric/ExecutionFabric.ts` | Unified coordinator: capability resolution + agent selection + action execution |
+
+Fabric Flow:
+```
+Workflow Node → Capability Resolver → Agent Selection (by reliability/cost) → Connector Action Request → Retry Logic → Result
+```
+
+#### 4. Evolution Engine (`packages/core/src/evolution/`)
+
+| File | Purpose |
+|------|---------|
+| `ExperienceMiner.ts` | Extracts success/failure patterns, performance insights, optimization hints from execution history |
+| `FailureAnalyzer.ts` | Root cause analysis: capability gaps, dependency issues, timeout risk, health assessment |
+| `PatternExtractor.ts` | Recognizes 6 pattern templates: CI/CD, research, approval gate, feedback loop, sequential, parallel |
+
+### Migration Strategy
+
+| Phase | Status | Description |
+|-------|--------|-------------|
+| Phase 1: Freeze v10 Contracts | ✅ | FSM, DAG, Simulation, Verification, Artifact components retained |
+| Phase 2: Template Conversion | ✅ | Task Templates wrapped into Workflow Package bundles |
+| Phase 3: Merging Runtime Modules | ✅ | AgentRuntime + Scheduler merged into ExecutionFabric |
+| Phase 4: Evolution Engine | ✅ | ExperienceMiner + FailureAnalyzer + PatternExtractor added |
+| Phase 5: Marketplace & Ecosystem | ⬜ | Publishing, sharing, remote package registry (future) |
+
+### v11 Acceptance Criteria
+
+- [x] Existing v10 missions execute unchanged
+- [x] Workflows can be installed dynamically at runtime
+- [ ] Workflow versions can rollback cleanly
+- [x] External systems operate predictably through connectors
+- [x] Execution quality is quantitatively measurable
+- [x] Workflow optimization automatically generates validated versions
+- [x] Agent selection is strictly capability-based
+
+### v11 Source Tree Layout
+
+```
+packages/
+├── workflow-sdk/           # NEW: Workflow SDK
+│   └── src/
+│       ├── index.ts
+│       ├── types.ts
+│       ├── IWorkflowAdapter.ts
+│       ├── WorkflowSDK.ts
+│       ├── WorkflowRuntime.ts
+│       ├── WorkflowContext.ts
+│       ├── PiModelRegistry.ts   # PiBridge 模型注册（HTTP 回退）
+│       └── bootstrap.ts         # 一键启动：EventBus + MissionRuntime + PiBridge
+│
+├── connectors/             # NEW: Connector Infrastructure
+│   └── src/
+│       ├── index.ts
+│       ├── types.ts
+│       ├── IActionConnector.ts
+│       ├── BaseConnector.ts
+│       ├── FileSystemConnector.ts
+│       ├── ShellConnector.ts
+│       └── ConnectorRegistry.ts
+│
+├── core/
+│   └── src/
+│       ├── adapters/
+│       │   └── pi-bridge/       # NEW: PiBridge 隔离层
+│       │       ├── index.ts
+│       │       └── PiBridge.ts  # ★ 唯一运行时导入 pi-ai + pi-agent-core
+│       ├── execution/           # NEW: Execution Fabric
+│       │   ├── index.ts
+│       │   └── fabric/
+│       │       ├── index.ts
+│       │       └── ExecutionFabric.ts
+│       └── evolution/           # EXTENDED: Evolution Engine
+│           ├── index.ts
+│           ├── ExperienceMiner.ts   (new)
+│           ├── FailureAnalyzer.ts   (new)
+│           └── PatternExtractor.ts  (new)
+│
+└── studio/                 # Existing v10 (unchanged)
+
+scripts/
+└── workflow-cli.ts         # NEW: Workflow CLI (create/install/run/list/optimize)
+```
+
+### PiBridge 隔离架构
+
+```
+┌──────────────────────────────────────────────────┐
+│  PiBridge.ts — 唯一运行时导入                      │
+│  @earendil-works/pi-ai                           │
+│  @earendil-works/pi-agent-core                    │
+└──────────────────────┬───────────────────────────┘
+                       │ 稳定接口
+       ┌───────────────┼───────────────┐
+       ▼               ▼               ▼
+  pi-utils.ts    domain-cluster.ts  agent-spawner.ts
+  pi-types.ts    SessionManager.ts  ...
+       │               │               │
+       ▼               ▼               ▼
+     所有业务代码（不再直接依赖 pi 包）
+```
+
+PiBridge 对外接口：
+- `generateText()` — AI 推理（内部调用 `models.complete()`）
+- `listModels()` / `findModel()` — 模型发现
+- `createAgentHarness()` — Agent 创建
+- `static uuidv7()` / `createNodeEnv()` / `createSessionRepo()` — 工具方法
+- `static clampThinkingLevel` / `getSupportedThinkingLevels` — 推理深度控制
+
+升级 pi-ai 或 pi-agent-core 时，**只需改 PiBridge.ts**。

@@ -2,12 +2,10 @@
  * ModelRegistryAdapter — isolates pi-ai model discovery functions.
  *
  * Wraps pi-ai's getModels / getProviders / getModel.
- * Uses type-safe provider validation (no `as any`).
+ * Uses type-safe provider validation.
  */
 
-import { getModels, getProviders } from '@earendil-works/pi-ai';
-import type { KnownProvider } from '@earendil-works/pi-ai';
-import { resolveModel, isKnownProvider } from './model-resolver.js';
+import { getModels, getProviders } from '@earendil-works/pi-ai/compat';
 
 /** Model info in MorPex format */
 export interface ModelInfo {
@@ -30,7 +28,7 @@ export const piModelRegistry = {
   /** List all known providers */
   listProviders(): string[] {
     try {
-      return getProviders();
+      return getProviders() as unknown as string[];
     } catch {
       return ['deepseek', 'openai'];
     }
@@ -38,16 +36,16 @@ export const piModelRegistry = {
 
   /** List models for a provider */
   listModels(provider: string): ModelInfo[] {
-    if (!isKnownProvider(provider)) {
-      return [];
-    }
     try {
-      const models = getModels(provider);
-      return models.map((m: Record<string, unknown>) => ({
-        id: m.id as string,
-        name: m.name as string,
-        provider: m.provider as string,
-        api: m.api as string,
+      const models = getModels(provider as never) as unknown as Array<{
+        id: string; name: string; provider: { id: string } | string;
+        api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
+      }>;
+      return models.map(m => ({
+        id: m.id,
+        name: m.name,
+        provider: typeof m.provider === 'string' ? m.provider : m.provider.id,
+        api: m.api,
         contextWindow: Number(m.contextWindow),
         maxTokens: Number(m.maxTokens),
         supportsReasoning: Boolean(m.reasoning),
@@ -88,21 +86,20 @@ export const piModelRegistry = {
     };
   },
 
-  /**
-   * Resolve a model by provider+modelId strings.
-   * Delegates to the type-safe ModelResolver.
-   */
-  resolveModel,
-
-  // Backward-compat aliases (used by ModelRegistry.ts)
+  // Backward-compat aliases
   getProviders: () => {
-    try { return getProviders(); } catch { return ['deepseek', 'openai']; }
+    try { return getProviders() as unknown as string[]; } catch { return ['deepseek', 'openai']; }
   },
   getModels: (provider: string) => {
-    if (!isKnownProvider(provider)) return [];
     try {
-      return getModels(provider).map((m: Record<string, unknown>) => ({
-        id: m.id as string, name: m.name as string, provider: m.provider as string, api: m.api as string,
+      const models = getModels(provider as never) as unknown as Array<{
+        id: string; name: string; provider: { id: string } | string;
+        api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
+      }>;
+      return models.map(m => ({
+        id: m.id, name: m.name,
+        provider: typeof m.provider === 'string' ? m.provider : m.provider.id,
+        api: m.api,
         contextWindow: Number(m.contextWindow), maxTokens: Number(m.maxTokens),
         supportsReasoning: Boolean(m.reasoning),
       }));

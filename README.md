@@ -1,58 +1,59 @@
-# MorPex v8.5 — Personal AI Work Operating System
+# MorPex v11 — Adaptive Workflow Operating System
 
-**Status**: Architecture Score 100/100 — Kernel stable, ready for data collection
-**Philosophy**: Human-controlled evolution. AI observes → suggests → human decides.
-**Not**: A chatbot, a digital twin, or an autonomous life agent.
+**Status**: 🟢 Production Ready — 8/8 production checks | 20/20 system tests | 31/31 EventMesh tests  
+**Version**: 11.0.0  
+**Stack**: pi-ai 0.81.1 | pi-agent-core 0.81.1 | TypeScript | Node.js
 
 ---
 
 ## Architecture
 
-See [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md) for the complete architecture overview:
+```
+E:/Morpex/          ← 后端
+  ├── packages/
+  │   ├── core/           ← 核心引擎 (MissionRuntime, DAGRuntime, FSM, PiBridge)
+  │   ├── workflow-sdk/   ← v11 Workflow SDK (WorkflowSDK, WorkflowRuntime)
+  │   ├── connectors/     ← v11 Connector Infrastructure (FileSystem, Shell)
+  │   ├── contracts/      ← 共享类型
+  │   ├── memory/         ← 内存层
+  │   └── studio/server/  ← API 端点、EventMesh、联邦
+  ├── scripts/            ← CLI、测试、运维
+  ├── tests/              ← 系统测试
+  ├── configs/            ← Docker、PM2
+  └── docs/               ← 文档
 
-- Layer stack (Experience → Interaction → Event → Cognitive Loop → Runtime → Cognition → Evolution → Control)
-- 9-phase CognitiveLoop data flow
-- Mission state machine (9 states)
-- Event types (41 events, all actively emitted)
-- API endpoints (12 v8 REST endpoints)
-- Human control switches (workflow candidates, behavior drift confirmation)
-- 44 production modules, all real implementations
+E:/MorPex_UI/       ← 前端
+  └── (React/Vite)
+```
 
-## Core Principles
-
-1. **Human-in-the-loop**: AI never auto-registers workflows, never auto-updates behavior profiles, never auto-executes without approval
-2. **Event Sourcing**: All state changes persist as events. State = f(events), not direct mutation
-3. **Dependency injection**: No hardcoded module wiring. All dependencies passed through constructors
-4. **Layer isolation**: Interaction never imports Runtime. Protocol never imports anything. All communication through EventBus
-5. **Zero stubs**: All 44 production modules are real implementations
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete architecture.
 
 ## Quick Start
 
 ```bash
-npm run dev              # Start StudioServer (REST API + SSE)
-npx tsx tests/run-test.ts tests/unit/cognitive-loop.test.ts   # Run a test
+# Start backend server
+npm run dev
+
+# Workflow CLI
+npm run wf:create -- hello-world
+npm run wf:run -- ./hello-world --input='{"msg":"Hello"}'
+npm run wf:list
+npm run wf:optimize -- wf-v11_hello-world_1_0_0
 ```
 
 ## Key Metrics
 
 | Metric | Value |
 |--------|-------|
-| TypeScript errors | **0** (exit code 0) |
-| Unit tests | 34/34 pass |
-| Architecture tests | 32/32 pass |
-| Scenario tests | 34/34 pass |
-| Integration tests | 52/52 pass |
-| Production modules | 44 (all real, zero stubs) |
-| Event types | 41 (all actively emitted) |
-| Architecture score | **100/100** |
+| TypeScript errors | **0** |
+| System tests | **20/20** pass |
+| Production check | **8/8** pass |
+| EventMesh tests | **31/31** pass |
+| Pi packages | pi-ai 0.81.1 / pi-agent-core 0.81.1 |
 
-## Evolution Path
+## Core Principles
 
-```
-v8.5 Kernel (current)     — 100/100 architecture, human-controlled
-    ↓
-Data Collection Phase     — 1,000+ real missions, 3+ months runtime
-    ↓
-v9 Personal Intelligence  — Workflow Evolution, Proactive Assistant,
-  (only when data ready)     Decision Support, Personal Work Model
-```
+1. **PiBridge Isolation** — Only `PiBridge.ts` imports pi packages directly
+2. **Human-in-the-loop** — AI never auto-executes without approval
+3. **Event Sourcing** — All state changes persist as events
+4. **Layer isolation** — All communication through EventBus

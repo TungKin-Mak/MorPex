@@ -208,7 +208,7 @@ export class CheckpointManager {
   async cleanup(maxAge: number): Promise<number> {
     const threshold = Math.floor((Date.now() - maxAge) / 1000);
     if (this.db) {
-      const result = this.db.prepare('DELETE FROM checkpoints WHERE created_at < ?').run(threshold);
+      const result = this.db.prepare('DELETE FROM checkpoints WHERE created_at <= ?').run(threshold);
       return result.changes;
     } else {
       const now = Date.now();

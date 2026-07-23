@@ -45,3 +45,7 @@ export { thinkingLevelControl } from './thinking-level.js';
 
 // ── Agent spawner (agent-spawner.ts) ──
 export { agentSpawner } from './agent-spawner.js';
+
+// ── PiBridge (v11 stable abstraction) ──
+export { PiBridge } from './pi-bridge/index.js';
+export type { GenerateParams, GenerateResult, ModelInfo as PiModelInfo } from './pi-bridge/index.js';

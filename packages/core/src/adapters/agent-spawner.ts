@@ -1,18 +1,14 @@
 /**
- * AgentSpawnerAdapter — isolates pi-agent-core AgentHarness/InMemorySessionRepo/NodeExecutionEnv
+ * AgentSpawnerAdapter — Agent 创建工厂
  *
- * Only file that directly imports pi-agent-core for agent creation.
- * If pi-agent-core changes these exports, only this file needs updating.
- *
- * Uses ModelResolver for type-safe model resolution (no `as any`).
+ * 通过 PiBridge 隔离 pi-agent-core 依赖。
+ * PiBridge 是唯一直接导入 pi-agent-core 的文件。
  */
 
-import { AgentHarness, InMemorySessionRepo } from '@earendil-works/pi-agent-core';
-import { NodeExecutionEnv } from '@earendil-works/pi-agent-core/node';
-import type { AgentTool } from '@earendil-works/pi-agent-core';
-import { resolveModel } from './model-resolver.js';
+import type { AgentTool } from './pi-bridge/index.js';
+import { PiBridge } from './pi-bridge/index.js';
 
-export type { AgentTool };
+export type { AgentTool } from './pi-bridge/index.js';
 
 export interface SpawnParams {
   identityToken: string;
@@ -25,32 +21,23 @@ export interface SpawnParams {
 }
 
 export const agentSpawner = {
-  createEnv(): NodeExecutionEnv {
-    return new NodeExecutionEnv({ cwd: process.cwd() });
-  },
+  async spawn(params: SpawnParams): Promise<{
+    prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+    abort: () => Promise<void>;
+  }> {
+    const bridge = new PiBridge(
+      `${params.provider ?? 'deepseek'}/${params.modelId ?? 'deepseek-v4-flash'}`,
+    );
 
-  async spawn(params: SpawnParams): Promise<AgentHarness> {
-    const provider = params.provider ?? 'deepseek';
-    const modelId = params.modelId ?? 'deepseek-v4-flash';
-
-    const model = resolveModel(provider, modelId);
-
-    const env = new NodeExecutionEnv({ cwd: process.cwd() });
-    const repo = new InMemorySessionRepo();
-    const session = await repo.create({
-      id: `agent_${params.ring}_${params.domainId ?? 'generic'}_${Date.now()}`,
-    });
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const harness = new (AgentHarness as any)({
-      env,
-      model,
-      session,
-      tools: params.tools,
+    return bridge.createAgentHarness({
+      tools: params.tools.map(t => ({
+        name: t.name,
+        description: t.description,
+        parameters: t.parameters ?? {},
+      })),
       systemPrompt: params.systemPrompt,
+      model: `${params.provider ?? 'deepseek'}/${params.modelId ?? 'deepseek-v4-flash'}`,
+      sessionId: `agent_${params.ring}_${params.domainId ?? 'generic'}_${Date.now()}`,
     });
-    return harness as AgentHarness;
-
-    return harness;
   },
 };

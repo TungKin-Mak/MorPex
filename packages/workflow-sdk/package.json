@@ -1,0 +1,18 @@
+{
+  "name": "@morpex/workflow-sdk",
+  "version": "11.0.0",
+  "type": "module",
+  "description": "MorPex v11 Workflow SDK — Adaptive Workflow Operating System",
+  "main": "src/index.js",
+  "types": "src/index.ts",
+  "exports": {
+    ".": {
+      "types": "./src/index.ts",
+      "import": "./src/index.js"
+    }
+  },
+  "dependencies": {
+    "@morpex/contracts": "workspace:*",
+    "@morpex/core": "workspace:*"
+  }
+}

@@ -20,6 +20,20 @@ export class ExecutionRecordingEngine {
     const rec = this.recordings.get(recId);
     if (rec) rec.actionLog.push(action);
   }
+  recordObservation(recId: string, observation: any) {
+    const rec = this.recordings.get(recId);
+    if (rec) {
+      if (!(rec as any).observationLog) (rec as any).observationLog = [];
+      (rec as any).observationLog.push(observation);
+    }
+  }
+  recordDAGSnapshot(recId: string, snapshot: any) {
+    const rec = this.recordings.get(recId);
+    if (rec) {
+      if (!(rec as any).dagSnapshots) (rec as any).dagSnapshots = [];
+      (rec as any).dagSnapshots.push(snapshot);
+    }
+  }
   async stopRecording(recId: string) {
     const rec = this.recordings.get(recId);
     if (!rec) return null;

@@ -17,6 +17,12 @@
     "sourceMap": true,
     "baseUrl": ".",
     "paths": {
+      "@morpex/connectors": [
+        "./packages/connectors/src/index.ts"
+      ],
+      "@morpex/connectors/*": [
+        "./packages/connectors/src/*"
+      ],
       "@morpex/contracts": [
         "./packages/contracts/index.ts"
       ],
@@ -38,24 +44,13 @@
       "@morpex/studio/*": [
         "./packages/studio/*"
       ],
-      "@morpex/adapters/mock-runtime": [
-        "./packages/adapters/mock-runtime/index.ts"
+      "@morpex/workflow-sdk": [
+        "./packages/workflow-sdk/src/index.ts"
       ],
-      "@morpex/adapters/mock-runtime/*": [
-        "./packages/adapters/mock-runtime/*"
+      "@morpex/workflow-sdk/*": [
+        "./packages/workflow-sdk/src/*"
       ],
-      "@morpex/adapters/pi-ai": [
-        "./packages/adapters/pi-ai/index.ts"
-      ],
-      "@morpex/adapters/pi-ai/*": [
-        "./packages/adapters/pi-ai/*"
-      ],
-      "@morpex/adapters/pi-agent-core": [
-        "./packages/adapters/pi-agent-core/index.ts"
-      ],
-      "@morpex/adapters/pi-agent-core/*": [
-        "./packages/adapters/pi-agent-core/*"
-      ]
+
     }
   },
   "include": [
@@ -63,17 +58,15 @@
     "packages/memory/src/**/*.ts",
     "packages/studio/server/**/*.ts",
     "packages/contracts/**/*.ts",
-    "packages/adapters/**/*.ts",
+    "packages/connectors/**/*.ts",
+    "packages/workflow-sdk/**/*.ts",
+
     "scripts/**/*.ts"
   ],
   "exclude": [
     "node_modules",
-    "packages/studio/ui",
     "data",
     "dist",
-    "scripts/cli-client.ts",
-    "scripts/production-readiness-check.ts",
-    "scripts/test-*.ts",
     "packages/core/__tests__",
     "packages/studio/server/**/__tests__"
   ]
