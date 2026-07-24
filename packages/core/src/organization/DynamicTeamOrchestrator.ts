@@ -9,6 +9,7 @@ import { CapabilityDiscoverer } from '../capability/CapabilityDiscoverer.js';
 import type { Capability } from '../capability/CapabilityRegistry.js';
 import type { DynamicTeam, DependencyGraph, TeamSpec } from './types.js';
 import type { GoalContext } from '../contracts/goal.js';
+import { AgentCapabilityRegistry } from '../agent-capability/AgentCapabilityRegistry.js';
 
 export interface WorkflowRegistryLike {
   findForGoal: (goal: string) => Array<{ name: string; description: string }>;
@@ -47,9 +48,14 @@ export class DynamicTeamOrchestrator {
       ...goalCtx,
       requiredCapabilities: discovery.matched.map(c => c.name),
     });
-    const availableAgents = this.agentPool
+    const rawAgents = this.agentPool
       ? this.agentPool.getAvailableAgents()
       : DynamicTeamOrchestrator.getDefaultAgentPool();
+    // Phase 2: 按信誉分排序（Agent Reputation → Planner）
+    const availableAgents = rawAgents.map(a => ({
+      ...a,
+      reputation: AgentCapabilityRegistry.get(a.id)?.successRate || 0.5,
+    })).sort((a, b) => b.reputation - a.reputation);
 
     const teams: DynamicTeam[] = specs.map((spec, i) => {
       const members = AgentAllocator.allocate(spec, availableAgents);

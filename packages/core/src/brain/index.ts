@@ -5,5 +5,7 @@ export type { TaskRecord, UserFeedback, LearningResult, MetaLearnerLike } from '
 export { SelfImprovementLoop } from './SelfImprovementLoop.js';
 export { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
 export { EvolutionProposal } from './EvolutionProposal.js';
+export { SafetyMonitor } from './SafetyMonitor.js';
 export type { ImprovementInsight } from './ImprovementAnalyzer.js';
 export type { Proposal } from './EvolutionProposal.js';
+export type { Observation } from './SafetyMonitor.js';

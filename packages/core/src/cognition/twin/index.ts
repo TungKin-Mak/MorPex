@@ -44,3 +44,7 @@ export type {
   SubgraphResult,
   TwinInsight,
 } from './types.js';
+
+// ── Organization Twin (Phase 2) ──
+export { OrganizationTwin } from './OrganizationTwin.js';
+export type { OrgRole, OrgDecision } from './OrganizationTwin.js';

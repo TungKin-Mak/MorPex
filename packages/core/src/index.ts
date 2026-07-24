@@ -908,6 +908,22 @@ export type { AgentDeclaration } from './agent-capability/index.js';
 export { GOLDEN_TASKS, BenchmarkRunner } from './benchmark/index.js';
 export type { GoldenTask, BenchmarkResult } from './benchmark/index.js';
 
+// ── Organization Twin (Phase 2) ──
+export { OrganizationTwin } from './cognition/twin/index.js';
+export type { OrgRole, OrgDecision } from './cognition/twin/index.js';
+
+// ── Safety Monitor (Phase 2) ──
+export { SafetyMonitor } from './brain/index.js';
+export type { Observation } from './brain/index.js';
+
+// ── Policy Engine (Phase 2 — 统一策略引擎) ──
+export { PolicyEngine as UnifiedPolicyEngine, policyEngine } from './policy/index.js';
+export type { Policy as UnifiedPolicy, PolicyCheckResult } from './policy/index.js';
+
+// ── Metadata Graph (Phase 2) ──
+export { SystemMetadataGraph, systemMetadataGraph } from './metadata/index.js';
+export type { Entity, EntityType, Relation, RelationType } from './metadata/index.js';
+
 // ── v16 Bootstrap ──
 export { bootstrapV16 } from './bootstrap-v16.js';
 export type { V16BootstrapResult } from './bootstrap-v16.js';
