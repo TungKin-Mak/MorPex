@@ -898,7 +898,7 @@ export type { ScoreReport } from './evaluation/index.js';
 
 // ── Stabilization: Trace ──
 export { TraceCollector } from './trace/index.js';
-export type { TraceSpan } from './trace/index.js';
+export type { TraceSpan as ExecutionTraceSpan } from './trace/index.js';
 
 // ── Stabilization: Agent Capability Registry ──
 export { AgentCapabilityRegistry } from './agent-capability/index.js';

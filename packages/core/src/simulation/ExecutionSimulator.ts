@@ -30,7 +30,7 @@ export class ExecutionSimulator {
 
     for (const step of input.plan.steps) {
       totalDuration += step.estimatedDuration;
-      totalCost += step.estimatedDuration * 0.001;
+      totalCost += (step.estimatedDuration / 3600000) * 0.5; // 每小时 $0.50
 
       for (const cap of step.capabilities) {
         const match = input.capabilities.find(c => c.name.toLowerCase().includes(cap.toLowerCase()));
@@ -45,7 +45,12 @@ export class ExecutionSimulator {
     }
 
     if (input.constraints.budget && totalCost > input.constraints.budget) {
-      blocking.push(`预估成本 $${Math.round(totalCost)} 超出预算 $${input.constraints.budget}`);
+      const overshoot = ((totalCost - input.constraints.budget) / input.constraints.budget) * 100;
+      if (overshoot > 50) {
+        blocking.push(`预估成本 $${Math.round(totalCost)} 超出预算 $${input.constraints.budget} ${Math.round(overshoot)}%`);
+      } else {
+        warnings.push(`预估成本 $${Math.round(totalCost)} 略超预算 $${input.constraints.budget} (${Math.round(overshoot)}%)`);
+      }
     }
     if (input.constraints.deadline) {
       const deadlineMs = new Date(input.constraints.deadline).getTime() - Date.now();
