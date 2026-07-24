@@ -37,14 +37,12 @@ export class ServiceContainer {
   constructor() {
     this.eventBus = new EventBus();
     this.missionController = new MissionController(this.eventBus);
-    this.missionController.setPersistentStore({ save: (m: any) => this.missionStore.save(m) });
     this.teamOrchestrator = new DynamicTeamOrchestrator();
     this.executionEngine = new UnifiedExecutionEngine(this.eventBus);
     this.executionEngine.setMissionRuntime(this.createMissionRuntime());
     this.executionEngine.setDAGRuntime(this.createDAGRuntime());
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     this.artifactFacade = new ArtifactFacade(this.eventBus);
-    this.artifactFacade.setPersistentStore({ save: (a: any) => this.artifactStore.save(a), transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine();
     this.complianceChecker = new ComplianceChecker();
@@ -55,6 +53,8 @@ export class ServiceContainer {
     this.artifactStore = new PersistentArtifactStore();
     this.missionStore.init().catch(() => {});
     this.artifactStore.init().catch(() => {});
+    this.missionController.setPersistentStore({ save: (m: any) => this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }) });
+    this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.runtime = new MorPexRuntime(
       this.eventBus,
       this.missionController,

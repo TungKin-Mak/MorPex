@@ -894,7 +894,7 @@ export type { ArtifactLifecycleStatus, ArtifactLineageEntry } from './contracts/
 
 // ── Stabilization: Evaluation ──
 export { EvaluationEngine, QualityScorer } from './evaluation/index.js';
-export type { ScoreReport } from './evaluation/index.js';
+export type { SystemScore } from './evaluation/index.js';
 
 // ── Stabilization: Trace ──
 export { TraceCollector } from './trace/index.js';

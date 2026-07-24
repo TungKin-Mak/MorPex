@@ -89,6 +89,35 @@ export class ArtifactFacade {
     });
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // Artifact Blueprint 支持 (Phase 1-5)
+  // ═══════════════════════════════════════════════════════════
+
+  private blueprints: Map<string, import('./ArtifactBlueprint.js').ArtifactBlueprint> = new Map();
+
+  setBlueprints(bps: import('./ArtifactBlueprint.js').ArtifactBlueprint[]): void {
+    bps.forEach(bp => this.blueprints.set(bp.id, bp));
+  }
+
+  getPendingBlueprints(): import('./ArtifactBlueprint.js').ArtifactBlueprint[] {
+    return [...this.blueprints.values()].filter(b => b.status === 'PENDING');
+  }
+
+  getNextReadyBlueprint(): import('./ArtifactBlueprint.js').ArtifactBlueprint | undefined {
+    return [...this.blueprints.values()].find(
+      b => b.status === 'PENDING' && b.dependsOn.every(d => this.blueprints.get(d)?.status === 'COMPLETED'),
+    );
+  }
+
+  markBlueprintCompleted(id: string): void {
+    const bp = this.blueprints.get(id);
+    if (bp) bp.status = 'COMPLETED';
+  }
+
+  getAllBlueprints(): import('./ArtifactBlueprint.js').ArtifactBlueprint[] {
+    return [...this.blueprints.values()];
+  }
+
   static readonly VALID_TRANSITIONS: Record<ArtifactStatus, ArtifactStatus[]> = {
     CREATED: ['VALIDATING', 'FAILED'],
     VALIDATING: ['REVIEWING', 'FAILED'],

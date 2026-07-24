@@ -141,6 +141,35 @@ export class UnifiedEventStore implements IEventStore {
     return db.getLatestSequence();
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // ★ Event Sourcing 方法（v16 新增）
+  // ═══════════════════════════════════════════════════════════════
+
+  /** 按 executionId 重放所有事件（事件源） */
+  async replayStream(executionId: string): Promise<BaseEvent[]> {
+    return this.query({ executionId });
+  }
+
+  /** 按事件类型重放所有事件（事件源） */
+  async replayByType(eventType: string): Promise<BaseEvent[]> {
+    return this.query({ type: eventType });
+  }
+
+  /** 获取系统全局统计 */
+  async getSystemStats(): Promise<{ totalEvents: number; byType: Record<string, number>; totalMissions: number; totalArtifacts: number }> {
+    const all = await this.query({});
+    const byType: Record<string, number> = {};
+    for (const e of all) {
+      byType[e.type] = (byType[e.type] || 0) + 1;
+    }
+    return {
+      totalEvents: all.length,
+      byType,
+      totalMissions: all.filter(e => e.type.startsWith('mission.')).length,
+      totalArtifacts: all.filter(e => e.type.startsWith('artifact.')).length,
+    };
+  }
+
   async getStats(): Promise<EventStoreStats> {
     const db = await this.ensureDb();
     return db.getStats();
