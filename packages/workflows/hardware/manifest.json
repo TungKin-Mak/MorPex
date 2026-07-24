@@ -1,0 +1,9 @@
+{
+  "name": "hardware",
+  "version": "1.0.0",
+  "description": "Hardware design workflow: PCB, Firmware, Simulation",
+  "actions": ["hardware.design_pcb", "hardware.compile_firmware", "hardware.run_simulation"],
+  "artifacts": ["PCBLayout", "FirmwareBinary", "SimulationReport"],
+  "validators": ["DFMChecker", "FCCompliance"],
+  "dependencies": {}
+}

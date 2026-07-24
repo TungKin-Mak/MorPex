@@ -839,3 +839,32 @@ export type { CapabilityPattern, SOP } from './experience/index.js';
 // ── v14 Bootstrap ──
 export { bootstrapV14 } from './bootstrap-v14.js';
 export type { V14BootstrapResult } from './bootstrap-v14.js';
+
+
+// ═══════════════════════════════════════════════════════════════
+// v15 新增模块
+// ═══════════════════════════════════════════════════════════════
+
+// ── Dynamic Team Orchestration (v15) ──
+export { DynamicTeamOrchestrator, TeamBuilder, AgentAllocator, DependencyCoordinator } from './organization/index.js';
+export type { DynamicTeam, TeamMember, DependencyGraph, TeamSpec } from './organization/index.js';
+
+// ── Workflow Plugin System (v15) — 别名避免与 evolution/WorkflowRegistry 冲突 ──
+export { WorkflowRegistry as WorkflowPluginRegistry } from './workflow/index.js';
+export type { WorkflowProvider, WorkflowAction } from './workflow/index.js';
+
+// ── Compliance Checker (v15) — PolicyRule 已从 control/PolicyEngine 导出 ──
+export { ComplianceChecker, PolicyRuleRegistry } from './verification/index.js';
+export type { ComplianceResult } from './verification/index.js';
+
+// ── Runtime Governance (v15) ──
+export { RuntimeManager, CostController, AlertEngine } from './governance/index.js';
+export type { RuntimeStatus, Alert, AlertLevel } from './governance/index.js';
+
+// ── Self Improvement Loop (v15) ──
+export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './brain/index.js';
+export type { ImprovementInsight, Proposal } from './brain/index.js';
+
+// ── v15 Bootstrap ──
+export { bootstrapV15 } from './bootstrap-v15.js';
+export type { V15BootstrapResult } from './bootstrap-v15.js';

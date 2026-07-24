@@ -1,0 +1,9 @@
+{
+  "name": "software",
+  "version": "1.0.0",
+  "description": "Software development workflow: GitHub, Docker, Cloud",
+  "actions": ["github.create_repo", "docker.build_image", "cloud.deploy"],
+  "artifacts": ["SourceCode", "DockerImage", "DeploymentConfig"],
+  "validators": ["CodeReviewer", "SecurityScanner"],
+  "dependencies": {}
+}

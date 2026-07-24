@@ -1,0 +1,9 @@
+{
+  "name": "ecommerce",
+  "version": "1.0.0",
+  "description": "E-commerce workflow: Amazon, Shopify, etc.",
+  "actions": ["amazon.create_listing", "amazon.upload_image", "amazon.update_price"],
+  "artifacts": ["ListingJSON", "ProductImage", "KeywordReport"],
+  "validators": ["AmazonPolicyChecker"],
+  "dependencies": {}
+}
