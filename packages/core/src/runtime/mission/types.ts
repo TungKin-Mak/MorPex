@@ -44,6 +44,9 @@
 export enum MissionState {
   /** Mission 已创建，等待规划 */
   CREATED = 'CREATED',
+  /** v14: 目标理解阶段 — Goal Intelligence 解析用户意图 */
+  UNDERSTANDING = 'UNDERSTANDING',
+  /** v14: 目标理解阶段 — Goal Intelligence 解析用户意图 */
   /** 合同验证阶段 */
   VALIDATING = 'VALIDATING',
   /** 正在生成执行计划 */
@@ -60,6 +63,9 @@ export enum MissionState {
   COLLABORATING = 'COLLABORATING',
   /** 等待人工审批（高风险操作） */
   WAIT_APPROVAL = 'WAIT_APPROVAL',
+  /** v14: 产物生成阶段 — 执行完成后生成可交付物 */
+  ARTIFACT_GENERATING = 'ARTIFACT_GENERATING',
+  /** v14: 产物生成阶段 — 执行完成后自动生成可交付物 */
   /** 执行完成，正在验证结果 */
   VERIFYING = 'VERIFYING',
   /** 补偿/回滚阶段 */
@@ -105,7 +111,7 @@ export enum MissionState {
 /** 有效状态转换映射 (v8.9) */
 export const MISSION_VALID_TRANSITIONS: Record<MissionState, MissionState[]> = {
   // 创建后验证或直接规划
-  [MissionState.CREATED]:       [MissionState.VALIDATING, MissionState.PLANNING, MissionState.SIMULATING, MissionState.CANCELLED],
+  [MissionState.CREATED]:       [MissionState.UNDERSTANDING, MissionState.VALIDATING, MissionState.PLANNING, MissionState.SIMULATING, MissionState.CANCELLED],
   // 验证通过 → 规划，失败 → MISSION_FAILED (终态)
   [MissionState.VALIDATING]:    [MissionState.PLANNING, MissionState.MISSION_FAILED, MissionState.CANCELLED],
   // PLANNING → 可进入仿真 → 预测 → 审批 → 执行
@@ -117,7 +123,11 @@ export const MISSION_VALID_TRANSITIONS: Record<MissionState, MissionState[]> = {
   // ★ v10: 审批待定 → 执行或拒绝
   [MissionState.APPROVAL_PENDING]: [MissionState.EXECUTING, MissionState.PLANNING, MissionState.CANCELLED],
   // 执行中: 正常→VERIFYING→VERIFYING_BEHAVIOR→QUALITY_SCORING, 单任务失败→TASK_FAILED
-  [MissionState.EXECUTING]:     [MissionState.AGENT_ASSIGNING, MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.WAIT_APPROVAL, MissionState.VERIFYING, MissionState.VERIFYING_BEHAVIOR, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.MISSION_FAILED, MissionState.CANCELLED],
+  [MissionState.EXECUTING]:     [MissionState.ARTIFACT_GENERATING, MissionState.AGENT_ASSIGNING, MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.WAIT_APPROVAL, MissionState.VERIFYING, MissionState.VERIFYING_BEHAVIOR, MissionState.TASK_FAILED, MissionState.FAILED, MissionState.MISSION_FAILED, MissionState.CANCELLED],
+  // v14: 目标理解 → 规划
+  [MissionState.UNDERSTANDING]:  [MissionState.PLANNING, MissionState.CANCELLED],
+  // v14: 产物生成 → 验证或完成
+  [MissionState.ARTIFACT_GENERATING]: [MissionState.VERIFYING, MissionState.COMPLETED, MissionState.FAILED, MissionState.CANCELLED],
   // v9 Agent 分配状态
   [MissionState.AGENT_ASSIGNING]: [MissionState.AGENT_EXECUTING, MissionState.COLLABORATING, MissionState.TASK_FAILED, MissionState.CANCELLED],
   // v9 Agent 执行状态

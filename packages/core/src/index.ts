@@ -814,3 +814,28 @@ export type { SystemHealthReport, CostReport, ComplianceReport, GovernanceReport
 // ── v13 Bootstrap ──
 export { bootstrapV13 } from './bootstrap-v13.js';
 export type { V13BootstrapResult } from './bootstrap-v13.js';
+
+
+
+// ═══════════════════════════════════════════════════════════════
+// v14 新增模块
+// ═══════════════════════════════════════════════════════════════
+
+// ── Goal Intelligence (v14) — ConstraintAnalyzer 已从 planes/control-plane/intent 导出
+export { GoalIntelligenceFacade, GoalParser, GoalValidator } from './goal-intelligence/index.js';
+export type { GoalParseResult, GoalContext } from './contracts/goal.js';
+
+// ── Artifact Plane (v14)
+export { ArtifactFacade } from './artifact/index.js';
+export type { Artifact, ArtifactType, ArtifactStatus } from './contracts/artifact.js';
+
+// ── Verification Engine (v14) — VerificationEngine 已从 runtime 导出，用别名
+export { QualityRule, ArtifactChecker, ExecutionVerifier, RepairPlanner } from './verification/index.js';
+export type { QualityCheck, CheckResult, RepairPlan } from './verification/index.js';
+
+export { CapabilityStore, SOPRegistry } from './experience/index.js';
+export type { CapabilityPattern, SOP } from './experience/index.js';
+
+// ── v14 Bootstrap ──
+export { bootstrapV14 } from './bootstrap-v14.js';
+export type { V14BootstrapResult } from './bootstrap-v14.js';

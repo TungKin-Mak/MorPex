@@ -86,6 +86,16 @@ export class GovernanceDashboard {
   // 模块活动追踪
   private moduleActivity = new Map<string, { eventsEmitted: number; lastActive: number; lastError?: string }>();
 
+  // v14: 交付指标
+  private deliveryMetrics = {
+    taskSuccessRate: 1.0,
+    artifactQuality: 1.0,
+    retryCount: 0,
+    failurePatterns: [] as string[],
+    avgLatency: 0,
+    totalCost: 0,
+  };
+
   // 成本追踪
   private moduleCosts = new Map<string, number>();
   private modelCosts = new Map<string, number>();
@@ -143,6 +153,29 @@ export class GovernanceDashboard {
     this.modelCosts.set(model, (this.modelCosts.get(model) || 0) + cost);
     this.moduleTokens.set(module, (this.moduleTokens.get(module) || 0) + tokens);
     this.totalTokens += tokens;
+  }
+
+  /** v14: 记录任务执行结果 */
+  recordTaskResult(success: boolean, latency: number, cost: number): void {
+    const currentRate = this.deliveryMetrics.taskSuccessRate;
+    this.deliveryMetrics.taskSuccessRate = (currentRate * 9 + (success ? 1 : 0)) / 10;
+    this.deliveryMetrics.avgLatency = (this.deliveryMetrics.avgLatency * 9 + latency) / 10;
+    this.deliveryMetrics.totalCost += cost;
+    if (!success) {
+      this.deliveryMetrics.retryCount++;
+    }
+  }
+
+  /** v14: 获取交付指标 */
+  getDeliveryMetrics(): {
+    taskSuccessRate: number;
+    artifactQuality: number;
+    retryCount: number;
+    failurePatterns: string[];
+    avgLatency: number;
+    totalCost: number;
+  } {
+    return { ...this.deliveryMetrics };
   }
 
   recordLatency(latencyMs: number): void {

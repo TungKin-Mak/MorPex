@@ -21,12 +21,15 @@ import { DepartmentManager } from '../department/DepartmentManager.js';
 import { RoleRegistry } from '../role/RoleRegistry.js';
 import type { Department, DepartmentStats } from '../department/types.js';
 import type { CreateDepartmentParams } from '../department/types.js';
+import type { GoalContext } from '../contracts/goal.js';
 
 export class CompanyFacade {
   private departmentManager: DepartmentManager;
   private roleRegistry: RoleRegistry;
   private ceoId: string;
-  /** BrainFacade 引用（可选）用于跨部门搜索 */
+  /** v14: GoalIntelligenceFacade 引用 */
+  private goalIntelligenceFacade?: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> };
+
   /** BrainFacade 引用（可选）用于跨部门搜索 */
   private brainFacade?: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> };
 
@@ -172,6 +175,7 @@ export class CompanyFacade {
     options?: { departmentName?: string; createIfMissing?: boolean },
   ): Promise<{
     ok: boolean;
+    goalContext?: GoalContext;
     departmentId?: string;
     departmentName?: string;
     reflection?: unknown;
@@ -181,6 +185,22 @@ export class CompanyFacade {
   }> {
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
+
+    // v14 Step 0: Goal Understanding
+    let goalContext: GoalContext | undefined;
+    if (this.goalIntelligenceFacade) {
+      try {
+        goalContext = await this.goalIntelligenceFacade.understandGoal(goal, {
+          departmentName: options?.departmentName,
+        });
+        console.log(`[CompanyFacade] 🧠 目标理解完成: ${(goalContext.objective || '').substring(0, 60)}`);
+        console.log(`  ├─ 领域: ${goalContext.domain || '通用'}`);
+        console.log(`  ├─ 能力需求: ${(goalContext.requiredCapabilities || []).join(', ')}`);
+        console.log(`  └─ 风险等级: ${goalContext.riskLevel}`);
+      } catch (err) {
+        console.warn('[CompanyFacade] 目标理解失败，使用原始目标:', (err as Error).message);
+      }
+    }
 
     try {
       // 1. 智能路由部门
@@ -259,6 +279,7 @@ export class CompanyFacade {
 
       return {
         ok: execution.ok,
+        goalContext,
         departmentId: dept.id,
         departmentName: dept.name,
         reflection,
@@ -269,6 +290,7 @@ export class CompanyFacade {
       const errorMsg = (err as Error).message;
       return {
         ok: false,
+        goalContext,
         report: `❌ 执行失败: ${errorMsg}`,
         error: errorMsg,
       };
@@ -320,6 +342,13 @@ export class CompanyFacade {
 
     lines.push('\n' + '='.repeat(50));
     return lines.join('\n');
+  }
+
+  /**
+   * setGoalIntelligenceFacade — 注入 GoalIntelligenceFacade（v14）
+   */
+  setGoalIntelligenceFacade(facade: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> }): void {
+    this.goalIntelligenceFacade = facade;
   }
 
   /**

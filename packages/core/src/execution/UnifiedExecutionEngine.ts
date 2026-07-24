@@ -125,6 +125,9 @@ export class UnifiedExecutionEngine {
   /** v13: 注册的 Action Executors */
   private actionExecutors: Map<string, ActionExecutorLike> = new Map();
 
+  /** v14: ArtifactFacade 引用 */
+  private artifactFacade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown> } | null = null;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[UnifiedExecutionEngine] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -157,6 +160,14 @@ export class UnifiedExecutionEngine {
   registerActionExecutor(executor: ActionExecutorLike): void {
     this.actionExecutors.set(executor.name, executor);
     console.log(`[UnifiedExecutionEngine] ✅ ActionExecutor 已注册: ${executor.name}`);
+  }
+
+  /**
+   * setArtifactFacade — 注入 ArtifactFacade（v14）
+   * 执行成功后自动创建产物
+   */
+  setArtifactFacade(facade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown> }): void {
+    this.artifactFacade = facade;
   }
 
   /**
@@ -248,8 +259,25 @@ export class UnifiedExecutionEngine {
         { taskId: executionId, departmentId: request.departmentId },
       ));
 
+      // v14: 执行成功时自动创建产物
+      if (this.artifactFacade && result.ok) {
+        this.artifactFacade.createFromTask(executionId, { goal: request.goal, output: result.output }, 'document')
+          .catch(err => console.warn('[UnifiedExecutionEngine] 创建产物失败:', err));
+      }
+
       // 记录执行质量
       this.recordExecutionQuality(mode, result.ok, result.duration);
+
+      // v14: 执行成功 → 自动创建产物
+      if (result.ok && this.artifactFacade) {
+        this.artifactFacade.createFromTask(executionId, {
+          goal: request.goal,
+          output: result.output,
+          mode,
+        }, 'document').catch((err: Error) =>
+          console.warn('[UnifiedExecutionEngine] 创建产物失败:', err.message)
+        );
+      }
 
       // 发射执行完成事件
       this.eventBus.emit({
