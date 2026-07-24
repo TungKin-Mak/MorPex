@@ -808,8 +808,8 @@ export { AmazonListingAction, MarketResearchAction } from './tools/primitives/in
 export type { ActionPrimitive, ActionResult, ListingData, ListingResult } from './tools/primitives/index.js';
 
 // ── 治理看板: GovernanceDashboard (VCOS 100) ──
-export { GovernanceDashboard } from './governance/index.js';
-export type { SystemHealthReport, CostReport, ComplianceReport, GovernanceReport } from './governance/index.js';
+export { GovernanceDashboard, RuntimeManager, CostController, AlertEngine } from './governance/index.js';
+export type { RuntimeStatus, Alert, AlertLevel } from './governance/index.js';
 
 // ── v13 Bootstrap ──
 export { bootstrapV13 } from './bootstrap-v13.js';
