@@ -44,7 +44,7 @@ export class ServiceContainer {
     this.executionEngine.setDAGRuntime(this.createDAGRuntime());
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     this.artifactFacade = new ArtifactFacade(this.eventBus);
-    this.artifactFacade.setPersistentStore({ save: (a: any) => this.artifactStore.save(a), transition: (id: string, to: any) => this.artifactStore.transition(id, to as string) });
+    this.artifactFacade.setPersistentStore({ save: (a: any) => this.artifactStore.save(a), transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine();
     this.complianceChecker = new ComplianceChecker();
