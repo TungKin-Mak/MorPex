@@ -126,7 +126,7 @@ export class UnifiedExecutionEngine {
   private actionExecutors: Map<string, ActionExecutorLike> = new Map();
 
   /** v14: ArtifactFacade 引用 */
-  private artifactFacade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown> } | null = null;
+  private artifactFacade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown>; } | null = null;
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[UnifiedExecutionEngine] EventBus 是必填参数');
@@ -166,7 +166,7 @@ export class UnifiedExecutionEngine {
    * setArtifactFacade — 注入 ArtifactFacade（v14）
    * 执行成功后自动创建产物
    */
-  setArtifactFacade(facade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown> }): void {
+  setArtifactFacade(facade: { createFromTask(taskId: string, content: unknown, type: string): Promise<unknown> }): void {
     this.artifactFacade = facade;
   }
 

@@ -13,10 +13,10 @@ export class ArtifactFacade {
     this.eventBus = eventBus;
   }
 
-  async createFromTask(taskId: string, content: unknown, type: ArtifactType): Promise<Artifact> {
+  async createFromTask(taskId: string, content: unknown, type: string): Promise<Artifact> {
     const artifact: Artifact = {
       id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-      type: type as Artifact['type'],
+      type: type as ArtifactType,
       sourceTask: taskId,
       version: 1,
       status: 'CREATED' as ArtifactStatus,
