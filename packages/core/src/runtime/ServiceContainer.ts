@@ -14,6 +14,7 @@ import { MissionRuntime } from './mission/MissionRuntime.js';
 import { DAGRuntime } from './dag/DAGRuntime.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
+import { ControlPlane } from '../control-plane/ControlPlane.js';
 
 /**
  * ServiceContainer — 依赖注入容器
@@ -33,6 +34,7 @@ export class ServiceContainer {
   readonly runtime: MorPexRuntime;
   readonly missionStore: PersistentMissionStore;
   readonly artifactStore: PersistentArtifactStore;
+  readonly controlPlane: ControlPlane;
 
   constructor() {
     this.eventBus = new EventBus();
@@ -55,6 +57,7 @@ export class ServiceContainer {
     this.artifactStore.init().catch(() => {});
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch(() => {}); } });
     this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
+    this.controlPlane = new ControlPlane();
     this.runtime = new MorPexRuntime(
       this.eventBus,
       this.missionController,

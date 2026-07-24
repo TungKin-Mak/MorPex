@@ -3,6 +3,7 @@ import { GoalIntelligenceFacade } from '../goal-intelligence/GoalIntelligenceFac
 import { MissionController } from '../mission-control/MissionController.js';
 import { DynamicTeamOrchestrator } from '../organization/DynamicTeamOrchestrator.js';
 import { CapabilityRegistry } from '../capability/CapabilityRegistry.js';
+import { ArtifactBlueprintBuilder } from '../artifact/ArtifactBlueprint.js';
 import type { ExecutionContext, WorkflowContext } from './ExecutionContext.js';
 
 export class PipelineOrchestrator {
@@ -62,7 +63,11 @@ export class PipelineOrchestrator {
       lifecycle: 'CREATED' as const, createdAt: Date.now(),
     };
 
-    // 5. Build ExecutionContext
+    // 5. Generate Artifact Blueprints (Phase 2)
+    const blueprints = ArtifactBlueprintBuilder.fromGoal(goalContext);
+    steps.push({ phase: 'blueprint', result: blueprints });
+
+    // 6. Build ExecutionContext
     const context: ExecutionContext = {
       executionId,
       goal: goalContext,

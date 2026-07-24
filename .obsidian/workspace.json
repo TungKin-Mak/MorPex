@@ -185,6 +185,7 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
+    "docs/phase2-complete.md",
     "packages/core/src/brain/SafetyMonitor.ts",
     "packages/core/src/metadata/index.ts",
     "packages/core/src/policy/index.ts",
@@ -195,7 +196,6 @@
     "packages/core/src/cognition/twin/OrganizationTwin.ts",
     "packages/core/src/agent-capability/sedx7zbz2",
     "packages/core/src/artifact/ArtifactBlueprint.ts",
-    "packages/core/src/protocol/events/EventTypes.ts",
     "docs/v16-audit-raw-data.md",
     "docs/v16-architecture-audit.md",
     "docs/performance-checklist.md",

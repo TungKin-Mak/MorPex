@@ -1,5 +1,6 @@
 import { EventBus } from '../common/EventBus.js';
 import type { MissionState, MissionStatus, MissionPhase, MissionUpdate, BlockReason } from './MissionTypes.js';
+import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 
 export class MissionController {
   private missions: Map<string, MissionState> = new Map();
@@ -28,6 +29,7 @@ export class MissionController {
     };
     this.missions.set(mission.missionId, mission);
     if (this.persistentStore) this.persistentStore.save(mission);
+    systemMetadataGraph.registerEntity(mission.missionId, 'mission', objective.substring(0, 80), { goalId, status: 'ACTIVE', phase: 'DISCOVERY' });
     this.eventBus.emit({
       id: `evt_${Date.now()}`, type: 'mission.created', timestamp: Date.now(),
       executionId: mission.missionId, source: 'mission-control',
@@ -53,6 +55,7 @@ export class MissionController {
     const m = this.missions.get(missionId);
     if (!m) return;
     m.blocks.push({ reason, description, raisedAt: Date.now() });
+    systemMetadataGraph.addRelation(missionId, `${missionId}_block_${m.blocks.length}`, 'depends_on', 0.5, { reason, description });
     m.status = 'BLOCKED';
     m.timeline.push({ timestamp: Date.now(), event: `BLOCKED: ${reason}`, detail: description });
     if (this.persistentStore) this.persistentStore.save(m);

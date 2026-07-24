@@ -1,4 +1,8 @@
 /**
+ * @deprecated 使用 policy/PolicyEngine.ts (UnifiedPolicyEngine) 代替。
+ * v16 Phase 2: 统一策略引擎已合并到 policy/PolicyEngine.ts。
+ * 此类保留以供向后兼容，新代码应使用 policy/PolicyEngine.ts。
+ *
  * PolicyEngine — 策略引擎
  *
  * Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。

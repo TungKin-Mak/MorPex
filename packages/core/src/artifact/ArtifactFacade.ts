@@ -6,6 +6,7 @@
 import { EventBus } from '../common/EventBus.js';
 import type { ArtifactNode, ArtifactLineageEntry } from '../contracts/artifact-lifecycle.js';
 import type { ArtifactStatus } from '../contracts/artifact-lifecycle.js';
+import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 
 export class ArtifactFacade {
   private artifacts: Map<string, ArtifactNode> = new Map();
@@ -30,6 +31,8 @@ export class ArtifactFacade {
     };
     this.artifacts.set(node.id, node);
     if (this.store) this.store.save(node);
+    systemMetadataGraph.registerEntity(node.id, 'artifact', name, { type, sourceTask, version: 1 });
+    if (sourceTask) systemMetadataGraph.addRelation(sourceTask, node.id, 'generated_by');
     this.emit('artifact.created', node);
     return node;
   }

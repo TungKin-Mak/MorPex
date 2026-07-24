@@ -12,6 +12,9 @@ import { ExecutionSimulator } from '../simulation/ExecutionSimulator.js';
 import { DynamicTeamOrchestrator } from '../organization/DynamicTeamOrchestrator.js';
 import type { ExecutionContext } from './ExecutionContext.js';
 import type { Artifact } from '../contracts/artifact.js';
+import { SafetyMonitor } from '../brain/SafetyMonitor.js';
+import { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
+import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 
 export interface RunResult {
   ok: boolean;
@@ -36,6 +39,8 @@ export class MorPexRuntime {
   private approvalGate: ApprovalGate;
   private experienceMiner: ExperienceMiner;
   private simulator: ExecutionSimulator;
+  private safetyMonitor: SafetyMonitor;
+  private evolutionLoop: SelfImprovementLoop;
 
   constructor(
     eventBus: EventBus,
@@ -58,6 +63,8 @@ export class MorPexRuntime {
     this.approvalGate = approvalGate;
     this.experienceMiner = experienceMiner;
     this.simulator = simulator;
+    this.safetyMonitor = new SafetyMonitor();
+    this.evolutionLoop = new SelfImprovementLoop(this.safetyMonitor);
     this.pipeline = new PipelineOrchestrator(eventBus, missionController, teamOrchestrator);
   }
 
@@ -176,6 +183,32 @@ export class MorPexRuntime {
         progress: 100,
         status: 'COMPLETED',
       });
+
+      // ── Phase 7: Metadata Graph Registration ──
+      systemMetadataGraph.registerEntity(context.executionId, 'mission', context.goal.objective.substring(0, 80), { ok: execResult.ok, duration: execResult.duration });
+
+      // ── Phase 8: Safety Monitor Observation ──
+      this.safetyMonitor.observe({
+        taskSuccessRate: execResult.ok ? 1.0 : 0.0,
+        avgLatency: execResult.duration,
+        retryRate: 0,
+        artifactQuality: artifact ? 0.9 : 0.0,
+      });
+
+      // ── Phase 9: Self Evolution Analysis ──
+      if (execResult.ok) {
+        try {
+          const evolutionResult = await this.evolutionLoop.evolve({
+            taskSuccessRate: 1.0,
+            avgLatency: execResult.duration,
+            failurePatterns: [],
+            artifactQuality: artifact ? 0.9 : 0.0,
+          });
+          console.log(`[MorPexRuntime] 🔄 进化分析: ${evolutionResult.proposals.length} 个提案`);
+        } catch (_err) {
+          // 进化分析失败不影响主流程
+        }
+      }
 
       return {
         ok: true,

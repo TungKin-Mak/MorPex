@@ -23,6 +23,7 @@ import type { Department, DepartmentStats } from '../department/types.js';
 import type { CreateDepartmentParams } from '../department/types.js';
 import type { GoalContext } from '../contracts/goal.js';
 import type { MorPexRuntime } from '../runtime/MorPexRuntime.js';
+import type { ControlPlane } from '../control-plane/ControlPlane.js';
 
 export class CompanyFacade {
   private departmentManager: DepartmentManager;
@@ -33,6 +34,9 @@ export class CompanyFacade {
 
   /** v15 Integration: MorPexRuntime 引用 */
   private runtime?: MorPexRuntime;
+
+  /** Phase 2: ControlPlane 引用 */
+  private controlPlane?: ControlPlane;
 
   /** BrainFacade 引用（可选）用于跨部门搜索 */
   private brainFacade?: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> };
@@ -166,6 +170,13 @@ export class CompanyFacade {
   }
 
   /**
+   * setControlPlane — 注入 ControlPlane（Phase 2）
+   */
+  setControlPlane(cp: ControlPlane): void {
+    this.controlPlane = cp;
+  }
+
+  /**
    * executeGoal — v15 Integration: 全流程自主执行目标
    *
    * 如果 MorPexRuntime 已注入，使用完整管线：
@@ -193,6 +204,15 @@ export class CompanyFacade {
   }> {
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
+
+    // Phase 2: Control Plane 前置检查
+    if (this.controlPlane) {
+      const goalCheck = await this.controlPlane.goal.process(goal);
+      if (!goalCheck.approved) {
+        return { ok: false, report: `❌ 目标被拒绝: ${goalCheck.rejection || ''}`, goalContext: undefined, missionId: undefined, teamId: undefined, error: goalCheck.rejection };
+      }
+      console.log(`  ├─ ControlPlane: 目标已批准 (${goalCheck.context?.domain || '通用'})`);
+    }
 
     // v15 Integration: 如果 runtime 已注入，使用完整管线
     if (this.runtime) {
