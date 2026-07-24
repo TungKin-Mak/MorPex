@@ -22,6 +22,7 @@ import { RoleRegistry } from '../role/RoleRegistry.js';
 import type { Department, DepartmentStats } from '../department/types.js';
 import type { CreateDepartmentParams } from '../department/types.js';
 import type { GoalContext } from '../contracts/goal.js';
+import type { MorPexRuntime } from '../runtime/MorPexRuntime.js';
 
 export class CompanyFacade {
   private departmentManager: DepartmentManager;
@@ -29,6 +30,9 @@ export class CompanyFacade {
   private ceoId: string;
   /** v14: GoalIntelligenceFacade 引用 */
   private goalIntelligenceFacade?: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> };
+
+  /** v15 Integration: MorPexRuntime 引用 */
+  private runtime?: MorPexRuntime;
 
   /** BrainFacade 引用（可选）用于跨部门搜索 */
   private brainFacade?: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> };
@@ -155,16 +159,18 @@ export class CompanyFacade {
   }
 
   /**
-   * executeGoal — v13: 全流程自主执行目标
+   * setRuntime — 注入 MorPexRuntime（v15 Integration）
+   */
+  setRuntime(runtime: MorPexRuntime): void {
+    this.runtime = runtime;
+  }
+
+  /**
+   * executeGoal — v15 Integration: 全流程自主执行目标
    *
-   * 从目标到执行的一站式入口:
-   *   1. 智能路由到最匹配部门或自动创建
-   *   2. BrainFacade 处理（反思 + 学习）
-   *   3. 路由到部门执行
-   *   4. 生成 CEO 报告
-   *   5. 返回完整结果
-   *
-   * 这是 "一人公司" 的核心入口：输入一个目标，系统自主完成全链路。
+   * 如果 MorPexRuntime 已注入，使用完整管线：
+   *   Mission→Capability→Workflow→Team→Execution→Artifact→Verification→Compliance→Approval→Experience
+   * 否则降级到 v13 路径（部门路由 + BrainFacade）。
    *
    * @param goal - 完整目标描述
    * @param options - 可选参数
@@ -182,9 +188,47 @@ export class CompanyFacade {
     execution?: { ok: boolean; message: string };
     report: string;
     error?: string;
+    missionId?: string;
+    teamId?: string;
   }> {
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
+
+    // v15 Integration: 如果 runtime 已注入，使用完整管线
+    if (this.runtime) {
+      try {
+        const result = await this.runtime.run(goal);
+        const duration = Date.now() - startTime;
+        const report = [
+          '='.repeat(50),
+          `📋 CEO 执行报告 | ${new Date().toLocaleTimeString('zh-CN')}`,
+          '='.repeat(50),
+          `🎯 目标: ${goal.substring(0, 120)}`,
+          `📋 Mission: ${result.context?.mission?.missionId || 'N/A'}`,
+          `👥 团队: ${result.context?.team?.name || 'N/A'}`,
+          `🏗 工作流: ${result.context?.workflow?.name || 'N/A'}`,
+          `📦 产物: ${result.artifacts?.length || 0} 个`,
+          `⏱ 耗时: ${duration}ms`,
+          `📊 结果: ${result.ok ? '✅ 成功' : '❌ 失败'}`,
+        ];
+        if (result.errors.length > 0) {
+          report.push(`❌ 错误:`);
+          result.errors.forEach(e => report.push(`   • ${e}`));
+        }
+        report.push('='.repeat(50));
+        return {
+          ok: result.ok,
+          goalContext: result.context?.goal,
+          execution: result.executionResult as any,
+          report: report.join('\n'),
+          missionId: result.context?.mission?.missionId,
+          teamId: result.context?.team?.id,
+        };
+      } catch (err) {
+        const errorMsg = (err as Error).message;
+        return { ok: false, report: `❌ Runtime 执行失败: ${errorMsg}`, error: errorMsg };
+      }
+    }
 
     // v14 Step 0: Goal Understanding
     let goalContext: GoalContext | undefined;
@@ -347,6 +391,9 @@ export class CompanyFacade {
   /**
    * setGoalIntelligenceFacade — 注入 GoalIntelligenceFacade（v14）
    */
+  getGoalContext(): GoalContext | undefined {
+    return undefined;
+  }
   setGoalIntelligenceFacade(facade: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> }): void {
     this.goalIntelligenceFacade = facade;
   }
