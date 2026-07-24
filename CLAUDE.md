@@ -204,3 +204,68 @@ bash scripts/run-k6-test.sh --smoke # 负载冒烟测试
 ```
 
 禁止：需求 → 新建文件 → 宣布完成。
+
+---
+
+## 十一、v12 架构铁律（一人公司 AI 工作助理）
+
+### 模块分层
+
+```
+CEO 层:       CompanyFacade (统一入口)
+组织层:       DepartmentManager / ManagementHub / RoleRegistry
+群聊层:       GroupChatManager
+大脑层:       BrainFacade (PersonalBrain + MemoryWiki + LearningLoop + EvolutionEngine)
+规划层:       DeliveryPlanner (quick/full/auto)
+执行层:       UnifiedExecutionEngine (mission/dag/fabric/auto)
+子Agent层:    SubAgentFork (舰队管理)
+记忆层:       DepartmentMemoryAdapter (部门分区)
+SOP层:        SOPEngine (LLM分类 + 经验→标准流程)
+KPI层:        DepartmentKPITracker (部门绩效)
+```
+
+### Facade 模式铁律
+
+| 规则 | 说明 |
+|------|------|
+| **Facade 不替代** | UnifiedExecutionEngine/DeliveryPlanner/BrainFacade 是门面，委托给现有模块 |
+| **零破坏** | Facade 模块永远不修改被包裹模块的内部代码 |
+| **优雅降级** | 被包裹模块不可用时 Facade 自动降级（如 PiBridge→模拟执行） |
+| **松耦合** | Facade 通过接口依赖（Like 后缀），不直接 import 具体类 |
+
+### 学习闭环
+
+```
+任务完成 → BrainFacade.learn()
+  → PersonalBrain.remember()     (内存级)
+  → MemoryWiki.remember()        (持久化)
+  → SOPEngine.extractSOP()       (LLM分类 → 模式检测 → 生成SOP)
+  → LearningLoop + EvolutionEngine
+  → 广播 brain.learning.completed
+    → DeliveryPlanner 读取历史经验 → 影响下次规划
+```
+
+### 部门数据隔离
+
+- DepartmentContext.partitionKey(deptId) → `dept:{departmentId}`
+- DepartmentMemoryAdapter 在 MemoryWiki 之上加 tags 分区
+- CEO 全局视图 = 不传 departmentId
+
+### 引导入口
+
+```typescript
+import { bootstrapV12 } from './core/src/bootstrap-v12.js';
+const v12 = await bootstrapV12(eventBus);
+// v12.companyFacade.createDepartment("编程部");
+// v12.managementHub.handleCommand("@编程部 写爬虫");
+// v12.brainFacade.learn({ ... });
+// v12.kpiTracker.generateCEOReport();
+```
+
+### 归档模块
+
+被归档的模块在 `packages/archived/`，可通过 `git checkout` 恢复：
+- agent-marketplace / agent-distributed / agent-team
+- agent-governance / agent-shared-memory
+- reliability-chaos / reliability-regression
+- observability-legacy / studio-federation

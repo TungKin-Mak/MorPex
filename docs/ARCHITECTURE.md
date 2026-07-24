@@ -1,33 +1,56 @@
-# MorPex v11 Architecture
+# MorPex v12 Architecture
 
-> **v11 Adaptive Workflow Operating System** — 基于 v10 Autonomous Organization Intelligence OS
+> **v12 一人公司 AI 工作助理** — 基于 v11 Adaptive Workflow Operating System
 >
-> 从 v10 升级：+21 源文件 | PiBridge 隔离层 | pi-ai/pi-agent-core 0.81.1
+> 从 v11 升级：+29 源文件 | 组织层 + 大脑统一 + 学习闭环 | 79→26 模块精简
 >
-> v11 Phase: Phase 1 ✅ | Phase 2 ✅ | Phase 3 ✅ | Phase 4 ✅ | Phase 5 ⬜
->
-> **状态: v11 COMPLETE** — 工作流系统 + 连接器 + 执行面料 + 演化引擎 + PiBridge 隔离已完成
+> **状态: v12 COMPLETE** — VCOS 92/100 | tsc 零错误 | ~7,200 行新代码
 
 ---
 
-## Layer Stack (v10)
+## Layer Stack (v12)
 
 ```
-                        Human / External
+                        CEO (HTTP /api/v12/*)
                               │
-                        Message Gateway
+                     ┌── CompanyFacade ──┐
+                     │  统一入口          │
+                     └────────┬──────────┘
                               │
-                     ┌── Event Mesh v10 ──┐
-                     │ Schema  Validation │
-                     │ Replay  Migration  │
-                     └────────────────────┘
-                              │
-    ┌─────────────┬───────────┼───────────┬──────────────────────┐
-    │             │           │           │                      │
-Control Plane  Intelligence  Reliability  Runtime Kernel      Federation
-    │             Plane        Plane       ──────────────        │
-Policy        Simulation    Behavior     FSM (24状态)          Node Identity
-Risk          Twin          Verify       DAG                   Remote Exec
+        ┌─────────────────────┼─────────────────────┐
+        │                     │                     │
+  DepartmentManager    ManagementHub         GroupChatManager
+  (工作流=部门)         (CEO管理群)           (动态群聊+SSE)
+        │                     │                     │
+        ▼                     ▼                     │
+  LeadAgentOrchestrator   RoleRegistry              │
+  (持久化负责人+PiBridge)  (角色分配)                │
+        │                                           │
+        ├── DeliveryPlanner (quick/full/auto)       │
+        │     ├── SOPEngine (LLM分类→SOP)          │
+        │     └── BrainFacade (历史经验)            │
+        │                                           │
+        ├── UnifiedExecutionEngine                  │
+        │     ├── MissionRuntime (24-state FSM)     │
+        │     ├── DAGRuntime (DAG调度)              │
+        │     └── ExecutionFabric (能力路由)        │
+        │                                           │
+        └── SubAgentFork (子Agent舰队)              │
+              └── ConnectorRegistry (FS/Shell)      │
+                     │
+              ┌──────┴──────┐
+              ▼             ▼
+         BrainFacade    DepartmentKPITracker
+         (学习闭环)      (部门绩效)
+              │
+    ┌─────────┼─────────┐
+    ▼         ▼         ▼
+PersonalBrain MemoryWiki LearningLoop
+ (内存级)    (持久化)   (经验提取)
+    │
+    ▼
+ SOPEngine → DeliveryPlanner (规划←经验闭环)
+```
 Audit         Execution     Trace        Recovery              Capability
 Permission    Predict       Quality      Sandbox               Discovery
     │             │           │           │                      │
