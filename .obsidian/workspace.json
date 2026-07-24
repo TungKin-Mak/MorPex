@@ -185,16 +185,20 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
-    "packages/core/src/runtime/PersistentArtifactStore.ts",
-    "packages/core/src/runtime/PersistentMissionStore.ts",
-    "packages/core/src/experience/sedDHicb9",
+    "data/artifacts.db-shm",
+    "data/artifacts.db-wal",
+    "data/artifacts.db-journal",
+    "data/artifacts.db",
+    "data/missions.db-shm",
+    "data/missions.db-wal",
+    "data/missions.db-journal",
+    "data/missions.db",
+    "docs/performance-checklist.md",
+    "packages/core/src/benchmark/index.ts",
+    "packages/core/src/benchmark/runner.ts",
+    "packages/core/src/benchmark/golden-tasks.ts",
     "docs/v15-integration-audit.md",
     "docs/v16-audit-raw-data.md",
-    "docs/v16-architecture-audit.md",
-    "packages/core/src/bootstrap-v15-integration.ts",
-    "packages/core/src/runtime/ServiceContainer.ts",
-    "packages/core/src/runtime/MorPexRuntime.ts",
-    "packages/core/src/runtime/PipelineOrchestrator.ts",
-    "packages/core/src/runtime/ExecutionContext.ts"
+    "docs/v16-architecture-audit.md"
   ]
 }

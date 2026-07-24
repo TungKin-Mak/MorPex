@@ -70,7 +70,7 @@ export class PipelineOrchestrator {
       team,
       workflow,
       capabilities,
-      budget: { allocated: 100, spent: 0 },
+      budget: { allocated: goalContext.constraints?.budget || 10000, spent: 0 },
       risk: goalContext.riskLevel,
       artifacts: [],
       startedAt: Date.now(),

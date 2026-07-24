@@ -80,4 +80,43 @@ export class MissionController {
   }
   getActiveMissions(): MissionState[] { return this.listMissions('ACTIVE'); }
   getBlockedMissions(): MissionState[] { return this.listMissions('BLOCKED'); }
+
+  /**
+   * recover — 从失败/阻塞状态恢复 Mission
+   * Stabilization: 分析阻塞原因，推荐恢复策略
+   */
+  recover(missionId: string): { recovered: boolean; actions: string[]; recommended: 'continue' | 'replan' | 'abort' } {
+    const mission = this.missions.get(missionId);
+    if (!mission) return { recovered: false, actions: [], recommended: 'abort' };
+
+    const actions: string[] = [];
+    const unresolved = mission.blocks.filter(b => !b.resolvedAt);
+
+    for (const block of unresolved) {
+      switch (block.reason) {
+        case 'RESOURCE_UNAVAILABLE': actions.push(`等待资源: ${block.description}`); break;
+        case 'QUALITY_FAILED':       actions.push(`质量问题: ${block.description}，建议重新规划`); break;
+        case 'COMPLIANCE_BLOCKED':   actions.push(`合规阻塞: ${block.description}，需人工介入`); break;
+        case 'HUMAN_WAITING':        actions.push(`等待审批: ${block.description}`); break;
+        case 'EXTERNAL_DEPENDENCY':  actions.push(`外部依赖: ${block.description}`); break;
+        case 'COST_LIMIT':           actions.push(`成本超限: ${block.description}`); break;
+        default:                     actions.push(`未知阻塞: ${block.description}`);
+      }
+    }
+
+    if (unresolved.length === 0) {
+      mission.status = 'ACTIVE';
+      return { recovered: true, actions: ['所有阻塞已解决'], recommended: 'continue' };
+    }
+
+    const hasHuman = unresolved.some(b => b.reason === 'HUMAN_WAITING' || b.reason === 'COMPLIANCE_BLOCKED');
+    if (hasHuman) return { recovered: false, actions, recommended: 'abort' };
+
+    const hasQuality = unresolved.some(b => b.reason === 'QUALITY_FAILED');
+    if (hasQuality) return { recovered: false, actions, recommended: 'replan' };
+
+    return { recovered: false, actions, recommended: 'abort' };
+  }
+
+  getAllMissions(): MissionState[] { return [...this.missions.values()]; }
 }

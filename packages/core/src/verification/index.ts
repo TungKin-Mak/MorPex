@@ -11,5 +11,5 @@ export { ComplianceChecker } from './ComplianceChecker.js';
 export type { ComplianceResult } from './ComplianceChecker.js';
 export { PolicyRuleRegistry } from './PolicyRuleRegistry.js';
 export type { PolicyRule } from './PolicyRuleRegistry.js';
-export { ApprovalGate } from './ApprovalGate.js';
-export type { ApprovalRequest, ApprovalDecision } from './ApprovalGate.js';
+export { ApprovalGate, ApprovalPolicyRegistry } from './ApprovalGate.js';
+export type { ApprovalRequest, ApprovalDecision, ApprovalPolicy, ApprovalAction, RiskLevel } from './ApprovalGate.js';

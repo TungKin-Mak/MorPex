@@ -892,6 +892,22 @@ export type { ApprovalRequest as ApprovalGateRequest, ApprovalDecision } from '.
 // ── Artifact Lifecycle (v16) — 升级版 ──
 export type { ArtifactLifecycleStatus, ArtifactLineageEntry } from './contracts/artifact-lifecycle.js';
 
+// ── Stabilization: Evaluation ──
+export { EvaluationEngine, QualityScorer } from './evaluation/index.js';
+export type { ScoreReport } from './evaluation/index.js';
+
+// ── Stabilization: Trace ──
+export { TraceCollector } from './trace/index.js';
+export type { TraceSpan } from './trace/index.js';
+
+// ── Stabilization: Agent Capability Registry ──
+export { AgentCapabilityRegistry } from './agent-capability/index.js';
+export type { AgentDeclaration } from './agent-capability/index.js';
+
+// ── Stabilization: Benchmark ──
+export { GOLDEN_TASKS, BenchmarkRunner } from './benchmark/index.js';
+export type { GoldenTask, BenchmarkResult } from './benchmark/index.js';
+
 // ── v16 Bootstrap ──
 export { bootstrapV16 } from './bootstrap-v16.js';
 export type { V16BootstrapResult } from './bootstrap-v16.js';
