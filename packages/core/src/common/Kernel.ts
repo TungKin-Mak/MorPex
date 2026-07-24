@@ -315,6 +315,26 @@ export class MorPexKernel {
   /**
    * 获取当前状态
    */
+  /**
+   * getHealthEndpoint — 健康检查端点（v13 governance）
+   * 返回内核及各模块健康状态
+   */
+  getHealthEndpoint(): { status: string; version: string; uptime: number; modules: Array<{ name: string; status: string }> } {
+    const status = this.getStatus();
+    const ebMetrics = this._eventBus.getMetrics ? this._eventBus.getMetrics() : null;
+    return {
+      status: status.phase,
+      version: 'v13.0.0',
+      uptime: status.uptime,
+      modules: [
+        { name: 'event-bus', status: ebMetrics && (ebMetrics.errorCount / Math.max(1, ebMetrics.totalEvents)) > 0.1 ? 'degraded' : 'healthy' },
+        { name: 'plugin-system', status: this._pluginSystem.count > 0 ? 'healthy' : 'degraded' },
+        { name: 'gateway', status: 'healthy' },
+        { name: 'mirror', status: 'healthy' },
+      ],
+    };
+  }
+
   getStatus(): KernelStatus {
     return {
       phase: this._phase,
@@ -324,5 +344,3 @@ export class MorPexKernel {
     };
   }
 }
-
-

@@ -259,3 +259,45 @@ export PLAYWRIGHT_CHROME_PATH=/usr/bin/google-chrome
 # 使用不同端口
 PORT=8081 VITE_PORT=3001 npx tsx scripts/run-e2e-tests.ts
 ```
+
+---
+
+## v13 单元测试（2026-07）
+
+v13 新增了 3 个测试文件覆盖 brain/planner/tools 新模块。
+
+### 测试文件
+
+| 文件 | 覆盖模块 | 用例数 |
+|------|----------|--------|
+| `packages/core/__tests__/v13-brain.test.ts` | ReflectionEngine + MetaLearner | ~12 |
+| `packages/core/__tests__/v13-planner.test.ts` | HierarchicalPlanner + DeliveryPlanner 集成 | ~8 |
+| `packages/core/__tests__/v13-tools.test.ts` | ToolFactory + ToolRegistry | ~12 |
+
+### 运行方式
+
+```bash
+# 运行全部 v13 测试
+npx vitest run packages/core/__tests__/v13-brain.test.ts packages/core/__tests__/v13-planner.test.ts packages/core/__tests__/v13-tools.test.ts
+
+# 运行特定模块测试
+npx vitest run packages/core/__tests__/v13-brain.test.ts
+npx vitest run packages/core/__tests__/v13-planner.test.ts
+npx vitest run packages/core/__tests__/v13-tools.test.ts
+```
+
+### 测试设计原则
+
+- **mock EventBus**: 所有测试使用 mock EventBus，不依赖真实 Redis/DB
+- **mock LLM**: brain 测试不调用真实 LLM，验证规则降级路径
+- **隔离性**: 每个测试独立，ToolRegistry 测试前后调用 `clear()`
+- **覆盖降级**: 核心路径 + LLM/外部依赖不可用时的降级行为
+
+### 集成到 CI
+
+v13 测试已注册到 vitest config（`vitest.config.ts`），通过 `packages/core/**/__tests__/**/*.test.ts` 模式匹配。
+运行全部测试：
+
+```bash
+npx vitest run
+```

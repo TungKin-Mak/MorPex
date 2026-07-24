@@ -127,6 +127,7 @@ export type {
 } from './domains/types.js';
 
 // ── Cross-Domain Router (Phase 10) + RouterLite (Phase 3) ──
+/** @deprecated 路由功能已合并到 BrainFacade.routeByIntent() */
 export { CrossDomainRouter, RouterLite } from './router/index.js';
 export { DomainDispatcher } from './router/DomainDispatcher.js';
 export { ArbitrationHandler } from './router/ArbitrationHandler.js';
@@ -249,6 +250,7 @@ export { SessionProjection } from './projection/SessionProjection.js';
 export type { ProjectionParams, ProjectionRecord, DAGNodeProjection, AgentStateProjection, ArtifactProjection, TimelineEntry, ConstraintProjection } from './projection/SessionProjection.js';
 
 // ── Negotiation (Phase 11.5) ──
+/** @deprecated 协商功能已合并到 LeadAgentOrchestrator.resolveTaskConflict() */
 export { NegotiationEngine, NegotiationLite } from './negotiation/index.js';
 export type {
   CreateTicketParams,
@@ -661,6 +663,7 @@ export { WorkflowMetrics } from './observability/index.js';
 export type { WorkflowMetricsSnapshot } from './observability/index.js';
 
 // ── Phase 3 ObservabilityLite ──
+/** @deprecated 可观测性指标已合并到 EventBus.getMetrics() */
 export { ObservabilityLite } from './observability/ObservabilityLite.js';
 export type { HealthState, MetricCounter, LatencyStats, HealthEntry, ObservabilitySnapshot } from './observability/ObservabilityLite.js';
 
@@ -769,3 +772,45 @@ export type {
 
 export { bootstrapV12 } from './bootstrap-v12.js';
 export type { V12BootstrapResult } from './bootstrap-v12.js';
+
+// ═══════════════════════════════════════════════════════════════
+// v13 增强模块
+// ═══════════════════════════════════════════════════════════════
+
+// ── Brain 增强: ReflectionEngine + MetaLearner ──
+export { ReflectionEngine, MetaLearner } from './brain/index.js';
+export type {
+  BrainReflectionState,
+  BrainReflectionResult,
+  ReflectionEngineLike,
+} from './brain/index.js';
+export type {
+  TaskRecord,
+  UserFeedback,
+  LearningResult,
+  MetaLearnerLike,
+} from './brain/index.js';
+
+// ── Planner 增强: HierarchicalPlanner (HTN) ──
+export { HierarchicalPlanner } from './planner/HierarchicalPlanner.js';
+export type {
+  DAGPlan,
+  SubGoal,
+  HierarchicalPlannerLike,
+} from './planner/HierarchicalPlanner.js';
+
+// ── 动态工具层: ToolFactory + ToolRegistry ──
+export { ToolFactory, ToolRegistry } from './tools/index.js';
+export type { ToolSchema, RegisteredTool, ToolGenContext } from './tools/index.js';
+
+// ── 领域原语: AmazonListingAction, MarketResearchAction ──
+export { AmazonListingAction, MarketResearchAction } from './tools/primitives/index.js';
+export type { ActionPrimitive, ActionResult, ListingData, ListingResult } from './tools/primitives/index.js';
+
+// ── 治理看板: GovernanceDashboard (VCOS 100) ──
+export { GovernanceDashboard } from './governance/index.js';
+export type { SystemHealthReport, CostReport, ComplianceReport, GovernanceReport } from './governance/index.js';
+
+// ── v13 Bootstrap ──
+export { bootstrapV13 } from './bootstrap-v13.js';
+export type { V13BootstrapResult } from './bootstrap-v13.js';

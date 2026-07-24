@@ -96,6 +96,13 @@ export interface ExecutionFabricLike {
   readonly name: string;
 }
 
+/** ActionExecutorLike — v13: 真实世界执行器接口 */
+export interface ActionExecutorLike {
+  name: string;
+  canHandle(goal: string): boolean;
+  execute(params: Record<string, unknown>, context?: { departmentId?: string }): Promise<{ success: boolean; data?: unknown; error?: string; duration: number }>;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // UnifiedExecutionEngine
 // ═══════════════════════════════════════════════════════════════════
@@ -114,6 +121,9 @@ export class UnifiedExecutionEngine {
 
   // 执行质量追踪（按模式统计成功/失败/延迟）
   private executionQuality: Record<string, { success: number; total: number; avgDuration: number }> = {};
+
+  /** v13: 注册的 Action Executors */
+  private actionExecutors: Map<string, ActionExecutorLike> = new Map();
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[UnifiedExecutionEngine] EventBus 是必填参数');
@@ -139,6 +149,14 @@ export class UnifiedExecutionEngine {
    */
   setExecutionFabric(fabric: ExecutionFabricLike): void {
     this.executionFabric = fabric;
+  }
+
+  /**
+   * registerActionExecutor — 注册 Action Executor（v13）
+   */
+  registerActionExecutor(executor: ActionExecutorLike): void {
+    this.actionExecutors.set(executor.name, executor);
+    console.log(`[UnifiedExecutionEngine] ✅ ActionExecutor 已注册: ${executor.name}`);
   }
 
   /**
@@ -401,6 +419,28 @@ export class UnifiedExecutionEngine {
    * executeAuto — 基于复杂度自动选择执行路径
    */
   private async executeAuto(request: ExecutionRequest, executionId: string): Promise<ExecutionResult> {
+    // v13: 优先检查是否有匹配的 ActionExecutor
+    for (const executor of this.actionExecutors.values()) {
+      if (executor.canHandle(request.goal)) {
+        request.onProgress?.(makeProgressEvent('task.progress', `匹配 ActionExecutor: ${executor.name}`, 10, {
+          taskId: executionId, departmentId: request.departmentId,
+        }));
+        const result = await executor.execute(
+          { goal: request.goal, ...request.context as Record<string, unknown> },
+          { departmentId: request.departmentId },
+        );
+        return {
+          ok: result.success,
+          executionId,
+          mode: 'auto',
+          status: result.success ? 'completed' : 'failed',
+          output: result.data,
+          error: result.error,
+          duration: result.duration,
+        };
+      }
+    }
+
     const complexity = this.analyzeComplexity(request);
 
     // simple → fabric（最快路径）

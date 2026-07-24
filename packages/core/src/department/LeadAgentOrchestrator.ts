@@ -472,6 +472,33 @@ export class LeadAgentOrchestrator {
     this.brainFacade = facade;
   }
 
+  /**
+   * resolveTaskConflict — v13: 简化任务冲突解决
+   *
+   * 合并自 NegotiationLite。当两个任务分配冲突时，
+   * 基于优先级和估计耗时进行智能协商。
+   *
+   * @param taskA - 任务 A
+   * @param taskB - 任务 B
+   * @returns 被选中的任务 ID 和原因
+   */
+  resolveTaskConflict(
+    taskA: { id: string; priority: 'high' | 'medium' | 'low'; estimatedDuration: number },
+    taskB: { id: string; priority: 'high' | 'medium' | 'low'; estimatedDuration: number },
+  ): { id: string; reason: string } {
+    const priorityOrder = { high: 3, medium: 2, low: 1 };
+
+    // 优先级不同 → 选优先级高的
+    if (taskA.priority !== taskB.priority) {
+      const winner = priorityOrder[taskA.priority] > priorityOrder[taskB.priority] ? taskA : taskB;
+      return { id: winner.id, reason: `优先级更高: ${winner.priority}` };
+    }
+
+    // 同优先级 → 选估计耗时更短的
+    const winner = taskA.estimatedDuration <= taskB.estimatedDuration ? taskA : taskB;
+    return { id: winner.id, reason: '同优先级下估计耗时更短' };
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // 事件发射
   // ═══════════════════════════════════════════════════════════════
@@ -500,4 +527,5 @@ export class LeadAgentOrchestrator {
       },
     });
   }
+
 }

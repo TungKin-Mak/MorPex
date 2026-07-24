@@ -30,6 +30,7 @@
 import { EventBus } from '../common/EventBus.js';
 import { DepartmentContext } from '../department/DepartmentContext.js';
 import type { DepartmentId } from '../department/types.js';
+import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js';
 
 // ── Types ──
 
@@ -131,6 +132,9 @@ export class DeliveryPlanner {
   /** BrainFacade 引用（Phase 5 P2 — 规划前查询历史经验） */
   private brainFacade?: { recall: (query: string, context?: { departmentId?: string }) => Promise<Array<{ content: string; relevance: number }>> };
 
+  /** HierarchicalPlanner 引用（v13 — HTN 分层规划） */
+  private hierarchicalPlanner: HierarchicalPlannerLike | null = null;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[DeliveryPlanner] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -184,6 +188,11 @@ export class DeliveryPlanner {
   /** setBrainFacade — 注入 BrainFacade（Phase 5 P2 — 规划前查询历史经验） */
   setBrainFacade(facade: { recall: (query: string, context?: { departmentId?: string }) => Promise<Array<{ content: string; relevance: number }>> }): void {
     this.brainFacade = facade;
+  }
+
+  /** setHierarchicalPlanner — 注入 HierarchicalPlanner（v13 — HTN 分层规划） */
+  setHierarchicalPlanner(planner: HierarchicalPlannerLike): void {
+    this.hierarchicalPlanner = planner;
   }
 
   /**
@@ -468,6 +477,21 @@ export class DeliveryPlanner {
    * 适用于简单任务。无需仿真，轻量分解。
    */
   private async quickPlan(request: PlanningRequest, planId: string): Promise<Plan> {
+    // 策略 0: HierarchicalPlanner 快速分解（优先，简单任务直接分解）
+    if (this.hierarchicalPlanner) {
+      try {
+        const dagPlan = await this.hierarchicalPlanner.createPlan(request.goal, {
+          departmentId: request.departmentId,
+          constraints: { maxTasks: 3 },
+        });
+        if (dagPlan.subGoals.length <= 3) {
+          return this.convertDAGPlanToPlan(dagPlan, request, planId);
+        }
+      } catch {
+        // 继续降级
+      }
+    }
+
     // 策略 1: CognitivePipeline（已有，优先）
     if (this.cognitivePipeline) {
       const result = await this.cognitivePipeline.run(request.goal, {
@@ -478,7 +502,19 @@ export class DeliveryPlanner {
       return this.normalizePlan(result.plan, request, planId, 'quick');
     }
 
-    // 策略 2: SOP 模板（P1 — 已有成功经验）
+    // 策略 2: HierarchicalPlanner 再次尝试（作为 SOP 之前的降级）
+    if (this.hierarchicalPlanner) {
+      try {
+        const dagPlan = await this.hierarchicalPlanner.createPlan(request.goal, {
+          departmentId: request.departmentId,
+        });
+        return this.convertDAGPlanToPlan(dagPlan, request, planId);
+      } catch {
+        // 继续降级
+      }
+    }
+
+    // 策略 3: SOP 模板（P1 — 已有成功经验）
     const sopHints = request.context?.sopHints as string[] | undefined;
     const experienceHints = request.context?.experienceHints as string[] | undefined;
 
@@ -599,6 +635,21 @@ export class DeliveryPlanner {
    * 适用于复杂任务。走 MetaPlanner 全管线 + 可选仿真。
    */
   private async fullPlan(request: PlanningRequest, planId: string): Promise<Plan> {
+    // 策略1: 使用 HierarchicalPlanner 进行 HTN 规划（优先）
+    if (this.hierarchicalPlanner) {
+      try {
+        const dagPlan = await this.hierarchicalPlanner.createPlan(request.goal, {
+          departmentId: request.departmentId,
+          constraints: request.constraints,
+          sopHints: request.context?.sopHints as string[] | undefined,
+          historyHints: request.context?.experienceHints as string[] | undefined,
+        });
+        return this.convertDAGPlanToPlan(dagPlan, request, planId);
+      } catch (err) {
+        console.warn('[DeliveryPlanner] HierarchicalPlanner 失败，降级到 MetaPlanner:', (err as Error).message);
+      }
+    }
+
     if (!this.metaPlanner) {
       // 降级到快速规划
       console.warn('[DeliveryPlanner] MetaPlanner 未注入，降级到快速规划');
@@ -673,6 +724,36 @@ export class DeliveryPlanner {
         estimatedDuration: 60_000,
         riskLevel: 'low',
         raw: raw,
+      },
+    };
+  }
+
+  /**
+   * convertDAGPlanToPlan — 将 HierarchicalPlanner 的 DAGPlan 转为标准 Plan
+   * v13: 从 DAGPlan 到统一 Plan 的适配器
+   */
+  private convertDAGPlanToPlan(dagPlan: DAGPlan, request: PlanningRequest, planId: string): Plan {
+    const tasks: PlanTask[] = dagPlan.dag.map((node, i) => ({
+      id: node.id,
+      description: node.task,
+      capabilities: node.capabilities,
+      deps: node.deps,
+      estimatedDuration: dagPlan.subGoals[i]?.estimatedDuration || 30_000,
+    }));
+
+    return {
+      id: planId,
+      goal: request.goal,
+      status: 'draft',
+      tasks,
+      mode: dagPlan.metadata.mode,
+      createdAt: Date.now(),
+      metadata: {
+        taskCount: tasks.length,
+        riskLevel: dagPlan.metadata.riskLevel,
+        estimatedTotalDuration: dagPlan.metadata.estimatedTotalDuration,
+        source: 'hierarchical-planner',
+        complexity: dagPlan.metadata.complexity,
       },
     };
   }

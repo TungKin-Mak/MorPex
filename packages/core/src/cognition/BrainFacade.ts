@@ -23,6 +23,8 @@
  */
 
 import { EventBus } from '../common/EventBus.js';
+import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from '../brain/ReflectionEngine.js';
+import type { MetaLearnerLike, TaskRecord } from '../brain/MetaLearner.js';
 
 // ── Types ──
 
@@ -152,6 +154,12 @@ export class BrainFacade {
   /** SOPEngine — 将成功经验转为 SOP（Phase 5） */
   private sopEngine?: { extractSOP: (exp: BrainExperience) => unknown };
 
+  /** v13: ReflectionEngine — 主动反思分析 */
+  private reflectionEngine: ReflectionEngineLike | null = null;
+
+  /** v13: MetaLearner — 元学习（从任务中学习偏好） */
+  private metaLearner: MetaLearnerLike | null = null;
+
   // 内部统计
   private totalMemories = 0;
   private totalExperiences = 0;
@@ -245,6 +253,16 @@ export class BrainFacade {
     this.sopEngine = engine;
   }
 
+  /** v13: setReflectionEngine — 注入 ReflectionEngine */
+  setReflectionEngine(engine: ReflectionEngineLike): void {
+    this.reflectionEngine = engine;
+  }
+
+  /** v13: setMetaLearner — 注入 MetaLearner */
+  setMetaLearner(learner: MetaLearnerLike): void {
+    this.metaLearner = learner;
+  }
+
   /**
    * isReady — 是否有至少一个子系统可用
    */
@@ -258,8 +276,35 @@ export class BrainFacade {
   /**
    * activeReflect — 主动反思
    * 定时触发，发现洞察并广播
+   * v13: 优先使用 ReflectionEngine，降级到现有 reflect()
    */
   private async activeReflect(): Promise<void> {
+    // v13: 使用 ReflectionEngine 进行深度反思
+    if (this.reflectionEngine) {
+      try {
+        const result = await this.reflectionEngine.reflect({
+          recentTasks: [],
+          departmentId: undefined,
+        });
+        if (result.insights.length > 0) {
+          this.eventBus.emit({
+            id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'brain.active_reflection',
+            timestamp: Date.now(),
+            executionId: 'brain',
+            source: 'brain-facade',
+            payload: { insightCount: result.insights.length, insights: result.insights },
+          });
+          this.totalInsights += result.insights.length;
+          console.log(`[BrainFacade] 主动反思(深度): 发现 ${result.insights.length} 条洞察`);
+        }
+        return;
+      } catch (err) {
+        console.warn('[BrainFacade] ReflectionEngine 反思失败，降级:', (err as Error).message);
+      }
+    }
+
+    // 降级: 原有 reflect() 逻辑
     const insights = await this.reflect();
     if (insights.length > 0) {
       this.eventBus.emit({
@@ -271,7 +316,7 @@ export class BrainFacade {
         payload: { insightCount: insights.length, insights },
       });
       this.totalInsights += insights.length;
-      console.log(`[BrainFacade] 主动反思: 发现 ${insights.length} 条洞察`);
+      console.log(`[BrainFacade] 主动反思(基础): 发现 ${insights.length} 条洞察`);
     }
   }
 
@@ -298,6 +343,52 @@ export class BrainFacade {
    */
   disableAutoConsolidation(): void {
     this.autoConsolidateEnabled = false;
+  }
+
+  /**
+   * processTask — v13 统一任务处理入口
+   *
+   * 整合反思 + 学习，返回处理结果。
+   * 规划部分委托给 HierarchicalPlanner（在 DeliveryPlanner 中调用）。
+   *
+   * @param task - 任务描述
+   * @param context - 上下文
+   * @returns 反思结果和学习更新
+   */
+  async processTask(task: string, context?: BrainContext): Promise<{ reflection: BrainReflectionResult; memoryUpdate: import('../brain/MetaLearner.js').LearningResult | null }> {
+    const state: BrainReflectionState = {
+      recentTasks: [],
+      departmentId: context?.departmentId,
+    };
+
+    let reflection: BrainReflectionResult;
+    if (this.reflectionEngine) {
+      try {
+        reflection = await this.reflectionEngine.reflect(state);
+      } catch (err) {
+        console.warn('[BrainFacade] ReflectionEngine 调用失败:', (err as Error).message);
+        reflection = { insights: [], risks: [], suggestions: [], confidence: 0.5 };
+      }
+    } else {
+      reflection = { insights: [], risks: [], suggestions: [], confidence: 0.5 };
+    }
+
+    let memoryUpdate: import('../brain/MetaLearner.js').LearningResult | null = null;
+    if (this.metaLearner) {
+      try {
+        memoryUpdate = await this.metaLearner.learnFromTask({
+          taskId: context?.taskId || `task_${Date.now()}`,
+          goal: task,
+          result: 'success',
+          duration: 0,
+          departmentId: context?.departmentId,
+        });
+      } catch (err) {
+        console.warn('[BrainFacade] MetaLearner 调用失败:', (err as Error).message);
+      }
+    }
+
+    return { reflection, memoryUpdate };
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -550,6 +641,29 @@ export class BrainFacade {
       }
     }
 
+    // 4.6. MetaLearner — 从任务中学习偏好（v13）
+    if (this.metaLearner) {
+      try {
+        this.metaLearner.learnFromTask({
+          taskId: experience.taskId,
+          goal: experience.goal,
+          result: experience.result,
+          duration: experience.duration,
+          departmentId: experience.departmentId,
+          capabilities: experience.capabilities,
+        }).catch(err => console.warn('[BrainFacade] MetaLearner 异步学习失败:', (err as Error).message));
+      } catch (err) {
+        console.warn('[BrainFacade] MetaLearner 调用失败:', (err as Error).message);
+      }
+    }
+
+    // 4.7. 自动知识合成（每10次学习触发一次）
+    if (this.totalExperiences % 10 === 0) {
+      this.synthesize().catch(err =>
+        console.warn('[BrainFacade] 自动知识合成失败:', (err as Error).message),
+      );
+    }
+
     // 5. 广播学习完成事件
     this.eventBus.emit({
       id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -585,6 +699,13 @@ export class BrainFacade {
         capabilities: experience.capabilities,
       },
     });
+
+    // 7. v13: 每10次学习触发一次跨部门知识合成
+    if (this.totalExperiences % 10 === 0) {
+      this.synthesize().catch(err =>
+        console.warn('[BrainFacade] 自动知识合成失败:', (err as Error).message),
+      );
+    }
   }
 
   /**
@@ -815,16 +936,56 @@ export class BrainFacade {
   }
 
   /**
-   * synthesize — 跨部门知识合成
+   * synthesize — 跨部门知识合成（v13 增强）
    *
-   * 分析所有部门的记忆/经验/模式，找出跨部门的共性知识。
+   * 从 fallbackStore 和 insight 中提取跨部门共性知识。
+   * 使用真实存储数据（而非仅 reflect() 的抽象洞察）。
+   * 发射 brain.knowledge.synthesized 事件。
    *
-   * @returns 合成的跨部门知识列表（仅包含涉及 2+ 部门的主题）
+   * @returns 合成的跨部门知识列表
    */
   async synthesize(): Promise<CrossDeptSynthesis[]> {
     const insights = await this.reflect();
 
-    // 按主题相似度分组
+    // 从 fallbackStore 提取跨部门主题
+    const deptGroups = new Map<string, string[]>();
+    for (const item of this.fallbackStore) {
+      const deptId = item.context.departmentId || 'global';
+      if (!deptGroups.has(deptId)) deptGroups.set(deptId, []);
+      deptGroups.get(deptId)!.push(item.content);
+    }
+
+    // 跨部门相同关键词检测
+    const keywordDepts = new Map<string, Set<string>>();
+    for (const [deptId, items] of deptGroups) {
+      for (const item of items) {
+        const words = item.split(/\s+/).filter(w => w.length > 3);
+        for (const word of words.slice(0, 10)) {
+          if (!keywordDepts.has(word)) keywordDepts.set(word, new Set());
+          keywordDepts.get(word)!.add(deptId);
+        }
+      }
+    }
+
+    // 取出现在 2+ 部门的关键词作为跨部门主题
+    const crossDeptKeywords = [...keywordDepts.entries()]
+      .filter(([_, depts]) => depts.size >= 2)
+      .sort((a, b) => b[1].size - a[1].size)
+      .slice(0, 10);
+
+    const results: CrossDeptSynthesis[] = [];
+
+    // 来自关键词的跨部门主题
+    for (const [keyword, depts] of crossDeptKeywords) {
+      results.push({
+        topic: keyword,
+        departments: [...depts],
+        insight: `多个部门共同关注 "${keyword}"`,
+        confidence: 0.6,
+      });
+    }
+
+    // 来自 reflect() 的洞察
     const topicGroups = new Map<string, {
       insight: string;
       departments: Set<string>;
@@ -834,7 +995,6 @@ export class BrainFacade {
     for (const insight of insights) {
       const words = insight.message.split(/\s+/).slice(0, 5).join(' ');
       const topic = words.substring(0, 40);
-
       if (!topicGroups.has(topic)) {
         topicGroups.set(topic, {
           insight: insight.message,
@@ -849,15 +1009,84 @@ export class BrainFacade {
       );
     }
 
-    // 返回跨部门主题（出现在 2+ 部门中）
-    return [...topicGroups.entries()]
-      .filter(([_, group]) => group.departments.size >= 2)
-      .map(([topic, group]) => ({
-        topic,
-        departments: [...group.departments],
-        insight: group.insight,
-        confidence: group.confidence,
-      }));
+    for (const [topic, group] of topicGroups) {
+      if (group.departments.size >= 2) {
+        results.push({
+          topic,
+          departments: [...group.departments],
+          insight: group.insight,
+          confidence: group.confidence,
+        });
+      }
+    }
+
+    // 去重
+    const seen = new Set<string>();
+    const uniqueResults = results.filter(r => {
+      const key = r.topic.substring(0, 20);
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+
+    // 发射知识合成事件
+    if (uniqueResults.length > 0) {
+      this.eventBus.emit({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'brain.knowledge.synthesized',
+        timestamp: Date.now(),
+        executionId: 'brain',
+        source: 'brain-facade',
+        payload: {
+          synthesisCount: uniqueResults.length,
+          syntheses: uniqueResults.slice(0, 5),
+        },
+      });
+    }
+
+    return uniqueResults;
+  }
+
+  /**
+   * routeByIntent — 基于意图路由到最匹配的部门（v13 合并自 RouterLite）
+   *
+   * 简单实现：关键词匹配部门能力描述。
+   *
+   * @param intent - 意图文本
+   * @param departments - 可选部门列表
+   * @returns 最匹配的部门 ID 和名称
+   */
+  async routeByIntent(
+    intent: string,
+    departments: Array<{ id: string; name: string; description?: string; capabilities?: string[] }>
+  ): Promise<{ id: string; name: string } | null> {
+    if (departments.length === 0) return null;
+    if (departments.length === 1) return { id: departments[0].id, name: departments[0].name };
+
+    const intentLower = intent.toLowerCase();
+    const keywords = intentLower.split(/\s+/).filter(w => w.length > 2);
+
+    let bestMatch: { id: string; name: string } | null = null;
+    let bestScore = 0;
+
+    for (const dept of departments) {
+      let score = 0;
+      const deptText = `${dept.name} ${dept.description || ''} ${(dept.capabilities || []).join(' ')}`.toLowerCase();
+
+      for (const kw of keywords) {
+        if (deptText.includes(kw)) score++;
+      }
+
+      // 部门名匹配加权
+      if (deptText.includes(intentLower.substring(0, 4))) score += 2;
+
+      if (score > bestScore) {
+        bestScore = score;
+        bestMatch = { id: dept.id, name: dept.name };
+      }
+    }
+
+    return bestMatch || { id: departments[0].id, name: departments[0].name };
   }
 
   // ═══════════════════════════════════════════════════════════════

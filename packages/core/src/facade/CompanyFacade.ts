@@ -152,8 +152,176 @@ export class CompanyFacade {
   }
 
   /**
-   * setCEO — 设置 CEO 身份（用于多 CEO 场景或初始化）
+   * executeGoal — v13: 全流程自主执行目标
+   *
+   * 从目标到执行的一站式入口:
+   *   1. 智能路由到最匹配部门或自动创建
+   *   2. BrainFacade 处理（反思 + 学习）
+   *   3. 路由到部门执行
+   *   4. 生成 CEO 报告
+   *   5. 返回完整结果
+   *
+   * 这是 "一人公司" 的核心入口：输入一个目标，系统自主完成全链路。
+   *
+   * @param goal - 完整目标描述
+   * @param options - 可选参数
+   * @returns 完整执行报告
    */
+  async executeGoal(
+    goal: string,
+    options?: { departmentName?: string; createIfMissing?: boolean },
+  ): Promise<{
+    ok: boolean;
+    departmentId?: string;
+    departmentName?: string;
+    reflection?: unknown;
+    execution?: { ok: boolean; message: string };
+    report: string;
+    error?: string;
+  }> {
+    console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
+    const startTime = Date.now();
+
+    try {
+      // 1. 智能路由部门
+      let dept = options?.departmentName
+        ? this.departmentManager.findByName(options.departmentName)
+        : this.departmentManager.listDepartments('active')[0];
+
+      if (!dept && (options?.createIfMissing ?? true)) {
+        const name = `auto_${goal.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '').substring(0, 10) || 'dept'}`;
+        dept = await this.createDepartment(name, { description: goal.substring(0, 100) });
+        console.log(`[CompanyFacade] 🏢 自动创建部门: ${dept.name} (${dept.id})`);
+      }
+
+      if (!dept) {
+        return { ok: false, report: '没有可用部门，且未自动创建', error: '无部门' };
+      }
+
+      // 2. BrainFacade 处理
+      let reflection = null;
+      const bf = this.brainFacade as { processTask?: (task: string, ctx: any) => Promise<any>; recall?: (q: string, ctx: any) => Promise<any[]> } | undefined;
+
+      if (bf) {
+        try {
+          if (typeof bf.processTask === 'function') {
+            const brainResult = await bf.processTask(goal, {
+              departmentId: dept.id,
+              taskId: `goal_${Date.now()}`,
+            });
+            reflection = brainResult.reflection;
+          } else if (bf.recall && typeof bf.recall === 'function') {
+            const memories = await bf.recall(goal, { departmentId: dept.id, source: 'reflection' });
+            reflection = { memories: memories.slice(0, 5) };
+          }
+        } catch {
+          // 反思失败不影响主流程
+        }
+      }
+
+      // 3. 路由任务到部门
+      const execution = await this.sendTask(dept.name, goal);
+
+      // 4. 生成 CEO 报告
+      const duration = Date.now() - startTime;
+      const reportLines: string[] = [
+        '='.repeat(50),
+        `📋 CEO 执行报告 | ${new Date().toLocaleTimeString('zh-CN')}`,
+        '='.repeat(50),
+        `🎯 目标: ${goal.substring(0, 120)}`,
+        `🏢 部门: ${dept.name} (${dept.id})`,
+        `⏱ 耗时: ${duration}ms`,
+      ];
+
+      if (reflection) {
+        const insights = (reflection as any).insights;
+        if (insights && Array.isArray(insights) && insights.length > 0) {
+          reportLines.push(`🧠 反思洞察: ${insights.length} 条`);
+          for (const ins of insights.slice(0, 3)) {
+            reportLines.push(`   • ${ins.message}`);
+          }
+        }
+      }
+
+      reportLines.push(`⚡ 执行状态: ${execution.ok ? '✅ 已路由' : '❌ ' + execution.message}`);
+
+      if (reflection) {
+        const suggestions = (reflection as any).suggestions;
+        if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
+          reportLines.push('💡 建议:');
+          for (const s of suggestions.slice(0, 2)) {
+            reportLines.push(`   • ${s}`);
+          }
+        }
+      }
+
+      reportLines.push('='.repeat(50));
+
+      return {
+        ok: execution.ok,
+        departmentId: dept.id,
+        departmentName: dept.name,
+        reflection,
+        execution,
+        report: reportLines.join('\n'),
+      };
+    } catch (err) {
+      const errorMsg = (err as Error).message;
+      return {
+        ok: false,
+        report: `❌ 执行失败: ${errorMsg}`,
+        error: errorMsg,
+      };
+    }
+  }
+
+  /**
+   * generateDailyReport — v13: 生成每日 CEO 运营报告
+   *
+   * 聚合所有部门的状态、活跃度、洞察，生成可读报告。
+   * 依赖 BrainFacade.generateCEOReport()（如果已注入）。
+   *
+   * @returns 格式化的报告字符串
+   */
+  async generateDailyReport(): Promise<string> {
+    const lines: string[] = [];
+    const now = new Date();
+
+    lines.push('='.repeat(50));
+    lines.push(`📊 CEO 每日运营报告 | ${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN')}`);
+    lines.push('='.repeat(50));
+
+    // 部门概览
+    const departments = this.departmentManager.listDepartments();
+    lines.push(`\n📁 部门概览: ${departments.length} 个`);
+    for (const dept of departments) {
+      const status = dept.status === 'active' ? '✅' : '⏸️';
+      lines.push(`  ${status} ${dept.name} (${dept.type})`);
+    }
+
+    // 大脑报告
+    const bf = this.brainFacade as { generateCEOReport?: (dm: any) => Promise<any> } | undefined;
+    if (bf && typeof bf.generateCEOReport === 'function') {
+      try {
+        const report = await bf.generateCEOReport(this.departmentManager);
+        lines.push(`\n🧠 大脑洞察:`);
+        if (report.patterns.length > 0) {
+          lines.push(`  发现 ${report.patterns.length} 个模式`);
+          for (const p of report.patterns.slice(0, 3)) lines.push(`    • ${p}`);
+        }
+        if (report.recommendations.length > 0) {
+          lines.push(`  建议:`);
+          for (const r of report.recommendations.slice(0, 3)) lines.push(`    • ${r}`);
+        }
+      } catch {
+        lines.push('\n⚠️ 大脑报告暂时不可用');
+      }
+    }
+
+    lines.push('\n' + '='.repeat(50));
+    return lines.join('\n');
+  }
+
   /**
    * searchAcrossDepartments — 跨部门知识搜索
    * CEO 视角的统一搜索入口

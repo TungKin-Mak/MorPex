@@ -77,6 +77,15 @@ export class EventBus {
   private history: MorPexEvent[] = [];
   private maxHistory: number;
 
+  // v13: 事件发射计数器（按类型）
+  private emitCounts: Map<string, number> = new Map();
+  // v13: 错误日志
+  private errorLog: Array<{ time: number; type: string; error: string }> = [];
+  private static readonly MAX_ERROR_LOG = 100;
+  // v13: 延迟采样（毫秒）
+  private latencySamples: number[] = [];
+  private static readonly MAX_LATENCY_SAMPLES = 1000;
+
   /** ★ P1 优化: 独立投射历史 — 仅存前端可见事件 */
   private projectedHistory: MorPexEvent[] = [];
   private static readonly MAX_PROJECTED_HISTORY = 200;
@@ -86,6 +95,15 @@ export class EventBus {
 
   /** Phase 5.1: 当前领域上下文（自动注入 zone） */
   private currentDomainStorage = new AsyncLocalStorage<string>();
+
+  /** v13 governance: 按事件类型统计 */
+  private eventCounters: Map<string, { count: number; lastEmitted: number; errors: number }> = new Map();
+  /** v13 governance: 最近错误事件 */
+  private errorEvents: Array<{ time: number; type: string; error: string }> = [];
+  private static readonly MAX_ERROR_EVENTS = 100;
+  /** v13 governance: 事件延迟追踪 */
+  private eventLatencies: number[] = [];
+  private static readonly MAX_LATENCIES = 1000;
 
   constructor(maxHistory: number = DEFAULT_MAX_HISTORY) {
     this.maxHistory = maxHistory;
@@ -113,6 +131,8 @@ export class EventBus {
    * 发射事件
    */
   emit(event: MorPexEvent): void {
+    const startTime = Date.now();
+
     // 验证事件必须携带 executionId
     if (!event.executionId) {
       console.warn(`[EventBus] 事件 "${event.type}" 缺少 executionId`);
@@ -121,6 +141,37 @@ export class EventBus {
     // 检查事件类型命名空间
     if (!event.type.includes('.')) {
       console.warn(`[EventBus] 事件类型 "${event.type}" 不规范，建议使用 "domain.action" 格式`);
+    }
+
+    // v13: 递增发射计数器
+    this.emitCounts.set(event.type, (this.emitCounts.get(event.type) || 0) + 1);
+
+    // v13 governance: 更新事件计数器
+    const counter = this.eventCounters.get(event.type) || { count: 0, lastEmitted: 0, errors: 0 };
+    counter.count++;
+    counter.lastEmitted = Date.now();
+    this.eventCounters.set(event.type, counter);
+
+    // v13 governance: 追踪延迟
+    if (event.timestamp) {
+      const latency = Date.now() - event.timestamp;
+      if (latency >= 0 && latency < 60000) {
+        this.eventLatencies.push(latency);
+        if (this.eventLatencies.length > EventBus.MAX_LATENCIES) {
+          this.eventLatencies.shift();
+        }
+      }
+    }
+
+    // v13 governance: 捕获错误事件
+    if (event.type.endsWith('.failed') || event.type.endsWith('.error')) {
+      const errMsg = event.payload?.error || event.type;
+      this.errorEvents.push({ time: Date.now(), type: event.type, error: String(errMsg).substring(0, 200) });
+      if (this.errorEvents.length > EventBus.MAX_ERROR_EVENTS) {
+        this.errorEvents.shift();
+      }
+      counter.errors++;
+      this.eventCounters.set(event.type, counter);
     }
 
     // 存入历史
@@ -144,7 +195,10 @@ export class EventBus {
         try {
           handler(event);
         } catch (err) {
-          console.error(`[EventBus] handler 错误 (事件 "${event.type}"):`, err);
+          const errorMsg = (err instanceof Error ? err.message : String(err));
+          console.error(`[EventBus] handler 错误 (事件 "${event.type}"):`, errorMsg);
+          this.errorLog.push({ time: Date.now(), type: event.type, error: errorMsg });
+          if (this.errorLog.length > EventBus.MAX_ERROR_LOG) this.errorLog.shift();
         }
       }
     }
@@ -186,6 +240,12 @@ export class EventBus {
           console.error(`[EventBus] projected handler 错误 (事件 "${event.type}"):`, err);
         }
       }
+    }
+
+    // v13: 记录延迟采样
+    this.latencySamples.push(Date.now() - startTime);
+    if (this.latencySamples.length > EventBus.MAX_LATENCY_SAMPLES) {
+      this.latencySamples.shift();
     }
   }
 
@@ -464,6 +524,55 @@ export class EventBus {
   }
 
   /**
+   * getMetrics — 获取事件总线统计（v13 合并自 ObservabilityLite）
+   *
+   * @returns 事件统计信息
+   */
+  /**
+   * getMetrics — 获取事件总线统计（v13 合并自 ObservabilityLite）
+   *
+   * @returns 包含实际发射计数、延迟百分位、错误统计的指标
+   */
+  getMetrics(): {
+    totalEvents: number;
+    eventsByType: Record<string, number>;
+    avgLatency: number;
+    p50Latency: number;
+    p95Latency: number;
+    p99Latency: number;
+    errorCount: number;
+    recentErrors: Array<{ time: number; type: string; error: string }>;
+  } {
+    const eventsByType: Record<string, number> = {};
+    let total = 0;
+
+    // 使用实际发射计数（而非 handler 数量）
+    for (const [type, count] of this.emitCounts.entries()) {
+      eventsByType[type] = count;
+      total += count;
+    }
+
+    // 计算延迟百分位
+    const sorted = [...this.latencySamples].sort((a, b) => a - b);
+    const len = sorted.length;
+    const p50 = len > 0 ? sorted[Math.floor(len * 0.5)] : 0;
+    const p95 = len > 0 ? sorted[Math.floor(len * 0.95)] : 0;
+    const p99 = len > 0 ? sorted[Math.floor(len * 0.99)] : 0;
+    const avg = len > 0 ? sorted.reduce((a, b) => a + b, 0) / len : 0;
+
+    return {
+      totalEvents: total,
+      eventsByType,
+      avgLatency: avg,
+      p50Latency: p50,
+      p95Latency: p95,
+      p99Latency: p99,
+      errorCount: this.errorLog.length,
+      recentErrors: this.errorLog.slice(-10),
+    };
+  }
+
+  /**
    * 清空所有监听器和历史
    */
   clear(): void {
@@ -472,5 +581,8 @@ export class EventBus {
     this.domainListeners.clear();
     this.history = [];
     this.projectedHistory = [];
+    this.emitCounts.clear();
+    this.errorLog = [];
+    this.latencySamples = [];
   }
 }

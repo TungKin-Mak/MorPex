@@ -170,6 +170,23 @@ export class ToolQualityTracker {
   }
 
   /**
+   * connectToRegistry — 连接 ToolRegistry，自动同步统计
+   *
+   * v13: 监听 tools.registry.stats_updated 事件，
+   * 将 ToolQualityTracker 的统计数据同步到 ToolRegistry。
+   *
+   * @param eventBus - EventBus 实例
+   */
+  connectToRegistry(eventBus: { on: (event: string, handler: (event: any) => void) => void }): void {
+    eventBus.on('tools.registry.stats_updated', (event: any) => {
+      const p = event.payload;
+      if (!p?.toolId) return;
+      // 同步记录到本地追踪
+      this.recordCall(p.toolId, p.success, p.duration);
+    });
+  }
+
+  /**
    * getSummary — 获取汇总信息
    */
   getSummary(): { totalCalls: number; totalSuccess: number; totalFailures: number; overallSuccessRate: number; trackedTools: number } {
