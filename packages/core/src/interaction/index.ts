@@ -29,6 +29,19 @@ export type {
 export { MessageGateway } from './gateway/index.js';
 export type { MessageHandler } from './gateway/index.js';
 
+// ── GroupChat (Phase 1) ──
+export { GroupChatManager } from './GroupChatManager.js';
+export type {
+  ChatGroup,
+  ChatMessage,
+  GroupMember,
+  GroupId,
+  GroupType,
+  MessageType,
+  GroupChatStats,
+  ExternalIMAdapter,
+} from './GroupChatManager.js';
+
 // ── Adapters ──
 export {
   WebAdapter,

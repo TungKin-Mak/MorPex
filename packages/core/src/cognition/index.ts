@@ -12,6 +12,24 @@
  *   cognition/workflow/   — Workflow Intelligence（工作流智能）
  */
 
+// ── BrainFacade (Phase 4.5) ──
+export { BrainFacade } from './BrainFacade.js';
+export type {
+  BrainContext,
+  BrainExperience,
+  BrainMemory,
+  BrainInsight,
+  BrainStats as BrainFacadeStats,
+  BrainForgetCriteria,
+  ConsolidationResult,
+  CEOReport,
+  CrossDeptSynthesis,
+  PersonalBrainLike,
+  MemoryWikiLike,
+  LearningLoopLike,
+  EvolutionEngineLike,
+} from './BrainFacade.js';
+
 // ── Personal Twin Graph ──
 export { PersonalTwinGraph } from './twin/index.js';
 

@@ -18,8 +18,6 @@ import type { ExecutionPredictor } from './simulation/execution-predictor.js';
 import type { BehaviorVerificationEngine } from './verification/behavior-verification-engine.js';
 import type { EventMesh } from './event-mesh/event-mesh.js';
 import type { LearningPlane } from './learning/learning-plane.js';
-import type { FederationManager } from './federation/federation-manager.js';
-
 // ── V10Dependencies — 所有可注入的 v10 模块 ──
 
 export interface V10Dependencies {
@@ -28,7 +26,6 @@ export interface V10Dependencies {
   verificationEngine?: BehaviorVerificationEngine;
   eventMesh?: EventMesh;
   learningPlane?: LearningPlane;
-  federationManager?: FederationManager;
 }
 
 // ── 辅助：统一响应格式 ──
@@ -48,7 +45,7 @@ function fail(error: unknown) {
 // ── registerV10Routes — 注册所有 v10 API 路由 ──
 
 export function registerV10Routes(app: ExpressRouter, deps: V10Dependencies): void {
-  const { simulationEngine, executionPredictor, verificationEngine, eventMesh, learningPlane, federationManager } = deps;
+  const { simulationEngine, executionPredictor, verificationEngine, eventMesh, learningPlane } = deps;
 
   // ═══════════════════════════════════════════════════════════════
   // Simulation API
@@ -224,86 +221,7 @@ export function registerV10Routes(app: ExpressRouter, deps: V10Dependencies): vo
     return res.json(ok(eventMesh.health()));
   });
 
-  // ═══════════════════════════════════════════════════════════════
-  // Federation API
-  // ═══════════════════════════════════════════════════════════════
 
-  // GET /api/v10/federation/status — 联邦状态
-  app.get('/api/v10/federation/status', (_req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      return res.json(ok(federationManager.getStatus()));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // GET /api/v10/federation/nodes — 列出所有已注册节点
-  app.get('/api/v10/federation/nodes', (_req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      const nodes = federationManager.listNodes();
-      return res.json(ok(nodes));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // POST /api/v10/federation/register — 注册节点
-  app.post('/api/v10/federation/register', async (req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      const { nodeId, address, transport, capabilities } = req.body || {};
-      if (!nodeId) return res.status(400).json({ ok: false, error: 'Missing required field: nodeId' });
-      federationManager.registerNode(nodeId, address || 'local', transport || 'local', capabilities || []);
-      return res.json(ok({ registered: true, nodeId }));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // POST /api/v10/federation/unregister — 注销节点
-  app.post('/api/v10/federation/unregister', async (req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      const { nodeId } = req.body || {};
-      if (!nodeId) return res.status(400).json({ ok: false, error: 'Missing required field: nodeId' });
-      federationManager.unregisterNode(nodeId);
-      return res.json(ok({ unregistered: true, nodeId }));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // GET /api/v10/federation/capabilities — 列出已发现的能力
-  app.get('/api/v10/federation/capabilities', (_req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      const capabilities = federationManager.getAllCapabilities();
-      return res.json(ok(capabilities));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // POST /api/v10/federation/execute — 远程执行
-  app.post('/api/v10/federation/execute', async (req, res) => {
-    try {
-      if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-      const { targetNodeId, agentId, action, payload, timeout } = req.body || {};
-      if (!targetNodeId || !action) return res.status(400).json({ ok: false, error: 'Missing required fields: targetNodeId, action' });
-      const result = await federationManager.executeRemotely({ targetNodeId, agentId, action, payload, timeout });
-      return res.json(ok(result));
-    } catch (err) {
-      return res.status(500).json(fail(err));
-    }
-  });
-
-  // GET /api/v10/federation/health — 联邦健康检查
-  app.get('/api/v10/federation/health', (_req, res) => {
-    if (!federationManager) return res.status(501).json(notImplemented('FederationManager'));
-    return res.json(ok(federationManager.health()));
-  });
 
   // ═══════════════════════════════════════════════════════════════
   // Learning API
@@ -344,7 +262,7 @@ export function registerV10Routes(app: ExpressRouter, deps: V10Dependencies): vo
     if (verificationEngine) modules.verification = verificationEngine.health();
     if (eventMesh) modules.eventMesh = eventMesh.health();
     if (learningPlane) modules.learning = learningPlane.health();
-    if (federationManager) modules.federation = federationManager.health();
+
 
     const allOk = Object.values(modules).every((m: any) => m?.ok !== false);
     return res.json({
@@ -357,5 +275,5 @@ export function registerV10Routes(app: ExpressRouter, deps: V10Dependencies): vo
     });
   });
 
-  console.log('[V10API] ✅ 已注册 v10 API 路由 (simulation, verification, event-mesh, learning, federation)');
+  console.log('[V10API] ✅ 已注册 v10 API 路由 (simulation, verification, event-mesh, learning)');
 }

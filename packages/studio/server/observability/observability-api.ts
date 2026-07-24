@@ -101,16 +101,7 @@ export function createObservabilityRouter(): Router {
   router.get('/generate', (req: Request, res: Response) => {
     const mode = (req.query.mode as string) || 'random';
     if (mode === 'full-coverage') {
-      res.json({ ok: true, message: 'Running 50-task coverage suite... Check server console.' });
-      import('./coverage-runner.js').then(({ runCoverageSuite }) => {
-        runCoverageSuite((phase, cur, total) => {
-          if (cur === 1) console.log(`\n[Coverage] 📋 Phase ${phase} (${total} tasks)`);
-          if (cur % 3 === 0 || cur === total) console.log(`[Coverage]   Phase ${phase}: ${cur}/${total}`);
-        }).then(r => {
-          console.log(`[Coverage] ✅ ${r.succeeded}/${r.succeeded + r.failed} tasks, ${r.before}→${r.after} exercised (+${r.gained.length})`);
-          if (r.gained.length > 0) console.log(`[Coverage]   New: ${r.gained.sort().join(', ')}`);
-        });
-      });
+      res.json({ ok: true, message: 'Coverage runner archived. Use ObservabilityLite for monitoring.' });
       return;
     }
     res.json({ ok: true, tip: 'Use mode=full-coverage for 50-task suite' });
@@ -122,15 +113,7 @@ export function createObservabilityRouter(): Router {
 
     // ★ Full-coverage mode: run 50 real HTTP tasks (phased)
     if (mode === 'full-coverage') {
-      res.json({ ok: true, message: 'Running 50-task full coverage suite...' });
-      import('./coverage-runner.js').then(({ runCoverageSuite }) => {
-        runCoverageSuite((phase, cur, total) => {
-          if (cur === 1) console.log(`\n[Coverage] 📋 Phase ${phase} (${total} tasks)`);
-          if (cur % 3 === 0 || cur === total) console.log(`[Coverage]   Phase ${phase}: ${cur}/${total}`);
-        }).then(r => {
-          console.log(`[Coverage] ✅ ${r.succeeded}/${r.succeeded + r.failed} tasks, ${r.before}→${r.after} (+${r.gained.length})`);
-        });
-      });
+      res.json({ ok: true, message: 'Coverage runner archived. Use ObservabilityLite for monitoring.' });
       return;
     }
 
@@ -427,16 +410,10 @@ export function createObservabilityRouter(): Router {
     });
   });
 
-  // POST /api/observability/exercise-all — exercise all unexercised modules
+  // POST /api/observability/exercise-all — exercise all unexercised modules (simplified)
   router.post('/exercise-all', async (req: Request, res: Response) => {
     try {
-      // If global context exists, use it
-      if (getExerciseContext()) {
-        const result = await exerciseAllFromGlobal();
-        res.json({ ok: true, ...result });
-        return;
-      }
-      // Fallback: direct RuntimeInvoker calls for virtual modules
+      // Direct RuntimeInvoker calls for virtual modules
       const fallbackModules = [
         'retry-policy', 'mission-fsm', 'dag-runtime', 'dag-executor-adapter',
         'cognitive-pipeline', 'execution-stage', 'learning-stage',

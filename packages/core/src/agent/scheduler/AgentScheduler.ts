@@ -10,7 +10,6 @@
  */
 
 import { AssignmentStrategy, type AssignmentStrategyType, type TaskRequirement, type AgentAssignment } from './AssignmentStrategy.js'
-import type { OrganizationPolicyEngine } from '../governance/OrganizationPolicyEngine.js'
 
 export class AgentScheduler {
   private registry: any
@@ -19,14 +18,11 @@ export class AgentScheduler {
   private assignments: Map<string, AgentAssignment> = new Map()
   private agentLoad: Map<string, number> = new Map()
   private stats = { totalAssignments: 0, totalReplacements: 0 }
-  private orgPolicy: OrganizationPolicyEngine | null = null
 
-  constructor(registry: any, capabilityGraph: any, strategy?: AssignmentStrategyType, orgPolicy?: OrganizationPolicyEngine) {
+  constructor(registry: any, capabilityGraph: any, strategy?: AssignmentStrategyType) {
     this.registry = registry
     this.capabilityGraph = capabilityGraph
     this.strategy = new AssignmentStrategy(strategy)
-    this.orgPolicy = orgPolicy ?? null
-    if (this.orgPolicy) console.log('[AgentScheduler] OrganizationPolicyEngine 已接入')
   }
 
   /**
@@ -41,25 +37,11 @@ export class AgentScheduler {
 
     // 按策略选择
     const selected = this.strategy.select(candidates, task)
+    // 检查分配结果
     if (!selected) return null
 
     const agentId = selected.identity?.id ?? selected.id
     const score = this.strategy.computeScore(selected, task)
-
-    // OrgPolicy 检查
-    if (this.orgPolicy) {
-      const decision = this.orgPolicy.evaluate({
-        action: 'agent_assignment',
-        sourceAgentId: agentId,
-        sourceAgentRole: selected?.identity?.role ?? selected?.role ?? 'unknown',
-        targetAgentId: task.taskId,
-        timestamp: Date.now(),
-      })
-      if (decision.action === 'deny') {
-        console.warn(`[AgentScheduler] OrgPolicy 拒绝分配 ${agentId} → ${task.taskId}: ${decision.reason}`)
-        return null
-      }
-    }
 
     const assignment: AgentAssignment = {
       taskId: task.taskId,

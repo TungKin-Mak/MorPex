@@ -54,22 +54,6 @@ export { AgentAutoOptimizer } from './optimizer/index.js'
 export { CrossAgentLearningEngine, ExperienceRepository, KnowledgeDistiller, LearningPropagationService, ExperienceMatcher, ExperienceSqliteRepository } from './learning/index.js'
 export type { GeneralizedExperience, ExperienceCategory, ExperienceQuery } from './learning/index.js'
 
-// ── v9.2 Organization Governance ──
-export { OrganizationPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit, GovernanceSqliteRepository } from './governance/index.js'
-export type { OrgPolicyAction, OrgPolicyRule, OrgPolicyContext, OrgPolicyDecision, TeamPolicy, TeamMembership, OrgBudget, BudgetAllocation, GovernanceAuditEntry } from './governance/index.js'
 
-// ── v9.2 Agent Marketplace ──
-export { MarketplaceRegistry, CapabilityAdvertiser, BidEngine, TrustVerifier, MarketplaceContractManager, ThirdPartyAgentAdapter, MarketplaceSqliteRepository } from './marketplace/index.js'
-export type { MarketplaceListing, BidRequest, Bid, MarketplaceContract, BidStrategy } from './marketplace/index.js'
 
-// ── v9.2 Distributed Agent Runtime ──
-export { AgentTransport, RemoteAgentProxy, DistributedScheduler, DistributedRuntimeManager, ConsensusCoordinator, DistributedSqliteRepository } from './distributed/index.js'
-export type { RemoteNode, TransportMessage, HeartbeatStatus, TransportType, NodeStatus } from './distributed/index.js'
 
-// ── v9.2 Agent Team Formation ──
-export { TeamFormationEngine, TeamCompositionOptimizer, RoleAssignmentStrategy, TeamLifecycleManager, TeamSqliteRepository } from './team/index.js'
-export type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamStatus } from './team/index.js'
-
-// ── v9.2 Shared Memory Consensus (enhanced) ──
-export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService, SharedMemorySqliteRepository } from './memory/index.js'
-export type { SharedMemoryConfig, MemoryConsistencyLevel, MemoryScope, ConsensusProposal, MemoryLock, ConflictResolutionStrategy, ConflictRecord, MemorySnapshot } from './memory/index.js'

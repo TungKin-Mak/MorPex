@@ -15,7 +15,6 @@
 import type { AgentIdentity } from '../identity/AgentIdentity.js'
 import type { AgentProfile } from '../identity/AgentProfile.js'
 import type { AgentRegistry } from '../registry/AgentRegistry.js'
-import type { AgentGovernanceRepository } from '../governance/AgentGovernanceRepository.js'
 
 export interface LifecycleEvent {
   agentId: string
@@ -28,7 +27,7 @@ export interface LifecycleEvent {
 export class AgentLifecycle {
   private history: LifecycleEvent[] = []
 
-  constructor(private governanceRepo?: AgentGovernanceRepository) {}
+  constructor() {}
 
   /**
    * evaluate — 评估 Agent 状态是否需要变更
@@ -82,16 +81,7 @@ export class AgentLifecycle {
       timestamp: Date.now(),
     })
 
-    // ★ P0: 持久化治理日志
-    if (this.governanceRepo) {
-      try {
-        this.governanceRepo.recordGovernance(
-          profile.identity.id, 'lifecycle_transition', newStatus, reason
-        )
-      } catch (err) {
-        console.warn('[AgentLifecycle] Governance log failed:', err)
-      }
-    }
+
   }
 
   /**

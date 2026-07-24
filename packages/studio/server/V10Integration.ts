@@ -28,8 +28,6 @@ import { ExecutionPredictor } from './simulation/execution-predictor.js';
 import { BehaviorVerificationEngine } from './verification/behavior-verification-engine.js';
 import { EventMesh } from './event-mesh/event-mesh.js';
 import { LearningPlane } from './learning/learning-plane.js';
-import { FederationManager } from './federation/federation-manager.js';
-
 // 集成层
 import { V10MissionAdapter } from './V10MissionAdapter.js';
 import { registerV10Routes } from './V10API.js';
@@ -62,17 +60,8 @@ export interface V10IntegrationConfig {
   /** 是否启用 Learning Plane（默认为 true） */
   enableLearning?: boolean;
 
-  /** 是否启用 Runtime Federation（默认为 true） */
-  enableFederation?: boolean;
-
   /** 是否自动启动 MissionRuntime 适配器（默认为 true） */
   enableMissionAdapter?: boolean;
-
-  /** 联邦集群名称（仅 federation 启用时使用） */
-  federationClusterName?: string;
-
-  /** 联邦节点角色（仅 federation 启用时使用） */
-  federationRole?: 'leader' | 'worker' | 'observer';
 }
 
 // ── V10IntegrationConfigInternal（内部使用） ──
@@ -86,10 +75,7 @@ interface V10IntegrationConfigInternal {
   enableVerification: boolean;
   enableEventMesh: boolean;
   enableLearning: boolean;
-  enableFederation: boolean;
   enableMissionAdapter: boolean;
-  federationClusterName: string;
-  federationRole: 'leader' | 'worker' | 'observer';
 }
 
 // ── V10Integration ──
@@ -106,8 +92,6 @@ export class V10Integration {
   public verificationEngine: BehaviorVerificationEngine | null = null;
   public eventMesh: EventMesh | null = null;
   public learningPlane: LearningPlane | null = null;
-  public federationManager: FederationManager | null = null;
-
   // 集成层
   public missionAdapter: V10MissionAdapter | null = null;
 
@@ -124,10 +108,7 @@ export class V10Integration {
       enableVerification: config.enableVerification ?? true,
       enableEventMesh: config.enableEventMesh ?? true,
       enableLearning: config.enableLearning ?? true,
-      enableFederation: config.enableFederation ?? true,
       enableMissionAdapter: config.enableMissionAdapter ?? true,
-      federationClusterName: config.federationClusterName ?? 'morpex-v10',
-      federationRole: config.federationRole ?? 'worker',
     };
   }
 
@@ -163,7 +144,6 @@ export class V10Integration {
           verification: !!this.verificationEngine,
           eventMesh: !!this.eventMesh,
           learning: !!this.learningPlane,
-          federation: !!this.federationManager,
           missionAdapter: !!this.missionAdapter,
         },
       });
@@ -174,7 +154,7 @@ export class V10Integration {
       console.log(`  ├─ Verification:    ${this.verificationEngine ? '✅' : '⏭️'}`);
       console.log(`  ├─ Event Mesh:      ${this.eventMesh ? '✅' : '⏭️'}`);
       console.log(`  ├─ Learning Plane:  ${this.learningPlane ? '✅' : '⏭️'}`);
-      console.log(`  ├─ Federation:      ${this.federationManager ? '✅' : '⏭️'}`);
+
       console.log(`  └─ Mission Adapter: ${this.missionAdapter ? '✅' : '⏭️'}`);
 
     } catch (err: any) {
@@ -196,11 +176,6 @@ export class V10Integration {
     if (this.missionAdapter) {
       this.missionAdapter.stop();
       this.missionAdapter = null;
-    }
-
-    if (this.federationManager) {
-      try { this.federationManager.stop(); } catch {}
-      this.federationManager = null;
     }
 
     if (this.eventMesh) {
@@ -234,7 +209,6 @@ export class V10Integration {
     if (this.verificationEngine) modules.verification = this.verificationEngine.health();
     if (this.eventMesh) modules.eventMesh = this.eventMesh.health();
     if (this.learningPlane) modules.learning = this.learningPlane.health();
-    if (this.federationManager) modules.federation = this.federationManager.health();
     if (this.missionAdapter) modules.missionAdapter = this.missionAdapter.health();
 
     const allOk = Object.values(modules).every((m: any) => m?.ok !== false);
@@ -258,7 +232,7 @@ export class V10Integration {
       verificationEngine: this.verificationEngine ?? undefined,
       eventMesh: this.eventMesh ?? undefined,
       learningPlane: this.learningPlane ?? undefined,
-      federationManager: this.federationManager ?? undefined,
+
     };
   }
 
@@ -333,25 +307,7 @@ export class V10Integration {
       }
     }
 
-    // ── Runtime Federation ──
-    if (this.config.enableFederation) {
-      try {
-        // FederationManager 构造函数: (bus?, db?, config?)
-        this.federationManager = new FederationManager(
-          this.bus,
-          this.config.db ?? undefined,
-          {
-            clusterName: this.config.federationClusterName,
-            role: this.config.federationRole,
-            enableAutoDiscovery: true,
-          }
-        );
-        this.federationManager.start();
-        console.log('[V10Integration]   ├─ FederationManager ✅');
-      } catch (err: any) {
-        console.warn('[V10Integration]   ├─ FederationManager ⚠️ failed:', err.message);
-      }
-    }
+
   }
 
   /**

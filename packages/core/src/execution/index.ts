@@ -1,5 +1,5 @@
 /**
- * Execution — v11 Execution Plane
+ * Execution — v11 Execution Plane + Phase 2 统一引擎
  *
  * @packageDocumentation
  */
@@ -10,3 +10,26 @@ export type {
   CapabilityResolution,
   ExecutionFabricConfig,
 } from './fabric/index.js';
+
+export { SubAgentFork } from './SubAgentFork.js';
+export type {
+  SubAgentTask,
+  SubAgentFleet,
+  SubAgentStatus,
+  FleetStatus,
+  FleetStats,
+  SubAgentForkConfig,
+  ConnectorRegistryLike,
+} from './SubAgentFork.js';
+
+export { UnifiedExecutionEngine } from './UnifiedExecutionEngine.js';
+export type {
+  ExecutionMode,
+  ExecutionStatus,
+  ExecutionRequest,
+  ExecutionResult,
+  EngineHealth,
+  MissionRuntimeLike,
+  DAGRuntimeLike,
+  ExecutionFabricLike,
+} from './UnifiedExecutionEngine.js';

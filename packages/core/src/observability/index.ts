@@ -18,3 +18,13 @@ export type { HealthStatus, HealthCheck } from './HealthCheckService.js'
 
 export { bootstrapObservability } from './ObservabilityBootstrap.js'
 export type { ObservabilityConfig } from './ObservabilityBootstrap.js'
+
+// ObservabilityLite (Phase 3 — 精简替代)
+export { ObservabilityLite } from './ObservabilityLite.js'
+export type {
+  HealthState,
+  MetricCounter,
+  LatencyStats,
+  HealthEntry,
+  ObservabilitySnapshot,
+} from './ObservabilityLite.js'

@@ -62,6 +62,10 @@ import { LLMProvider } from '../../core/src/services/LLMProvider.js';
 import { PiAgentCoreRuntime } from '../../core/src/adapters/pi-agent-runtime.js';
 
 import type { MorPexEvent, KernelStatus, MorPexPlugin } from '../../core/src/common/types.js';
+
+// ── v12 Bootstrap ──
+import { bootstrapV12 } from '../../core/src/bootstrap-v12.js';
+import type { V12BootstrapResult } from '../../core/src/bootstrap-v12.js';
 import {
   HistoryStore, MemoryWiki, DocWatcher, DocTopology, MemoryRetriever,
   ZVecStorage,
@@ -107,12 +111,7 @@ import { AgentRegistry } from '../../core/src/agent/registry/AgentRegistry.js';
 import { AgentScheduler } from '../../core/src/agent/scheduler/AgentScheduler.js';
 import { AgentMessageBus } from '../../core/src/agent/communication/AgentMessageBus.js';
 import { CollaborationManager } from '../../core/src/agent/collaboration/CollaborationManager.js';
-import { TeamFormationEngine } from '../../core/src/agent/team/TeamFormationEngine.js';
 import { AgentMemoryIsolation } from '../../core/src/agent/memory/AgentMemoryIsolation.js';
-import { SharedMemoryManager } from '../../core/src/agent/memory/SharedMemoryManager.js';
-import { OrganizationPolicyEngine } from '../../core/src/agent/governance/OrganizationPolicyEngine.js';
-import { TeamGovernanceModel } from '../../core/src/agent/governance/TeamGovernanceModel.js';
-import { OrgBudgetAllocator } from '../../core/src/agent/governance/OrgBudgetAllocator.js';
 import { CrossAgentLearningEngine } from '../../core/src/agent/learning/CrossAgentLearningEngine.js';
 import { ExperienceRepository } from '../../core/src/agent/learning/ExperienceRepository.js';
 import { KnowledgeDistiller } from '../../core/src/agent/learning/KnowledgeDistiller.js';
@@ -221,12 +220,7 @@ export class StudioServer {
   private agentScheduler!: AgentScheduler;
   private agentMessageBus!: AgentMessageBus;
   private collaborationManager!: CollaborationManager;
-  private teamFormationEngine!: TeamFormationEngine;
   private agentMemoryIsolation!: AgentMemoryIsolation;
-  private sharedMemoryManager!: SharedMemoryManager;
-  private orgPolicyEngine!: OrganizationPolicyEngine;
-  private teamGovernanceModel!: TeamGovernanceModel;
-  private orgBudgetAllocator!: OrgBudgetAllocator;
   private crossAgentLearning!: CrossAgentLearningEngine;
   private policyEngine!: PolicyEngine;
   private permissionModel!: PermissionModel;
@@ -249,6 +243,9 @@ export class StudioServer {
   // ── v9.2 Phase 3: Audit + Coverage V2 + Replay ──
   private _archAuditor?: ArchitectureAuditor;
   private _replayEngine?: ReplayEngine;
+
+  // ── v12 组织层 + 交付层 ──
+  private v12?: V12BootstrapResult;
 
   // SSE
   private sseClients: Map<string, SSEClient> = new Map();
@@ -324,6 +321,10 @@ export class StudioServer {
       artifactWriter: this.artifactWriter,
     });
     this.emitInitTrace('studio-orchestrator', 'runtime');
+
+    // ★ v12 Bootstrap: 组织层 + 交付层
+    this.v12 = await bootstrapV12(this.kernel.eventBus, { ceoId: 'ceo-default' });
+    this.emitInitTrace('v12-organization', 'control-plane');
 
     // ★ Second exercise pass: modules created after initComponents
     this.exerciseLateModules();
@@ -587,15 +588,7 @@ export class StudioServer {
     this.agentMemoryIsolation = new AgentMemoryIsolation();
     this.emitInitTrace('agent-memory-isolation', 'runtime');
 
-    this.sharedMemoryManager = new SharedMemoryManager();
-    this.emitInitTrace('shared-memory-manager', 'runtime');
 
-    this.orgPolicyEngine = new OrganizationPolicyEngine();
-    this.emitInitTrace('org-policy-engine', 'control-plane');
-
-    this.teamGovernanceModel = new TeamGovernanceModel();
-
-    this.orgBudgetAllocator = new OrgBudgetAllocator();
 
     // ── Control Plane governance ──
     this.policyEngine = new PolicyEngine({
@@ -612,7 +605,6 @@ export class StudioServer {
       this.agentRegistry,
       null,
       undefined,
-      this.orgPolicyEngine,
     );
     this.emitInitTrace('agent-scheduler', 'runtime');
 
@@ -622,22 +614,9 @@ export class StudioServer {
       this.agentMessageBus,
       this.agentRegistry,
       undefined,
-      undefined,
-      this.sharedMemoryManager,
     );
     this.emitInitTrace('collaboration-manager', 'runtime');
 
-    // ── Layer 4: Team Formation (needs Scheduler + Collaboration) ──
-    this.teamFormationEngine = new TeamFormationEngine(
-      this.agentScheduler,
-      this.collaborationManager,
-      null,
-      null,
-    );
-    this.emitInitTrace('team-formation-engine', 'runtime');
-
-    // 回注 TeamFormationEngine 到 CollaborationManager
-    (this.collaborationManager as any).teamFormation = this.teamFormationEngine;
 
     // ── Layer 5: Cross-Agent Learning ──
     const expRepo = new ExperienceRepository();
@@ -850,7 +829,6 @@ export class StudioServer {
       // Governance
       policyEngine: this.policyEngine,
       permissionModel: this.permissionModel,
-      orgPolicyEngine: this.orgPolicyEngine,
       // Resilience
       circuitBreaker: this.circuitBreaker,
       errorHandler: this.errorHandler,
@@ -893,9 +871,7 @@ export class StudioServer {
       agentScheduler: this.agentScheduler,
       agentMessageBus: this.agentMessageBus,
       collaborationManager: this.collaborationManager,
-      teamFormationEngine: this.teamFormationEngine,
       crossAgentLearning: this.crossAgentLearning,
-      sharedMemoryManager: this.sharedMemoryManager,
       agentMemoryIsolation: this.agentMemoryIsolation,
 
       // ── Infrastructure ──
@@ -1625,9 +1601,7 @@ export class StudioServer {
     ex('agent-scheduler','select','runtime', () => (self.agentScheduler as any)?.selectAgent?.({ taskId: `r_${Date.now()}`, requiredCapabilities: ['planning'], priority: 1, estimatedDuration: 100, budgetConstraint: 10 }));
     ex('agent-message-bus','send','runtime', () => (self.agentMessageBus as any)?.send?.({ id: `m_${Date.now()}`, from: 'a', to: 'b', type: 'REQUEST', payload: {}, timestamp: Date.now() }));
     ex('collaboration-manager','execute','runtime', () => (self.collaborationManager as any)?.execute?.({ missionId: `r_${Date.now()}`, mode: 'sequential', tasks: [], dependencies: [] }));
-    ex('team-formation-engine','form','runtime', () => (self.teamFormationEngine as any)?.formTeam?.({ missionId: `r_${Date.now()}`, requiredCapabilities: [], teamSize: 1, preferredRoles: [] }));
     ex('cross-agent-learning','learn','runtime', () => (self.crossAgentLearning as any)?.learnFromOutcome?.(`r_${Date.now()}`, { success: true }, 'agent'));
-    ex('shared-memory-manager','write','runtime', () => (self.sharedMemoryManager as any)?.write?.(`r_${Date.now()}`, { content }, 'team_shared', 's'));
     ex('agent-memory-isolation','create','runtime', () => (self.agentMemoryIsolation as any)?.createPartition?.(`r_${Date.now()}`));
     ex('negotiation-engine','ticket','runtime', () => (self.negotiationEngine as any)?.createTicket?.({ source_domain: 'a', target_domain: 'b', trigger_artifact_id: 'x', conflict_type: 'data', reason: content.slice(0,50), suggestion: 'review' }));
     ex('arbitration-handler','arbitrate','runtime', () => (self.arbitrationHandler as any)?.arbitrate?.({}));
@@ -2280,6 +2254,100 @@ export class StudioServer {
     this.app.get('/api/history/:executionId', (req, res) => {
       res.json({ ok: true, message: 'History aggregate endpoint' });
     });
+
+    // ── ★ v12: 组织层 + 交付层 API ──
+    if (this.v12) {
+      const { companyFacade, managementHub, groupChatManager } = this.v12;
+
+      // POST /api/v12/departments — 创建部门
+      this.app.post('/api/v12/departments', async (req, res) => {
+        try {
+          const { name, type, templateName, description } = req.body || {};
+          if (!name) return res.status(400).json({ ok: false, error: '缺少 name' });
+          const dept = await companyFacade.createDepartment(name, { type, templateName, description });
+          return res.json({ ok: true, department: dept });
+        } catch (err) {
+          return res.status(500).json({ ok: false, error: (err as Error).message });
+        }
+      });
+
+      // GET /api/v12/departments — 列出部门
+      this.app.get('/api/v12/departments', (_req, res) => {
+        const depts = companyFacade.listDepartments();
+        const stats = companyFacade.getStats();
+        return res.json({ ok: true, departments: depts, stats: stats.departments });
+      });
+
+      // GET /api/v12/departments/:name — 查询部门状态
+      this.app.get('/api/v12/departments/:name', (req, res) => {
+        const dept = companyFacade.getDepartmentStatus(req.params.name);
+        if (!dept) return res.status(404).json({ ok: false, error: `部门 "${req.params.name}" 不存在` });
+        return res.json({ ok: true, department: dept });
+      });
+
+      // POST /api/v12/departments/task — 发送任务到部门
+      this.app.post('/api/v12/departments/task', async (req, res) => {
+        try {
+          const { departmentName, task } = req.body || {};
+          if (!departmentName || !task) {
+            return res.status(400).json({ ok: false, error: '缺少 departmentName 或 task' });
+          }
+          const result = await companyFacade.sendTask(departmentName, task);
+          return res.json(result);
+        } catch (err) {
+          return res.status(500).json({ ok: false, error: (err as Error).message });
+        }
+      });
+
+      // GET /api/v12/company/stats — 公司运营统计
+      this.app.get('/api/v12/company/stats', (_req, res) => {
+        const stats = companyFacade.getStats();
+        const leadStats = this.v12!.leadAgentOrchestrator.getStats();
+        const chatStats = groupChatManager.getStats();
+        return res.json({ ok: true, stats: { departments: stats.departments, leadAgents: leadStats, groups: chatStats } });
+      });
+
+      // POST /api/v12/management/command — CEO 管理指令
+      this.app.post('/api/v12/management/command', async (req, res) => {
+        try {
+          const { input } = req.body || {};
+          if (!input) return res.status(400).json({ ok: false, error: '缺少 input' });
+          const result = await managementHub.handleCommand(input);
+          return res.json(result);
+        } catch (err) {
+          return res.status(500).json({ ok: false, error: (err as Error).message });
+        }
+      });
+
+      // GET /api/v12/management/status — 管理群状态报告
+      this.app.get('/api/v12/management/status', (_req, res) => {
+        const report = managementHub.generateStatusReport();
+        return res.json({ ok: true, report });
+      });
+
+      // GET /api/v12/groupchat/:id/messages — 群聊消息历史
+      this.app.get('/api/v12/groupchat/:id/messages', (req, res) => {
+        const limit = parseInt(req.query.limit as string || '50', 10);
+        const messages = groupChatManager.getMessages(req.params.id, limit);
+        return res.json({ ok: true, messages, groupId: req.params.id });
+      });
+
+      // DELETE /api/v12/departments/:id — 删除部门
+      this.app.delete('/api/v12/departments/:id', async (req, res) => {
+        try {
+          const dept = this.v12!.departmentManager.getDepartment(req.params.id);
+          if (!dept) return res.status(404).json({ ok: false, error: '部门不存在' });
+          await this.v12!.departmentManager.deleteDepartment(req.params.id);
+          return res.json({ ok: true, message: `部门 "${dept.name}" 已删除` });
+        } catch (err) {
+          return res.status(500).json({ ok: false, error: (err as Error).message });
+        }
+      });
+
+      console.log(`[v12] ✅ 组织层 API 已注册 (9 端点)`);
+    } else {
+      console.warn('[v12] ⚠️ v12 未就绪，组织层 API 不可用');
+    }
 
     // ── ★ RuntimeAPI: 后端引擎能力路由（零修改现有代码）─
     registerRuntimeRoutes(this.app);

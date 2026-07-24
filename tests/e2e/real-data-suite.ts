@@ -27,17 +27,19 @@ import { CollaborationManager } from '../../packages/core/src/agent/collaboratio
 import { NegotiationEngine } from '../../packages/core/src/agent/collaboration/NegotiationEngine.js';
 import { AgentProfileManager } from '../../packages/core/src/agent/identity/AgentProfile.js';
 import { AgentMemoryIsolation } from '../../packages/core/src/agent/memory/AgentMemoryIsolation.js';
-import { SharedMemoryManager } from '../../packages/core/src/agent/memory/SharedMemoryManager.js';
+// ARCHIVED: SharedMemoryManager (see packages/archived/agent-shared-memory/)
+// import { SharedMemoryManager } from '../../packages/core/src/agent/memory/SharedMemoryManager.js';
 import { AgentLifecycle } from '../../packages/core/src/agent/lifecycle/AgentLifecycle.js';
 import { CrossAgentLearningEngine } from '../../packages/core/src/agent/learning/CrossAgentLearningEngine.js';
 import { ExperienceRepository } from '../../packages/core/src/agent/learning/ExperienceRepository.js';
 import { KnowledgeDistiller } from '../../packages/core/src/agent/learning/KnowledgeDistiller.js';
 import { LearningPropagationService } from '../../packages/core/src/agent/learning/LearningPropagationService.js';
 import { ExperienceMatcher } from '../../packages/core/src/agent/learning/ExperienceMatcher.js';
-import { OrganizationPolicyEngine } from '../../packages/core/src/agent/governance/OrganizationPolicyEngine.js';
-import { TeamGovernanceModel } from '../../packages/core/src/agent/governance/TeamGovernanceModel.js';
-import { OrgBudgetAllocator } from '../../packages/core/src/agent/governance/OrgBudgetAllocator.js';
-import { TeamFormationEngine } from '../../packages/core/src/agent/team/TeamFormationEngine.js';
+// ARCHIVED: OrganizationPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator (see packages/archived/agent-governance/)
+// import { OrganizationPolicyEngine } from '../../packages/core/src/agent/governance/OrganizationPolicyEngine.js';
+// import { TeamGovernanceModel } from '../../packages/core/src/agent/governance/TeamGovernanceModel.js';
+// import { OrgBudgetAllocator } from '../../packages/core/src/agent/governance/OrgBudgetAllocator.js';
+// ARCHIVED: TeamFormationEngine (see packages/archived/agent-team/)
 import { AgentRanking } from '../../packages/core/src/agent/ranking/AgentRanking.js';
 import { AgentBenchmark } from '../../packages/core/src/agent/benchmark/AgentBenchmark.js';
 import { ErrorHandlerService } from '../../packages/core/src/common/resilience/ErrorHandlerService.js';
@@ -86,7 +88,7 @@ const registry = new AgentRegistry();
 const messageBus = new AgentMessageBus();
 const scheduler = new AgentScheduler(registry, null);
 const memoryIsolation = new AgentMemoryIsolation();
-const sharedMemory = new SharedMemoryManager(db);
+// const sharedMemory = new SharedMemoryManager(db);  // ARCHIVED — use DepartmentContext.partitionKey() instead
 const lifecycle = new AgentLifecycle();
 const ranking = new AgentRanking();
 const benchmark = new AgentBenchmark();
@@ -101,10 +103,10 @@ const propagator = new LearningPropagationService();
 const matcher = new ExperienceMatcher();
 const learningEngine = new CrossAgentLearningEngine(expRepo, distiller, propagator, matcher);
 
-// Governance
-const orgPolicy = new OrganizationPolicyEngine();
-const teamGovernance = new TeamGovernanceModel();
-const budgetAllocator = new OrgBudgetAllocator();
+// Governance — ARCHIVED (one-person company does not need governance policies)
+// const orgPolicy = new OrganizationPolicyEngine();
+// const teamGovernance = new TeamGovernanceModel();
+// const budgetAllocator = new OrgBudgetAllocator();
 
 // Context assembly
 const contextEngine = new ContextAssemblyEngine(undefined, undefined, undefined, undefined, undefined, {
@@ -253,11 +255,11 @@ async function testMultiAgentCollaboration() {
   const history = messageBus.getHistory();
   assert(history.length >= 3, '应有 >= 3 条消息');
 
-  // Shared memory usage
-  sharedMemory.write('team:mis_collab_1:plan', { steps: ['analyze', 'code', 'review'] }, 'team_shared', 'planner-001');
-  const planData = sharedMemory.read('team:mis_collab_1:plan', 'team_shared');
-  assert(planData !== undefined, 'SharedMemory 写入后应可读');
-  assert((planData as any).steps.length === 3, '计划应有 3 步');
+  // Shared memory usage — ARCHIVED: SharedMemoryManager
+  // sharedMemory.write('team:mis_collab_1:plan', { steps: ['analyze', 'code', 'review'] }, 'team_shared', 'planner-001');
+  // const planData = sharedMemory.read('team:mis_collab_1:plan', 'team_shared');
+  // assert(planData !== undefined, 'SharedMemory 写入后应可读');
+  // assert((planData as any).steps.length === 3, '计划应有 3 步');
 
   // Collaboration stats
   const stats = collaboration.getStats();
@@ -265,7 +267,7 @@ async function testMultiAgentCollaboration() {
 
   metrics.recordTeamFormation(250, 3);
 
-  return { messageCount: history.length, planSteps: (planData as any).steps.length };
+  return { messageCount: history.length, planSteps: 0 /* ARCHIVED: SharedMemory */ };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -417,36 +419,12 @@ async function testLearningLoop() {
 // ═══════════════════════════════════════════════════════════════
 
 async function testGovernancePolicy() {
-  // Check org policy: executor can't do cross-team without approval
-  const decision = orgPolicy.evaluate({
-    action: 'cross_team_collaboration',
-    sourceAgentId: 'coder-001',
-    sourceAgentRole: 'executor',
-    targetAgentId: 'researcher-001',
-    targetAgentRole: 'researcher',
-    timestamp: Date.now(),
-  });
-
-  assert(['deny', 'require_approval', 'allow'].includes(decision.action), 'Policy 决策有效');
-
-  // Budget allocation
-  const allocated = budgetAllocator.allocate('team-alpha', 50000);
-  assert(allocated, '预算分配应成功');
-
-  const teamBudget = budgetAllocator.getTeamBudget('team-alpha');
-  assert(teamBudget !== undefined, '应有团队预算');
-  assert(teamBudget!.allocated === 50000, '分配金额一致');
-
-  // Spend from budget
-  const spent = budgetAllocator.spend('team-alpha', 10000);
-  assert(spent, '预算消费应成功');
-
-  const after = budgetAllocator.getTeamBudget('team-alpha');
-  assert(after!.spent === 10000, '消费记录应更新');
-
-  metrics.record('governance.policy_check', 1, { action: decision.action });
-
-  return { decision: decision.action, budgetRemaining: after!.remaining };
+  // ARCHIVED: OrganizationPolicyEngine / OrgBudgetAllocator
+  // This test is preserved as a placeholder. Governance modules have been archived
+  // as part of the one-person virtual company upgrade.
+  // See packages/archived/agent-governance/
+  console.log('   ⏭️  Governance tests skipped (modules archived)');
+  return { decision: 'skipped', budgetRemaining: 0 };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -542,7 +520,7 @@ async function runRealDataSuite() {
     { name: 'failure-recovery', fn: testFailureRecovery },
     { name: 'distributed-simulation', fn: testDistributedSimulation },
     { name: 'learning-loop', fn: testLearningLoop },
-    { name: 'governance-policy', fn: testGovernancePolicy },
+    { name: 'governance-policy', fn: testGovernancePolicy },  // ARCHIVED: returns skipped
     { name: 'long-running-mission', fn: testLongRunningMission },
   ];
 

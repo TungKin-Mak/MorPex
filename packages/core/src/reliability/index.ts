@@ -15,11 +15,6 @@
  *   - Report: 生产就绪证明 (ReliabilityReport)
  */
 
-// ── Chaos ──
-export { ChaosEngine, FaultInjector, BUILTIN_SCENARIOS } from './chaos/index.js'
-export type { FailureScenario as FailureScenarioType } from './chaos/index.js'
-export type { ChaosTestResult, InjectionResult, ChaosReport } from './chaos/index.js'
-
 // ── Replay ──
 export { ReplayEngine, EventReplayer } from './replay/index.js'
 export type { ReplayState, ReplayComparison, DeterministicReplayContext } from './replay/index.js'
@@ -28,14 +23,3 @@ export type { ReplayState, ReplayComparison, DeterministicReplayContext } from '
 export { ReliabilityScorer, computeProductionScore, computeSafetyScore } from './scoring/index.js'
 export type { ReliabilityMetrics } from './scoring/index.js'
 
-// ── Regression ──
-export { GoldenDatasetManager, RegressionRunner } from './regression/index.js'
-export type { GoldenDataset, GoldenTestCase, GoldenTestCategory, RegressionReport, RegressionResult } from './regression/index.js'
-
-// ── Promotion ──
-export { WorkflowPromotion, WorkflowLifecycleStatus } from './promotion/index.js'
-export type { WorkflowLifecycleEntry, CanaryConfig, CanaryMetrics } from './promotion/index.js'
-
-// ── Report (v8.9.2) ──
-export { ReliabilityReporter } from './ReliabilityReport.js'
-export type { ReliabilityReport, ProductionVerdict } from './ReliabilityReport.js'

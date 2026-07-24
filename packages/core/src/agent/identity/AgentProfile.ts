@@ -6,7 +6,6 @@
  */
 
 import type { AgentIdentity } from './AgentIdentity.js'
-import type { AgentGovernanceRepository } from '../governance/AgentGovernanceRepository.js'
 
 export interface AgentProfile {
   /** Agent 身份 */
@@ -51,7 +50,7 @@ export interface AgentGovernanceStats {
 export class AgentProfileManager {
   private profiles: Map<string, AgentProfile> = new Map()
 
-  constructor(private governanceRepo?: AgentGovernanceRepository) {}
+  constructor() {}
 
   /**
    * register — 注册新 Agent 档案
@@ -71,15 +70,6 @@ export class AgentProfileManager {
       failureHistory: [],
     }
     this.profiles.set(identity.id, profile)
-
-    // ★ P0: 持久化 Agent 身份
-    if (this.governanceRepo) {
-      try {
-        this.governanceRepo.saveAgent(identity)
-      } catch (err) {
-        console.warn('[AgentProfileManager] Governance save agent failed:', err)
-      }
-    }
 
     return profile
   }
@@ -109,16 +99,7 @@ export class AgentProfileManager {
     ) / 1000
     profile.lastActiveAt = Date.now()
 
-    // ★ P0: 持久化能力分
-    if (this.governanceRepo && profile.identity.capabilities.length > 0) {
-      try {
-        for (const cap of profile.identity.capabilities) {
-          this.governanceRepo.saveCapability(agentId, cap, 3, profile.successRate, profile.costPerTask)
-        }
-      } catch (err) {
-        console.warn('[AgentProfileManager] Governance save capability failed:', err)
-      }
-    }
+
   }
 
   /**
@@ -137,17 +118,7 @@ export class AgentProfileManager {
     profile.failureHistory.push({ taskId, reason, timestamp: Date.now() })
     profile.lastActiveAt = Date.now()
 
-    // ★ P0: 持久化能力分 + 治理日志
-    if (this.governanceRepo) {
-      try {
-        this.governanceRepo.recordGovernance(agentId, 'task_failure', 'recorded', reason)
-        for (const cap of profile.identity.capabilities) {
-          this.governanceRepo.saveCapability(agentId, cap, 3, profile.successRate, profile.costPerTask)
-        }
-      } catch (err) {
-        console.warn('[AgentProfileManager] Governance save failure failed:', err)
-      }
-    }
+
   }
 
   /**
@@ -182,14 +153,7 @@ export class AgentProfileManager {
       profile.identity = { ...profile.identity, status }
     }
 
-    // ★ P0: 持久化状态变更
-    if (this.governanceRepo) {
-      try {
-        this.governanceRepo.updateStatus(agentId, status)
-      } catch (err) {
-        console.warn('[AgentProfileManager] Governance update status failed:', err)
-      }
-    }
+
   }
 
   /**
@@ -197,6 +161,7 @@ export class AgentProfileManager {
    *
    * 基于 Profile 计算治理相关的统计指标。
    */
+  /** @deprecated Governance archived — returns basic stats */
   getGovernanceStats(agentId: string): AgentGovernanceStats | undefined {
     const profile = this.profiles.get(agentId)
     if (!profile) return undefined

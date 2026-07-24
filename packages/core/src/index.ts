@@ -26,6 +26,22 @@ export { PluginSystem } from './common/PluginSystem.js';
 
 // ── Gateway（内部使用，不对外暴露）─
 
+// ═══════════════════════════════════════════════════════════════
+// Phase 0 — 组织层（一人虚拟公司部门体系）
+// ═══════════════════════════════════════════════════════════════
+export { DepartmentManager, DepartmentContext, LeadAgentOrchestrator, DepartmentMemoryAdapter } from './department/index.js';
+export type { Department, DepartmentId, DepartmentType, DepartmentStatus, CreateDepartmentParams, DepartmentStats } from './department/index.js';
+export type { LeadAgent, TaskAssignment, OrchestrationResult, LeadAgentStats } from './department/index.js';
+
+export { RoleRegistry } from './role/index.js';
+export type { Role, RoleId, RoleName, RoleAssignment } from './role/index.js';
+
+export { OrganizationContextLite, ManagementHub } from './organization/index.js';
+export type { OrganizationContext, OrganizationScope } from './organization/index.js';
+export type { ParsedCommand, HubStatusReport } from './organization/index.js';
+
+export { CompanyFacade } from './facade/index.js';
+
 // ── Agent Harness v2 (Phase 2) ──
 export { AgentHarness, ContextBuilder } from './planes/agent-plane/index.js';
 export type {
@@ -86,6 +102,12 @@ export { JSONLStorage } from './mirror/storage/JSONLStorage.js';
 export { THINKING_LEVELS, THINKING_LEVEL_LABELS, DEFAULT_THINKING_LEVEL, getSupportedLevels, clampLevel, parseThinkingLevel, clearModelCache } from './common/ThinkingLevelControl.js';
 export type { ThinkingLevel } from './common/ThinkingLevelControl.js';
 
+// ── Phase 4.6: ProgressCallback + ToolQualityTracker ──
+export { makeProgressEvent } from './common/ProgressCallback.js';
+export type { ProgressEvent, ProgressEventType, ProgressCallback } from './common/ProgressCallback.js';
+export { ToolQualityTracker } from './common/ToolQualityTracker.js';
+export type { ToolStats } from './common/ToolQualityTracker.js';
+
 export { listProviders, listModels, listAllProviders, findModel, getDefaultModel } from './common/ModelRegistry.js';
 export type { ModelInfo, ProviderInfo } from './common/ModelRegistry.js';
 
@@ -104,14 +126,16 @@ export type {
   ClusterStatusReport, ValidationResult, ValidationError,
 } from './domains/types.js';
 
-// ── Cross-Domain Router (Phase 10) ──
-export { CrossDomainRouter } from './router/CrossDomainRouter.js';
+// ── Cross-Domain Router (Phase 10) + RouterLite (Phase 3) ──
+export { CrossDomainRouter, RouterLite } from './router/index.js';
 export { DomainDispatcher } from './router/DomainDispatcher.js';
 export { ArbitrationHandler } from './router/ArbitrationHandler.js';
 export type {
   NodeResult,
   DAGExecutionResult,
-} from './router/DomainDispatcher.js';
+  DomainHandler,
+  DomainRoute,
+} from './router/index.js';
 // LLMCaller type already exported above from DomainClusterManager
 export type {
   ArbitrationVerdict,
@@ -225,12 +249,15 @@ export { SessionProjection } from './projection/SessionProjection.js';
 export type { ProjectionParams, ProjectionRecord, DAGNodeProjection, AgentStateProjection, ArtifactProjection, TimelineEntry, ConstraintProjection } from './projection/SessionProjection.js';
 
 // ── Negotiation (Phase 11.5) ──
-export { NegotiationEngine } from './negotiation/NegotiationEngine.js';
+export { NegotiationEngine, NegotiationLite } from './negotiation/index.js';
 export type {
   CreateTicketParams,
   NegotiationEngineConfig,
   NegotiationCallbacks,
-} from './negotiation/NegotiationEngine.js';
+  LiteTicket,
+  LiteTicketStatus,
+  Resolution,
+} from './negotiation/index.js';
 
 // ── Industry Plugin (v3.1) — 行业适配引擎 ──
 export { IndustryPlugin } from './industry/plugin.js';
@@ -478,6 +505,7 @@ export type { ReplayState, SourcingEvent } from './protocol/events/store/Unified
 // ── MorPex v8 Interaction Layer ──
 export {
   MessageGateway,
+  GroupChatManager,
   WebAdapter,
   CLIAdapter,
   WeChatAdapter,
@@ -489,6 +517,14 @@ export type {
   ChannelAdapter,
   SessionInfo,
   MessageHandler,
+  ChatGroup,
+  ChatMessage,
+  GroupMember,
+  GroupId,
+  GroupType,
+  MessageType,
+  GroupChatStats,
+  ExternalIMAdapter,
 } from './interaction/index.js';
 
 // ── 类型导出 ──
@@ -624,14 +660,14 @@ export type { TraceSpan, MissionTrace } from './observability/index.js';
 export { WorkflowMetrics } from './observability/index.js';
 export type { WorkflowMetricsSnapshot } from './observability/index.js';
 
+// ── Phase 3 ObservabilityLite ──
+export { ObservabilityLite } from './observability/ObservabilityLite.js';
+export type { HealthState, MetricCounter, LatencyStats, HealthEntry, ObservabilitySnapshot } from './observability/ObservabilityLite.js';
+
 // ── v8.9 Reliability Plane ──
-export { ChaosEngine, FaultInjector, BUILTIN_SCENARIOS } from './reliability/index.js';
-export type { FailureScenarioType as FailureScenario, ChaosTestResult, InjectionResult } from './reliability/index.js';
 import { ReplayEngine as RelReplayEngine, EventReplayer } from './reliability/index.js'
 export { ReliabilityScorer, computeProductionScore } from './reliability/index.js';
 export type { ReliabilityMetrics } from './reliability/index.js';
-export { GoldenDatasetManager, RegressionRunner, WorkflowPromotion, WorkflowLifecycleStatus } from './reliability/index.js';
-export type { GoldenTestCase, GoldenDataset, RegressionResult, RegressionReport, WorkflowLifecycleEntry } from './reliability/index.js';
 /** @deprecated Use ReliabilityReplayEngine (from Reliability Plane) instead */
 const ReliabilityReplayEngine = RelReplayEngine
 const ReliabilityEventReplayer = EventReplayer
@@ -656,28 +692,9 @@ export type { AgentMessage as AgentMessageInterface, AgentMemoryScope, AgentExec
 export { CrossAgentLearningEngine as AgentLearningEngine, ExperienceRepository as AgentExperienceRepository, ExperienceSqliteRepository as AgentExperienceSqliteRepo } from './agent/index.js'
 export type { GeneralizedExperience, ExperienceCategory, ExperienceQuery } from './agent/index.js'
 
-// ── v9.2 Organization Governance ──
-export { OrganizationPolicyEngine as AgentOrgPolicyEngine, TeamGovernanceModel, OrgBudgetAllocator, GovernanceAudit, GovernanceSqliteRepository as AgentGovernanceSqliteRepo } from './agent/index.js'
-export type { OrgPolicyAction, OrgPolicyRule, OrgPolicyContext, OrgPolicyDecision, TeamPolicy as AgentTeamPolicy, TeamMembership as AgentTeamMembership, OrgBudget, BudgetAllocation, GovernanceAuditEntry } from './agent/index.js'
-
-// ── v9.2 Agent Marketplace ──
-export { MarketplaceRegistry, BidEngine, TrustVerifier as AgentTrustVerifier, MarketplaceContractManager, MarketplaceSqliteRepository as AgentMarketplaceSqliteRepo } from './agent/index.js'
-export type { MarketplaceListing, BidRequest, Bid, MarketplaceContract, BidStrategy } from './agent/index.js'
-
-// ── v9.2 Distributed Agent Runtime ──
-export { AgentTransport, RemoteAgentProxy, DistributedScheduler, DistributedRuntimeManager, DistributedSqliteRepository as AgentDistributedSqliteRepo } from './agent/index.js'
-export type { RemoteNode, TransportMessage, HeartbeatStatus, TransportType, NodeStatus } from './agent/index.js'
-
-// ── v9.2 Agent Team Formation ──
-export { TeamFormationEngine, TeamCompositionOptimizer, TeamLifecycleManager, TeamSqliteRepository as AgentTeamSqliteRepo } from './agent/index.js'
-export type { TeamSpec, TeamFormation, TeamMember, TeamContext, TeamRole, TeamStatus } from './agent/index.js'
-
-// ── v9.2 Shared Memory Consensus ──
-export { SharedMemoryManager, ConsensusProtocol, MemoryLockService, ConflictResolver, MemorySnapshotService, SharedMemorySqliteRepository as AgentSharedMemorySqliteRepo } from './agent/index.js'
-export type { SharedMemoryConfig, MemoryConsistencyLevel, MemoryScope, ConsensusProposal, MemoryLock, ConflictResolutionStrategy, ConflictRecord, MemorySnapshot } from './agent/index.js'
-
 // ── v11 Evolution Engine ──
 export { ExperienceMiner, FailureAnalyzer, PatternExtractor } from './evolution/index.js';
+export { SOPEngine } from './evolution/SOPEngine.js';
 export type {
   MinedExperience,
   MiningConfig,
@@ -698,6 +715,27 @@ export type {
   ExecutionFabricConfig,
 } from './execution/index.js';
 
+// ── Phase 2: Unified Execution Engine + SubAgentFork ──
+export { UnifiedExecutionEngine, SubAgentFork } from './execution/index.js';
+export type {
+  ExecutionMode,
+  ExecutionStatus,
+  EngineHealth,
+  SubAgentTask,
+  SubAgentFleet,
+  FleetStats,
+  ConnectorRegistryLike,
+} from './execution/index.js';
+
+// ── Phase 2: DeliveryPlanner ──
+export { DeliveryPlanner } from './planner/index.js';
+export type {
+  PlanningMode,
+  PlanningRequest,
+  Plan,
+  PlanTask,
+} from './planner/index.js';
+
 // ── v9 Config Schema (Zod)
 export { MorPexConfigSchema } from '../config/MorPexConfig.js';
 export type { MorPexConfig, ConfigChangeListener } from '../config/MorPexConfig.js';
@@ -709,3 +747,25 @@ export type { GenerateParams, GenerateResult, ModelInfo as PiModelInfo } from '.
 // ── 唯一入口（v2.4 门面模式） — 对外只暴露 bootstrapMorPexCore
 export { bootstrapMorPexCore } from '../bootstrap.js';
 export type { BootstrapConfig } from '../bootstrap.js';
+
+// ── v12 Bootstrap — 组织层 + 交付层统一引导
+// ── Phase 4.5: BrainFacade（统一大脑门面） ──
+export { BrainFacade } from './cognition/BrainFacade.js';
+export type {
+  BrainContext,
+  BrainExperience,
+  BrainMemory,
+  BrainInsight,
+  BrainStats as BrainFacadeStats,
+  BrainForgetCriteria,
+  ConsolidationResult,
+  CEOReport,
+  CrossDeptSynthesis,
+  PersonalBrainLike,
+  MemoryWikiLike,
+  LearningLoopLike,
+  EvolutionEngineLike,
+} from './cognition/BrainFacade.js';
+
+export { bootstrapV12 } from './bootstrap-v12.js';
+export type { V12BootstrapResult } from './bootstrap-v12.js';

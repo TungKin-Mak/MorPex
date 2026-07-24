@@ -737,3 +737,92 @@ PiBridge 对外接口：
 - `static clampThinkingLevel` / `getSupportedThinkingLevels` — 推理深度控制
 
 升级 pi-ai 或 pi-agent-core 时，**只需改 PiBridge.ts**。
+
+---
+
+## Phase 4 升级 (2026-07-24) — 一人虚拟多部门公司 AI 工作助理
+
+> **79→26 模块精简 · 组织层新增 · Facade 简化入口 · ~50 模块归档**
+
+### 定位
+
+一人跨多领域公司（编程、电商、短视频、电路设计、市场分析、销售等），CEO 通过管理群统筹，@部门负责人触发任务，动态群聊 + Lead Agent 编排 Sub-agents 执行。
+
+### 新增模块
+
+| 模块 | 文件 | 职责 |
+|------|------|------|
+| `DepartmentManager` | `packages/core/src/department/` | 部门 CRUD + EventBus 事件广播 |
+| `DepartmentContext` | `packages/core/src/department/` | 数据分区工具（departmentId → partition key） |
+| `LeadAgentOrchestrator` | `packages/core/src/department/` | 持久化部门负责人编排、任务分配、执行生命周期 |
+| `GroupChatManager` | `packages/core/src/interaction/` | 逻辑群组创建/解散、消息收发、SSE 推送、外部 IM 适配器接口 |
+| `CompanyFacade` | `packages/core/src/facade/` | CEO 高层操作入口（createDepartment / sendTask / getStats） |
+| `RoleRegistry` | `packages/core/src/role/` | 精简角色定义和分配（ceo/lead_agent/worker/observer） |
+| `OrganizationContextLite` | `packages/core/src/organization/` | 单例部门上下文、数据访问范围控制 |
+| `ManagementHub` | `packages/core/src/organization/` | CEO 管理群统筹、@部门名指令解析、自动状态摘要 |
+| `SubAgentFork` | `packages/core/src/execution/` | 子 Agent 舰队管理（spawnFleet / 并发执行 / 重试超时 / 记忆快照） |
+| `UnifiedExecutionEngine` | `packages/core/src/execution/` | 统一执行入口 Facade（按 mode 路由到 MissionRuntime/DAGRuntime/ExecutionFabric） |
+| `DeliveryPlanner` | `packages/core/src/planner/` | 统一规划入口 Facade（按复杂度路由到 MetaPlanner/CognitivePipeline/内置快速规划） |
+
+### Lite 模块（精简替代）
+
+| Lite 模块 | 替代 | 差异 |
+|-----------|------|------|
+| `ObservabilityLite` | 8 文件 Observability 模块 | 保留核心指标（延迟/错误/吞吐）+ 健康检查 |
+| `NegotiationLite` | 完整 NegotiationEngine | 快速 approve/reject 决策，无多轮升级 |
+| `RouterLite` | 完整 CrossDomainRouter | 静态领域路由表，无动态发现 |
+
+### 归档模块（~50 源文件 → 10 存档目录）
+
+| 存档目录 | 原模块组 | 删除原因 |
+|----------|---------|---------|
+| `packages/archived/agent-marketplace/` | MarketplaceRegistry / BidEngine / TrustVerifier | 一人公司不需要 Agent 拍卖市场 |
+| `packages/archived/agent-distributed/` | DistributedRuntime / RemoteProxy / Consensus | 单机不需要分布式调度 |
+| `packages/archived/agent-team/` | TeamFormationEngine / RoleAssignment | LeadAgent 直接分配，不需要动态组队 |
+| `packages/archived/agent-governance/` | OrganizationPolicyEngine / BudgetAllocator | 一人不需要治理策略引擎 |
+| `packages/archived/agent-shared-memory/` | SharedMemoryManager / ConsensusProtocol | 部门隔离后不需要共享内存共识 |
+| `packages/archived/reliability-chaos/` | ChaosEngine / FaultInjector | 不需要主动故障注入 |
+| `packages/archived/reliability-regression/` | GoldenDataset / RegressionRunner | 高级回归测试，Phase 4+ 再考虑 |
+| `packages/archived/observability-legacy/` | coverage-runner | 79 模块覆盖率工具已冗余 |
+| `packages/archived/studio-federation/` | FederationManager / RemoteExecutor / NodeIdentity | 单机不需要联邦 |
+| `packages/archived/tests/` | 4 个测试文件 | 对应归档模块的测试 |
+
+### 完整调用链
+
+```
+CompanyFacade.createDepartment("编程部")
+  → DepartmentManager + RoleRegistry + GroupChatManager
+
+ManagementHub.handleCommand("@编程部 优化登录")
+  → LeadAgentOrchestrator.orchestrateTask()
+    → DeliveryPlanner.createPlan()               # Facade → MetaPlanner / CognitivePipeline
+      → UnifiedExecutionEngine.execute()         # Facade → MissionRuntime / DAGRuntime / Fabric
+        → SubAgentFork.spawnFleet()              # 子 Agent 舰队并行执行
+          → GroupChatManager.sendMessage()       # EventBus → SSE → 前端 / 外部 IM
+```
+
+### 数据隔离模型
+
+```
+┌───────────────────────────────────────────┐
+│  全局层 (CEO 只读)                         │
+│  Memory(global) / Knowledge(global)       │
+└────────────────┬──────────────────────────┘
+                 │
+    ┌────────────┼────────────┐
+    ▼            ▼            ▼
+ dept=编程     dept=电商    dept=项目X
+ Memory        Memory        Memory
+ Knowledge     Knowledge     Knowledge
+ Artifact      Artifact      Artifact
+(隔离读写)    (隔离读写)    (隔离读写)
+```
+
+### 质量门禁
+
+| 检查项 | 结果 |
+|--------|------|
+| TypeScript 编译 (`tsc --noEmit`) | ✅ 零错误 |
+| 现有 v11 执行链路 | ✅ 零破坏（全 Facade 模式） |
+| 新增代码行 | ~3,120 行（19 个新文件） |
+| 归档模块 | ~50 源文件 → 10 存档目录 |
