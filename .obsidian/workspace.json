@@ -178,6 +178,7 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
+    "docs/v15-integration-audit.md",
     "packages/core/src/bootstrap-v15-integration.ts",
     "packages/core/src/runtime/ServiceContainer.ts",
     "packages/core/src/runtime/MorPexRuntime.ts",

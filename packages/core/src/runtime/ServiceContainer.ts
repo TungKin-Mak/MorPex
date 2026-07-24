@@ -2,6 +2,7 @@ import { EventBus } from '../common/EventBus.js';
 import { MissionController } from '../mission-control/MissionController.js';
 import { DynamicTeamOrchestrator } from '../organization/DynamicTeamOrchestrator.js';
 import { UnifiedExecutionEngine } from '../execution/UnifiedExecutionEngine.js';
+import type { MissionRuntimeLike, DAGRuntimeLike, ExecutionFabricLike } from '../execution/UnifiedExecutionEngine.js';
 import { ArtifactFacade } from '../artifact/ArtifactFacade.js';
 import { VerificationEngine } from '../verification/VerificationEngine.js';
 import { ComplianceChecker } from '../verification/ComplianceChecker.js';
@@ -9,6 +10,8 @@ import { ApprovalGate } from '../verification/ApprovalGate.js';
 import { ExperienceMiner } from '../experience/ExperienceMiner.js';
 import { ExecutionSimulator } from '../simulation/ExecutionSimulator.js';
 import { MorPexRuntime } from './MorPexRuntime.js';
+import { MissionRuntime } from './mission/MissionRuntime.js';
+import { DAGRuntime } from './dag/DAGRuntime.js';
 
 /**
  * ServiceContainer — 依赖注入容器
@@ -32,7 +35,11 @@ export class ServiceContainer {
     this.missionController = new MissionController(this.eventBus);
     this.teamOrchestrator = new DynamicTeamOrchestrator();
     this.executionEngine = new UnifiedExecutionEngine(this.eventBus);
+    this.executionEngine.setMissionRuntime(this.createMissionRuntime());
+    this.executionEngine.setDAGRuntime(this.createDAGRuntime());
+    this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     this.artifactFacade = new ArtifactFacade(this.eventBus);
+    this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine();
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
@@ -50,5 +57,41 @@ export class ServiceContainer {
       this.simulator,
       this.teamOrchestrator,
     );
+  }
+
+  private createMissionRuntime(): MissionRuntimeLike {
+    const mr = new MissionRuntime(this.eventBus);
+    return {
+      name: 'MissionRuntime',
+      start: async (goal: string, context?: Record<string, unknown>) => {
+        const mission = await mr.createMissionFromGoal(goal, context?.departmentId as string || 'default', context?.executionId as string || `exec_${Date.now()}`);
+        return { executionId: mission.id };
+      },
+      getStatus: (id: string) => mr.getMission(id),
+      cancel: (id: string) => mr.cancelMission(id),
+    };
+  }
+
+  private createDAGRuntime(): DAGRuntimeLike {
+    return {
+      name: 'DAGRuntime',
+      execute: async (goal: string, _tasks: unknown[], _context?: Record<string, unknown>) => {
+        console.log('[ServiceContainer] DAGRuntime.execute:', goal.substring(0, 60));
+        return { executionId: `dag_${Date.now()}` };
+      },
+      getStatus: () => ({}),
+      cancel: async () => {},
+    };
+  }
+
+  private createExecutionFabric(): ExecutionFabricLike {
+    return {
+      name: 'ExecutionFabric',
+      execute: async (_capability: string, action: string, params: Record<string, unknown>) => {
+        console.log('[ServiceContainer] ExecutionFabric 模拟:', action);
+        return { success: true, data: { action, params }, duration: 0 };
+      },
+      getFabricStatus: () => ({ status: 'mock', uptime: 0 }),
+    };
   }
 }
