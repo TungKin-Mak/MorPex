@@ -53,7 +53,7 @@ export class ServiceContainer {
     this.artifactStore = new PersistentArtifactStore();
     this.missionStore.init().catch(() => {});
     this.artifactStore.init().catch(() => {});
-    this.missionController.setPersistentStore({ save: (m: any) => this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }) });
+    this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch(() => {}); } });
     this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.runtime = new MorPexRuntime(
       this.eventBus,
