@@ -824,9 +824,8 @@ export type { V13BootstrapResult } from './bootstrap-v13.js';
 export { GoalIntelligenceFacade, GoalParser, GoalValidator } from './goal-intelligence/index.js';
 export type { GoalParseResult, GoalContext } from './contracts/goal.js';
 
-// ── Artifact Plane (v14)
-export { ArtifactFacade } from './artifact/index.js';
-export type { Artifact, ArtifactType, ArtifactStatus } from './contracts/artifact.js';
+// v16 ArtifactFacade 替代 (v14 版本)
+export type { Artifact, ArtifactType } from './contracts/artifact.js';
 
 // ── Verification Engine (v14) — VerificationEngine 已从 runtime 导出，用别名
 export { QualityRule, ArtifactChecker, ExecutionVerifier, RepairPlanner } from './verification/index.js';
@@ -858,7 +857,7 @@ export type { ComplianceResult } from './verification/index.js';
 
 // ── Runtime Governance (v15) ──
 export { RuntimeManager, CostController, AlertEngine } from './governance/index.js';
-export type { RuntimeContext, Alert, AlertLevel } from './governance/index.js';
+export type { Alert, AlertLevel } from './governance/index.js';
 
 // ── Self Improvement Loop (v15) ──
 export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './brain/index.js';
