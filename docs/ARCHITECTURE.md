@@ -993,3 +993,96 @@ CompanyFacade.executeGoal()
 | Observability & Governance | 8/10 | 10/10 |
 | Maintainability | 8/10 | 10/10 |
 | **总计** | **92/100** | **100/100** |
+
+---
+
+## v16 增强 (2026-07) — Phase 1+2
+
+### 新增模块
+
+```
+packages/core/src/
+├── control-plane/            # Control Plane (AI System Controller)
+│   ├── ControlPlane.ts       # 聚合 5 个 Controller
+│   ├── GoalController.ts     # 目标策略检查
+│   ├── PolicyController.ts   # 策略委托
+│   ├── ResourceController.ts # 预算+资源管理
+│   ├── AgentController.ts    # Agent 注册/查询
+│   └── EvolutionController.ts # 自我进化 + 组织孪生
+│
+├── policy/                    # 统一策略引擎
+│   └── PolicyEngine.ts        # 9 action × 4 risk 统一策略
+│
+├── metadata/                  # 系统元数据图
+│   └── SystemMetadataGraph.ts # 8 实体 × 10 关系 + BFS 路径搜索
+│
+├── evaluation/                # 系统级评估 (Stabilization)
+│   ├── EvaluationEngine.ts    # 5 维度系统级评分
+│   └── QualityScorer.ts       # Plan/Agent/Tool/Output/Memory 质量
+│
+├── benchmark/                 # Golden Task Benchmark (Stabilization)
+│   ├── golden-tasks.ts        # 52 个基准任务 (5 领域)
+│   └── runner.ts              # 批量运行器
+│
+├── trace/                     # 执行追踪 (Stabilization)
+│   ├── TraceCollector.ts      # OpenTelemetry 式 span 追踪
+│   └── TraceSpan.ts           # 8 种 span 类型
+│
+├── agent-capability/          # Agent 能力注册 (Stabilization)
+│   └── AgentCapabilityRegistry.ts  # 层级能力图 + 信誉分
+│
+├── brain/
+│   ├── SafetyMonitor.ts       # 安全监控器 (5 阈值检测)
+│   └── SelfImprovementLoop.ts # 8 阶段进化闭环
+│
+├── cognition/twin/
+│   └── OrganizationTwin.ts    # CEO/CTO/CMO/CFO 孪生模拟
+│
+└── artifact/
+    └── ArtifactBlueprint.ts   # 执行前产物规格定义
+```
+
+### v16 架构流
+
+```
+CompanyFacade.executeGoal("设计产品并销售到 Amazon")
+  ├─ ControlPlane.goal.process()        ← 策略检查
+  ├─ GoalIntelligence.understandGoal()
+  ├─ PipelineOrchestrator.orchestrate() ← 含 ArtifactBlueprint 生成
+  ├─ MorPexRuntime.run()
+  │   ├─ MissionController (Event Sourcing 持久化)
+  │   ├─ SystemMetadataGraph 写入
+  │   ├─ ExecutionSimulator.simulate()
+  │   ├─ UnifiedExecutionEngine.execute()
+  │   ├─ ArtifactFacade.create() + 蓝图追踪
+  │   ├─ SafetyMonitor.observe()
+  │   └─ SelfImprovementLoop.evolve()
+  └─ EvaluationEngine.evaluate()        ← 5 维系统评分
+```
+
+### v16 事件类型
+
+28 个系统事件常量，按域分组：
+- `goal.*`: created/understood/rejected
+- `mission.*`: created/phase_changed/blocked/completed
+- `plan.*`: created/approved/failed
+- `execution.*`: started/completed/failed
+- `agent.*`: assigned/call_started/call_completed/call_failed
+- `tool.*`: called/succeeded/failed
+- `artifact.*`: created/transitioned/approved
+- `evaluation.*`: scored/decided
+- `experience.*`: mined/pattern_extracted/capability_updated
+
+### v16 关键指标
+
+| 指标 | 值 |
+|------|-----|
+| 源文件 | 532 .ts |
+| 架构目录 | 22 核心 |
+| 事件类型 | 28 |
+| 能力节点 | 27 (4 领域层级树) |
+| 策略规则 | 13 条 |
+| 基准任务 | 52 (5 领域) |
+| Entity 类型 | 8 |
+| Relation 类型 | 10 |
+| 进化阶段 | 8 (闭环) |

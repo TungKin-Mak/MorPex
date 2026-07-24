@@ -1,5 +1,15 @@
 /**
+ * @deprecated 使用 contracts/artifact-lifecycle.ts 代替。
+ * v16 统一 Artifact 模型已迁移到 contracts/artifact-lifecycle.ts。
+ * 此文件保留仅为 v10 旧模块提供向后兼容。
+ */
+
+/**
  * Artifact Plane — 类型定义
+ *
+ * @deprecated 使用 contracts/artifact-lifecycle.ts 代替。
+ * v16 Phase 2: 统一 Artifact 模型已迁移到 contracts/artifact-lifecycle.ts (ArtifactNode/ArtifactStatus)。
+ * 此文件保留仅为 v10 旧模块提供向后兼容。
  *
  * v9.1: 独立产物管理平面的核心类型。
  *

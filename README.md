@@ -1,7 +1,7 @@
-# MorPex v13 — 一人公司 AI 工作助理
+# MorPex v16 — 一人公司 AI 工作助理
 
-**Status**: 🟢 Production Ready | **VCOS**: 100/100 🎯  
-**Version**: 13.0.0  
+**Status**: 🟢 Production Ready | **VCOS**: 100/100 🎯
+**Version**: 16.0.0  
 **Stack**: pi-ai 0.81.1 | pi-agent-core 0.81.1 | TypeScript | Node.js
 
 ---
@@ -9,25 +9,43 @@
 ## Architecture
 
 ```
-E:/Morpex/          ← 后端
-  ├── packages/
-  │   ├── core/           ← 核心引擎
-  │   │   ├── department/     ← 🆕 虚拟部门 (DepartmentManager, LeadAgentOrchestrator)
-  │   │   ├── facade/         ← 🆕 CEO 入口 (CompanyFacade)
-  │   │   ├── organization/   ← 🆕 组织层 (ManagementHub, OrganizationContextLite)
-  │   │   ├── role/           ← 🆕 角色注册 (RoleRegistry)
-  │   │   ├── planner/        ← 🆕 统一规划 (DeliveryPlanner)
-  │   │   ├── cognition/      ← 🆕 大脑门面 (BrainFacade)
-  │   │   ├── execution/      ← 执行引擎 (UnifiedExecutionEngine, SubAgentFork)
-  │   │   ├── evolution/      ← 🆕 SOP 引擎 (SOPEngine)
-  │   │   ├── interaction/    ← 🆕 群聊 (GroupChatManager)
-  │   │   ├── router/         ← RouterLite
-  │   │   ├── negotiation/    ← NegotiationLite
-  │   │   └── observability/  ← ObservabilityLite
-  │   ├── workflow-sdk/   ← v11 Workflow SDK
-  │   ├── connectors/     ← v11 Connector Infrastructure
-  │   ├── contracts/      ← 共享类型
-  │   ├── memory/         ← MemoryWiki (SQLite+ZVec)
+                         CEO
+                          │
+                  CompanyFacade
+                          │
+                  Control Plane
+        ┌───────┼───────┐
+   GoalCtrl  PolicyCtrl  ResourceCtrl
+   AgentCtrl  EvolutionCtrl
+                          │
+          ┌───────┼───────┐
+      Evaluation     Artifact
+      (5维系统评分)  (Blueprint先于执行)
+          │
+         Capability Graph (层级能力树)
+         Agent Reputation (信誉驱动选择)
+          │
+              Execution
+          │
+     OrganizationTwin  MetadataGraph
+     (CEO/CTO/CMO/CFO)  (全实体关系图)
+          │
+         Event Sourcing (全域事件持久化)
+         Self Evolution (8阶段安全闭环)
+```
+
+See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete architecture.
+
+## Quick Start
+
+```bash
+# Start backend server
+npm run dev
+
+# v16 Integration (完整管线)
+const { companyFacade } = await bootstrapV15Integration();
+const result = await companyFacade.executeGoal("设计产品并销售到 Amazon");
+```
   │   ├── studio/server/  ← API 端点 + /api/v12/*
   │   └── archived/       ← 归档模块 (~50 源文件，可恢复)
   ├── scripts/            ← CLI、测试、运维
@@ -75,11 +93,19 @@ npm run wf:run -- ./hello-world --input='{"msg":"Hello"}'
 |--------|-------|
 | TypeScript errors | **0** |
 | Core modules | **22-24** (from 79→26→22) |
-| New code (v12+v13) | **~9,200 lines** |
+| New code | **~7,200 lines (v13) + 3,000 (v14-16)** = ~10,200 行 |
 | Archived modules | **~50 files → 10 directories** |
-| v13 API | **executeGoal 全自动入口** |
-| VCOS | **100/100** 🎯 |
-| Learning loop | **Closed** (Task→Brain→SOP→Planning) |
+| Source files | **532 .ts** |
+| Architecture dirs | **22 核心模块** |
+| Control Plane | Goal/Policy/Resource/Agent/Evolution 5 Controllers |
+| Policy Engine | 13 条统一策略 (spend/publish/delete/modify/code/agent/external) |
+| Evaluation | 5 维度系统级评分 (Plan/Agent/Tool/Output/Memory) |
+| Event Sourcing | 28 事件类型 + SQLite 持久化 |
+| Capability Graph | 4 领域 × 27 节点层级能力树 |
+| Metadata Graph | 8 实体类型 × 10 关系类型 |
+| Organization Twin | CEO/CTO/CMO/CFO 角色决策模拟 |
+| Self Evolution | 8 阶段安全闭环 (Observation→Monitor) |
+| v16 API | **executeGoal → ControlPlane → Runtime → Artifact → Evaluation → Evolution** |
 
 ## Core Principles
 

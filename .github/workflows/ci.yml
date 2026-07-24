@@ -1,0 +1,34 @@
+name: MorPex CI
+
+on:
+  push:
+    branches: [ master ]
+  pull_request:
+    branches: [ master ]
+
+jobs:
+  build-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+      
+      - name: Setup Node.js
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+          cache: 'npm'
+      
+      - name: Install dependencies
+        run: npm ci
+      
+      - name: TypeScript compilation
+        run: npx tsc --noEmit
+      
+      - name: Production readiness check
+        run: node scripts/production-check.cjs
+      
+      - name: v13 regression tests
+        run: npx vitest run packages/core/__tests__/v13-*
+      
+      - name: v15 e2e integration test
+        run: npx tsx tests/e2e/v15-full-cycle.test.ts

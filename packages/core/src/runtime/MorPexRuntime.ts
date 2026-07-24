@@ -147,7 +147,7 @@ export class MorPexRuntime {
       context.artifacts.push(artifact.id);
 
       // ── Phase 4: Verification + Compliance + Approval ──
-      const verArtifact: Artifact = { id: artifact.id, type: artifact.type as any, sourceTask: artifact.sourceTask, version: artifact.version, status: artifact.status as any, metadata: artifact.metadata, createdAt: artifact.createdAt };
+      const verArtifact: Artifact = { id: artifact.id, type: artifact.type as any, sourceTask: artifact.sourceTask, version: artifact.version, status: artifact.status as any, metadata: artifact.metadata, createdAt: artifact.createdAt, name: artifact.name, lineage: artifact.lineage, updatedAt: artifact.updatedAt };
       const verResult = await this.verificationEngine.verify([verArtifact]);
       const complianceResult = await this.complianceChecker.check(
         context.workflow.name,
