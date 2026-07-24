@@ -1,22 +1,43 @@
 /**
- * DynamicTeamOrchestrator — 动态团队编排器
- * v15: 根据目标需求动态创建并行团队，管理依赖和生命周期
- *
- * 流程:
- *   GoalContext → TeamBuilder.buildTeams() → AgentAllocator.allocate()
- *   → DependencyCoordinator.buildDependencyGraph() → 并行执行
+ * DynamicTeamOrchestrator — 动态团队编排器 (v16)
+ * 能力驱动: Goal → CapabilityDiscovery → WorkflowSelection → TeamFormation → Execution
  */
 import { TeamBuilder } from './TeamBuilder.js';
 import { AgentAllocator } from './AgentAllocator.js';
 import { DependencyCoordinator } from './DependencyCoordinator.js';
+import { CapabilityDiscoverer } from '../capability/CapabilityDiscoverer.js';
+import type { Capability } from '../capability/CapabilityRegistry.js';
 import type { DynamicTeam, DependencyGraph, TeamSpec } from './types.js';
 import type { GoalContext } from '../contracts/goal.js';
 
+export interface WorkflowRegistryLike {
+  findForGoal: (goal: string) => Array<{ name: string; description: string }>;
+}
+
 export class DynamicTeamOrchestrator {
   private teams: Map<string, DynamicTeam> = new Map();
+  private workflowRegistry?: WorkflowRegistryLike;
 
-  async orchestrate(goalCtx: GoalContext): Promise<{ teams: DynamicTeam[]; graph: DependencyGraph }> {
-    const specs = TeamBuilder.buildTeams(goalCtx);
+  setWorkflowRegistry(registry: WorkflowRegistryLike): void {
+    this.workflowRegistry = registry;
+  }
+
+  async orchestrate(goalCtx: GoalContext): Promise<{ teams: DynamicTeam[]; graph: DependencyGraph; capabilities: Capability[]; workflows: string[] }> {
+    // 1. Capability Discovery (v16: 先发现能力)
+    const discovery = CapabilityDiscoverer.discover(goalCtx);
+
+    // 2. Workflow Selection (v16: 再选工作流)
+    let workflows: string[] = [];
+    if (this.workflowRegistry) {
+      const matched = this.workflowRegistry.findForGoal(goalCtx.objective);
+      workflows = matched.map(w => w.name);
+    }
+
+    // 3. Team Formation (v16: 最后组团队)
+    const specs = TeamBuilder.buildTeams({
+      ...goalCtx,
+      requiredCapabilities: discovery.matched.map(c => c.name),
+    });
     const availableAgents = [
       { id: 'agent-hardware', capabilities: ['design', 'code'], departmentId: 'engineering' },
       { id: 'agent-software', capabilities: ['code', 'test'], departmentId: 'engineering' },
@@ -42,21 +63,15 @@ export class DynamicTeamOrchestrator {
     const graph = DependencyCoordinator.buildDependencyGraph(teams);
     teams.forEach(t => { t.dependencies = graph; });
 
-    return { teams, graph };
+    return { teams, graph, capabilities: discovery.matched, workflows };
   }
 
-  getTeam(teamId: string): DynamicTeam | undefined {
-    return this.teams.get(teamId);
-  }
-
-  listTeams(): DynamicTeam[] {
-    return [...this.teams.values()];
-  }
-
+  getTeam(teamId: string): DynamicTeam | undefined { return this.teams.get(teamId); }
+  listTeams(): DynamicTeam[] { return [...this.teams.values()]; }
   updateLifecycle(teamId: string, lifecycle: DynamicTeam['lifecycle']): boolean {
-    const team = this.teams.get(teamId);
-    if (!team) return false;
-    team.lifecycle = lifecycle;
+    const t = this.teams.get(teamId);
+    if (!t) return false;
+    t.lifecycle = lifecycle;
     return true;
   }
 }

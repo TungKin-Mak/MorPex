@@ -1,31 +1,50 @@
-/**
- * RuntimeManager — 运行时状态管理
- * v15: 追踪活跃任务/团队/队列/延迟
- */
-export interface RuntimeStatus {
-  activeMissions: number;
-  activeTeams: number;
-  queueLength: number;
-  avgLatency: number;
-  memoryUsage: number;
-  isHealthy: boolean;
+import { EventBus } from '../common/EventBus.js';
+
+export interface RuntimeContext {
+  executionId: string;
+  source: string;
+  departmentId?: string;
+  operation: string;
 }
 
 export class RuntimeManager {
-  private status: RuntimeStatus = {
-    activeMissions: 0,
-    activeTeams: 0,
-    queueLength: 0,
-    avgLatency: 0,
-    memoryUsage: 0,
-    isHealthy: true,
-  };
+  private static instance: RuntimeManager;
+  private eventBus?: EventBus;
+  private activeContexts: Map<string, RuntimeContext> = new Map();
+  private resourceUsage: Map<string, number> = new Map();
 
-  getStatus(): RuntimeStatus {
-    return this.status;
+  static getInstance(): RuntimeManager {
+    if (!RuntimeManager.instance) RuntimeManager.instance = new RuntimeManager();
+    return RuntimeManager.instance;
   }
 
-  updateStatus(partial: Partial<RuntimeStatus>): void {
-    this.status = { ...this.status, ...partial };
+  init(eventBus: EventBus): void {
+    this.eventBus = eventBus;
+    eventBus.on('execution.engine.started', (e: any) => {
+      const p = e.payload;
+      this.activeContexts.set(e.executionId, {
+        executionId: e.executionId, source: 'execution',
+        departmentId: p?.departmentId, operation: p?.goal?.substring(0, 60) || 'unknown',
+      });
+    });
+    eventBus.on('execution.engine.completed', (e: any) => { this.activeContexts.delete(e.executionId); });
+    eventBus.on('execution.engine.failed', (e: any) => { this.activeContexts.delete(e.executionId); });
+  }
+
+  getActiveCount(): number { return this.activeContexts.size; }
+  getActiveContexts(): RuntimeContext[] { return [...this.activeContexts.values()]; }
+
+  isResourceAvailable(resource: string, required: number): boolean {
+    return (this.resourceUsage.get(resource) || 0) + required <= 100;
+  }
+  allocateResource(resource: string, amount: number): void {
+    this.resourceUsage.set(resource, (this.resourceUsage.get(resource) || 0) + amount);
+  }
+  releaseResource(resource: string, amount: number): void {
+    this.resourceUsage.set(resource, Math.max(0, (this.resourceUsage.get(resource) || 0) - amount));
+  }
+
+  getStatus(): { activeExecutions: number; resources: Record<string, number> } {
+    return { activeExecutions: this.activeContexts.size, resources: Object.fromEntries(this.resourceUsage) };
   }
 }

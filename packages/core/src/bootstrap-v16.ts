@@ -1,13 +1,16 @@
 /**
- * MorPex v15 Bootstrap — v14 + DynamicTeam + WorkflowPlugin + Compliance + SelfImprovement
+ * MorPex v16 Bootstrap — v15 + MissionControl + CapabilityRegistry + Simulation + ApprovalGate
  *
- * v15 新增:
- *   - organization/DynamicTeamOrchestrator (动态团队编排)
- *   - workflow/WorkflowRegistry (工作流插件系统)
- *   - verification/ComplianceChecker (合规检查)
- *   - governance/RuntimeManager + CostController + AlertEngine (运行时治理)
- *   - brain/SelfImprovementLoop (自我改进循环)
+ * v16 新增:
+ *   - mission-control/MissionController (项目总控)
+ *   - capability/CapabilityRegistry + CapabilityDiscoverer (能力目录)
+ *   - simulation/ExecutionSimulator (执行计划模拟)
+ *   - verification/ApprovalGate (合规→审批门)
+ *   - artifact/ArtifactFacade 全生命周期升级
+ *   - SelfImprovementLoop + Simulator 集成
+ *   - DynamicTeamOrchestrator 能力优先编排
  */
+
 import { EventBus } from './common/EventBus.js';
 import { DepartmentManager } from './department/DepartmentManager.js';
 import { LeadAgentOrchestrator } from './department/LeadAgentOrchestrator.js';
@@ -23,8 +26,6 @@ import { BrainFacade } from './cognition/BrainFacade.js';
 import { DepartmentMemoryAdapter } from './department/DepartmentMemoryAdapter.js';
 import { SOPEngine } from './evolution/SOPEngine.js';
 import { DepartmentKPITracker } from './department/DepartmentKPITracker.js';
-
-// v13
 import { ReflectionEngine } from './brain/ReflectionEngine.js';
 import { MetaLearner } from './brain/MetaLearner.js';
 import { HierarchicalPlanner } from './planner/HierarchicalPlanner.js';
@@ -32,23 +33,23 @@ import { ToolFactory } from './tools/ToolFactory.js';
 import { ToolRegistry } from './tools/ToolRegistry.js';
 import { GovernanceDashboard } from './governance/GovernanceDashboard.js';
 import { ToolQualityTracker } from './common/ToolQualityTracker.js';
-
-// v14
 import { GoalIntelligenceFacade } from './goal-intelligence/GoalIntelligenceFacade.js';
 import { ArtifactFacade } from './artifact/ArtifactFacade.js';
 import { VerificationEngine } from './verification/VerificationEngine.js';
 import { ExperienceMiner } from './experience/ExperienceMiner.js';
-
-// v15
 import { DynamicTeamOrchestrator } from './organization/DynamicTeamOrchestrator.js';
-import { WorkflowRegistry } from './workflow/WorkflowProvider.js';
+import { WorkflowRegistry as WorkflowPluginRegistry } from './workflow/WorkflowProvider.js';
 import { ComplianceChecker } from './verification/ComplianceChecker.js';
 import { RuntimeManager } from './governance/RuntimeManager.js';
 import { CostController } from './governance/CostController.js';
 import { AlertEngine } from './governance/AlertEngine.js';
 import { SelfImprovementLoop } from './brain/SelfImprovementLoop.js';
+import { CapabilityRegistry } from './capability/CapabilityRegistry.js';
+import { MissionController } from './mission-control/MissionController.js';
+import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
+import { ApprovalGate } from './verification/ApprovalGate.js';
 
-export interface V15BootstrapResult {
+export interface V16BootstrapResult {
   eventBus: EventBus;
   departmentManager: DepartmentManager;
   roleRegistry: RoleRegistry;
@@ -63,46 +64,40 @@ export interface V15BootstrapResult {
   brainFacade: BrainFacade;
   sopEngine: SOPEngine;
   kpiTracker: DepartmentKPITracker;
-  // v13
   reflectionEngine: ReflectionEngine;
   metaLearner: MetaLearner;
   hierarchicalPlanner: HierarchicalPlanner;
   toolFactory: ToolFactory;
   governanceDashboard: GovernanceDashboard;
   toolQualityTracker: ToolQualityTracker;
-  // v14
   goalIntelligenceFacade: GoalIntelligenceFacade;
   artifactFacade: ArtifactFacade;
   verificationEngine: VerificationEngine;
   experienceMiner: ExperienceMiner;
-  // v15
   dynamicTeamOrchestrator: DynamicTeamOrchestrator;
   complianceChecker: ComplianceChecker;
   runtimeManager: RuntimeManager;
   costController: CostController;
   alertEngine: AlertEngine;
   selfImprovementLoop: SelfImprovementLoop;
+  capabilityRegistry: typeof CapabilityRegistry;
+  missionController: MissionController;
+  executionSimulator: ExecutionSimulator;
+  approvalGate: ApprovalGate;
 }
 
-export async function bootstrapV15(
-  eventBus: EventBus,
-  options?: { ceoId?: string },
-): Promise<V15BootstrapResult> {
+export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: string }): Promise<V16BootstrapResult> {
   const ceoId = options?.ceoId ?? 'ceo-default';
 
-  // ── 1. 组织层 ──
+  // ── 基础设施 ──
   const departmentManager = new DepartmentManager(eventBus);
   const roleRegistry = new RoleRegistry(eventBus);
   const orgContext = OrganizationContextLite.getInstance();
   const groupChatManager = new GroupChatManager(eventBus);
-
-  // ── 2. 执行层 ──
   const leadAgentOrchestrator = new LeadAgentOrchestrator(eventBus, departmentManager, roleRegistry);
   const unifiedExecutionEngine = new UnifiedExecutionEngine(eventBus);
   const deliveryPlanner = new DeliveryPlanner(eventBus);
   const subAgentFork = new SubAgentFork(eventBus);
-
-  // ── 3. 大脑 ──
   const departmentMemoryAdapter = new DepartmentMemoryAdapter();
   const brainFacade = new BrainFacade(eventBus);
   brainFacade.setMemoryWiki(departmentMemoryAdapter.createWikiWrapper());
@@ -127,40 +122,58 @@ export async function bootstrapV15(
   // ── v14 ──
   const goalIntelligenceFacade = new GoalIntelligenceFacade();
   const artifactFacade = new ArtifactFacade(eventBus);
-  unifiedExecutionEngine.setArtifactFacade(artifactFacade);
+  unifiedExecutionEngine.setArtifactFacade(artifactFacade as any);
   const verificationEngine = new VerificationEngine();
   const experienceMiner = new ExperienceMiner();
 
-  // ════════════════════════════════════════════════════════
-  // v15 新模块
-  // ════════════════════════════════════════════════════════
-
-  // 4. Dynamic Team Orchestrator
+  // ── v15 ──
   const dynamicTeamOrchestrator = new DynamicTeamOrchestrator();
-
-  // 5. Compliance Checker
+  dynamicTeamOrchestrator.setWorkflowRegistry(WorkflowPluginRegistry);
   const complianceChecker = new ComplianceChecker();
-
-  // 6. Runtime Governance
-  const runtimeManager = RuntimeManager.getInstance();
-  runtimeManager.init(eventBus);
-  const costController = CostController.getInstance();
-  costController.init(eventBus);
-  const alertEngine = AlertEngine.getInstance();
-  alertEngine.init(eventBus);
-
-  // 7. Self-Improvement Loop
+  RuntimeManager.getInstance().init(eventBus);
+  CostController.getInstance().init(eventBus);
+  AlertEngine.getInstance().init(eventBus);
   const selfImprovementLoop = new SelfImprovementLoop();
 
-  // 8. CEO 门面
+  // ════════════════════════════════════════════════════════
+  // v16 新模块
+  // ════════════════════════════════════════════════════════
+
+  // Capability Registry
+  CapabilityRegistry.init();
+
+  // Mission Control
+  const missionController = new MissionController(eventBus);
+
+  // Simulation
+  const executionSimulator = new ExecutionSimulator();
+
+  // Approval Gate
+  const approvalGate = new ApprovalGate(eventBus);
+
+  // Wire SelfImprovementLoop with Simulation
+  selfImprovementLoop.setSimulator({
+    simulate: async (proposal, currentMetrics) => {
+      const result = executionSimulator.simulate({
+        plan: { steps: [{ name: proposal.title, estimatedDuration: 86400000, capabilities: ['execute'] }] },
+        capabilities: CapabilityRegistry.getAll(),
+        constraints: {},
+      });
+      return {
+        estimatedImprovement: result.feasible ? 0.15 : 0,
+        riskLevel: result.riskLevel,
+        sideEffects: result.warnings,
+        confidence: result.feasible ? 0.7 : 0.3,
+      };
+    },
+  });
+
+  // ── CEO 门面 ──
   const companyFacade = new CompanyFacade(departmentManager, roleRegistry, ceoId);
   companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
-  companyFacade.setBrainFacade(brainFacade);
-
-  // 9. 管理群
   const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
 
-  // 10. 依赖注入
+  // ── 依赖注入 ──
   subAgentFork.setExecutionEngine({
     execute: async (capability: string, params: Record<string, unknown>, context?: Record<string, unknown>) => {
       const result = await unifiedExecutionEngine.execute({
@@ -171,12 +184,14 @@ export async function bootstrapV15(
       return result.output ?? result;
     },
   });
+
   deliveryPlanner.setSOPEngine(sopEngine);
   deliveryPlanner.setBrainFacade(brainFacade);
   await managementHub.initialize();
   leadAgentOrchestrator.setBrainFacade(brainFacade);
+  companyFacade.setBrainFacade(brainFacade);
 
-  // 11. 事件监听
+  // ── 事件监听 ──
   eventBus.on('brain.learn.request', (event: any) => {
     const exp = event.payload;
     if (exp) brainFacade.learn(exp).catch(() => {});
@@ -194,15 +209,22 @@ export async function bootstrapV15(
     if (dept) kpiTracker.registerDepartment(dept.id, dept.name);
   });
 
-  console.log('[bootstrapV15] ✅ v15 全模块已集成');
-  console.log(`  ├─ v12 基础: DepartmentManager + LeadAgent + GroupChat`);
-  console.log(`  ├─ v13 大脑+规划+工具: ReflectionEngine + HTN + ToolFactory`);
-  console.log(`  ├─ v14 目标+产物+验证: GoalIntelligence + Artifact + Verification`);
-  console.log(`  ├─ v15 动态团队: DynamicTeamOrchestrator 🆕`);
-  console.log(`  ├─ v15 工作流插件: WorkflowRegistry 🆕`);
-  console.log(`  ├─ v15 合规: ComplianceChecker 🆕`);
-  console.log(`  ├─ v15 治理: RuntimeManager + CostController + AlertEngine 🆕`);
-  console.log(`  └─ v15 自我改进: SelfImprovementLoop 🆕`);
+  console.log('[bootstrapV16] ✅ v16 全模块已集成');
+  console.log(`  ├─ v12 组织: DepartmentManager + LeadAgent + GroupChat`);
+  console.log(`  ├─ v13 大脑: ReflectionEngine + MetaLearner`);
+  console.log(`  ├─ v13 规划: HierarchicalPlanner + DeliveryPlanner`);
+  console.log(`  ├─ v14 目标: GoalIntelligence`);
+  console.log(`  ├─ v14 产物: ArtifactFacade (生命周期升级 🆕)`);
+  console.log(`  ├─ v14 验证: VerificationEngine`);
+  console.log(`  ├─ v15 团队: DynamicTeamOrchestrator (能力优先 🆕)`);
+  console.log(`  ├─ v15 工作流: WorkflowPluginRegistry`);
+  console.log(`  ├─ v15 合规: ComplianceChecker`);
+  console.log(`  ├─ v15 治理: RuntimeGov + CostCtrl + AlertEngine`);
+  console.log(`  ├─ v15 改进: SelfImprovementLoop (集成 Simulator 🆕)`);
+  console.log(`  ├─ v16 能力: CapabilityRegistry + Discoverer 🆕`);
+  console.log(`  ├─ v16 总控: MissionController 🆕`);
+  console.log(`  ├─ v16 模拟: ExecutionSimulator 🆕`);
+  console.log(`  └─ v16 审批: ApprovalGate 🆕`);
 
   return {
     eventBus, departmentManager, roleRegistry, companyFacade,
@@ -213,6 +235,11 @@ export async function bootstrapV15(
     governanceDashboard, toolQualityTracker,
     goalIntelligenceFacade, artifactFacade, verificationEngine, experienceMiner,
     dynamicTeamOrchestrator, complianceChecker,
-    runtimeManager, costController, alertEngine, selfImprovementLoop,
+    runtimeManager: RuntimeManager.getInstance(),
+    costController: CostController.getInstance(),
+    alertEngine: AlertEngine.getInstance(),
+    selfImprovementLoop,
+    capabilityRegistry: CapabilityRegistry,
+    missionController, executionSimulator, approvalGate,
   };
 }

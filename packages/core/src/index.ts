@@ -858,7 +858,7 @@ export type { ComplianceResult } from './verification/index.js';
 
 // ── Runtime Governance (v15) ──
 export { RuntimeManager, CostController, AlertEngine } from './governance/index.js';
-export type { RuntimeStatus, Alert, AlertLevel } from './governance/index.js';
+export type { RuntimeContext, Alert, AlertLevel } from './governance/index.js';
 
 // ── Self Improvement Loop (v15) ──
 export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './brain/index.js';
@@ -867,3 +867,34 @@ export type { ImprovementInsight, Proposal } from './brain/index.js';
 // ── v15 Bootstrap ──
 export { bootstrapV15 } from './bootstrap-v15.js';
 export type { V15BootstrapResult } from './bootstrap-v15.js';
+
+
+// ═══════════════════════════════════════════════════════════════
+// v16 新增模块
+// ═══════════════════════════════════════════════════════════════
+
+// ── Mission Control (v16) — 项目总控 ──
+export { MissionController, ProgressTracker, ConflictResolver } from './mission-control/index.js';
+export type { MissionState as MissionControlState, MissionStatus, MissionPhase, MissionUpdate, BlockReason } from './mission-control/index.js';
+export type { Conflict } from './mission-control/index.js';
+
+// ── Capability Registry (v16) — 能力目录 ──
+export { CapabilityRegistry, CapabilityDiscoverer } from './capability/index.js';
+export type { Capability as SystemCapability } from './capability/index.js';
+
+// ── Simulation Layer (v16) — 执行前模拟 ──
+export { ExecutionSimulator } from './simulation/index.js';
+export type { SimulationInput, SimulationResult as SimulatedResult } from './simulation/index.js';
+
+// ── Approval Gate (v16) — 审批门 ──
+export { ApprovalGate } from './verification/index.js';
+export type { ApprovalRequest as ApprovalGateRequest, ApprovalDecision } from './verification/index.js';
+
+// ── Artifact Lifecycle (v16) — 升级版 ──
+export type { ArtifactLifecycleStatus, ArtifactLineageEntry } from './contracts/artifact-lifecycle.js';
+
+// ── v16 Bootstrap ──
+export { bootstrapV16 } from './bootstrap-v16.js';
+export type { V16BootstrapResult } from './bootstrap-v16.js';
+
+
