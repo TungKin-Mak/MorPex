@@ -12,6 +12,8 @@ import { ExecutionSimulator } from '../simulation/ExecutionSimulator.js';
 import { MorPexRuntime } from './MorPexRuntime.js';
 import { MissionRuntime } from './mission/MissionRuntime.js';
 import { DAGRuntime } from './dag/DAGRuntime.js';
+import { PersistentMissionStore } from './PersistentMissionStore.js';
+import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 
 /**
  * ServiceContainer — 依赖注入容器
@@ -29,22 +31,30 @@ export class ServiceContainer {
   readonly experienceMiner: ExperienceMiner;
   readonly simulator: ExecutionSimulator;
   readonly runtime: MorPexRuntime;
+  readonly missionStore: PersistentMissionStore;
+  readonly artifactStore: PersistentArtifactStore;
 
   constructor() {
     this.eventBus = new EventBus();
     this.missionController = new MissionController(this.eventBus);
+    this.missionController.setPersistentStore({ save: (m: any) => this.missionStore.save(m) });
     this.teamOrchestrator = new DynamicTeamOrchestrator();
     this.executionEngine = new UnifiedExecutionEngine(this.eventBus);
     this.executionEngine.setMissionRuntime(this.createMissionRuntime());
     this.executionEngine.setDAGRuntime(this.createDAGRuntime());
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     this.artifactFacade = new ArtifactFacade(this.eventBus);
+    this.artifactFacade.setPersistentStore({ save: (a: any) => this.artifactStore.save(a), transition: (id: string, to: any) => this.artifactStore.transition(id, to as string) });
     this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine();
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
     this.experienceMiner = new ExperienceMiner();
     this.simulator = new ExecutionSimulator();
+    this.missionStore = new PersistentMissionStore();
+    this.artifactStore = new PersistentArtifactStore();
+    this.missionStore.init().catch(() => {});
+    this.artifactStore.init().catch(() => {});
     this.runtime = new MorPexRuntime(
       this.eventBus,
       this.missionController,

@@ -11,10 +11,14 @@
             "id": "ebdc404037157d07",
             "type": "leaf",
             "state": {
-              "type": "empty",
-              "state": {},
+              "type": "markdown",
+              "state": {
+                "file": "docs/v16-architecture-audit.md",
+                "mode": "source",
+                "source": false
+              },
               "icon": "lucide-file",
-              "title": "新标签页"
+              "title": "v16-architecture-audit"
             }
           }
         ]
@@ -90,6 +94,7 @@
             "state": {
               "type": "backlink",
               "state": {
+                "file": "docs/v16-architecture-audit.md",
                 "collapseAll": false,
                 "extraContext": false,
                 "sortOrder": "alphabetical",
@@ -99,7 +104,7 @@
                 "unlinkedCollapsed": true
               },
               "icon": "links-coming-in",
-              "title": "反向链接"
+              "title": "v16-architecture-audit 的反向链接列表"
             }
           },
           {
@@ -108,11 +113,12 @@
             "state": {
               "type": "outgoing-link",
               "state": {
+                "file": "docs/v16-architecture-audit.md",
                 "linksCollapsed": false,
                 "unlinkedCollapsed": true
               },
               "icon": "links-going-out",
-              "title": "出链"
+              "title": "v16-architecture-audit 的出链列表"
             }
           },
           {
@@ -150,12 +156,13 @@
             "state": {
               "type": "outline",
               "state": {
+                "file": "docs/v16-architecture-audit.md",
                 "followCursor": false,
                 "showSearch": false,
                 "searchQuery": ""
               },
               "icon": "lucide-list",
-              "title": "大纲"
+              "title": "v16-architecture-audit 的大纲"
             }
           }
         ]
@@ -178,12 +185,16 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
+    "packages/core/src/runtime/PersistentArtifactStore.ts",
+    "packages/core/src/runtime/PersistentMissionStore.ts",
+    "packages/core/src/experience/sedDHicb9",
     "docs/v15-integration-audit.md",
+    "docs/v16-audit-raw-data.md",
+    "docs/v16-architecture-audit.md",
     "packages/core/src/bootstrap-v15-integration.ts",
     "packages/core/src/runtime/ServiceContainer.ts",
     "packages/core/src/runtime/MorPexRuntime.ts",
     "packages/core/src/runtime/PipelineOrchestrator.ts",
-    "packages/core/src/runtime/ExecutionContext.ts",
-    "docs/v16-audit-raw-data.md"
+    "packages/core/src/runtime/ExecutionContext.ts"
   ]
 }

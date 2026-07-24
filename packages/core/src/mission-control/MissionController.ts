@@ -4,10 +4,15 @@ import type { MissionState, MissionStatus, MissionPhase, MissionUpdate, BlockRea
 export class MissionController {
   private missions: Map<string, MissionState> = new Map();
   private eventBus: EventBus;
+  private persistentStore?: { save: (mission: MissionState) => void };
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[MissionController] EventBus 是必填参数');
     this.eventBus = eventBus;
+  }
+
+  setPersistentStore(store: { save: (mission: MissionState) => void }): void {
+    this.persistentStore = store;
   }
 
   createMission(goalId: string, objective: string): MissionState {
@@ -22,6 +27,7 @@ export class MissionController {
       currentTeams: [], artifacts: [],
     };
     this.missions.set(mission.missionId, mission);
+    if (this.persistentStore) this.persistentStore.save(mission);
     this.eventBus.emit({
       id: `evt_${Date.now()}`, type: 'mission.created', timestamp: Date.now(),
       executionId: mission.missionId, source: 'mission-control',
@@ -39,6 +45,7 @@ export class MissionController {
     if (update.blocks) m.blocks.push(...update.blocks);
     if (update.risks) m.risks.push(...update.risks);
     if (update.timeline) m.timeline.push(...update.timeline);
+    if (this.persistentStore) this.persistentStore.save(m);
     return m;
   }
 
@@ -48,6 +55,7 @@ export class MissionController {
     m.blocks.push({ reason, description, raisedAt: Date.now() });
     m.status = 'BLOCKED';
     m.timeline.push({ timestamp: Date.now(), event: `BLOCKED: ${reason}`, detail: description });
+    if (this.persistentStore) this.persistentStore.save(m);
     this.eventBus.emit({ id: `evt_${Date.now()}`, type: 'mission.blocked', timestamp: Date.now(), executionId: missionId, source: 'mission-control', payload: { missionId, reason, description } });
   }
 

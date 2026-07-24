@@ -1,3 +1,4 @@
+/** @deprecated 已合并到 capability/CapabilityRegistry.ts。所有能力数据统一存储在 CapabilityRegistry。 */
 export interface CapabilityPattern {
   name: string;
   steps: string[];
@@ -7,6 +8,7 @@ export interface CapabilityPattern {
   extractedFrom: string[];
 }
 
+/** @deprecated 已合并到 capability/CapabilityRegistry.ts — 所有能力数据统一存储在 CapabilityRegistry */
 export class CapabilityStore {
   private static patterns: Map<string, CapabilityPattern> = new Map();
 

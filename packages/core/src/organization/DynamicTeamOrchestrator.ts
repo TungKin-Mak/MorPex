@@ -14,12 +14,21 @@ export interface WorkflowRegistryLike {
   findForGoal: (goal: string) => Array<{ name: string; description: string }>;
 }
 
+export interface AgentPoolProvider {
+  getAvailableAgents(): Array<{ id: string; capabilities: string[]; departmentId: string; currentLoad?: number; maxLoad?: number }>;
+}
+
 export class DynamicTeamOrchestrator {
   private teams: Map<string, DynamicTeam> = new Map();
   private workflowRegistry?: WorkflowRegistryLike;
+  private agentPool?: AgentPoolProvider;
 
   setWorkflowRegistry(registry: WorkflowRegistryLike): void {
     this.workflowRegistry = registry;
+  }
+
+  setAgentPool(pool: AgentPoolProvider): void {
+    this.agentPool = pool;
   }
 
   async orchestrate(goalCtx: GoalContext): Promise<{ teams: DynamicTeam[]; graph: DependencyGraph; capabilities: Capability[]; workflows: string[] }> {
@@ -38,11 +47,9 @@ export class DynamicTeamOrchestrator {
       ...goalCtx,
       requiredCapabilities: discovery.matched.map(c => c.name),
     });
-    const availableAgents = [
-      { id: 'agent-hardware', capabilities: ['design', 'code'], departmentId: 'engineering' },
-      { id: 'agent-software', capabilities: ['code', 'test'], departmentId: 'engineering' },
-      { id: 'agent-marketing', capabilities: ['publish', 'analyze'], departmentId: 'marketing' },
-    ];
+    const availableAgents = this.agentPool
+      ? this.agentPool.getAvailableAgents()
+      : DynamicTeamOrchestrator.getDefaultAgentPool();
 
     const teams: DynamicTeam[] = specs.map((spec, i) => {
       const members = AgentAllocator.allocate(spec, availableAgents);
@@ -64,6 +71,16 @@ export class DynamicTeamOrchestrator {
     teams.forEach(t => { t.dependencies = graph; });
 
     return { teams, graph, capabilities: discovery.matched, workflows };
+  }
+
+  private static getDefaultAgentPool(): Array<{ id: string; capabilities: string[]; departmentId: string }> {
+    return [
+      { id: 'agent-design', capabilities: ['design'], departmentId: 'engineering' },
+      { id: 'agent-code', capabilities: ['code', 'test'], departmentId: 'engineering' },
+      { id: 'agent-research', capabilities: ['analyze', 'research'], departmentId: 'marketing' },
+      { id: 'agent-publish', capabilities: ['publish'], departmentId: 'marketing' },
+      { id: 'agent-deploy', capabilities: ['deploy'], departmentId: 'operations' },
+    ];
   }
 
   getTeam(teamId: string): DynamicTeam | undefined { return this.teams.get(teamId); }

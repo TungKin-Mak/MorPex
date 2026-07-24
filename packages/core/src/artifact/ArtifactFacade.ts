@@ -10,10 +10,15 @@ import type { ArtifactStatus } from '../contracts/artifact-lifecycle.js';
 export class ArtifactFacade {
   private artifacts: Map<string, ArtifactNode> = new Map();
   private eventBus: EventBus;
+  private store?: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean };
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[ArtifactFacade] EventBus 是必填参数');
     this.eventBus = eventBus;
+  }
+
+  setPersistentStore(store: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean }): void {
+    this.store = store;
   }
 
   create(name: string, type: string, sourceTask: string, metadata?: Record<string, unknown>): ArtifactNode {
@@ -24,6 +29,7 @@ export class ArtifactFacade {
       metadata: metadata || {},
     };
     this.artifacts.set(node.id, node);
+    if (this.store) this.store.save(node);
     this.emit('artifact.created', node);
     return node;
   }
@@ -41,6 +47,7 @@ export class ArtifactFacade {
       timestamp: Date.now(),
     });
     this.emit(`artifact.${to.toLowerCase()}`, art);
+    if (this.store) this.store.transition(id, to);
     return true;
   }
 

@@ -13,6 +13,7 @@
 export { OrganizationContextLite } from './OrganizationContextLite.js';
 export { ManagementHub } from './ManagementHub.js';
 export { DynamicTeamOrchestrator } from './DynamicTeamOrchestrator.js';
+export type { AgentPoolProvider } from './DynamicTeamOrchestrator.js';
 export { TeamBuilder } from './TeamBuilder.js';
 export { AgentAllocator } from './AgentAllocator.js';
 export { DependencyCoordinator } from './DependencyCoordinator.js';
