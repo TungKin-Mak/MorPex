@@ -60,6 +60,7 @@ import {
 } from './ontology/projectors/index.js';
 import { createQueryPerformedEvent } from './events/ontologyEvents.js';
 import type { IEventStore } from './protocol/events/store/IEventStore.js';
+import { FeedbackAwareLearner } from './cognition/FeedbackAwareLearner.js';
 
 export interface V16BootstrapResult {
   eventBus: EventBus;
@@ -108,10 +109,17 @@ export interface V16BootstrapResult {
 
   // ── Ontology 迭代3 ──
   feedbackService: import('./ontology/FeedbackService.js').FeedbackService;
+
+  // ── Ontology 迭代4 ──
+  feedbackAwareLearner: FeedbackAwareLearner;
 }
 
-export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: string }): Promise<V16BootstrapResult> {
+export async function bootstrapV16(
+  eventBus: EventBus,
+  options?: { ceoId?: string; eventStore?: IEventStore },
+): Promise<V16BootstrapResult> {
   const ceoId = options?.ceoId ?? 'ceo-default';
+  const eventStore = options?.eventStore;
 
   // ── 基础设施 ──
   const departmentManager = new DepartmentManager(eventBus);
@@ -201,6 +209,9 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
   const { FeedbackService } = await import('./ontology/FeedbackService.js');
   const feedbackService = new FeedbackService(ontology);
 
+  // FeedbackAwareLearner（迭代4 — 进化信号分析，注入 EventStore）
+  const feedbackAwareLearner = new FeedbackAwareLearner(eventStore ?? undefined);
+
   // ── CEO 门面 ──
   const companyFacade = new CompanyFacade(departmentManager, roleRegistry, ceoId);
   companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
@@ -214,9 +225,7 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
   hierarchicalPlanner.setForcedQueryGuard(forcedQueryGuard);
   hierarchicalPlanner.setOntologyGroundingEnabled(true);
 
-  // 设置 Trace 事件钩子（写入 EventStore）
-  // 需要外部传入 eventStore，如果可用的话
-  const eventStore = (globalThis as any).__eventStore as IEventStore | undefined;
+  // 设置 Trace 事件钩子（注入的 EventStore，非 globalThis）
   if (eventStore) {
     forcedQueryGuard.setOnTrace(async (executionId, trace, missionId) => {
       await eventStore.append(
@@ -230,38 +239,61 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     });
   }
 
-  // 创建投影器
+  // 创建投影器（数据源: MissionController + ArtifactFacade，非 Graph 自投影）
   const missionProjector = new MissionProjector(ontology, {
     getAll: async () => {
-      // 从 systemMetadataGraph 中获取 Mission 类型实体
-      return systemMetadataGraph.getEntities('mission').map(e => ({
-        id: e.id,
-        title: e.name,
-        status: e.metadata.status,
-        phase: e.metadata.phase,
-        goal: e.metadata.goal,
-        departmentId: e.metadata.departmentId,
+      return missionController.getAllMissions().map(m => ({
+        id: m.missionId,
+        title: m.objective,
+        status: m.status,
+        phase: m.phase,
+        goal: m.objective,
+        departmentId: m.currentTeams[0],
       }));
+    },
+    getById: async (id: string): Promise<Record<string, unknown> | null> => {
+      const m = missionController.getMission(id);
+      if (!m) return null;
+      return {
+        id: m.missionId,
+        title: m.objective,
+        status: m.status,
+        phase: m.phase,
+        goal: m.objective,
+      };
     },
   });
 
   const artifactProjector = new ArtifactProjector(ontology, {
     getAll: async () => {
-      return systemMetadataGraph.getEntities('artifact').map(e => ({
-        id: e.id,
-        title: e.name,
-        status: e.metadata.status,
-        missionId: e.metadata.missionId,
-        type: e.metadata.kind,
+      return artifactFacade.getAll().map(a => ({
+        id: a.id,
+        title: a.name,
+        status: a.status,
+        missionId: a.sourceTask,
+        type: a.type,
+        version: a.version,
       }));
+    },
+    getById: async (id: string): Promise<Record<string, unknown> | null> => {
+      const a = artifactFacade.get(id);
+      if (!a) return null;
+      return {
+        id: a.id,
+        title: a.name,
+        status: a.status,
+        missionId: a.sourceTask,
+        type: a.type,
+        version: a.version,
+      };
     },
   });
 
   // 启动时执行投影
   try {
-    await missionProjector.projectAll();
-    await artifactProjector.projectAll();
-    console.log(`[bootstrapV16] 📊 Ontology 投影完成: Mission + Artifact`);
+    const mCount = await missionProjector.projectAll();
+    const aCount = await artifactProjector.projectAll();
+    console.log(`[bootstrapV16] 📊 Ontology 投影完成: ${mCount} Mission, ${aCount} Artifact`);
   } catch (err) {
     console.warn(`[bootstrapV16] ⚠️ Ontology 投影失败:`, (err as Error).message);
   }
@@ -280,7 +312,7 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
             guard: forcedQueryGuard,
             piBridge: piBridgeForOntology,
             extraContext: `SubAgent 执行前 ontology grounding。`,
-            eventStore: eventStore ?? undefined,
+            eventStore,
             scenario: 'subagent-exec',
           });
           // 将 grounding 结果注入 context
@@ -366,6 +398,26 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     }
   });
 
+  // ── 迭代4: Feedback → SelfImprovementLoop 闭环 ──
+  // 每次 brain.learn.request 事件触发时检查是否有新反馈需要注入进化
+  let lastFeedbackEvolve = 0;
+  eventBus.on('brain.learn.request', async () => {
+    const now = Date.now();
+    if (now - lastFeedbackEvolve < 300_000) return; // 每 5 分钟最多一次
+    lastFeedbackEvolve = now;
+    try {
+      const testCases = await feedbackService.listTestCases(30);
+      if (testCases.length > 0) {
+        const { fed } = await feedbackAwareLearner.feedToEvolution(selfImprovementLoop, testCases);
+        if (fed > 0) {
+          console.log(`[bootstrap] 🔄 已反馈 ${fed} 条进化提案到 SelfImprovementLoop`);
+        }
+      }
+    } catch (err) {
+      console.warn('[bootstrap] ⚠️ 反馈进化失败:', (err as Error).message);
+    }
+  });
+
   console.log('[bootstrapV16] ✅ v16 全模块已集成');
   console.log(`  ├─ v12 组织: DepartmentManager + LeadAgent + GroupChat`);
   console.log(`  ├─ v13 大脑: ReflectionEngine + MetaLearner`);
@@ -410,5 +462,6 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     artifactProjector,
 
     feedbackService,
+    feedbackAwareLearner,
   };
 }

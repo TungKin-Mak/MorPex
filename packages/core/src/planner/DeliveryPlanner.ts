@@ -578,12 +578,11 @@ export class DeliveryPlanner {
     }
 
     // 策略 3: PiBridge 快速分解（P3 — 轻量 LLM 调用 ~200 tokens）
-    try {
-      const { PiBridge } = await import('../adapters/pi-bridge/PiBridge.js');
-      const bridge = new PiBridge('deepseek/deepseek-v4-flash');
-      await bridge.init();
-
-      const prompt = `将以下任务分解为 2-5 个具体步骤。返回严格 JSON 数组（不要 markdown）：
+    // 迭代4: 优先使用注入的 piBridgeRef，避免新建 PiBridge 实例绕过 ontology
+    const piBridgeForQuick = this.piBridgeRef;
+    if (piBridgeForQuick) {
+      try {
+        const prompt = `将以下任务分解为 2-5 个具体步骤。返回严格 JSON 数组（不要 markdown）：
 
 任务: "${request.goal}"
 
@@ -592,20 +591,50 @@ export class DeliveryPlanner {
 能力可选: analyze/design/code/test/write/research/review/deploy
 规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
 
-      const result = await bridge.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
-      const steps = this.parseQuickSteps(result.text, planId);
+        const result = await piBridgeForQuick.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
+        const steps = this.parseQuickSteps(result.text, planId);
 
-      if (steps.length > 0) {
-        return {
-          id: planId, goal: request.goal, status: 'draft', tasks: steps, mode: 'quick',
-          createdAt: Date.now(),
-          metadata: { taskCount: steps.length, riskLevel: steps.length > 3 ? 'medium' : 'low',
-            source: 'llm-quick-decompose', experienceCount: experienceHints?.length ?? 0 },
-        };
+        if (steps.length > 0) {
+          return {
+            id: planId, goal: request.goal, status: 'draft', tasks: steps, mode: 'quick',
+            createdAt: Date.now(),
+            metadata: { taskCount: steps.length, riskLevel: steps.length > 3 ? 'medium' : 'low',
+              source: 'llm-quick-decompose', experienceCount: experienceHints?.length ?? 0 },
+          };
+        }
+      } catch (err) {
+        console.warn('[DeliveryPlanner] PiBridge 快速分解失败:', (err as Error).message);
       }
-    } catch (err) {
-      // PiBridge 不可用 → 继续降级
-      console.warn('[DeliveryPlanner] PiBridge 快速分解失败:', (err as Error).message);
+    } else {
+      // Fallback: 无注入时直接创建（旧行为）
+      try {
+        const { PiBridge } = await import('../adapters/pi-bridge/PiBridge.js');
+        const bridge = new PiBridge('deepseek/deepseek-v4-flash');
+        await bridge.init();
+
+        const prompt = `将以下任务分解为 2-5 个具体步骤。返回严格 JSON 数组（不要 markdown）：
+
+任务: "${request.goal}"
+
+格式: [{"step":"步骤描述","capability":"所需能力"}]
+
+能力可选: analyze/design/code/test/write/research/review/deploy
+规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
+
+        const result = await bridge.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
+        const steps = this.parseQuickSteps(result.text, planId);
+
+        if (steps.length > 0) {
+          return {
+            id: planId, goal: request.goal, status: 'draft', tasks: steps, mode: 'quick',
+            createdAt: Date.now(),
+            metadata: { taskCount: steps.length, riskLevel: steps.length > 3 ? 'medium' : 'low',
+              source: 'llm-quick-decompose', experienceCount: experienceHints?.length ?? 0 },
+          };
+        }
+      } catch (err) {
+        console.warn('[DeliveryPlanner] PiBridge 快速分解失败:', (err as Error).message);
+      }
     }
 
     // 策略 4: 经验驱动的单/多任务（P2 — 历史经验）
