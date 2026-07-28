@@ -1,5 +1,9 @@
 import { EventBus } from '../common/EventBus.js';
 
+// ── Ontology 迭代2: 可选 grounded reasoning ──
+import type { OntologyService } from '../ontology/OntologyService.js';
+import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+
 // ── Types ──
 
 export interface PlanContext {
@@ -50,6 +54,15 @@ export interface HierarchicalPlannerLike {
 
 // ── BrainFacade 接口（松耦合） ──
 
+interface PiBridgeForPlanner {
+  generateText: (params: {
+    system?: string;
+    prompt: string;
+    temperature?: number;
+    maxTokens?: number;
+  }) => Promise<{ text: string }>;
+}
+
 interface BrainFacadeForPlanner {
   processTask(task: string, context?: { departmentId?: string }): Promise<{
     reflection: { insights: Array<{ message: string; confidence: number }> };
@@ -67,6 +80,12 @@ export class HierarchicalPlanner {
   private brainFacade: BrainFacadeForPlanner | null = null;
   private planCounter = 0;
 
+  /** Ontology 依赖（迭代2 — 可选 grounded reasoning） */
+  private ontology: OntologyService | null = null;
+  private forcedQueryGuard: ForcedQueryGuard | null = null;
+  private piBridge: PiBridgeForPlanner | null = null;
+  private enableOntologyGrounding = false;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[HierarchicalPlanner] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -74,6 +93,26 @@ export class HierarchicalPlanner {
 
   setBrainFacade(facade: BrainFacadeForPlanner): void {
     this.brainFacade = facade;
+  }
+
+  /** setOntology — 注入 OntologyService（迭代2 — 可选 grounded reasoning） */
+  setOntology(ontology: OntologyService): void {
+    this.ontology = ontology;
+  }
+
+  /** setForcedQueryGuard — 注入 ForcedQueryGuard（迭代2） */
+  setForcedQueryGuard(guard: ForcedQueryGuard): void {
+    this.forcedQueryGuard = guard;
+  }
+
+  /** setPiBridge — 注入 PiBridge（迭代2） */
+  setPiBridge(bridge: PiBridgeForPlanner): void {
+    this.piBridge = bridge;
+  }
+
+  /** enableOntologyGrounding — 启用 ontology grounded reasoning */
+  setOntologyGroundingEnabled(enabled: boolean): void {
+    this.enableOntologyGrounding = enabled;
   }
 
   async createPlan(goal: string, context?: PlanContext): Promise<DAGPlan> {
@@ -90,6 +129,32 @@ export class HierarchicalPlanner {
     });
 
     try {
+      // 迭代2: 如果已启用 ontology grounding，在分解前执行强制查询
+      if (this.enableOntologyGrounding && this.ontology && this.forcedQueryGuard && this.piBridge) {
+        try {
+          const { runOntologyGroundedReasoning } = await import('../ontology/runOntologyGroundedReasoning.js');
+          const result = await runOntologyGroundedReasoning({
+            goal,
+            missionId: context?.existingPlanId,
+            ontology: this.ontology,
+            guard: this.forcedQueryGuard,
+            piBridge: this.piBridge,
+            extraContext: '需要在规划前查询 Ontology 获取真实事实。',
+          });
+          console.log(`[HierarchicalPlanner] 🏁 Ontology grounded reason 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
+
+          // 将检索到的事实注入 context
+          const retrievedIds = result.queryTrace.retrievedIds;
+          if (retrievedIds.length > 0) {
+            // 将 ontology 信息注入 context（扩展字段）
+            (context as Record<string, unknown>).ontologyRetrievedIds = retrievedIds;
+            (context as Record<string, unknown>).ontologyProposal = result.proposal;
+          }
+        } catch (err) {
+          console.warn('[HierarchicalPlanner] ⚠️ Ontology grounding 失败，降级到普通规划:', (err as Error).message);
+        }
+      }
+
       const subGoals = await this.decomposeGoal(goal, context);
       const dagNodes = this.buildDAGNodes(subGoals);
       const complexity = this.assessComplexity(goal, subGoals);

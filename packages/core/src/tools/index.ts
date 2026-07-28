@@ -17,3 +17,6 @@ export type { ToolGenContext } from './ToolFactory.js';
 export { AmazonListingAction, MarketResearchAction } from './primitives/index.js';
 export type { ActionPrimitive, ActionResult, ListingData, ListingResult } from './primitives/index.js';
 export type { ResearchRequest, ResearchResult } from './primitives/index.js';
+
+// ── Ontology 迭代1 ──
+export { ontologyToolDefinitions, createOntologyToolExecutor } from './ontologyTools.js';

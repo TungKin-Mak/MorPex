@@ -12,3 +12,6 @@ export { LEADER_PROMPT_TEMPLATE, compileLeaderPrompt } from './leader-prompt.js'
 export { EXPERT_PROMPT_TEMPLATE, compileExpertPrompt } from './expert-prompt.js';
 export { createAstroMTrace } from './prompt-types.js';
 export type { PromptTemplate, PromptCompileOptions, AstroMTrace } from './prompt-types.js';
+
+// ── Ontology 迭代1 ──
+export { FORCED_QUERY_SYSTEM_PROMPT, buildReasoningUserPrompt } from './forced-query-system.js';

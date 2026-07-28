@@ -49,6 +49,18 @@ import { MissionController } from './mission-control/MissionController.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { ApprovalGate } from './verification/ApprovalGate.js';
 
+// ── Ontology 迭代1/2 ──
+import { OntologyService } from './ontology/OntologyService.js';
+import { ForcedQueryGuard } from './ontology/ForcedQueryGuard.js';
+import { ObjectTypeRegistry } from './ontology/ObjectTypeRegistry.js';
+import { systemMetadataGraph } from './metadata/SystemMetadataGraph.js';
+import {
+  MissionProjector,
+  ArtifactProjector,
+} from './ontology/projectors/index.js';
+import { createQueryPerformedEvent } from './events/ontologyEvents.js';
+import type { IEventStore } from './protocol/events/store/IEventStore.js';
+
 export interface V16BootstrapResult {
   eventBus: EventBus;
   departmentManager: DepartmentManager;
@@ -84,6 +96,15 @@ export interface V16BootstrapResult {
   missionController: MissionController;
   executionSimulator: ExecutionSimulator;
   approvalGate: ApprovalGate;
+
+  // ── Ontology 迭代1 ──
+  ontology: OntologyService;
+  forcedQueryGuard: ForcedQueryGuard;
+
+  // ── Ontology 迭代2 ──
+  objectTypeRegistry: ObjectTypeRegistry;
+  missionProjector: MissionProjector;
+  artifactProjector: ArtifactProjector;
 }
 
 export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: string }): Promise<V16BootstrapResult> {
@@ -173,9 +194,90 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
   companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
   const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
 
-  // ── 依赖注入 ──
+  // ── Ontology 迭代1/2 ──
+  const ontology = new OntologyService(systemMetadataGraph);
+  const forcedQueryGuard = new ForcedQueryGuard();
+  const objectTypeRegistry = new ObjectTypeRegistry();
+  deliveryPlanner.setOntology(ontology);
+  deliveryPlanner.setForcedQueryGuard(forcedQueryGuard);
+  hierarchicalPlanner.setOntology(ontology);
+  hierarchicalPlanner.setForcedQueryGuard(forcedQueryGuard);
+  hierarchicalPlanner.setOntologyGroundingEnabled(true);
+
+  // 设置 Trace 事件钩子（写入 EventStore）
+  // 需要外部传入 eventStore，如果可用的话
+  const eventStore = (globalThis as any).__eventStore as IEventStore | undefined;
+  if (eventStore) {
+    forcedQueryGuard.setOnTrace(async (executionId, trace, missionId) => {
+      await eventStore.append(
+        createQueryPerformedEvent(
+          executionId,
+          trace.toolCalls.map(({ name, args, at }) => ({ name, args, at })),
+          Array.from(trace.retrievedObjectIds),
+          missionId,
+        ),
+      );
+    });
+  }
+
+  // 创建投影器
+  const missionProjector = new MissionProjector(ontology, {
+    getAll: async () => {
+      // 从 systemMetadataGraph 中获取 Mission 类型实体
+      return systemMetadataGraph.getEntities('mission').map(e => ({
+        id: e.id,
+        title: e.name,
+        status: e.metadata.status,
+        phase: e.metadata.phase,
+        goal: e.metadata.goal,
+        departmentId: e.metadata.departmentId,
+      }));
+    },
+  });
+
+  const artifactProjector = new ArtifactProjector(ontology, {
+    getAll: async () => {
+      return systemMetadataGraph.getEntities('artifact').map(e => ({
+        id: e.id,
+        title: e.name,
+        status: e.metadata.status,
+        missionId: e.metadata.missionId,
+        type: e.metadata.kind,
+      }));
+    },
+  });
+
+  // 启动时执行投影
+  try {
+    await missionProjector.projectAll();
+    await artifactProjector.projectAll();
+    console.log(`[bootstrapV16] 📊 Ontology 投影完成: Mission + Artifact`);
+  } catch (err) {
+    console.warn(`[bootstrapV16] ⚠️ Ontology 投影失败:`, (err as Error).message);
+  }
+
+  // ── 依赖注入（含 Ontology 迭代3 grounded reasoning）──
   subAgentFork.setExecutionEngine({
     execute: async (capability: string, params: Record<string, unknown>, context?: Record<string, unknown>) => {
+      // 迭代3：对关键执行进行 ontology grounding
+      if (context?.enableOntologyGrounding !== false && ontology && forcedQueryGuard) {
+        try {
+          const { runOntologyGroundedReasoning } = await import('./ontology/runOntologyGroundedReasoning.js');
+          const result = await runOntologyGroundedReasoning({
+            goal: capability,
+            missionId: context?.missionId as string | undefined,
+            ontology,
+            guard: forcedQueryGuard,
+            piBridge: piBridgeForOntology,
+            extraContext: `SubAgent 执行前 ontology grounding。`, // ts-prune-ignore-next
+          });
+          // 将 grounding 结果注入 context
+          (params as Record<string, unknown>).__ontologyTrace = result.queryTrace;
+        } catch (err) {
+          console.warn(`[SubAgentFork] ⚠️ Ontology grounding 失败，继续执行:`, (err as Error).message);
+        }
+      }
+
       const result = await unifiedExecutionEngine.execute({
         goal: capability, mode: 'auto',
         context: { ...params, ...context },
@@ -187,6 +289,23 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
 
   deliveryPlanner.setSOPEngine(sopEngine);
   deliveryPlanner.setBrainFacade(brainFacade);
+
+  // 注入 PiBridge 到 DeliveryPlanner 和 HierarchicalPlanner（用于 ontology 强制查询的 LLM 调用）
+  const piBridgeForOntology = {
+    generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
+      const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
+      const bridge = new PiBridge('deepseek/deepseek-v4-flash');
+      await bridge.init();
+      return bridge.generateText({
+        system: params.system,
+        prompt: params.prompt,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens ?? 2000,
+      });
+    },
+  };
+  deliveryPlanner.setPiBridge(piBridgeForOntology);
+  hierarchicalPlanner.setPiBridge(piBridgeForOntology);
   await managementHub.initialize();
   leadAgentOrchestrator.setBrainFacade(brainFacade);
   companyFacade.setBrainFacade(brainFacade);
@@ -224,7 +343,11 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
   console.log(`  ├─ v16 能力: CapabilityRegistry + Discoverer 🆕`);
   console.log(`  ├─ v16 总控: MissionController 🆕`);
   console.log(`  ├─ v16 模拟: ExecutionSimulator 🆕`);
-  console.log(`  └─ v16 审批: ApprovalGate 🆕`);
+  console.log(`  ├─ v16 审批: ApprovalGate 🆕`);
+  console.log(`  ├─ 🏁 迭代1 Ontology: OntologyService + ForcedQueryGuard + planWithOntology 🆕`);
+  console.log(`  ├─ 🏁 迭代2 实体: ObjectTypeRegistry + Mission/Artifact Projector 🆕`);
+  console.log(`  ├─ 🏁 迭代2 评估: EvaluationEngine ontologyCompliance + referenceValidity 🆕`);
+  console.log(`  └─ 🏁 迭代2 Trace: OntologyQueryPerformed → EventStore 🆕`);
 
   return {
     eventBus, departmentManager, roleRegistry, companyFacade,
@@ -241,5 +364,11 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     selfImprovementLoop,
     capabilityRegistry: CapabilityRegistry,
     missionController, executionSimulator, approvalGate,
+
+    ontology,
+    forcedQueryGuard,
+    objectTypeRegistry,
+    missionProjector,
+    artifactProjector,
   };
 }

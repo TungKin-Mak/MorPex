@@ -15,6 +15,10 @@ export class ImprovementAnalyzer {
     avgLatency: number;
     failurePatterns: string[];
     artifactQuality: number;
+    /** 验证通过率 0-1（可选） */
+    verificationPassRate?: number;
+    /** 验证失败的检查点描述列表（可选） */
+    failedCheckpoints?: string[];
   }): ImprovementInsight[] {
     const insights: ImprovementInsight[] = [];
 
@@ -54,6 +58,23 @@ export class ImprovementAnalyzer {
         targetValue: 0,
         estimatedImpact: '减少重复失败',
         suggestion: `分析模式: ${metrics.failurePatterns.join(', ')}`,
+      });
+    }
+
+    // 新增：验证通过率分析
+    if (metrics.verificationPassRate !== undefined && metrics.verificationPassRate < 0.8) {
+      const failedStr = metrics.failedCheckpoints && metrics.failedCheckpoints.length > 0
+        ? metrics.failedCheckpoints.join('; ')
+        : '未知检查点';
+      insights.push({
+        id: `impr_${Date.now()}_4`,
+        title: '验证通过率偏低',
+        description: `当前验证通过率 ${Math.round(metrics.verificationPassRate * 100)}%，目标 80%。失败检查点: ${failedStr}`,
+        metric: 'verificationPassRate',
+        currentValue: metrics.verificationPassRate,
+        targetValue: 0.8,
+        estimatedImpact: '提高结果正确性评分',
+        suggestion: `确保 artifacts 包含检查点要求的内容: ${failedStr}。可参考之前成功案例中的产物模式。`,
       });
     }
 

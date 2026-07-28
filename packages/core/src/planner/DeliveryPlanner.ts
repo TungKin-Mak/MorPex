@@ -32,6 +32,12 @@ import { DepartmentContext } from '../department/DepartmentContext.js';
 import type { DepartmentId } from '../department/types.js';
 import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js';
 
+// ── Ontology 迭代1/2 ──
+import type { OntologyService } from '../ontology/OntologyService.js';
+import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+import type { OntologyProposal } from '../ontology/types.js';
+import { runOntologyGroundedReasoning } from '../ontology/runOntologyGroundedReasoning.js';
+
 // ── Types ──
 
 export type PlanningMode = 'quick' | 'full' | 'auto';
@@ -135,6 +141,15 @@ export class DeliveryPlanner {
   /** HierarchicalPlanner 引用（v13 — HTN 分层规划） */
   private hierarchicalPlanner: HierarchicalPlannerLike | null = null;
 
+  /** OntologyService 引用（迭代1 — 强制查询） */
+  private ontology: OntologyService | null = null;
+
+  /** ForcedQueryGuard 引用（迭代1 — 代码级强制） */
+  private forcedQueryGuard: ForcedQueryGuard | null = null;
+
+  /** PiBridge 引用（迭代1 — LLM 调用） */
+  private piBridgeRef: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> } | null = null;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[DeliveryPlanner] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -193,6 +208,21 @@ export class DeliveryPlanner {
   /** setHierarchicalPlanner — 注入 HierarchicalPlanner（v13 — HTN 分层规划） */
   setHierarchicalPlanner(planner: HierarchicalPlannerLike): void {
     this.hierarchicalPlanner = planner;
+  }
+
+  /** setOntology — 注入 OntologyService（迭代1 — 强制查询） */
+  setOntology(ontology: OntologyService): void {
+    this.ontology = ontology;
+  }
+
+  /** setForcedQueryGuard — 注入 ForcedQueryGuard（迭代1 — 代码级强制） */
+  setForcedQueryGuard(guard: ForcedQueryGuard): void {
+    this.forcedQueryGuard = guard;
+  }
+
+  /** setPiBridge — 注入 PiBridge 引用（迭代1 — LLM 调用） */
+  setPiBridge(bridge: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> }): void {
+    this.piBridgeRef = bridge;
   }
 
   /**
@@ -756,6 +786,54 @@ export class DeliveryPlanner {
         complexity: dagPlan.metadata.complexity,
       },
     };
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 迭代1: Ontology 强制查询规划
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * planWithOntology — 带强制查询的规划入口
+   *
+   * 迭代1：改造主规划路径，拆分为两阶段：
+   *   Phase 1 - 强制查询：LLM 必须调用 ontology_* 工具获取事实
+   *   Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal
+   *
+   * @param goal - 目标描述
+   * @param context - 上下文（含 missionId 等）
+   * @returns 包含 executionId、proposal、queryTrace 的结果
+   */
+  async planWithOntology(
+    goal: string,
+    context: { missionId?: string; [k: string]: unknown } = {},
+  ): Promise<{
+    executionId: string;
+    proposal: OntologyProposal;
+    queryTrace: {
+      callCount: number;
+      retrievedIds: string[];
+      referenceCheck: { valid: boolean; missing: string[]; knownCount: number };
+    };
+  }> {
+    const ontology = this.ontology;
+    const guard = this.forcedQueryGuard;
+    const piBridge = this.piBridgeRef;
+
+    if (!ontology || !guard || !piBridge) {
+      throw new Error(
+        '[DeliveryPlanner] planWithOntology 需要注入 OntologyService、ForcedQueryGuard 和 PiBridge。请先调用 setOntology/setForcedQueryGuard/setPiBridge。',
+      );
+    }
+
+    // 委托给共享方法
+    return runOntologyGroundedReasoning({
+      goal,
+      missionId: context.missionId,
+      ontology,
+      guard,
+      piBridge,
+      extraContext: context.extraContext as string | undefined,
+    });
   }
 
   // ═══════════════════════════════════════════════════════════════

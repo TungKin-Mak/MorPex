@@ -87,6 +87,60 @@ export class CrossAgentLearningEngine {
   }
 
   /**
+   * learnFromVerification — 从 TaskVerifier 验证结果中学习
+   *
+   * 完整流程: 提炼 → 去重 → 存储 → 传播 → 返回
+   *
+   * @param taskId     - 任务 ID
+   * @param taskTitle  - 任务标题
+   * @param checkpoints - 验证检查点结果
+   * @returns 存储的经验列表
+   */
+  learnFromVerification(
+    taskId: string,
+    taskTitle: string,
+    checkpoints: Array<{
+      description: string;
+      passed: boolean;
+      score: number;
+      matched: string[];
+      missing: string[];
+    }>,
+  ): GeneralizedExperience[] {
+    console.log(`🔄 [CrossAgentLearningEngine] learnFromVerification — Task: ${taskId} (${taskTitle})`);
+
+    // 1. 提炼
+    const rawExperiences = this.distiller.distillFromVerification(taskId, taskTitle, checkpoints);
+    if (rawExperiences.length === 0) {
+      console.log(`   ✅ 所有检查点通过，无需学习`);
+      return [];
+    }
+
+    // 2. 合并重复
+    const merged = this.distiller.mergeDuplicate(rawExperiences);
+
+    // 3. 设置来源并存储
+    const experiences = merged.map(exp => ({
+      ...exp,
+      sourceAgentType: 'golden-benchmark',
+      sourceMissionIds: [taskId, ...exp.sourceMissionIds],
+      lastValidatedAt: Date.now(),
+    }));
+
+    let storedCount = 0;
+    for (const exp of experiences) {
+      this.repository.store(exp);
+      this.propagator.propagateToAll(exp);
+      storedCount++;
+    }
+
+    console.log(`   💾 存储完成: ${storedCount} 条验证学习经验`);
+    console.log(`✅ [CrossAgentLearningEngine] learnFromVerification 完成`);
+
+    return experiences;
+  }
+
+  /**
    * queryRelevant — 查询与问题相关的经验
    *
    * 在注入 PlanningStage / TwinStage 时使用，提供上下文参考。

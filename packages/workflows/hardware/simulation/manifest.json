@@ -1,0 +1,15 @@
+{
+  "name": "simulation",
+  "version": "1.0.0",
+  "description": "XJ MCU Hardware Simulation: flash, debug, register/memory inspection",
+  "actions": ["simulation.flash", "simulation.debug", "simulation.read_regs", "simulation.read_ram"],
+  "artifacts": ["RegisterDump", "MemoryDump", "SimulationReport"],
+  "dependencies": {
+    "python3": ">=3.10",
+    "xjmcu-toolchain": "file:../../../AstroM/_archive/toolchains/AstroMcu"
+  },
+  "config": {
+    "toolchain_path": "../../../AstroM/_archive/toolchains/AstroMcu",
+    "astrocli_path": "../../../AstroM/_archive/toolchains/AstroMcu/astrocli"
+  }
+}

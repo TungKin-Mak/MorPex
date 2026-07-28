@@ -123,6 +123,64 @@ export class KnowledgeDistiller {
   }
 
   /**
+   * distillFromVerification — 从 TaskVerifier checkpoint 验证结果中提炼经验
+   *
+   * 对每个未通过的 checkpoint 创建一条经验，记录缺失的关键词/能力/产物类型。
+   * 使得后续执行可以通过 ExperienceMatcher 检索到这些失败模式并避免重复错误。
+   *
+   * @param taskId     - 任务 ID
+   * @param taskTitle  - 任务标题
+   * @param checkpoints - 验证检查点结果数组（含 description, passed, score, matched, missing）
+   * @returns 提炼的经验列表
+   */
+  distillFromVerification(
+    taskId: string,
+    taskTitle: string,
+    checkpoints: Array<{
+      description: string;
+      passed: boolean;
+      score: number;
+      matched: string[];
+      missing: string[];
+    }>,
+  ): GeneralizedExperience[] {
+    const experiences: GeneralizedExperience[] = [];
+    const titleTag = taskTitle.toLowerCase().replace(/[^a-z0-9]/g, '_').substring(0, 20);
+
+    for (const cp of checkpoints) {
+      if (cp.passed) continue; // 只从未通过的检查点学习
+
+      const missingStr = cp.missing.length > 0 ? cp.missing.join(', ') : '(all failed)';
+      const matchedStr = cp.matched.length > 0 ? cp.matched.join(', ') : '(none)';
+
+      const exp: GeneralizedExperience = {
+        id: `exp_verif_${Date.now()}_${++this.counter}`,
+        category: 'error_handling',
+        problemPattern: `Verification failed: ${cp.description} — missing: ${missingStr}`,
+        solution: `Ensure artifacts contain these missing items: ${missingStr}. Previously matched: ${matchedStr}.`,
+        effectiveness: {
+          successRate: cp.score,
+          avgLatency: 0,
+          costSavings: 0,
+        },
+        sourceAgentType: 'golden-benchmark',
+        sourceMissionIds: [taskId],
+        feedback: { positive: 0, negative: 0, weight: Math.max(0.1, cp.score) },
+        createdAt: Date.now(),
+        lastValidatedAt: Date.now(),
+        tags: ['verification', 'checkpoint', titleTag, cp.passed ? 'passed' : 'failed'],
+        visibleTo: ['*'],
+      };
+      experiences.push(exp);
+    }
+
+    if (experiences.length > 0) {
+      console.log(`   [KnowledgeDistiller] distillFromVerification → ${experiences.length} 条经验 (task: ${taskTitle})`);
+    }
+    return experiences;
+  }
+
+  /**
    * mergeDuplicate — 合并相似经验（按 problemPattern 子串匹配）
    *
    * 将具有相似 problemPattern 的经验合并，平均 effectiveness，合并 sourceMissionIds。

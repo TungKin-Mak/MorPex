@@ -41,6 +41,10 @@ export class SelfImprovementLoop {
     avgLatency: number;
     failurePatterns: string[];
     artifactQuality: number;
+    /** 验证通过率 0-1（可选） */
+    verificationPassRate?: number;
+    /** 验证失败的检查点描述列表（可选） */
+    failedCheckpoints?: string[];
   }): Promise<{
     observations: any[];
     insights: ImprovementInsight[];

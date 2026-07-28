@@ -41,6 +41,9 @@ export class CompanyFacade {
   /** BrainFacade 引用（可选）用于跨部门搜索 */
   private brainFacade?: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> };
 
+  /** Ontology FeedbackService 引用（迭代3） */
+  private feedbackService?: import('../ontology/FeedbackService.js').FeedbackService;
+
   constructor(
     departmentManager: DepartmentManager,
     roleRegistry: RoleRegistry,
@@ -450,6 +453,35 @@ export class CompanyFacade {
    */
   setBrainFacade(bf: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> }): void {
     this.brainFacade = bf;
+  }
+
+  /**
+   * setFeedbackService — 注入 FeedbackService（迭代3）
+   */
+  setFeedbackService(fs: import('../ontology/FeedbackService.js').FeedbackService): void {
+    this.feedbackService = fs;
+  }
+
+  /**
+   * submitFeedback — CEO 提交反馈
+   *
+   * 迭代3：高层 API，将用户/评估反馈写入 Ontology。
+   *
+   * @param input - 反馈输入
+   * @returns 创建的 Ontology 对象
+   */
+  async submitFeedback(
+    input: import('../ontology/FeedbackService.js').FeedbackInput,
+  ): Promise<{ ok: boolean; feedbackId?: string; error?: string }> {
+    if (!this.feedbackService) {
+      return { ok: false, error: 'FeedbackService 未注入' };
+    }
+    try {
+      const obj = await this.feedbackService.submit(input);
+      return { ok: true, feedbackId: obj.id };
+    } catch (err) {
+      return { ok: false, error: (err as Error).message };
+    }
   }
 
   setCEO(ceoId: string): void {
