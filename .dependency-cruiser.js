@@ -65,6 +65,33 @@ export default {
       to: { path: 'packages/adapters/' },
     },
 
+    /* ── ontology layer: allowed dependencies ── */
+    {
+      name: 'ontology-allowed-deps',
+      comment: 'ontology/ may depend on metadata, events, tools, prompts; not on planner or execution',
+      severity: 'error',
+      from: { path: 'packages/core/src/ontology/' },
+      to: { pathNot: ['packages/core/src/ontology/', 'packages/core/src/metadata/', 'packages/core/src/events/', 'packages/core/src/tools/', 'packages/core/src/prompts/', 'packages/core/src/protocol/', 'node_modules'] },
+    },
+
+    /* ── planner must not import SystemMetadataGraph directly ── */
+    {
+      name: 'planner-no-metadatagraph',
+      comment: 'Planner must not directly import SystemMetadataGraph. Use OntologyService instead.',
+      severity: 'error',
+      from: { path: 'packages/core/src/planner/' },
+      to: { path: 'packages/core/src/metadata/SystemMetadataGraph' },
+    },
+
+    /* ── evaluation may depend on ontology ── */
+    {
+      name: 'eval-ontology-allowed',
+      comment: 'evaluation/ may depend on ontology/ for compliance scoring',
+      severity: 'error',
+      from: { path: 'packages/core/src/evaluation/' },
+      to: { pathNot: ['packages/core/src/evaluation/', 'packages/core/src/ontology/', 'packages/core/src/metadata/', 'packages/core/src/protocol/', 'node_modules'] },
+    },
+
     /* ── No circular dependencies between packages ── */
     {
       name: 'no-circular-packages',
