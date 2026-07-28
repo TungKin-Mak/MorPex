@@ -78,8 +78,8 @@ export async function bootstrapV15Integration(options?: {
   const piBridgeWrapper = {
     generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
       if (!piBridgeInstance) {
-        const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
-        piBridgeInstance = new PiBridge('deepseek/deepseek-v4-flash');
+        const { PiBridge, DEFAULT_MODEL } = await import('./adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = new PiBridge(DEFAULT_MODEL);
         await piBridgeInstance.init();
       }
       return piBridgeInstance.generateText({

@@ -75,7 +75,7 @@ async function main() {
     status: 'draft',
     missionId,
   });
-  systemMetadataGraph.addRelation(missionId, artifactId, 'produced_by');
+  systemMetadataGraph.addRelation(missionId, artifactId, 'created_by');
   assert(true, '初始数据已写入 SystemMetadataGraph');
 
   // ── Step 3: 执行 executeGoal ──

@@ -35,6 +35,12 @@
  * @see MetaPlanner.ts — orchestrator that creates and calls PipelineExecutor
  * @see types.ts — all pipeline type contracts
  * @see PipelineLogger.ts — structured trace logging
+ *
+ * @todo Split into smaller modules:
+ *   - pipeline-types.ts (interfaces)
+ *   - pipeline-utils.ts (helper functions)
+ *   - pipeline-stages/ (one file per stage)
+ *   This file (2059 lines) is the largest in the project and needs decomposition.
  */
 
 import * as crypto from 'node:crypto';

@@ -157,8 +157,8 @@ export class SOPEngine {
     let classification: TaskClassification;
 
     try {
-      const { PiBridge } = await import('../adapters/pi-bridge/PiBridge.js');
-      const bridge = new PiBridge('deepseek/deepseek-v4-flash');
+      const { PiBridge, DEFAULT_MODEL } = await import('../adapters/pi-bridge/PiBridge.js');
+      const bridge = new PiBridge(DEFAULT_MODEL);
       await bridge.init();
 
       const prompt = `分析以下任务，返回 JSON 格式分类：

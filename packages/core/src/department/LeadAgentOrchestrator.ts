@@ -401,8 +401,8 @@ export class LeadAgentOrchestrator {
     // 尝试通过 PiBridge 调用真实 LLM
     try {
       // 动态 import 避免启动时加载依赖
-      const { PiBridge } = await import('../adapters/pi-bridge/PiBridge.js');
-      const bridge = new PiBridge('deepseek/deepseek-v4-flash');
+      const { PiBridge, DEFAULT_MODEL } = await import('../adapters/pi-bridge/PiBridge.js');
+      const bridge = new PiBridge(DEFAULT_MODEL);
       await bridge.init();
 
       const result = await bridge.generateText({
