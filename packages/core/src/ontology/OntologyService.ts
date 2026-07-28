@@ -16,7 +16,7 @@ import type {
   QueryFilter,
   RetrievedFact,
 } from './types.js';
-import type { SystemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
+import type { SystemMetadataGraph, EntityType, RelationType } from '../metadata/SystemMetadataGraph.js';
 import { ObjectTypeRegistry } from './ObjectTypeRegistry.js';
 
 /**
@@ -42,11 +42,23 @@ export class OntologyService {
   /**
    * refreshCache — 从 graph 重建本地索引
    */
-  /** 类型名小写化（适配底层 SystemMetadataGraph 的小写类型枚举） */
-  private normalizeType(type: string | string[] | undefined): any {
-    if (Array.isArray(type)) return type.map(t => t.toLowerCase()) as any;
-    if (typeof type === 'string') return type.toLowerCase() as any;
-    return undefined;
+  /**
+   * normalizeEntityType — 转小写以匹配 SystemMetadataGraph.EntityType
+   * 传入单个 type 字符串, 返回 EntityType | undefined。
+   * 数组类型在 queryObjects 中独立处理。
+   */
+  private normalizeEntityType(type: string | undefined): EntityType | undefined {
+    if (!type) return undefined;
+    const lower = type.toLowerCase() as EntityType;
+    const valid: EntityType[] = ['agent', 'tool', 'artifact', 'mission', 'memory', 'workflow', 'capability', 'goal'];
+    return valid.includes(lower) ? lower : 'mission';
+  }
+
+  /** normalizeRelationType — 转小写以匹配 SystemMetadataGraph.RelationType */
+  private normalizeRelationType(type: string): RelationType {
+    const lower = type.toLowerCase() as RelationType;
+    const valid: RelationType[] = ['created_by', 'used_by', 'depends_on', 'improved_from', 'verified_by', 'derived_from', 'generated_by', 'approved_by', 'deployed_from', 'related_to'];
+    return valid.includes(lower) ? lower : 'related_to';
   }
 
   private refreshCache(): void {
@@ -74,9 +86,11 @@ export class OntologyService {
    * @returns 匹配的事实列表（含对象 + 关系）
    */
   async queryObjects(filter: QueryFilter): Promise<RetrievedFact[]> {
-    const entities = this.graph.getEntities(
-      this.normalizeType(filter.type),
-    );
+    // normalizeEntityType 只接受 string, 数组类型单独处理
+    const typeFilter = filter.type;
+    const entities = Array.isArray(typeFilter)
+      ? this.graph.getEntities().filter(e => typeFilter.includes(e.type))
+      : this.graph.getEntities(this.normalizeEntityType(typeFilter));
 
     const facts: RetrievedFact[] = [];
 
@@ -225,7 +239,8 @@ export class OntologyService {
     };
 
     // 写入底层 graph（覆盖语义，同名 id 自动覆盖）
-    this.graph.registerEntity(id, this.normalizeType(input.type), name, metadata);
+    const entityType = this.normalizeEntityType(input.type)! ?? 'mission';
+    this.graph.registerEntity(id, entityType, name, metadata);
 
     // 使缓存失效，下次 getObject 重新加载
     this.invalidateCache(id);
@@ -254,7 +269,7 @@ export class OntologyService {
     this.graph.addRelation(
       from,
       to,
-      this.normalizeType(type),
+      this.normalizeRelationType(type),
       properties?.weight as number | undefined,
       properties,
     );
@@ -266,7 +281,7 @@ export class OntologyService {
    * listByType — 按类型列出所有 Ontology 对象
    */
   async listByType(type: string): Promise<OntologyObject[]> {
-    const entities = this.graph.getEntities(this.normalizeType(type));
+    const entities = this.graph.getEntities(this.normalizeEntityType(type));
     return entities.map((e) => this.toOntologyObject(e));
   }
 
