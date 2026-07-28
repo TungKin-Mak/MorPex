@@ -49,7 +49,7 @@
       ],
       "@morpex/workflow-sdk/*": [
         "./packages/workflow-sdk/src/*"
-      ],
+      ]
 
     }
   },
@@ -68,6 +68,7 @@
     "data",
     "dist",
     "packages/core/__tests__",
+    "packages/core/src/extensions/xjmcu/",
     "packages/studio/server/**/__tests__"
   ]
 }

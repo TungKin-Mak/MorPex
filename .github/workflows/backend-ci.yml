@@ -88,3 +88,58 @@ jobs:
           fi
           echo "✅ All Pi versions are exact (no ^ ~ latest)"
           grep -E '"@earendil-works/pi-' package.json
+
+  # ═══════════════════════════════════════════════════════
+  # Ontology Bypass Check (本地可运行: bash scripts/check-boundaries.sh)
+  # ═══════════════════════════════════════════════════════
+  ontology-bypass:
+    name: Ontology Bypass Check
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Check no new PiBridge in planner/facade/execution
+        run: |
+          VIO=$(grep -rn "new PiBridge" packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | grep -v "PiBridge.ts" | wc -l)
+          if [ "$VIO" -gt 0 ]; then
+            echo "❌ FAIL: planner/facade/execution 中有 new PiBridge (绕过 ontology)"
+            grep -rn "new PiBridge" packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" | grep -v "__tests__" | grep -v "PiBridge.ts"
+            exit 1
+          fi
+          echo "✅ planner/facade/execution 无 new PiBridge 绕过"
+      - name: Check planner does not import SystemMetadataGraph directly
+        run: |
+          VIO=$(grep -rn "SystemMetadataGraph" packages/core/src/planner/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | wc -l)
+          if [ "$VIO" -gt 0 ]; then
+            echo "❌ FAIL: planner 直接 import SystemMetadataGraph (应通过 OntologyService)"
+            grep -rn "SystemMetadataGraph" packages/core/src/planner/ --include="*.ts" | grep -v "__tests__"
+            exit 1
+          fi
+          echo "✅ planner 通过 OntologyService 访问图数据"
+
+  # ═══════════════════════════════════════════════════════
+  # Ontology E2E (需要真实 LLM API key, 标记为 continue-on-error)
+  # ═══════════════════════════════════════════════════════
+  ontology-e2e:
+    name: Ontology E2E
+    needs: [typecheck, boundary-check]
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run ontology e2e verification
+        run: npx tsx scripts/verify-ontology-e2e.ts
+        env:
+          # 需要真实 LLM API key 才能完整运行
+          OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
