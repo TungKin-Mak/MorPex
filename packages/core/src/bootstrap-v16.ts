@@ -105,6 +105,9 @@ export interface V16BootstrapResult {
   objectTypeRegistry: ObjectTypeRegistry;
   missionProjector: MissionProjector;
   artifactProjector: ArtifactProjector;
+
+  // ── Ontology 迭代3 ──
+  feedbackService: import('./ontology/FeedbackService.js').FeedbackService;
 }
 
 export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: string }): Promise<V16BootstrapResult> {
@@ -189,15 +192,22 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     },
   });
 
-  // ── CEO 门面 ──
-  const companyFacade = new CompanyFacade(departmentManager, roleRegistry, ceoId);
-  companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
-  const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
-
-  // ── Ontology 迭代1/2 ──
+  // ── Ontology 迭代1/2/3 ──
   const ontology = new OntologyService(systemMetadataGraph);
   const forcedQueryGuard = new ForcedQueryGuard();
   const objectTypeRegistry = new ObjectTypeRegistry();
+
+  // FeedbackService（迭代3）
+  const { FeedbackService } = await import('./ontology/FeedbackService.js');
+  const feedbackService = new FeedbackService(ontology);
+
+  // ── CEO 门面 ──
+  const companyFacade = new CompanyFacade(departmentManager, roleRegistry, ceoId);
+  companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
+  companyFacade.setFeedbackService(feedbackService);
+  const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
+
+  // ── Ontology 注入 ──
   deliveryPlanner.setOntology(ontology);
   deliveryPlanner.setForcedQueryGuard(forcedQueryGuard);
   hierarchicalPlanner.setOntology(ontology);
@@ -269,7 +279,9 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
             ontology,
             guard: forcedQueryGuard,
             piBridge: piBridgeForOntology,
-            extraContext: `SubAgent 执行前 ontology grounding。`, // ts-prune-ignore-next
+            extraContext: `SubAgent 执行前 ontology grounding。`,
+            eventStore: eventStore ?? undefined,
+            scenario: 'subagent-exec',
           });
           // 将 grounding 结果注入 context
           (params as Record<string, unknown>).__ontologyTrace = result.queryTrace;
@@ -328,6 +340,32 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     if (dept) kpiTracker.registerDepartment(dept.id, dept.name);
   });
 
+  // ── Ontology 增量投影（运行时保持 Ontology 新鲜）──
+  eventBus.on('mission.created', async (event: any) => {
+    const p = event.payload;
+    if (p?.id || p?.missionId) {
+      try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
+    }
+  });
+  eventBus.on('mission.updated', async (event: any) => {
+    const p = event.payload;
+    if (p?.id || p?.missionId) {
+      try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
+    }
+  });
+  eventBus.on('artifact.created', async (event: any) => {
+    const p = event.payload;
+    if (p?.id || p?.artifactId) {
+      try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
+    }
+  });
+  eventBus.on('artifact.updated', async (event: any) => {
+    const p = event.payload;
+    if (p?.id || p?.artifactId) {
+      try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
+    }
+  });
+
   console.log('[bootstrapV16] ✅ v16 全模块已集成');
   console.log(`  ├─ v12 组织: DepartmentManager + LeadAgent + GroupChat`);
   console.log(`  ├─ v13 大脑: ReflectionEngine + MetaLearner`);
@@ -370,5 +408,7 @@ export async function bootstrapV16(eventBus: EventBus, options?: { ceoId?: strin
     objectTypeRegistry,
     missionProjector,
     artifactProjector,
+
+    feedbackService,
   };
 }

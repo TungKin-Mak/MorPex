@@ -12,6 +12,7 @@
 import type { OntologyObject } from '../ontology/types.js';
 import type { IEventStore } from '../protocol/events/store/IEventStore.js';
 import type { BaseEvent } from '../protocol/events/BaseEvent.js';
+import type { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
 
 export interface EvolutionSignal {
   /** 反馈测试用例 */
@@ -95,6 +96,40 @@ export class FeedbackAwareLearner {
     const suggestions = this.generateSuggestions(signals);
 
     return { signals, suggestions };
+  }
+
+  /**
+   * feedToEvolution — 将分析结果注入 SelfImprovementLoop
+   *
+   * 将 ImprovementSuggestion[] 转换为 Evolution 的 metrics 格式，
+   * 调用 evolve() 走完整 8 阶段闭环。
+   *
+   * @param evolution - SelfImprovementLoop 实例
+   * @param testCases - 测试用例列表
+   */
+  async feedToEvolution(
+    evolution: SelfImprovementLoop,
+    testCases: OntologyObject[],
+  ): Promise<{ fed: number; results: Array<{ title: string; status: string }> }> {
+    const { suggestions } = await this.analyze(testCases);
+
+    const failurePatterns = suggestions.map(s => `[${s.type}] ${s.title}: ${s.description}`);
+    const fed: Array<{ title: string; status: string }> = [];
+
+    if (failurePatterns.length > 0) {
+      const result = await evolution.evolve({
+        taskSuccessRate: 1.0,
+        avgLatency: 0,
+        failurePatterns,
+        artifactQuality: 0.9,
+      });
+
+      for (const p of result.proposals) {
+        fed.push({ title: p.title, status: p.status });
+      }
+    }
+
+    return { fed: fed.length, results: fed };
   }
 
   /**

@@ -24,9 +24,39 @@ import type { SystemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
  * 包装现有的 SystemMetadataGraph，提供 4 个供 LLM 调用的查询方法。
  */
 export class OntologyService {
+  /**
+   * 本地 ID → Entity 索引缓存，避免 getObject/getRelated 全表扫描
+   * 每次 registerEntity 或 upsertObject 时更新
+   */
+  private entityCache = new Map<string, { id: string; type: string; name: string; metadata: Record<string, unknown>; createdAt: number }>();
+
   constructor(
     private readonly graph: SystemMetadataGraph,
-  ) {}
+  ) {
+    // 启动时预热缓存
+    this.refreshCache();
+  }
+
+  /**
+   * refreshCache — 从 graph 重建本地索引
+   */
+  private refreshCache(): void {
+    this.entityCache.clear();
+    for (const e of this.graph.getEntities()) {
+      this.entityCache.set(e.id, e);
+    }
+  }
+
+  /**
+   * invalidateCache — 使缓存失效（upsert 后调用）
+   */
+  private invalidateCache(id?: string): void {
+    if (id) {
+      this.entityCache.delete(id);
+    } else {
+      this.entityCache.clear();
+    }
+  }
 
   /**
    * queryObjects — 查询 Ontology 中的对象与关系
@@ -42,11 +72,13 @@ export class OntologyService {
     const facts: RetrievedFact[] = [];
 
     for (const entity of entities) {
-      // 应用属性过滤（简单匹配）
+      // 应用属性过滤（宽松比较）
+      // P1-5: 使用宽松比较，避免类型不匹配导致过滤失效
       if (filter.properties) {
         let matches = true;
         for (const [key, value] of Object.entries(filter.properties)) {
-          if (entity.metadata[key] !== value) {
+          const fieldValue = entity.metadata[key];
+          if (!looseEqual(fieldValue, value)) {
             matches = false;
             break;
           }
@@ -77,16 +109,27 @@ export class OntologyService {
 
   /**
    * getObject — 按 ID 获取单个对象
+   *
+   * 使用本地索引缓存，避免全表扫描。
    */
   async getObject(id: ObjectId): Promise<OntologyObject | null> {
-    // SystemMetadataGraph 没有直接的 getById，遍历查找
+    // 优先查本地缓存
+    const cached = this.entityCache.get(id);
+    if (cached) return this.toOntologyObject(cached);
+
+    // 缓存未命中 → 全表扫描一次并更新缓存
     const allEntities = this.graph.getEntities();
-    const entity = allEntities.find(e => e.id === id);
-    return entity ? this.toOntologyObject(entity) : null;
+    for (const e of allEntities) {
+      this.entityCache.set(e.id, e);
+    }
+    const refetched = this.entityCache.get(id);
+    return refetched ? this.toOntologyObject(refetched) : null;
   }
 
   /**
    * getRelated — 获取与某对象通过指定关系相连的对象
+   *
+   * 使用本地索引缓存，避免在循环中全表扫描。
    */
   async getRelated(id: ObjectId, relationType: string): Promise<RetrievedFact[]> {
     const rels = this.graph.getRelations(id);
@@ -94,10 +137,14 @@ export class OntologyService {
 
     const facts: RetrievedFact[] = [];
 
+    // 确保本地缓存已预热
+    if (this.entityCache.size === 0) {
+      this.refreshCache();
+    }
+
     for (const rel of filtered) {
       const targetId = rel.toId;
-      const allEntities = this.graph.getEntities();
-      const targetEntity = allEntities.find(e => e.id === targetId);
+      const targetEntity = this.entityCache.get(targetId);
       if (targetEntity) {
         facts.push({
           object: this.toOntologyObject(targetEntity),
@@ -160,14 +207,11 @@ export class OntologyService {
       updatedAt: Date.now(),
     };
 
-    // 检查是否已存在
-    const existing = await this.getObject(id);
-    if (existing) {
-      // 更新已有对象
-      this.graph.registerEntity(id, input.type as any, name, metadata);
-    } else {
-      this.graph.registerEntity(id, input.type as any, name, metadata);
-    }
+    // 写入底层 graph（覆盖语义，同名 id 自动覆盖）
+    this.graph.registerEntity(id, input.type as any, name, metadata);
+
+    // 使缓存失效，下次 getObject 重新加载
+    this.invalidateCache(id);
 
     const obj = await this.getObject(id);
     if (!obj) throw new Error(`[OntologyService] upsert 失败: ${id}`);
@@ -197,6 +241,8 @@ export class OntologyService {
       properties?.weight as number | undefined,
       properties,
     );
+
+    // 关系变更不影响实体缓存，无需 invalidate
   }
 
   /**
@@ -210,14 +256,16 @@ export class OntologyService {
   // ---------- 适配层 ----------
 
   private toOntologyObject(entity: { id: string; type: string; name: string; metadata: Record<string, unknown>; createdAt: number }): OntologyObject {
+    const metadata = entity.metadata ?? {};
     return {
       id: entity.id,
       type: entity.type,
-      properties: { name: entity.name, ...entity.metadata },
+      properties: { name: entity.name, ...metadata },
+      status: (metadata.status as string | undefined) ?? undefined,
       version: 1,
       createdAt: entity.createdAt,
-      updatedAt: entity.createdAt,
-      metadata: entity.metadata,
+      updatedAt: (metadata.updatedAt as number | undefined) ?? entity.createdAt,
+      metadata,
     };
   }
 
@@ -231,4 +279,35 @@ export class OntologyService {
       createdAt: rel.createdAt,
     };
   }
+}
+
+/**
+ * looseEqual — 宽松比较两个值是否相等
+ *
+ * 处理布尔/字符串/数字之间的类型不一致：
+ *   looseEqual(true, 'true') === true
+ *   looseEqual('1', 1) === true
+ *   looseEqual('isTestCase', true) === false (排除非布尔字段名)
+ */
+function looseEqual(a: unknown, b: unknown): boolean {
+  if (a === b) return true;
+  if (a == null || b == null) return false;
+
+  // 布尔 vs 字符串
+  if (typeof a === 'boolean' && typeof b === 'string') {
+    return a === (b === 'true' || b === '1');
+  }
+  if (typeof b === 'boolean' && typeof a === 'string') {
+    return b === (a === 'true' || a === '1');
+  }
+
+  // 数字 vs 字符串
+  if (typeof a === 'number' && typeof b === 'string') {
+    return a === Number(b);
+  }
+  if (typeof b === 'number' && typeof a === 'string') {
+    return b === Number(a);
+  }
+
+  return String(a) === String(b);
 }
