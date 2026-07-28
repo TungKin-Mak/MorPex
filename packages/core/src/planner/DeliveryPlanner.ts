@@ -28,6 +28,7 @@
  */
 
 import { EventBus } from '../common/EventBus.js';
+import type { MorPexEvent } from '../common/types.js';
 import { DepartmentContext } from '../department/DepartmentContext.js';
 import type { DepartmentId } from '../department/types.js';
 import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js';
@@ -159,7 +160,7 @@ export class DeliveryPlanner {
     this.modeSuccessCounts.set('full', { success: 0, failure: 0 });
 
     // 监听 Brain→Planning 反馈（Phase 4.6）
-    this.eventBus.on('brain.planning.insight', (event: any) => {
+    this.eventBus.on('brain.planning.insight', (event: MorPexEvent) => {
       const p = event.payload;
       if (!p) return;
       // 当 Brain 报告成功时，记录到对应模式的成功计数
@@ -327,7 +328,7 @@ export class DeliveryPlanner {
         case 'full':
           plan = await this.fullPlan(request, planId);
           break;
-        default:
+        default: {
           // auto: 优先使用经验建议的模式，其次根据目标复杂度选择
           const suggestedMode = request.context?.suggestedMode as PlanningMode | undefined;
           if (suggestedMode === 'full') {
@@ -340,6 +341,8 @@ export class DeliveryPlanner {
               ? await this.fullPlan(request, planId)
               : await this.quickPlan(request, planId);
           }
+          break;
+        }
       }
 
       this.plans.set(planId, plan);

@@ -23,6 +23,7 @@
  */
 
 import { EventBus } from '../common/EventBus.js';
+import type { MorPexEvent } from '../common/types.js';
 import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from '../brain/ReflectionEngine.js';
 import type { MetaLearnerLike, TaskRecord } from '../brain/MetaLearner.js';
 
@@ -185,7 +186,7 @@ export class BrainFacade {
     this.eventBus = eventBus;
 
     // 监听学习事件（供外部触发）
-    this.eventBus.on('brain.learn.request', (event: any) => {
+    this.eventBus.on('brain.learn.request', (event: MorPexEvent) => {
       const exp = event.payload as BrainExperience;
       if (exp) {
         this.learn(exp).catch(err =>

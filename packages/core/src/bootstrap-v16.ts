@@ -12,6 +12,7 @@
  */
 
 import { EventBus } from './common/EventBus.js';
+import type { MorPexEvent } from './common/types.js';
 import { DepartmentManager } from './department/DepartmentManager.js';
 import { LeadAgentOrchestrator } from './department/LeadAgentOrchestrator.js';
 import { RoleRegistry } from './role/RoleRegistry.js';
@@ -364,11 +365,11 @@ export async function bootstrapV16(
   companyFacade.setBrainFacade(brainFacade);
 
   // ── 事件监听 ──
-  eventBus.on('brain.learn.request', (event: any) => {
+  eventBus.on('brain.learn.request', (event: MorPexEvent) => {
     const exp = event.payload;
     if (exp) brainFacade.learn(exp).catch(() => {});
   });
-  eventBus.on('department.task.completed', (event: any) => {
+  eventBus.on('department.task.completed', (event: MorPexEvent) => {
     const p = event.payload;
     if (!p?.departmentId) return;
     kpiTracker.incrementMetric(p.departmentId, 'tasks_completed');
@@ -376,31 +377,31 @@ export async function bootstrapV16(
       kpiTracker.registerDepartment(p.departmentId, p.departmentName ?? p.departmentId);
     }
   });
-  eventBus.on('department.created', (event: any) => {
+  eventBus.on('department.created', (event: MorPexEvent) => {
     const dept = event.payload?.department;
     if (dept) kpiTracker.registerDepartment(dept.id, dept.name);
   });
 
   // ── Ontology 增量投影（运行时保持 Ontology 新鲜）──
-  eventBus.on('mission.created', async (event: any) => {
+  eventBus.on('mission.created', async (event: MorPexEvent) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
       try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
     }
   });
-  eventBus.on('mission.updated', async (event: any) => {
+  eventBus.on('mission.updated', async (event: MorPexEvent) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
       try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
     }
   });
-  eventBus.on('artifact.created', async (event: any) => {
+  eventBus.on('artifact.created', async (event: MorPexEvent) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
       try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
     }
   });
-  eventBus.on('artifact.updated', async (event: any) => {
+  eventBus.on('artifact.updated', async (event: MorPexEvent) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
       try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
