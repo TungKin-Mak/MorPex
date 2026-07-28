@@ -17,6 +17,11 @@ import { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
 import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 import type { CrossAgentLearningEngine } from '../agent/learning/CrossAgentLearningEngine.js';
 
+// ── Ontology 迭代4：收敛 ──
+import type { OntologyService } from '../ontology/OntologyService.js';
+import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+import type { EvaluationEngine } from '../evaluation/EvaluationEngine.js';
+
 export interface RunResult {
   ok: boolean;
   context: ExecutionContext;
@@ -26,6 +31,8 @@ export interface RunResult {
   compliance?: unknown;
   approval?: unknown;
   experience?: unknown;
+  /** 迭代4: Ontology 合规评估结果 */
+  ontologyEval?: unknown;
   errors: string[];
 }
 
@@ -43,6 +50,12 @@ export class MorPexRuntime {
   private safetyMonitor: SafetyMonitor;
   private evolutionLoop: SelfImprovementLoop;
   private learningEngine?: CrossAgentLearningEngine;
+
+  // ── Ontology 迭代4 ──
+  private ontology: OntologyService | null = null;
+  private forcedQueryGuard: ForcedQueryGuard | null = null;
+  private piBridge: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> } | null = null;
+  private evaluationEngine: EvaluationEngine | null = null;
 
   constructor(
     eventBus: EventBus,
@@ -71,6 +84,15 @@ export class MorPexRuntime {
     this.learningEngine = learningEngine;
     this.pipeline = new PipelineOrchestrator(eventBus, missionController, teamOrchestrator);
   }
+
+  /** setOntology — 注入 OntologyService（迭代4） */
+  setOntology(o: OntologyService): void { this.ontology = o; }
+  /** setForcedQueryGuard — 注入 ForcedQueryGuard（迭代4） */
+  setForcedQueryGuard(g: ForcedQueryGuard): void { this.forcedQueryGuard = g; }
+  /** setPiBridge — 注入 PiBridge（迭代4） */
+  setPiBridge(b: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> }): void { this.piBridge = b; }
+  /** setEvaluationEngine — 注入 EvaluationEngine（迭代4） */
+  setEvaluationEngine(e: EvaluationEngine): void { this.evaluationEngine = e; }
 
   async run(goal: string): Promise<RunResult> {
     const errors: string[] = [];
@@ -112,6 +134,45 @@ export class MorPexRuntime {
           errors: simResult.blockingIssues,
           artifacts: [],
         };
+      }
+
+      // ── Phase 1.7: Ontology Grounded Reasoning（迭代4）──
+      let ontologyProposal: any = null;
+      if (this.ontology && this.forcedQueryGuard && this.piBridge) {
+        try {
+          const { runOntologyGroundedReasoning } = await import('../ontology/runOntologyGroundedReasoning.js');
+          const result = await runOntologyGroundedReasoning({
+            goal: context.goal.objective,
+            missionId: context.mission.missionId,
+            ontology: this.ontology,
+            guard: this.forcedQueryGuard,
+            piBridge: this.piBridge,
+            extraContext: `MorPexRuntime 主执行路径 grounded reasoning。`,
+            scenario: 'runtime-exec',
+          });
+          ontologyProposal = result.proposal;
+          console.log(`[MorPexRuntime] 🏁 Ontology grounding 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
+
+          // 空事实或引用无效 → 硬门禁：标记 human_review 但不中止执行
+          if (!result.hasUsefulFacts) {
+            console.warn(`[MorPexRuntime] ⚠️ Ontology grounding 无有效事实，标记审查`);
+            ontologyProposal.needs_human_review = true;
+          }
+          if (!result.queryTrace.referenceCheck.valid) {
+            console.warn(`[MorPexRuntime] ⚠️ 引用校验失败: ${result.queryTrace.referenceCheck.missing.join(', ')}`);
+            ontologyProposal.needs_human_review = true;
+          }
+        } catch (err) {
+          // ═══════════════════════════════════════════════
+          // 迭代4 硬门禁：grounding 失败 → 标记需人工审查，继续执行
+          // ═══════════════════════════════════════════════
+          console.error(`[MorPexRuntime] ❌ Ontology grounding 失败:`, (err as Error).message);
+          this.missionController.addBlock(
+            context.mission.missionId,
+            'QUALITY_FAILED',
+            `Ontology grounding 失败: ${(err as Error).message}`,
+          );
+        }
       }
 
       // ── Phase 2: Execution ──
@@ -248,6 +309,32 @@ export class MorPexRuntime {
         }
       }
 
+      // ── Phase 9.5: Evaluation with Ontology Compliance（迭代4）──
+      let ontologyEval: any = null;
+      if (this.evaluationEngine && this.forcedQueryGuard) {
+        try {
+          ontologyEval = this.evaluationEngine.evaluate({
+            plan: { steps: context.capabilities.length, capabilities: context.capabilities.map(c => c.name) },
+            executionResult: { ok: execResult.ok, duration: execResult.duration, errors: [] },
+            ontologyCompliance: {
+              guard: this.forcedQueryGuard,
+              executionId: context.executionId,
+              referencedIds: ontologyProposal?.referenced_object_ids ?? [],
+            },
+          });
+          if (ontologyEval.needsHumanReview) {
+            console.warn(`[MorPexRuntime] ⚠️ Evaluation 标记 needsHumanReview`);
+            this.missionController.addBlock(
+              context.mission.missionId,
+              'HUMAN_WAITING',
+              `Ontology 合规检查不通过: 查询分=${ontologyEval.ontologyCompliance?.queryScore ?? '?'}, 引用分=${ontologyEval.ontologyCompliance?.referenceScore ?? '?'}`,
+            );
+          }
+        } catch (err) {
+          console.warn('[MorPexRuntime] ⚠️ Ontology evaluation 失败:', (err as Error).message);
+        }
+      }
+
       const returnedArtifacts = [docArtifact];
       if (hasCode && codeArtifact) returnedArtifacts.push(codeArtifact);
 
@@ -260,6 +347,7 @@ export class MorPexRuntime {
         compliance: complianceResult,
         approval: approvalRequest,
         experience: { mined: true },
+        ontologyEval,
         errors: [],
       };
 

@@ -335,12 +335,16 @@ export async function bootstrapV16(
   deliveryPlanner.setBrainFacade(brainFacade);
 
   // 注入 PiBridge 到 DeliveryPlanner 和 HierarchicalPlanner（用于 ontology 强制查询的 LLM 调用）
+  // 迭代4: PiBridge 单例（避免每次 grounded 调用新建+init）
+  let piBridgeInstance: any = null;
   const piBridgeForOntology = {
     generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
-      const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
-      const bridge = new PiBridge('deepseek/deepseek-v4-flash');
-      await bridge.init();
-      return bridge.generateText({
+      if (!piBridgeInstance) {
+        const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = new PiBridge('deepseek/deepseek-v4-flash');
+        await piBridgeInstance.init();
+      }
+      return piBridgeInstance.generateText({
         system: params.system,
         prompt: params.prompt,
         temperature: params.temperature,

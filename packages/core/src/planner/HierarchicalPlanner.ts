@@ -152,6 +152,11 @@ export class HierarchicalPlanner {
           }
         } catch (err) {
           console.warn('[HierarchicalPlanner] ⚠️ Ontology grounding 失败，降级到普通规划:', (err as Error).message);
+          // 迭代4 硬门禁：标记 grounding 失败，供后续步骤消费
+          if (context) {
+            (context as Record<string, unknown>).ontologyGroundingFailed = true;
+            (context as Record<string, unknown>).ontologyGroundingError = (err as Error).message;
+          }
         }
       }
 

@@ -21,6 +21,11 @@ import { KnowledgeDistiller } from '../agent/learning/KnowledgeDistiller.js';
 import { LearningPropagationService } from '../agent/learning/LearningPropagationService.js';
 import { ExperienceMatcher } from '../agent/learning/ExperienceMatcher.js';
 
+// ── Ontology 迭代4 ──
+import type { OntologyService } from '../ontology/OntologyService.js';
+import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+import { EvaluationEngine } from '../evaluation/EvaluationEngine.js';
+
 /**
  * 根据任务描述生成模拟代码（用于降级/测试场景）
  * 包含 TaskVerifier 验证所需的关键词
@@ -211,6 +216,16 @@ export class ServiceContainer {
       this.teamOrchestrator,
       this.learningEngine,
     );
+
+    // 注入 EvaluationEngine（迭代4：主路径合规）
+    this.runtime.setEvaluationEngine(new EvaluationEngine());
+  }
+
+  /** setOntology — 注入 Ontology 依赖到 MorPexRuntime（迭代4） */
+  setOntology(ontology: OntologyService, guard: ForcedQueryGuard, piBridge: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> }): void {
+    this.runtime.setOntology(ontology);
+    this.runtime.setForcedQueryGuard(guard);
+    this.runtime.setPiBridge(piBridge);
   }
 
   private createMissionRuntime(): MissionRuntimeLike {

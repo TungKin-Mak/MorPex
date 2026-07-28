@@ -21,13 +21,26 @@ import { DepartmentManager } from './department/DepartmentManager.js';
 import { RoleRegistry } from './role/RoleRegistry.js';
 import { CapabilityRegistry } from './capability/CapabilityRegistry.js';
 
+// ── Ontology 迭代4 ──
+import { systemMetadataGraph } from './metadata/SystemMetadataGraph.js';
+import { OntologyService } from './ontology/OntologyService.js';
+import { ForcedQueryGuard } from './ontology/ForcedQueryGuard.js';
+import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
+
 export interface V15IntegrationResult {
   container: ServiceContainer;
   companyFacade: CompanyFacade;
   departmentManager: DepartmentManager;
+
+  /** 迭代4: Ontology 实例 */
+  ontology: OntologyService;
+  forcedQueryGuard: ForcedQueryGuard;
 }
 
-export async function bootstrapV15Integration(): Promise<V15IntegrationResult> {
+export async function bootstrapV15Integration(options?: {
+  /** 外部传入的 EventStore（用于 Trace 事件写入） */
+  eventStore?: import('./protocol/events/store/IEventStore.js').IEventStore;
+}): Promise<V15IntegrationResult> {
   // 1. 初始化 CapabilityRegistry (内置 9 项能力)
   CapabilityRegistry.init();
 
@@ -56,6 +69,47 @@ export async function bootstrapV15Integration(): Promise<V15IntegrationResult> {
     recall: async () => [],
   });
 
+  // ── Ontology 迭代4：注入到 MorPexRuntime ──
+  const ontology = new OntologyService(systemMetadataGraph);
+  const forcedQueryGuard = new ForcedQueryGuard();
+
+  // 创建 PiBridge 包装（带缓存）
+  let piBridgeInstance: any = null;
+  const piBridgeWrapper = {
+    generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
+      if (!piBridgeInstance) {
+        const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = new PiBridge('deepseek/deepseek-v4-flash');
+        await piBridgeInstance.init();
+      }
+      return piBridgeInstance.generateText({
+        system: params.system,
+        prompt: params.prompt,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens ?? 2000,
+      });
+    },
+  };
+
+  // 注入到 MorPexRuntime
+  container.setOntology(ontology, forcedQueryGuard, piBridgeWrapper);
+
+  // 设置 Trace 事件钩子
+  const eventStore = options?.eventStore;
+  if (eventStore) {
+    const { createQueryPerformedEvent } = await import('./events/ontologyEvents.js');
+    forcedQueryGuard.setOnTrace(async (executionId, trace, missionId) => {
+      await eventStore.append(
+        createQueryPerformedEvent(
+          executionId,
+          trace.toolCalls.map(({ name, args, at }) => ({ name, args, at })),
+          Array.from(trace.retrievedObjectIds),
+          missionId,
+        ),
+      );
+    });
+  }
+
   console.log('[bootstrapV15Integration] ✅ v15 集成引导完成');
   console.log(`  ├─ Runtime: ${container.runtime.constructor.name}`);
   console.log(`  ├─ MissionController: 已接入管线`);
@@ -63,7 +117,8 @@ export async function bootstrapV15Integration(): Promise<V15IntegrationResult> {
   console.log(`  ├─ ComplianceChecker: 已接入管线`);
   console.log(`  ├─ ApprovalGate: 已接入管线`);
   console.log(`  ├─ ExperienceMiner→CapabilityRegistry: 反馈已接通`);
-  console.log(`  └─ CompanyFacade.executeGoal(): 委托到 Runtime`);
+  console.log(`  ├─ 🏁 Ontology: OntologyService + ForcedQueryGuard 已注入 Runtime`);
+  console.log(`  └─ CompanyFacade.executeGoal(): 委托到 Runtime（含 ontology grounding）`);
 
-  return { container, companyFacade, departmentManager };
+  return { container, companyFacade, departmentManager, ontology, forcedQueryGuard };
 }
