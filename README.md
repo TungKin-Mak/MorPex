@@ -12,6 +12,7 @@
                          CEO
                           │
                   CompanyFacade
+                   └─ submitFeedback()
                           │
                   Control Plane
         ┌───────┼───────┐
@@ -19,20 +20,41 @@
    AgentCtrl  EvolutionCtrl
                           │
           ┌───────┼───────┐
-      Evaluation     Artifact
-      (5维系统评分)  (Blueprint先于执行)
-          │
-         Capability Graph (层级能力树)
-         Agent Reputation (信誉驱动选择)
-          │
-              Execution
+      Evaluation     Ontology
+   (5维+合规评分)   (LLM 强制查询层)
+      │              │
+      └──Ontology───┘  
+     QueryCompliance    │
+          │         OntologyService
+     Execution      ForcedQueryGuard
+     (9 Phase)      Projectors
           │
      OrganizationTwin  MetadataGraph
      (CEO/CTO/CMO/CFO)  (全实体关系图)
           │
          Event Sourcing (全域事件持久化)
          Self Evolution (8阶段安全闭环)
+         FeedbackAwareLearner (消费查询/反馈信号)
 ```
+
+### Ontology 层（迭代1-3）
+
+```
+ontology/
+├── types.ts                   — OntologyObject / OntologyProposal / QueryTrace
+├── OntologyService.ts         — 包装 MetadataGraph: query/upsert/ensureRelation
+├── ForcedQueryGuard.ts        — 代码级强制: recordToolCall / assertQueried / validateReferences / flushTrace
+├── ObjectTypeRegistry.ts      — 8 个核心类型 Schema 与属性校验
+├── FeedbackService.ts         — submit / listTestCases
+├── runOntologyGroundedReasoning.ts — 共享两阶段推理（查询→推理）
+├── bootstrapFromDocs.ts       — 半自动从文档构建图谱
+└── projectors/
+    ├── MissionProjector.ts    — 从 MissionController 投影
+    └── ArtifactProjector.ts   — 从 ArtifactFacade 投影
+```
+
+**核心原则**：LLM 必须先查 Ontology 再推理，
+所有规划级决策经过 `runOntologyGroundedReasoning` 闸门。
 
 See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete architecture.
 
@@ -73,7 +95,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 | 📋 **Policy** | `policy/` | 统一策略引擎 (13 条默认策略) |
 | 📊 **Evaluation** | `evaluation/` | 5 维度系统级评分 (Plan/Agent/Tool/Output/Memory) |
 | 🧠 **Brain** | `brain/` + `cognition/` | ReflectionEngine, MetaLearner, Twins, SelfEvolution |
-| 📐 **Planning** | `planner/` | DeliveryPlanner + HierarchicalPlanner (HTN) |
+| 📐 **Planning** | `planner/` | DeliveryPlanner + HierarchicalPlanner (HTN) + `planWithOntology` |
 | ⚡ **Execution** | `execution/` + `runtime/` | UnifiedExecutionEngine + MorPexRuntime (9 Phase) |
 | 📦 **Artifact** | `artifact/` | ArtifactBlueprint 先于执行 + 全生命周期 |
 | ✅ **Verification** | `verification/` | VerificationEngine + ComplianceChecker + ApprovalGate |
@@ -85,6 +107,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 | 🏛️ **Governance** | `governance/` | RuntimeManager + CostController + AlertEngine |
 | 🔗 **Metadata** | `metadata/` | SystemMetadataGraph (8 实体 × 10 关系) |
 | 🔍 **Trace** | `trace/` | TraceCollector (goal→artifact span) |
+| 🏁 **Ontology** | `ontology/` | OntologyService + ForcedQueryGuard + FeedbackService (迭代1-3) |
 | 🏆 **Benchmark** | `benchmark/` | 52 Golden Tasks (5 domains) |
 | 👥 **Twin** | `cognition/twin/` | OrganizationTwin (CEO/CTO/CMO/CFO 模拟) |
 | 📜 **Events** | `protocol/events/` | Event Sourcing (28 事件类型 + SQLite) |
@@ -115,6 +138,8 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 2. **Control Plane** — All system behavior passes through 5 Controllers
 3. **Event Sourcing** — All state changes persist as events, state rebuilt from replay
 4. **Artifact First** — Execution produces Artifacts defined by Blueprint
-5. **Evaluation Driven** — Every execution scored on 5 dimensions
+5. **Evaluation Driven** — Every execution scored on 5 dimensions (incl. ontology compliance)
 6. **Self Evolution** — 8-phase safety loop with human approval gates
 7. **Plugin Architecture** — Workflow providers are external plugins, not core logic
+8. **Ontology Grounding** — LLM must query real facts from Ontology before reasoning (iter1-3)
+9. **Feedback Loop** — All feedback and query failures feed into Self Evolution (iter3)

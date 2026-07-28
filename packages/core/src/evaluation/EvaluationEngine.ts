@@ -80,44 +80,56 @@ export class EvaluationEngine {
       const { guard, executionId, referencedIds } = input.ontologyCompliance;
       ontologyCompliance = scoreOntologyCompliance(guard, executionId, referencedIds);
 
-      // 查询分为 0 → needs_human_review
+      // ═══════════════════════════════════════════════════════
+      // P1.3 硬门禁：不依赖权重，queryScore=0 直接强制 replan
+      // ═══════════════════════════════════════════════════════
       if (ontologyCompliance.queryScore < 1) {
         needsHumanReview = true;
+        systemScore.suggestions.push('🚫 Ontology 未查询 → 强制 replan');
+        return {
+          missionQuality: 0,
+          systemScore,
+          decision: 'replan',
+          ontologyCompliance,
+          needsHumanReview: true,
+        };
       }
-      // 有引用但引用无效 → needs_human_review
+      // 有引用但引用无效 → needs_human_review，降 decision
       if (
         ontologyCompliance.referenceScore < 1 &&
         ontologyCompliance.referencedCount > 0
       ) {
         needsHumanReview = true;
+        systemScore.suggestions.push('⚠️ 引用无效，建议人工审查');
+        if (ontologyCompliance.missingIds.length > 0) {
+          systemScore.suggestions.push(`  缺失 ID: ${ontologyCompliance.missingIds.join(', ')}`);
+        }
+        // 引用无效时降 decision
+        const currentDecision = this.scorer.decide(systemScore.overall);
+        if (currentDecision === 'continue') {
+          return {
+            missionQuality: systemScore.overall,
+            systemScore,
+            decision: 'retry',
+            ontologyCompliance,
+            needsHumanReview: true,
+          };
+        }
       }
 
-      // 在 systemScore 中添加额外维度信息
+      // 正常情况：在 systemScore 中添加额外维度信息（仅参考，不参与加权）
       systemScore.dimensions.push({
         name: 'Ontology Query Compliance',
         score: ontologyCompliance.queryScore * 100,
-        weight: 0.05,
+        weight: 0,
         details: `工具调用 ${ontologyCompliance.callCount} 次`,
       });
       systemScore.dimensions.push({
         name: 'Reference Validity',
         score: ontologyCompliance.referenceScore * 100,
-        weight: 0.05,
+        weight: 0,
         details: `引用 ${ontologyCompliance.referencedCount} 个 ID, 缺失 ${ontologyCompliance.missingIds.length}`,
       });
-
-      // 重新计算 overall 分数（包含 ontology 维度）
-      const totalWeight = systemScore.dimensions.reduce((s, d) => s + d.weight, 0);
-      systemScore.overall = Math.round(
-        systemScore.dimensions.reduce((s, d) => s + d.score * d.weight, 0) / totalWeight,
-      );
-
-      if (needsHumanReview) {
-        systemScore.suggestions.push('⚠️ Ontology 查询合规不通过，建议人工审查');
-        if (ontologyCompliance.missingIds.length > 0) {
-          systemScore.suggestions.push(`  缺失 ID: ${ontologyCompliance.missingIds.join(', ')}`);
-        }
-      }
     }
 
     const missionQuality = systemScore.overall;

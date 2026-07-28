@@ -201,9 +201,9 @@ export async function bootstrapV16(
   });
 
   // ── Ontology 迭代1/2/3 ──
-  const ontology = new OntologyService(systemMetadataGraph);
-  const forcedQueryGuard = new ForcedQueryGuard();
   const objectTypeRegistry = new ObjectTypeRegistry();
+  const ontology = new OntologyService(systemMetadataGraph, objectTypeRegistry);
+  const forcedQueryGuard = new ForcedQueryGuard();
 
   // FeedbackService（迭代3）
   const { FeedbackService } = await import('./ontology/FeedbackService.js');
@@ -212,10 +212,29 @@ export async function bootstrapV16(
   // FeedbackAwareLearner（迭代4 — 进化信号分析，注入 EventStore）
   const feedbackAwareLearner = new FeedbackAwareLearner(eventStore ?? undefined);
 
+  // PiBridge 单例（迭代4 — 避免每次 grounded 调用新建+init）
+  let piBridgeInstance: any = null;
+  const piBridgeForOntology = {
+    generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
+      if (!piBridgeInstance) {
+        const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = new PiBridge('deepseek/deepseek-v4-flash');
+        await piBridgeInstance.init();
+      }
+      return piBridgeInstance.generateText({
+        system: params.system,
+        prompt: params.prompt,
+        temperature: params.temperature,
+        maxTokens: params.maxTokens ?? 2000,
+      });
+    },
+  };
+
   // ── CEO 门面 ──
   const companyFacade = new CompanyFacade(departmentManager, roleRegistry, ceoId);
   companyFacade.setGoalIntelligenceFacade(goalIntelligenceFacade as any);
   companyFacade.setFeedbackService(feedbackService);
+  companyFacade.setOntology(ontology, forcedQueryGuard, piBridgeForOntology);
   const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
 
   // ── Ontology 注入 ──
@@ -302,7 +321,10 @@ export async function bootstrapV16(
   subAgentFork.setExecutionEngine({
     execute: async (capability: string, params: Record<string, unknown>, context?: Record<string, unknown>) => {
       // 迭代3：对关键执行进行 ontology grounding
-      if (context?.enableOntologyGrounding !== false && ontology && forcedQueryGuard) {
+      // P2.7: 跳过简单/只读能力，减少不必要的两阶段 LLM 调用
+      const skipCaps = new Set(['read', 'write', 'list', 'search', 'format', 'translate', 'echo']);
+      const shouldSkip = skipCaps.has(capability.toLowerCase()) || context?.skipOntologyGrounding === true;
+      if (!shouldSkip && context?.enableOntologyGrounding !== false && ontology && forcedQueryGuard) {
         try {
           const { runOntologyGroundedReasoning } = await import('./ontology/runOntologyGroundedReasoning.js');
           const result = await runOntologyGroundedReasoning({
@@ -335,23 +357,6 @@ export async function bootstrapV16(
   deliveryPlanner.setBrainFacade(brainFacade);
 
   // 注入 PiBridge 到 DeliveryPlanner 和 HierarchicalPlanner（用于 ontology 强制查询的 LLM 调用）
-  // 迭代4: PiBridge 单例（避免每次 grounded 调用新建+init）
-  let piBridgeInstance: any = null;
-  const piBridgeForOntology = {
-    generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
-      if (!piBridgeInstance) {
-        const { PiBridge } = await import('./adapters/pi-bridge/PiBridge.js');
-        piBridgeInstance = new PiBridge('deepseek/deepseek-v4-flash');
-        await piBridgeInstance.init();
-      }
-      return piBridgeInstance.generateText({
-        system: params.system,
-        prompt: params.prompt,
-        temperature: params.temperature,
-        maxTokens: params.maxTokens ?? 2000,
-      });
-    },
-  };
   deliveryPlanner.setPiBridge(piBridgeForOntology);
   hierarchicalPlanner.setPiBridge(piBridgeForOntology);
   await managementHub.initialize();

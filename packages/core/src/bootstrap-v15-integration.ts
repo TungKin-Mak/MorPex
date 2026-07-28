@@ -70,7 +70,7 @@ export async function bootstrapV15Integration(options?: {
   });
 
   // ── Ontology 迭代4：注入到 MorPexRuntime ──
-  const ontology = new OntologyService(systemMetadataGraph);
+  const ontology = new OntologyService(systemMetadataGraph, new (await import('./ontology/ObjectTypeRegistry.js')).ObjectTypeRegistry());
   const forcedQueryGuard = new ForcedQueryGuard();
 
   // 创建 PiBridge 包装（带缓存）

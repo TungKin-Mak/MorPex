@@ -145,6 +145,10 @@ export class ForcedQueryGuard {
     }
   }
 
+  /**
+   * 注意：traces 是内存 Map，重启后清空。
+   * 持久化依赖 flushTrace() → EventStore，分析以 EventStore 为准。
+   */
   clearAll(): void {
     this.traces.clear();
     this.missionIds.clear();

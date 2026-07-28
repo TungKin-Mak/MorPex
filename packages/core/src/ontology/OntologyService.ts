@@ -17,6 +17,7 @@ import type {
   RetrievedFact,
 } from './types.js';
 import type { SystemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
+import { ObjectTypeRegistry } from './ObjectTypeRegistry.js';
 
 /**
  * OntologyService — 迭代1 轻量本体服务
@@ -32,6 +33,7 @@ export class OntologyService {
 
   constructor(
     private readonly graph: SystemMetadataGraph,
+    private readonly typeRegistry?: ObjectTypeRegistry,
   ) {
     // 启动时预热缓存
     this.refreshCache();
@@ -40,6 +42,13 @@ export class OntologyService {
   /**
    * refreshCache — 从 graph 重建本地索引
    */
+  /** 类型名小写化（适配底层 SystemMetadataGraph 的小写类型枚举） */
+  private normalizeType(type: string | string[] | undefined): any {
+    if (Array.isArray(type)) return type.map(t => t.toLowerCase()) as any;
+    if (typeof type === 'string') return type.toLowerCase() as any;
+    return undefined;
+  }
+
   private refreshCache(): void {
     this.entityCache.clear();
     for (const e of this.graph.getEntities()) {
@@ -66,7 +75,7 @@ export class OntologyService {
    */
   async queryObjects(filter: QueryFilter): Promise<RetrievedFact[]> {
     const entities = this.graph.getEntities(
-      filter.type as any,
+      this.normalizeType(filter.type),
     );
 
     const facts: RetrievedFact[] = [];
@@ -199,6 +208,14 @@ export class OntologyService {
     properties: Record<string, unknown>;
     status?: string;
   }): Promise<OntologyObject> {
+    // 校验必填属性（P1.1）
+    if (this.typeRegistry) {
+      const errors = this.typeRegistry.validateProperties(input.type, input.properties);
+      if (errors.length > 0) {
+        throw new Error(`[OntologyService] 类型 "${input.type}" 属性校验失败: ${errors.join('; ')}`);
+      }
+    }
+
     const id = input.id ?? `${input.type.toLowerCase()}_${Date.now()}`;
     const name = String(input.properties.title ?? input.properties.name ?? id);
     const metadata = {
@@ -208,7 +225,7 @@ export class OntologyService {
     };
 
     // 写入底层 graph（覆盖语义，同名 id 自动覆盖）
-    this.graph.registerEntity(id, input.type as any, name, metadata);
+    this.graph.registerEntity(id, this.normalizeType(input.type), name, metadata);
 
     // 使缓存失效，下次 getObject 重新加载
     this.invalidateCache(id);
@@ -237,7 +254,7 @@ export class OntologyService {
     this.graph.addRelation(
       from,
       to,
-      type as any,
+      this.normalizeType(type),
       properties?.weight as number | undefined,
       properties,
     );
@@ -249,7 +266,7 @@ export class OntologyService {
    * listByType — 按类型列出所有 Ontology 对象
    */
   async listByType(type: string): Promise<OntologyObject[]> {
-    const entities = this.graph.getEntities(type as any);
+    const entities = this.graph.getEntities(this.normalizeType(type));
     return entities.map((e) => this.toOntologyObject(e));
   }
 

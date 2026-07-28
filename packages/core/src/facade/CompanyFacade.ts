@@ -44,6 +44,11 @@ export class CompanyFacade {
   /** Ontology FeedbackService 引用（迭代3） */
   private feedbackService?: import('../ontology/FeedbackService.js').FeedbackService;
 
+  /** Ontology 依赖（迭代4 — 降级路径 grounding） */
+  private ontology?: import('../ontology/OntologyService.js').OntologyService;
+  private forcedQueryGuard?: import('../ontology/ForcedQueryGuard.js').ForcedQueryGuard;
+  private piBridge?: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> };
+
   constructor(
     departmentManager: DepartmentManager,
     roleRegistry: RoleRegistry,
@@ -269,6 +274,26 @@ export class CompanyFacade {
       }
     }
 
+    // ── 迭代4: 降级路径 ontology grounding ──
+    let ontologyProposal: any = null;
+    if (this.ontology && this.forcedQueryGuard && this.piBridge) {
+      try {
+        const { runOntologyGroundedReasoning } = await import('../ontology/runOntologyGroundedReasoning.js');
+        const result = await runOntologyGroundedReasoning({
+          goal,
+          ontology: this.ontology,
+          guard: this.forcedQueryGuard,
+          piBridge: this.piBridge,
+          extraContext: 'CompanyFacade 降级路径 ontology grounding',
+          scenario: 'company-facade-fallback',
+        });
+        ontologyProposal = result.proposal;
+        console.log(`[CompanyFacade] 🏁 降级路径 grounding 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
+      } catch (err) {
+        console.warn('[CompanyFacade] ⚠️ 降级路径 grounding 失败:', (err as Error).message);
+      }
+    }
+
     try {
       // 1. 智能路由部门
       let dept = options?.departmentName
@@ -460,6 +485,19 @@ export class CompanyFacade {
    */
   setFeedbackService(fs: import('../ontology/FeedbackService.js').FeedbackService): void {
     this.feedbackService = fs;
+  }
+
+  /**
+   * setOntology — 注入 Ontology 依赖（迭代4 — 降级路径 grounding）
+   */
+  setOntology(
+    ontology: import('../ontology/OntologyService.js').OntologyService,
+    guard: import('../ontology/ForcedQueryGuard.js').ForcedQueryGuard,
+    piBridge: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> },
+  ): void {
+    this.ontology = ontology;
+    this.forcedQueryGuard = guard;
+    this.piBridge = piBridge;
   }
 
   /**
