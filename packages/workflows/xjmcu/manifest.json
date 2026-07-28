@@ -1,0 +1,15 @@
+{
+  "name": "xjmcu",
+  "version": "1.0.0",
+  "description": "矽杰微 XJ MCU 全闭环开发：生成→编译→烧录→仿真",
+  "actions": [
+    "xjmcu.generate",
+    "xjmcu.compile",
+    "xjmcu.pipeline"
+  ],
+  "config": {
+    "default_chip": "XC8P9530",
+    "memory_db": "../../../Morpex/data/memory.db",
+    "toolchain_dir": "./toolchain"
+  }
+}

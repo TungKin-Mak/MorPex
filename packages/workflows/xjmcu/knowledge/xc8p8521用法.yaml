@@ -1,0 +1,33 @@
+# XC8P8521
+params:
+  chip: XC8P8521
+  rom: 1Kx14bit
+  ram: 96B(0x10~0x6F)
+  stack: 5级
+  gpio: P5(4bit)+P6(4bit)
+  timers: TC0+TC1(10bit)+TC2(10bit)
+  features: 6路PWM,CMP
+
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x00, name:IAR, bits:{IAR:{pos:[7,0]}}}
+      - {addr:0x01, name:TC0C, bits:{TC0C:{pos:[7,0]}}}
+      - {addr:0x04, name:RSR, bits:{RSR:{pos:[5,0]}}}
+      - {addr:0x0F, name:INTF, bits:{TC0IF:{pos:[0]},ICIF:{pos:[1]},INTIF:{pos:[2]},TC1IF:{pos:[3]}}}
+  - page: IOC
+    list:
+      - {addr:0x01, name:CONT, bits:{PSR:{pos:[2,0]}}}
+      - {addr:0x02, name:TC0CON, bits:{TC0EN:{pos:[7]},TC0PSR:{pos:[2,0]}}}
+      - {addr:0x0F, name:INTE, bits:{TC0IE:{pos:[0]},ICIE:{pos:[1]},INTIE:{pos:[2]},TC1IE:{pos:[3]}}}
+
+recipes:
+  asm_macros: "#define EI() __asm__(\" ei \")
+#define DI() __asm__(\" di \")"
+  clram: "void f(){for(RSR=0xD0;RSR<0xFF;RSR++){IAR=0;}IAR=0;}"
+  isr: "void int_isr(void)__interrupt{__asm__(\"org 0x08\");if(TC0IF){INTF=0xFE;TC0C+=6;}}"
+
+skeleton:
+  includes: '#include "XC8P8521.h"'
+  init_func: "void f(){DI();IOCP_W(WDTCON,0x00);CONTW(0x82);TC0C=6;PORT6=0;IOCP_W(P6CON,0x00);IOCP_W(INTE,0x01);INTF=0;}"
+  main_func: "void main(void){file_clrRam();file_init();EI();while(1){CWDT();}}"

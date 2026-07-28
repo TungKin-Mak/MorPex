@@ -1,0 +1,84 @@
+# XC8P8616 - R系列(直接访问0x180~0x1FF)
+params:
+  chip: XC8P8616
+  rom: 2Kx16bit OTP
+  ram: 176B (0x00~0xAF)
+  stack: 8级
+  gpio: P5(6bit)+P6(8bit)
+  timers: TC0(8bit)+TC1(10bit)+TC2(10bit)
+  features: 14ch ADC,7路PWM,CMP,LED级联
+
+pins:
+  - {pin:1,name:VDD,func:电源正极}
+  - {pin:2,name:P65,func:GPIO/AIN11/VREF/CIN2-/OSCI/EVNO/PWM7A/SCL}
+  - {pin:3,name:P64,func:GPIO/AIN10/CIN3-/OSCO/PWM4A/RCOUT}
+  - {pin:4,name:P63,func:GPIO/AIN9/PWM3A/RST/VPP}
+  - {pin:5,name:P62,func:GPIO/AIN8/PWM5A}
+  - {pin:6,name:P61,func:GPIO/AIN7/PWM2A}
+  - {pin:7,name:P60,func:GPIO/AIN6/PWM1A/INT/CMPRS/SDA}
+  - {pin:8,name:P55,func:GPIO/AIN5/PWM6A}
+  - {pin:9,name:P54,func:GPIO/AIN4/PWM7B}
+  - {pin:10,name:P53,func:GPIO/AIN3/PWM1B}
+  - {pin:11,name:P52,func:GPIO/AIN2/PWM2B}
+  - {pin:12,name:P51,func:GPIO/AIN1/PWM3B}
+  - {pin:13,name:P50,func:GPIO/AIN0/PWM4B/CIN1-}
+  - {pin:14,name:P67,func:GPIO/AIN13/PWM5B/CMPOUT}
+  - {pin:15,name:P66,func:GPIO/AIN12/PWM6B/CIN0+/CIN0-}
+  - {pin:16,name:GND,func:电源地}
+
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x183,name:STATUS,bits:{RST:{pos:[7]},GIE:{pos:[6]},T:{pos:[4]},P:{pos:[3]},Z:{pos:[2]},DC:{pos:[1]},C:{pos:[0]}}}
+      - {addr:0x184,name:TC0CON,bits:{TC0EN:{pos:[7]},TC0CKS:{pos:[6,5]},TC0PSR:{pos:[2,0]}}}
+      - {addr:0x185,name:TC0C,bits:{TC0C:{pos:[7,0]}}}
+      - {addr:0x188,name:CPUCON,bits:{ADCWE:{pos:[7]},CMPWE:{pos:[6]},TC2WE:{pos:[5]},TC1WE:{pos:[4]},TC0WE:{pos:[3]},STPHX:{pos:[2]},CLKMD:{pos:[1]},IDLE:{pos:[0]}}}
+      - {addr:0x18A,name:P5,bits:{P5:{pos:[5,0]}}}
+      - {addr:0x18D,name:P5CON,bits:{P5CON:{pos:[5,0],vals:{0:输出,1:输入}}}}
+      - {addr:0x190,name:P5PH,bits:{P5PH:{pos:[5,0],vals:{0:使能,1:禁止}}}}
+      - {addr:0x193,name:P5PD,bits:{P5PD:{pos:[5,0],vals:{0:使能,1:禁止}}}}
+      - {addr:0x18B,name:P6,bits:{P6:{pos:[7,0]}}}
+      - {addr:0x18E,name:P6CON,bits:{P6CON:{pos:[7,0],vals:{0:输出,1:输入}}}}
+      - {addr:0x191,name:P6PH,bits:{P6PH:{pos:[7,0],vals:{0:使能,1:禁止}}}}
+      - {addr:0x194,name:P6PD,bits:{P6PD:{pos:[7,0],vals:{0:使能,1:禁止}}}}
+      - {addr:0x197,name:P6OD,bits:{P6OD:{pos:[7,0],vals:{0:禁止,1:使能}}}}
+      - {addr:0x1B0,name:TC1CON,bits:{TC1EN:{pos:[7]},TC1CKS:{pos:[4]},TC1PSR:{pos:[2,0]}}}
+      - {addr:0x1B8,name:TC2CON,bits:{TC2EN:{pos:[7]},TC2CKS:{pos:[4]},TC2PSR:{pos:[2,0]}}}
+      - {addr:0x1DA,name:INTF0,bits:{TC0IF:{pos:[0]},TC1IF:{pos:[1]},TC2IF:{pos:[2]},P5ICIF:{pos:[3]},P6ICIF:{pos:[4]},CMPIF:{pos:[5]},ADIF:{pos:[6]},PWM7DTIF:{pos:[7]}}}
+      - {addr:0x1D6,name:INTE0,bits:{TC0IE:{pos:[0]},TC1IE:{pos:[1]},TC2IE:{pos:[2]},P5ICIE:{pos:[3]},P6ICIE:{pos:[4]},CMPIE:{pos:[5]},ADIE:{pos:[6]},PWM7DTIE:{pos:[7]}}}
+      - {addr:0x1AE,name:EXINTCON,bits:{INTEN:{pos:[2]},INTEDG:{pos:[3]},INTIE:{pos:[4]},INTIF:{pos:[5]},INTWE:{pos:[6]}}}
+
+recipes:
+  clram: |
+    void file_clrRam(void) {
+        for(RSR = 0; RSR < 0xAF; RSR++) { IAR = 0; }
+        IAR = 0;
+    }
+  isr: |
+    void int_isr(void) __interrupt {
+        __asm__("org 0x08");
+        if (TC0IF) { INTF0 &= 0xFE; TC0C += 6; }
+        if (TC1IF) { INTF0 &= 0xFD; }
+        if (ADIF)  { INTF0 &= 0xBF; }
+    }
+  tc0_config: |
+    // 100us @ 16MHz/4T, 8分频
+    TC0C = 156;
+    TC0CON = 0x8A;  // EN=1, 系统时钟, 8分频
+    INTE0 |= 0x01;   // TC0IE=1
+
+skeleton:
+  includes: '#include "XC8P8616.h"'
+  init_func: |
+    void file_init(void) {
+        DI(); TBRDH = 0x10; WDTCON = 0;
+        P5 = 0; P6 = 0; P5CON = 0; P6CON = 0;
+        P5PH = 0xFF; P6PH = 0xFF; P5PD = 0xFF; P6PD = 0xFF;
+        INTE0 = 0; INTF0 = 0;
+    }
+  main_func: |
+    void main(void) {
+        file_clrRam(); file_init();
+        EI();
+        while (1) { CWDT(); }
+    }

@@ -262,6 +262,20 @@ const v12 = await bootstrapV12(eventBus);
 // v12.kpiTracker.generateCEOReport();
 ```
 
+### 工作流插件
+
+`packages/workflows/` 下存放热插拔工作流插件。当前已注册：
+
+| ID | 路径 | 功能 |
+|----|------|------|
+| `xjmcu` | `workflows/xjmcu/` | 矽杰微 MCU 固件开发（生成→编译→烧录→仿真） |
+
+插件通过 `manifest.json` 声明 actions，引擎自动发现。
+插件不持有独立记忆库，查询共享 `memory.db`。
+详情见 `docs/guides/workflow-xjmcu.md`。
+
+---
+
 ### 归档模块
 
 被归档的模块在 `packages/archived/`，可通过 `git checkout` 恢复：

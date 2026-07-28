@@ -1,9 +1,48 @@
 {
   "name": "hardware",
-  "version": "1.0.0",
-  "description": "Hardware design workflow: PCB, Firmware, Simulation",
-  "actions": ["hardware.design_pcb", "hardware.compile_firmware", "hardware.run_simulation"],
-  "artifacts": ["PCBLayout", "FirmwareBinary", "SimulationReport"],
-  "validators": ["DFMChecker", "FCCompliance"],
-  "dependencies": {}
+  "version": "1.2.0",
+  "description": "Hardware design workflow: PCB, Firmware, Simulation, Integration",
+  "actions": [
+    "hardware.design_pcb",
+    "hardware.compile_firmware",
+    "hardware.generate_firmware",
+    "hardware.build_project",
+    "hardware.run_simulation",
+    "hardware.flash_firmware",
+    "hardware.debug_regs",
+    "hardware.xjmcu_pipeline"
+  ],
+  "artifacts": [
+    "PCBLayout", "SourceCode", "HexBinary", "XBINBinary",
+    "BuildReport", "SimulationReport", "RegisterDump", "PipelineReport"
+  ],
+  "validators": ["DFMChecker", "FCCompliance", "CodeValidator", "MemoryBoundChecker"],
+  "dependencies": {
+    "firmware": "./firmware",
+    "simulation": "./simulation"
+  },
+  "integrations": {
+    "xjmcu-pipeline": "./integrations/xjmcu-pipeline.ts",
+    "morpex-memory": {
+      "type": "python",
+      "module": "mcu_memory_kb",
+      "path": "../../../AstroM/_archive/toolchains/AstroMcu/mcu_memory_kb.py",
+      "db": "../../../Morpex/data/memory.db"
+    },
+    "buildcli": {
+      "type": "python",
+      "path": "../../../AstroM/_archive/toolchains/AstroMcu/buildcli"
+    },
+    "astrocli": {
+      "type": "python",
+      "path": "../../../AstroM/_archive/toolchains/AstroMcu/astrocli"
+    }
+  },
+  "config": {
+    "toolchain_path": "../../../AstroM/_archive/toolchains/AstroMcu",
+    "memory_db": "../../../Morpex/data/memory.db",
+    "yaml_dir": "../../../矽杰微",
+    "default_chip": "XC8P9530",
+    "default_freq": "8MHz/4T"
+  }
 }

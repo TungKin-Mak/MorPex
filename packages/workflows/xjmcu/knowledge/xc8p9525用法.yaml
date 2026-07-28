@@ -1,0 +1,5 @@
+# XC8P9525
+params:
+  chip: XC8P9525
+  ref: XC8P9520
+  note: 与9520完全一致

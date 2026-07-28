@@ -1,0 +1,20 @@
+# XC8P8615 - R系列(无PWM7/LED)
+params:
+  chip: XC8P8615
+  rom: 2Kx16bit OTP
+  ram: 176B
+  stack: 8级
+  gpio: P5(6bit)+P6(8bit)
+  timers: TC0(8bit)+TC1(10bit)+TC2(10bit)
+  features: 14ch ADC,6路PWM,CMP
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x183,name:STATUS,bits:{RST:{pos:[7]},GIE:{pos:[6]},T:{pos:[4]},P:{pos:[3]},Z:{pos:[2]},DC:{pos:[1]},C:{pos:[0]}}}
+      - {addr:0x1DA,name:INTF0,bits:{TC0IF:{pos:[0]},TC1IF:{pos:[1]},TC2IF:{pos:[2]},P5ICIF:{pos:[3]},P6ICIF:{pos:[4]},CMPIF:{pos:[5]},ADIF:{pos:[6]}}}
+      - {addr:0x1D6,name:INTE0,bits:{TC0IE:{pos:[0]},TC1IE:{pos:[1]},TC2IE:{pos:[2]},P5ICIE:{pos:[3]},P6ICIE:{pos:[4]},CMPIE:{pos:[5]},ADIE:{pos:[6]}}}
+recipes:
+  clram: "void f(void){for(RSR=0;RSR<0xAF;RSR++){IAR=0;}IAR=0;}"
+skeleton:
+  init_func: "void f(void){DI();P5=0;P6=0;P5CON=0;P6CON=0;INTE0=0;INTF0=0;}"
+  main_func: "void main(void){f();EI();while(1){CWDT();}}"

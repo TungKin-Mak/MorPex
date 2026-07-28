@@ -1,0 +1,21 @@
+# XC8E855E - 特例(无IOC页,直接访问)
+params:
+  chip: XC8E855E
+  rom: 1Kx14bit OTP
+  ram: 80B
+  stack: "?"
+  gpio: P6(6bit)
+  timers: TC0(8bit)+TC1(12bit PWM)
+  features: 无IOC页,全部直接访问,3路PWM
+registers:
+  - page: 全部直接访问
+    list:
+      - {addr:0x70, name:SYSCON, bits:{SYSCON:{pos:[7,0]}}}
+      - {addr:0x71, name:TC0CON, bits:{TC0EN:{pos:[7]},TC0PSR:{pos:[2,0]}}}
+      - {addr:0x72, name:P6CON, bits:{P6CON:{pos:[5,0],vals:{0:输出,1:输入}}}}
+recipes:
+  clram: "void f(void){for(RSR=0x90;RSR<0xDF;RSR++){IAR=0;}IAR=0;}"
+  isr: 'void int_isr(void) __interrupt { __asm__("org 0x08"); PUSH(_A_BUFF,_R3_BUFF); if(TCIF){INTF=0xFE;TC0C+=6;} POP(_A_BUFF,_R3_BUFF); }'
+skeleton:
+  init_func: "void f(void){SYSCON=0x00;TC0CON=0x82;TC0C=6;PORT6=0;P6CON=0x00;P6PH=0xFF;P6PD=0xFF;INTE=0x01;INTF=0;}"
+  main_func: "void main(void){f();EI();while(1){CWDT();}}"

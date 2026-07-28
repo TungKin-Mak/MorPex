@@ -1,0 +1,22 @@
+# XC8P8600 - 传统系列特殊命名
+params:
+  chip: XC8P8600
+  rom: 2Kx14bit OTP
+  ram: 64B
+  stack: 7级
+  gpio: P6(6bit)
+  timers: TCC(8bit)+PWM(8bitx3)
+  features: 特殊命名,5ch ADC
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x0F, name:ISR, bits:{TCIF:{pos:[0]},ICIF:{pos:[1]},EXIF:{pos:[2]},T1IF:{pos:[3]},ADIF:{pos:[4]}}}
+  - page: IOC
+    list:
+      - {addr:0x0F, name:IMR, bits:{TCIE:{pos:[0]},ICIE:{pos:[1]},EXIE:{pos:[2]},T1IE:{pos:[3]},ADIE:{pos:[4]}}}
+recipes:
+  clram: "void f(void){for(RSR=0x90;RSR<0xFF;RSR++){IAR=0;}IAR=0;}"
+  isr: 'void int_isr(void) __interrupt { __asm__("org 0x08"); PUSH(_A_BUFF,_R3_BUFF); if(TCIF){ISR=0xFE;TCC+=6;} POP(_A_BUFF,_R3_BUFF); }'
+skeleton:
+  init_func: "void f(void){DI();IOCP_W(WDTCR,0x00);CONTW(0x02);TCC=6;PORT6=0;IOCP_W(P6CR,0x00);IOCP_W(IMR,0x01);ISR=0;}"
+  main_func: "void main(void){f();EI();while(1){CWDT();}}"

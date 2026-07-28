@@ -1,0 +1,17 @@
+{
+  "name": "firmware",
+  "version": "1.0.0",
+  "description": "XJ MCU Firmware Development: code generation, compilation, and binary export",
+  "actions": ["firmware.generate_code", "firmware.compile", "firmware.build_project"],
+  "artifacts": ["SourceCode", "HexBinary", "XBINBinary", "BuildReport"],
+  "validators": ["CodeValidator", "MemoryBoundChecker"],
+  "dependencies": {
+    "python3": ">=3.10",
+    "xjmcu-toolchain": "file:../../../AstroM/_archive/toolchains/AstroMcu"
+  },
+  "config": {
+    "toolchain_path": "../../../AstroM/_archive/toolchains/AstroMcu",
+    "default_chip": "XC8P9530",
+    "default_freq": "8MHz/4T"
+  }
+}

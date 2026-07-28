@@ -1,0 +1,20 @@
+# XC8P8610 - R系列精简版
+params:
+  chip: XC8P8610
+  rom: 2Kx16bit OTP
+  ram: 128B
+  stack: 8级
+  gpio: P6(8bit)
+  timers: TC0(8bit)+TC1(10bit)
+  features: 8ch ADC,3路PWM,无CMP
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x183,name:STATUS,bits:{RST:{pos:[7]},GIE:{pos:[6]},GP0:{pos:[5]},T:{pos:[4]},P:{pos:[3]},Z:{pos:[2]},DC:{pos:[1]},C:{pos:[0]}}}
+      - {addr:0x1DA,name:INTF,bits:{TC0IF:{pos:[0]},TC1IF:{pos:[2]},P6ICIF:{pos:[4]},ADIF:{pos:[6]}}}
+      - {addr:0x1D6,name:INTE,bits:{TC0IE:{pos:[0]},TC1IE:{pos:[2]},P6ICIE:{pos:[4]},ADIE:{pos:[6]}}}
+recipes:
+  clram: "void f(void){for(RSR=0;RSR<0x7F;RSR++){IAR=0;}IAR=0;}"
+skeleton:
+  init_func: "void f(void){DI();P6=0;P6CON=0;P6PH=0xFF;P6PD=0xFF;INTE=0;INTF=0;}"
+  main_func: "void main(void){f();EI();while(1){CWDT();}}"

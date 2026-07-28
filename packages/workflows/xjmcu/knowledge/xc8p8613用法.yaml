@@ -1,0 +1,82 @@
+# XC8P8613 C语言用法指南
+# 类别: 独立内核（非R系列，非传统系列）
+# ⚠️ 与XC8P8616(R系列)架构完全不同!
+
+params:
+  chip: XC8P8613
+  rom: 2Kx16bit OTP
+  ram: 128B (0x00~0x7F通用 + 0x80~0xFF系统)
+  stack: 4级
+  gpio: P0(7bit)+P4(5bit)+P5(2bit)
+  timers: TC0(8bit)+TC1(8bit)+TC2(8bit)
+  features: "独立架构! P0M/P4M方向, P0UR/P4UR上拉, Z/R/Y间接寻址, 3路PWM, 6ch ADC, 双INT"
+
+note: |
+  与R系列(8616)和传统系列(9530)完全不兼容!
+  关键差异:
+  - GPIO: P0/P4/P5端口(非PORT5/PORT6)
+  - 方向: P0M/P4M/P5M (1=输出,0=输入) ← 与传统系列相反!
+  - 上拉: P0UR/P4UR/P5UR (1=使能) ← 与传统系列相反!
+  - 中断: inten(使能), intrq(标志), pflag(状态)
+  - 间接寻址: Z(地址), R(结束), Y(=0清RAM)
+  - C编译器语法可能不同(sfr/sbit)
+
+pins:
+  - {pin:1, name:VDD, func:电源正极}
+  - {pin:2, name:P03, func:GPIO/XIN}
+  - {pin:3, name:P02, func:GPIO/XOUT}
+  - {pin:4, name:P04, func:GPIO/RST/VPP}
+  - {pin:5, name:P53, func:GPIO/PWM1/BZ1}
+  - {pin:6, name:P54, func:GPIO/PWM0/BZ0}
+  - {pin:7, name:P01, func:GPIO/PWM2/BZ2/INT1}
+  - {pin:8, name:P05, func:GPIO}
+  - {pin:9, name:P06, func:GPIO}
+  - {pin:10, name:P00, func:GPIO/INT0}
+  - {pin:11, name:P40, func:GPIO/AIN0/AVREFH}
+  - {pin:12, name:P41, func:GPIO/AIN1/CLK}
+  - {pin:13, name:P42, func:GPIO/AIN2}
+  - {pin:14, name:P43, func:GPIO/AIN3}
+  - {pin:15, name:P44, func:GPIO/AIN4/DATA}
+  - {pin:16, name:VSS, func:电源地}
+
+registers:
+  - page: SYSTEM
+    note: "系统寄存器(0x80~0xFF地址), 命名完全不同"
+    list:
+      - {name:inten, desc:中断使能寄存器}
+      - {name:intrq, desc:中断标志寄存器}
+      - {name:pflag, desc:状态寄存器(含ROM页标志)}
+      - {name:WDTR, desc:看门狗复位(W)}
+      - {name:Z, desc:间接寻址指针(地址)}
+      - {name:R, desc:间接寻址结束地址}
+      - {name:Y, desc:间接寻址(=0用于清RAM)}
+  - page: IO
+    note: "IO端口: 方向PxM(1=输出), 上拉PxUR(1=使能)"
+    list:
+      - {name:P0, desc:P0数据}
+      - {name:P0M, desc:P0方向, vals:{0:输入, 1:输出}}
+      - {name:P0UR, desc:P0上拉, vals:{0:禁止, 1:使能}}
+      - {name:P0PD, desc:P0下拉, vals:{0:禁止, 1:使能}}
+      - {name:P4, desc:P4数据}
+      - {name:P4M, desc:P4方向, vals:{0:输入, 1:输出}}
+      - {name:P4UR, desc:P4上拉, vals:{0:禁止, 1:使能}}
+      - {name:P4PD, desc:P4下拉, vals:{0:禁止, 1:使能}}
+      - {name:P5, desc:P5数据}
+      - {name:P5M, desc:P5方向, vals:{0:输入, 1:输出}}
+      - {name:P5UR, desc:P5上拉, vals:{0:禁止, 1:使能}}
+      - {name:P5PD, desc:P5下拉, vals:{0:禁止, 1:使能}}
+
+clram:
+  note: "使用Z/R/Y间接寻址, 非RSR/IAR"
+  code: |
+    void file_clear_allRam() {
+        __asm {
+            CLR Y
+            B0MOV Z, #0x7f
+        ClrRAM10:
+            CLR @YZ
+            DECMS Z
+            JMP ClrRAM10
+            CLR @YZ
+        }
+    }

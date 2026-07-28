@@ -1086,3 +1086,72 @@ CompanyFacade.executeGoal("设计产品并销售到 Amazon")
 | Entity 类型 | 8 |
 | Relation 类型 | 10 |
 | 进化阶段 | 8 (闭环) |
+
+---
+
+## Appendix B: Workflow Plugin — XJ MCU (xjmcu)
+
+**Location:** `packages/workflows/xjmcu/`
+
+**Purpose:** 矽杰微 XJ MCU 全闭环固件开发（代码生成→编译→烧录→硬件仿真）
+
+### Architecture
+
+```
+MorPex Engine
+  └── memory.db  ← 共享记忆库
+        │
+xjmcu Workflow Plugin (packages/workflows/xjmcu/)
+  ├── toolchain/  ← buildcli(编译) + astrocli(烧录/仿真)
+  ├── knowledge/  ← 15个MCU型号的YAML用法文件
+  ├── src/        ← TypeScript 适配器
+  │   └── actions/
+  │       ├── generate.ts   ← 生成C代码
+  │       ├── compile.ts    ← 编译→hex/xbin
+  │       └── pipeline.ts   ← 全闭环流水线
+  └── manifest.json
+```
+
+### Knowledge Flow
+
+```
+YAML用法文件 (knowledge/*.yaml)  ← 人工维护的事实源
+  → 导入脚本 (scripts/import_*.py)
+    → memory.db  ← 主系统共享记忆库
+      → mcu_memory_kb.py  ← 工作流查询层
+        → buildcli(编译) / astrocli(仿真)
+```
+
+### Design Principles
+
+| 原则 | 说明 |
+|------|------|
+| **解耦** | 插件不持有独立记忆库，全部查询共享 `E:/Morpex/data/memory.db` |
+| **自包含** | 工具链（Python）+ 知识源（YAML）+ 适配器（TypeScript）在一个文件夹内 |
+| **即装即用** | 放入 `packages/workflows/` 即可注册，MorPex引擎自动发现 |
+| **知识源唯一** | YAML 是芯片知识的事实源，`memory.db` 由 YAML 导入生成 |
+
+### Actions
+
+| Action | 功能 | 调用链 |
+|--------|------|--------|
+| `xjmcu.generate` | 生成C代码骨架 | 读取YAML → 输出 `.c` 文件 |
+| `xjmcu.compile` | 编译固件 | buildcli build → `.hex`/`.xbin` |
+| `xjmcu.pipeline` | 全闭环流水线 | generate → compile → flash(astrocli) → 读寄存器 |
+
+### 支持的MCU型号（15个）
+
+R系列：XC8P8610/8615/8616
+传统系列：XC8P8508/8521/8600/9510/9520/9521/9525/9527/9530/955E
+特例：XC8E855E、XC8P8613
+
+### 安装
+
+```bash
+# 方式1：复制到工作流目录
+cp -r packages/workflows/xjmcu <target>/packages/workflows/
+
+# 方式2：npm link
+cd packages/workflows/xjmcu
+npm link
+```

@@ -1,0 +1,29 @@
+# XC8P8508 - 传统系列
+params:
+  chip: XC8P8508
+  rom: 1Kx14bit
+  ram: 96B
+  stack: 5级
+  gpio: P5(8bit)+P6(8bit)+P7(2bit)
+  timers: TCC(8bit)+PWM0~4
+  features: STATUS名WKTP/GP1/GP0, 有LVD
+registers:
+  - page: RPAGE
+    list:
+      - {addr:0x00, name:IAR}
+      - {addr:0x01, name:TCC}
+      - {addr:0x04, name:RSR}
+      - {addr:0x05, name:PORT5}
+      - {addr:0x06, name:PORT6}
+      - {addr:0x0F, name:ISR, bits:{TCIF:0, P6ICIF:1, EXIF:2, P5ICIF:3, LVDIF:4, PWM0IF:5, PWM1IF:6}}
+      - {addr:0x0E, name:CPUCON, bits:{IDLE:0, CLKMD:1, STPHX:2, TCCWE:3}}
+  - page: IOC
+    list:
+      - {addr:0x01, name:CONT, bits:{PAB:3, PSR:0-2}}
+      - {addr:0x05, name:P5CR}
+      - {addr:0x06, name:P6CR}
+      - {addr:0x0E, name:WDTCR, bits:{WDTEN:7}}
+      - {addr:0x0F, name:IMR, bits:{TCIE:0, ICIE:1, EXIE:2, P5ICIE:3, LVDIE:4, PWM0IE:5, PWM1IE:6}}
+recipes:
+  clram: "for(RSR=0x90;RSR<0xEF;RSR++){IAR=0;}IAR=0;"
+  isr: "PUSH(A,R3);if(TCIF){ISR=0xFE;TCC+=6;}POP(A,R3);"

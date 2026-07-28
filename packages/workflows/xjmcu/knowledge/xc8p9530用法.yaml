@@ -1,0 +1,298 @@
+# XC8P9530 用法
+# 类别: 传统系列（RPAGE直接访问 + IOC页需IOCP_W宏）
+
+params:
+  chip: XC8P9530
+  rom: 1K×14bit
+  ram: 48B (0x10~0x3F)
+  stack: 5级
+  gpio: P6(6bit)
+  timers: TC0(8bit)+TC1(12bit PWM)
+  features: 1路CMP, 1路12bit PWM
+
+pins:
+  - {pin: 1, name: VDD, func: 电源正极}
+  - {pin: 2, name: P65, func: GPIO/CIN3-/SCL}
+  - {pin: 3, name: P64, func: GPIO/CIN2-/CIN1+}
+  - {pin: 4, name: P63, func: GPIO/RST/VPP}
+  - {pin: 5, name: P62, func: GPIO/PWM/TC0/CIN0-}
+  - {pin: 6, name: P61, func: GPIO/IPWM/CIN0+/CIN1-}
+  - {pin: 7, name: P60, func: GPIO/INT/TC0/CMPOUT/SDA}
+  - {pin: 8, name: GND, func: 电源地}
+
+# ============================================================
+# 寄存器定义（唯一事实源）
+# ============================================================
+registers:
+  # ---------- RPAGE（直接访问） ----------
+  - page: RPAGE
+    list:
+      - addr: 0x00
+        name: IAR
+        bits: {IAR: {pos: [7,0], desc: 间接寻址(读写RSR指向的RAM)}}
+      - addr: 0x01
+        name: TC0C
+        bits: {TC0C: {pos: [7,0], desc: TC0计数初值(上行计数到0xFF溢出)}}
+      - addr: 0x02
+        name: PCL
+        bits: {PCL: {pos: [7,0], desc: 程序计数器低位}}
+      - addr: 0x03
+        name: STATUS
+        bits:
+          RST:   {pos: [7],   desc: 复位标志,    vals: {"0": 其他复位, "1": 引脚唤醒}}
+          GIE:   {pos: [6],   desc: 总中断使能,  vals: {"0": 禁止, "1": 使能}}
+          LVREN: {pos: [5],   desc: LVR软件使能, vals: {"0": LVR使能, "1": LVR禁止(仅option选择LVR禁止时有效)}}
+          T:     {pos: [4],   desc: 时间溢出,    vals: {"0": WDT溢出, "1": SLEEP/CWDT或低压复位}}
+          P:     {pos: [3],   desc: 掉电标志,    vals: {"0": 执行SLEEP, "1": 上电或CWDT}}
+          Z:     {pos: [2],   desc: 零标志}
+          DC:    {pos: [1],   desc: 辅助进位}
+          C:     {pos: [0],   desc: 进位}
+      - addr: 0x04
+        name: RSR
+        bits: {RSR: {pos: [5,0], desc: RAM选择(bit7:6固定为1, 写入0xD0对应RAM 0x10)}}
+      - addr: 0x06
+        name: PORT6
+        bits: {P6x: {pos: [5,0], desc: "P6数据: 读=引脚,写=输出"}}
+      - addr: 0x07
+        name: CMPCON0
+        bits:
+          CMPEN:  {pos: [7],   desc: 比较器使能, vals: {0: 禁止, 1: 使能}}
+          CMPOUT: {pos: [6],   desc: "比较结果(只读)", vals: {0: "正极<负极", 1: "正极>负极"}}
+          CMPRS:  {pos: [5,0], desc: 电阻分压选择}
+      - addr: 0x08
+        name: TC1CON
+        bits:
+          TC1EN:  {pos: [7],   desc: TC1/PWM使能, vals: {0: 禁止, 1: 使能}}
+          BZEN:   {pos: [6],   desc: 蜂鸣器输出, vals: {0: 禁止, 1: TC1溢出翻转PWM}}
+          IPWME:  {pos: [5],   desc: 互补输出,   vals: {0: 禁止, 1: 使能}}
+          PWME:   {pos: [4],   desc: PWM输出,    vals: {0: 禁止, 1: 使能}}
+          TC1PTEN: {pos: [3],   desc: 预分频使能, vals: {0: 禁止, 1: 使能}}
+          TC1PSR: {pos: [2,0], desc: 分频系数, vals: {0: 2, 1: 4, 2: 8, 3: 16, 4: 32, 5: 64, 6: 128, 7: 256}, note: "TC1PTEN=0分频固定1:1且TC1PSR无效;TC1PTEN=1时上表有效"}
+      - addr: 0x09
+        name: TC1PRDL
+        bits: {TC1PRD: {pos: [7,0], desc: "TC1/PWM周期低8位(与TC1PRDTH<7:4>组成12位)"}}
+      - addr: 0x0A
+        name: PWMDTL
+        bits: {PWMDT: {pos: [7,0], desc: "PWM占空比低8位(与TC1PRDTH<3:0>组成12位)"}}
+      - addr: 0x0B
+        name: TC1PRDTH
+        bits:
+          TC1PRD: {pos: [7,4], desc: TC1/PWM周期高4位}
+          PWMDT:  {pos: [3,0], desc: PWM占空比高4位}
+      - addr: 0x0C
+        name: P6AE
+        bits: {P6AE: {pos: [5,0], desc: "P6模拟口使能", vals: {0: GPIO, 1: 模拟输入}}}
+      - addr: 0x0D
+        name: P6IWE
+        bits: {P6IWE: {pos: [5,0], desc: "P6唤醒使能", vals: {0: 禁止, 1: 使能}}}
+      - addr: 0x0E
+        name: CPUCON
+        bits:
+          IPWM:   {pos: [7],   desc: "PWM/IPWM输出取反", vals: {0: 正常, 1: 取反}}
+          TC1CKS: {pos: [6],   desc: "TC1时钟源", vals: {0: 指令周期, 1: 系统时钟}}
+          TC0CKS: {pos: [5],   desc: "TC0时钟源", vals: {0: 指令周期/外部, 1: 系统/ILRC}}
+          TC1WE:  {pos: [4],   desc: TC1唤醒, vals: {0: 禁止, 1: 使能}}
+          TC0WE:  {pos: [3],   desc: TC0唤醒, vals: {0: 禁止, 1: 使能}}
+          STPHX:  {pos: [2],   desc: 高速时钟, vals: {0: 正常, 1: 停止}}
+          CLKMD:  {pos: [1],   desc: 系统时钟, vals: {0: IHRC, 1: ILRC}}
+          IDLE:   {pos: [0],   desc: "SLEEP模式", vals: {0: 睡眠(时钟停), 1: 空闲(时钟继续)}}
+      - addr: 0x0F
+        name: INTF
+        bits:
+          TC0IF: {pos: [0], desc: "TC0溢出中断标志(写0清除)", vals: {0: 无, 1: 触发}}
+          ICIF:  {pos: [1], desc: "P6端口变化中断标志(写0清除)", vals: {0: 无, 1: 触发}}
+          INTIF: {pos: [2], desc: "外部中断标志(写0清除)", vals: {0: 无, 1: 触发}}
+          TC1IF: {pos: [3], desc: "TC1/PWM周期中断标志(写0清除)", vals: {0: 无, 1: 触发}}
+          CMPIF: {pos: [4], desc: "CMP结果变化中断标志(写0清除)", vals: {0: 无, 1: 触发}}
+
+  # ---------- IOC页（需IOCP_W/IOCP_R访问） ----------
+  - page: IOC
+    list:
+      - addr: 0x02
+        name: TC0CON
+        note: "⚠️ TC0CON与CONT是同一物理寄存器(IOC 0x02, 机器码0x3802)。配置TC0只能用CONTW(), 禁止使用IOCP_W(TC0CON,...)！"
+        bits:
+          TC0EN:  {pos: [7],   desc: TC0使能(与CONT.bit7共享), vals: {0: 禁止, 1: 使能}}
+          LRCEN:  {pos: [6],   desc: ILRC使能(与CONT.bit6共享), vals: {0: 禁止, 1: 使能}}
+          TS:     {pos: [5],   desc: "TC0信号源", vals: {0: 内部时钟, 1: 外部时钟}}
+          TE:     {pos: [4],   desc: "TC0边沿", vals: {0: 上升沿加1, 1: 下降沿加1}}
+          PAB:    {pos: [3], desc: "预分频分配", vals: {0: "分给TC0", 1: "分给WDT"}, note: "PAB=1时TC0PSR表示WDT分频(见TC0PSR.note)"}
+          TC0PSR: {pos: [2,0], desc: 分频系数, vals: {0: 2, 1: 4, 2: 8, 3: 16, 4: 32, 5: 64, 6: 128, 7: 256}, note: "PAB=0时上表有效;PAB=1时WDT分频: 0=1,1=2,2=4,3=8,4=16,5=32,6=64,7=128"}
+      - addr: 0x06
+        name: P6CON
+        bits: {P6CON: {pos: [5,0], desc: P6方向, vals: {0: 输出, 1: 输入}}}
+      - addr: 0x09
+        name: TPRE
+        bits: {TPRE: {pos: [7,0], desc: "TC0/WDT预分频器当前值(只读)"}}
+      - addr: 0x0A
+        name: CMPCON1
+        bits:
+          CMPOE:  {pos: [7],   desc: CMP输出到P60, vals: {0: 禁止, 1: 使能}}
+          CMPINV: {pos: [6],   desc: 输出取反, vals: {0: 不取反, 1: 取反}}
+          CMPIS:  {pos: [5,0], desc: 输入源选择(正极2bit+负极3bit+电压源1bit)}
+      - addr: 0x0B
+        name: P6PD
+        bits: {P6PD: {pos: [5,0], desc: "P6下拉", vals: {0: 使能, 1: 禁止}}}
+      - addr: 0x0D
+        name: P6PH
+        bits: {P6PH: {pos: [5,0], desc: "P6上拉", vals: {0: 使能, 1: 禁止}}}
+      - addr: 0x0E
+        name: WDTCON
+        bits:
+          WDTE:   {pos: [7],   desc: WDT使能, vals: {0: 禁止, 1: 使能}}
+          CMPWE:  {pos: [6],   desc: CMP唤醒, vals: {0: 禁止, 1: 使能}}
+          INTWE:  {pos: [5],   desc: 外部中断唤醒, vals: {0: 禁止, 1: 使能}}
+          TC0GATE: {pos: [4,2], desc: "TC0门控(捕获模式)", vals: {0: 禁止}}
+          INTEDG: {pos: [1,0], desc: "外部中断沿", vals: {0: "禁止", 1: 上升沿, 2: 下降沿, 3: 双沿}}
+      - addr: 0x0F
+        name: INTE
+        bits:
+          TC0IE: {pos: [0], desc: TC0中断使能, vals: {0: 禁止, 1: 使能}}
+          ICIE:  {pos: [1], desc: P6端口变化中断使能, vals: {0: 禁止, 1: 使能}}
+          INTIE: {pos: [2], desc: 外部中断使能, vals: {0: 禁止, 1: 使能}}
+          TC1IE: {pos: [3], desc: TC1/PWM中断使能, vals: {0: 禁止, 1: 使能}}
+          CMPIE: {pos: [4], desc: CMP中断使能, vals: {0: 禁止, 1: 使能}}
+
+# ============================================================
+# 代码模板
+# ============================================================
+recipes:
+  # ---------- 汇编指令宏 ----------
+  asm_macros: |
+    // ===== 基本指令 =====
+    #define EI()   __asm__(" ei ")        // 使能总中断(置位STATUS.GIE)
+    #define DI()   __asm__(" di ")        // 禁止总中断(清零STATUS.GIE)
+    #define NOP()  __asm__(" nop ")       // 空操作(1指令周期)
+    #define CWDT() __asm__(" CWDT ")      // 清看门狗定时器
+    #define SLEEP() __asm__(" sleep ")    // 进入睡眠/空闲模式
+
+    // ===== 寄存器访问 =====
+    // CONTW — 写CONT寄存器(TC0控制/预分频)
+    //   ct??w指令 0x3802, 等同于 iw 0x02 (TC0CON)
+    //   ⚠️ CONT 与 TC0CON 是同一寄存器! 配置TC0只能用CONTW, 禁止IOCP_W(TC0CON,...)
+    #define CONTW(VAL)       __asm__("mov a,@"#VAL"\n ctw")
+    // IOCP_W — 写IOC页寄存器 (iw指令 0x3800|addr)
+    #define IOCP_W(REG,VAL)  __asm__("mov a,@"#VAL"\n iw "#REG)
+    // IOCP_R — 读IOC页寄存器 (ir指令)
+    #define IOCP_R(RAM,REG)  __asm__("ir "#REG"\n mov "#RAM",a")
+    // IOCP_W_AND — IOC页寄存器与操作 (读-改-写)
+    #define IOCP_W_AND(REG,VAL) __asm__("ir "#REG"\n and a,@"#VAL"\n iw "#REG)
+    // IOCP_W_OR — IOC页寄存器或操作 (读-改-写)
+    #define IOCP_W_OR(REG,VAL)  __asm__("ir "#REG"\n or a,@"#VAL"\n iw "#REG)
+
+    // ===== 中断现场保护 =====
+    // PUSH — 保存ACC和STATUS到RAM变量
+    #define PUSH(A,R3)       __asm__("mov "#A",a\n swap "#A"\n swapa STATUS\n mov "#R3",a")
+    // POP — 从RAM变量恢复ACC和STATUS  
+    #define POP(A,R3)        __asm__("swapa "#R3"\n mov STATUS,a\n swapa "#A)
+
+  # ---------- CLRAM（清RAM） ----------
+  clram: |
+    void file_clrRam(void) {
+        // RSR高位固定为1, 0xD0对应RAM 0x10, 0xFF对应RAM 0x3F
+        for (RSR = 0xD0; RSR < 0xFF; RSR++) {
+            IAR = 0;
+        }
+        IAR = 0;  // 清0xFF地址
+    }
+
+  # ---------- ISR（中断服务函数） ----------
+  isr: |
+    // 传统系列: 需软件保存ACC+STATUS(使用PUSH/POP宏)
+    // 中断标志必须用赋值方式清除, 不能使用位操作(BTC/AND)
+    void int_isr(void) __interrupt {
+        __asm__("org 0x08");
+        PUSH(_A_BUFF, _R3_BUFF);   // 保存ACC和STATUS
+
+        if (TC0IF) { INTF = 0xFE; TC0C += 6; }   // 清bit0
+        if (ICIF)  { INTF = 0xFD; }               // 清bit1
+        if (INTIF) { INTF = 0xFB; }               // 清bit2
+        if (TC1IF) { INTF = 0xF7; }               // 清bit3
+        if (CMPIF) { INTF = 0xEF; }               // 清bit4
+
+        POP(_A_BUFF, _R3_BUFF);    // 恢复ACC和STATUS
+    }
+
+  # ---------- GPIO初始化 ----------
+  gpio_init: |
+    void gpio_init(void) {
+        PORT6 = 0;
+        IOCP_W(P6CON, 0x00);     // 全部输出
+        IOCP_W(P6PH, 0xFF);      // 禁止上拉
+        IOCP_W(P6PD, 0xFF);      // 禁止下拉
+    }
+
+  # ---------- TC0定时器 ----------
+  tc0_config: |
+    // ⚠️ TC0CON与CONT是同一寄存器! 只能用CONTW配置, 禁止IOCP_W(TC0CON,...)!
+    // 1ms定时 @ 8MHz/4T, 8分频
+    // T = (1/(8M/4)) × 8 × (256-6) = 0.5us × 8 × 250 = 1000us
+    DI();
+    IOCP_W(WDTCON, 0x00);        // 先关WDT
+    CONTW(0x82);                 // PAB=0(分给TC0), PSR=010(8分频)
+    TC0C = 6;                    // 初值
+    IOCP_W(INTE, 0x01);          // TC0IE=1
+    INTF = 0;                    // 清标志
+
+  # ---------- TC1/PWM配置 ----------
+  pwm_config: |
+    // PWM输出20%占空比, 周期100us @ 8MHz/4T, 2分频
+    // Fpwm = (8M/4) / (2×100) = 10KHz, T=100us
+    TC1PRDL = 100;
+    PWMDTL = 20;
+    TC1PRDTH = 0;                // 高4位为0
+    TC1CON = 0x18;               // PWME=1, 2分频
+    IPWME = 1;                   // 互补输出
+
+  # ---------- CMP比较器 ----------
+  cmp_config: |
+    P6AE = 0x06;                 // P61/P62为模拟口
+    CMPCON0 = 0x80;              // CMPEN=1
+    IOCP_W(CMPCON1, 0x88);       // 正极=电阻分压, 负极=VBG
+
+  # ---------- WDT ----------
+  wdt_config: |
+    IOCP_W(WDTCON, 0x00);        // 关WDT
+    // IOCP_W(WDTCON, 0x80);     // 开WDT
+    // 喂狗: CWDT();
+
+# ============================================================
+# 主框架
+# ============================================================
+skeleton:
+  includes: |
+    #include "XC8P9530.h"
+    #include "XJ_Define.h"
+
+  global_vars: |
+    // 中断现场保护变量(必须放在0x10~0x11地址)
+    volatile __at(0x10) unsigned char A_BUFF;   // 保存ACC
+    volatile __at(0x11) unsigned char R3_BUFF;  // 保存STATUS
+
+  init_func: |
+    void file_init(void) {
+        DI();
+        IOCP_W(WDTCON, 0x00);    // 关WDT
+        CONTW(0x82);              // TC0 8分频
+        TC0C = 6;
+        PORT6 = 0;
+        IOCP_W(P6CON, 0x00);
+        IOCP_W(P6PH, 0xFF);
+        IOCP_W(P6PD, 0xFF);
+        IOCP_W(INTE, 0x01);       // TC0IE=1
+        INTF = 0;
+    }
+
+  main_func: |
+    void main(void) {
+        file_clrRam();            // 清RAM
+        file_init();              // IO+基本初始化
+        // 外设初始化(按需):
+        // pwm_config();
+        // cmp_config();
+        EI();                     // 开总中断
+        while (1) {
+            CWDT();               // 喂狗
+            NOP();
+        }
+    }
