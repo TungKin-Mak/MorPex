@@ -237,7 +237,11 @@ export class DeliveryPlanner {
   // ═══════════════════════════════════════════════════════════════
 
   /**
-   * createPlan — 统一规划入口
+   * createPlan — 统一规划入口（非 grounded 降级路径）
+   *
+   * 注意：此方法不走 ontology grounded reasoning。
+   * 主执行路径（MorPexRuntime.run()）使用 runOntologyGroundedReasoning。
+   * createPlan 保留为轻量/降级规划入口，不保证强制查询。
    *
    * 根据 mode 自动路由：
    *   - 'quick': 快速规划（简单任务，跳过仿真）
@@ -578,7 +582,8 @@ export class DeliveryPlanner {
     }
 
     // 策略 3: PiBridge 快速分解（P3 — 轻量 LLM 调用 ~200 tokens）
-    // 迭代4: 优先使用注入的 piBridgeRef，避免新建 PiBridge 实例绕过 ontology
+    // 迭代4: 必须使用注入的 piBridgeRef，移除旧的 new PiBridge fallback
+    // 无注入时跳过此策略，继续降级到内置单任务
     const piBridgeForQuick = this.piBridgeRef;
     if (piBridgeForQuick) {
       try {
@@ -592,36 +597,6 @@ export class DeliveryPlanner {
 规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
 
         const result = await piBridgeForQuick.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
-        const steps = this.parseQuickSteps(result.text, planId);
-
-        if (steps.length > 0) {
-          return {
-            id: planId, goal: request.goal, status: 'draft', tasks: steps, mode: 'quick',
-            createdAt: Date.now(),
-            metadata: { taskCount: steps.length, riskLevel: steps.length > 3 ? 'medium' : 'low',
-              source: 'llm-quick-decompose', experienceCount: experienceHints?.length ?? 0 },
-          };
-        }
-      } catch (err) {
-        console.warn('[DeliveryPlanner] PiBridge 快速分解失败:', (err as Error).message);
-      }
-    } else {
-      // Fallback: 无注入时直接创建（旧行为）
-      try {
-        const { PiBridge } = await import('../adapters/pi-bridge/PiBridge.js');
-        const bridge = new PiBridge('deepseek/deepseek-v4-flash');
-        await bridge.init();
-
-        const prompt = `将以下任务分解为 2-5 个具体步骤。返回严格 JSON 数组（不要 markdown）：
-
-任务: "${request.goal}"
-
-格式: [{"step":"步骤描述","capability":"所需能力"}]
-
-能力可选: analyze/design/code/test/write/research/review/deploy
-规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
-
-        const result = await bridge.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
         const steps = this.parseQuickSteps(result.text, planId);
 
         if (steps.length > 0) {
@@ -823,6 +798,10 @@ export class DeliveryPlanner {
 
   /**
    * planWithOntology — 带强制查询的规划入口
+   *
+   * @deprecated 统一使用 runOntologyGroundedReasoning（ontology/runOntologyGroundedReasoning.ts）
+   *   此方法仅做委托转发，新代码应直接调用共享方法。
+   *   迭代4 收敛后所有执行路径均走 runOntologyGroundedReasoning。
    *
    * 迭代1：改造主规划路径，拆分为两阶段：
    *   Phase 1 - 强制查询：LLM 必须调用 ontology_* 工具获取事实
