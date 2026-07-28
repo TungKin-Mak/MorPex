@@ -67,8 +67,8 @@ fi
 
 # ── Rule 6: Ontology bypass check ──
 echo -n "[6] planner/facade/execution → no new PiBridge ... "
-# Exclude comments (lines starting with // or /* or *)
-VIO=$(grep -rn 'new PiBridge' packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include='*.ts' 2>/dev/null | grep -v '__tests__' | grep -v 'PiBridge.ts' | grep -v '^\s*//' | grep -v '^\s*/\*' | grep -v '^\s*\*' | wc -l || true)
+# Exclude comments (lines with // before new PiBridge)
+VIO=$(grep -rn 'new PiBridge' packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include='*.ts' 2>/dev/null | grep -v '__tests__' | grep -v 'PiBridge.ts' | grep -v '//.*new PiBridge' | wc -l || true)
 if [ "$VIO" -gt 0 ]; then
   echo "❌ FAIL ($VIO violations)"
   FAIL=$((FAIL + 1))
