@@ -53,7 +53,7 @@ export class MissionController {
     }
     systemMetadataGraph.registerEntity(mission.missionId, 'mission', objective.substring(0, 80), { goalId, status: 'ACTIVE', phase: 'DISCOVERY' });
     this.eventBus.emit({
-      id: `evt_${Date.now()}`, type: 'mission.created', timestamp: Date.now(),
+      id: `evt_${Date.now()}`, type: EventType.MISSION_CREATED, timestamp: Date.now(),
       executionId: mission.missionId, source: 'mission-control',
       payload: { missionId: mission.missionId, objective },
     });
@@ -81,6 +81,15 @@ export class MissionController {
         payload: { missionId: update.missionId, phase: update.phase, status: update.status, progress: update.progress },
       }).catch((err: Error) => console.warn('[MissionController] EventStore append failed:', err.message));
     }
+    // EventBus 广播（增量投影依赖此事件）
+    this.eventBus.emit({
+      id: `evt_${update.missionId}_${Date.now()}`,
+      type: EventType.MISSION_UPDATED,
+      timestamp: Date.now(),
+      executionId: update.missionId,
+      source: 'mission-controller',
+      payload: { missionId: update.missionId, phase: update.phase, status: update.status, progress: update.progress },
+    });
     return m;
   }
 

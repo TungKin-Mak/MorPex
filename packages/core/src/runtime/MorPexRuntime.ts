@@ -213,7 +213,7 @@ export class MorPexRuntime {
       // ── Phase 2: Execution（统一执行引擎）──
       const execRequest: ExecutionRequest = {
         goal: context.goal.objective,
-        mode: 'auto',
+        mode: options?.mode ?? 'auto',
         departmentId: context.team.departments[0],
         context: {
           executionId: context.executionId,

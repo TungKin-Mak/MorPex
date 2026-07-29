@@ -61,13 +61,14 @@ export class ArtifactFacade {
   transition(id: string, to: ArtifactStatus): boolean {
     const art = this.artifacts.get(id);
     if (!art) return false;
-    const valid = ArtifactFacade.VALID_TRANSITIONS[art.status] || [];
+    const from = art.status; // ⬅️ 捕获旧状态
+    const valid = ArtifactFacade.VALID_TRANSITIONS[from] || [];
     if (!valid.includes(to)) return false;
     art.status = to;
     art.updatedAt = Date.now();
     art.lineage.push({
       from: art.id,
-      relation: `${art.status.toLowerCase()}_to_${to.toLowerCase()}` as ArtifactLineageEntry['relation'],
+      relation: `${from.toLowerCase()}_to_${to.toLowerCase()}` as ArtifactLineageEntry['relation'],
       timestamp: Date.now(),
     });
     // EventStore 写入
@@ -78,7 +79,7 @@ export class ArtifactFacade {
         timestamp: Date.now(),
         executionId: id,
         source: 'artifact-facade',
-        payload: { artifactId: id, status: to, from: art.status },
+        payload: { artifactId: id, status: to, from }, // ⬅️ from 是旧状态
       }).catch((err: Error) => console.warn('[ArtifactFacade] EventStore append failed:', err.message));
     }
     this.emit(EventType.ARTIFACT_UPDATED, art);

@@ -23,6 +23,7 @@
  */
 
 import { ServiceContainer } from './runtime/ServiceContainer.js';
+import { EventType } from './protocol/events/EventType.js';
 import { CompanyFacade } from './facade/CompanyFacade.js';
 import { DepartmentManager } from './department/DepartmentManager.js';
 import { RoleRegistry } from './role/RoleRegistry.js';
@@ -82,6 +83,9 @@ export async function bootstrapUnified(options?: {
   // 2. 创建 ServiceContainer（含所有服务 + MorPexRuntime + ControlPlane）
   const container = new ServiceContainer();
 
+  // ⬅️ 尽早等待 EventStore 就绪，避免后续注册/写入竞态
+  await container.ready;
+
   // 3. 注册 WorkflowRegistry（含内置工作流插件）
   try {
     container.teamOrchestrator.setWorkflowRegistry(WorkflowPluginRegistry);
@@ -108,9 +112,6 @@ export async function bootstrapUnified(options?: {
     container.controlPlane,
     ceoId,
   );
-
-  // 等待 EventStore 就绪
-  await container.ready;
 
   // ── Ontology 迭代4 ──
   const objectTypeRegistry = new ObjectTypeRegistry();
@@ -218,25 +219,25 @@ export async function bootstrapUnified(options?: {
   const feedbackAwareLearner = new FeedbackAwareLearner(eventStore ?? undefined);
 
   // ── 事件监听（增量投影） ──
-  eventBus.on('mission.created', async (event: any) => {
+  eventBus.on(EventType.MISSION_CREATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
       try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
     }
   });
-  eventBus.on('mission.updated', async (event: any) => {
+  eventBus.on(EventType.MISSION_UPDATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
       try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
     }
   });
-  eventBus.on('artifact.created', async (event: any) => {
+  eventBus.on(EventType.ARTIFACT_CREATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
       try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
     }
   });
-  eventBus.on('artifact.updated', async (event: any) => {
+  eventBus.on(EventType.ARTIFACT_UPDATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
       try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
