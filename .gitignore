@@ -32,6 +32,11 @@ __pycache__/
 *.pyc
 .venv/
 
+# ── 生成的分析报告 ──
+.codebase-memory/
+benchmark-reports/
+repomix-output.xml
+
 # ── 旧目录（迁移完成后删除） ──
 # src/
 # Pi/
