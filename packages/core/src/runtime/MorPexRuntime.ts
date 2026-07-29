@@ -43,8 +43,14 @@ export interface RunOptions {
   ontologyHardFail?: boolean;
   /** ⭐ P0: 审批是否 await 人工决策（默认 false） */
   awaitApproval?: boolean;
+  /** 审批超时（毫秒，默认 30 分钟） */
+  approvalTimeoutMs?: number;
   /** 部门 ID（可选） */
   departmentId?: string;
+  /** 执行模式 */
+  mode?: 'auto' | 'mission' | 'dag' | 'fabric';
+  /** 自定义扩展属性 */
+  [key: string]: unknown;
 }
 
 export class MorPexRuntime {
@@ -279,20 +285,27 @@ export class MorPexRuntime {
           'HUMAN_WAITING',
           `等待审批: ${docArtifact.name}`,
         );
-        // ⭐ P0: awaitApproval 模式 — 阻塞直到人工审批完成
-        if (awaitApproval) {
-          console.log(`[MorPexRuntime] ⏸️ 等待人工审批: ${docArtifact.name}`);
-          // 暴露审批等待状态，外部可调用 approvalGate.decide()
-          return {
-            ok: false,
-            context,
-            executionResult: execResult,
-            artifacts: [docArtifact, codeArtifact].filter(Boolean),
-            verification: verResult,
-            compliance: complianceResult,
-            approval: approvalRequest,
-            errors: [`等待人工审批: ${docArtifact.name}`],
-          };
+        // ⭐ P1-2: 主路径强制 Approval 阻塞
+        // HIGH/CRITICAL 风险或设置了 awaitApproval 时阻塞等待
+        const riskStr = String(context.risk || '').toUpperCase();
+        const isHighRisk = riskStr === 'HIGH' || riskStr === 'CRITICAL';
+        if (awaitApproval || isHighRisk) {
+          const timeoutMs = options?.approvalTimeoutMs ?? 1_800_000; // 默认 30 分钟
+          console.log(`[MorPexRuntime] ⏸️ 等待人工审批: ${docArtifact.name} (timeout=${timeoutMs}ms)`);
+          const decided = await this.approvalGate.waitForDecision(approvalRequest.id, timeoutMs);
+          if (decided.decision !== 'APPROVED') {
+            return {
+              ok: false,
+              context,
+              executionResult: execResult,
+              artifacts: [docArtifact, codeArtifact].filter(Boolean),
+              verification: verResult,
+              compliance: complianceResult,
+              approval: decided,
+              errors: [`审批未通过: ${decided.decision ?? '超时'}`],
+            };
+          }
+          console.log(`[MorPexRuntime] ✅ 审批通过: ${docArtifact.name}`);
         }
       }
 

@@ -66,15 +66,17 @@ export async function bootstrapV15Integration(options?: {
   // 4. 注册 ArtifactFacade 到 ExecutionEngine (执行成功自动创建产物)
   container.executionEngine.setArtifactFacade(container.artifactFacade);
 
-  // 5. 创建 CompanyFacade 并注入 Runtime
+  // 5. 创建 CompanyFacade（新构造注入 Runtime + ControlPlane）
   const eventBus = container.eventBus;
   const departmentManager = new DepartmentManager(eventBus);
   const roleRegistry = new RoleRegistry(eventBus);
-  const companyFacade = new CompanyFacade(departmentManager, roleRegistry, 'ceo-default');
-  companyFacade.setRuntime(container.runtime);
-  companyFacade.setBrainFacade({
-    recall: async () => [],
-  });
+  const companyFacade = new CompanyFacade(
+    departmentManager,
+    roleRegistry,
+    container.runtime,
+    container.controlPlane,
+    'ceo-default',
+  );
 
   // ── Ontology 迭代4：注入到 MorPexRuntime ──
   const ontology = new OntologyService(systemMetadataGraph, new (await import('./ontology/ObjectTypeRegistry.js')).ObjectTypeRegistry());

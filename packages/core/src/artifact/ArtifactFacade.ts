@@ -4,14 +4,17 @@
  * + Lineage 追踪
  */
 import { EventBus } from '../common/EventBus.js';
+import { EventType } from '../protocol/events/EventType.js';
 import type { ArtifactNode, ArtifactLineageEntry } from '../contracts/artifact-lifecycle.js';
 import type { ArtifactStatus } from '../contracts/artifact-lifecycle.js';
 import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
+import type { IEventStore } from '../protocol/events/store/IEventStore.js';
 
 export class ArtifactFacade {
   private artifacts: Map<string, ArtifactNode> = new Map();
   private eventBus: EventBus;
   private store?: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean };
+  private eventStore?: IEventStore;
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[ArtifactFacade] EventBus 是必填参数');
@@ -20,6 +23,13 @@ export class ArtifactFacade {
 
   setPersistentStore(store: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean }): void {
     this.store = store;
+  }
+
+  /**
+   * setEventStore — 注入 EventStore 作为真相源
+   */
+  setEventStore(store: IEventStore): void {
+    this.eventStore = store;
   }
 
   create(name: string, type: string, sourceTask: string, metadata?: Record<string, unknown>): ArtifactNode {
@@ -31,9 +41,20 @@ export class ArtifactFacade {
     };
     this.artifacts.set(node.id, node);
     if (this.store) this.store.save(node);
+    // EventStore 写入
+    if (this.eventStore) {
+      this.eventStore.append({
+        id: `evt_${node.id}_created`,
+        type: EventType.ARTIFACT_CREATED,
+        timestamp: Date.now(),
+        executionId: sourceTask || node.id,
+        source: 'artifact-facade',
+        payload: { artifactId: node.id, name, type, status: node.status, sourceTask },
+      }).catch((err: Error) => console.warn('[ArtifactFacade] EventStore append failed:', err.message));
+    }
     systemMetadataGraph.registerEntity(node.id, 'artifact', name, { type, sourceTask, version: 1 });
     if (sourceTask) systemMetadataGraph.addRelation(sourceTask, node.id, 'generated_by');
-    this.emit('artifact.created', node);
+    this.emit(EventType.ARTIFACT_CREATED, node);
     return node;
   }
 
@@ -49,7 +70,18 @@ export class ArtifactFacade {
       relation: `${art.status.toLowerCase()}_to_${to.toLowerCase()}` as ArtifactLineageEntry['relation'],
       timestamp: Date.now(),
     });
-    this.emit(`artifact.${to.toLowerCase()}`, art);
+    // EventStore 写入
+    if (this.eventStore) {
+      this.eventStore.append({
+        id: `evt_${id}_${Date.now()}`,
+        type: EventType.ARTIFACT_UPDATED,
+        timestamp: Date.now(),
+        executionId: id,
+        source: 'artifact-facade',
+        payload: { artifactId: id, status: to, from: art.status },
+      }).catch((err: Error) => console.warn('[ArtifactFacade] EventStore append failed:', err.message));
+    }
+    this.emit(EventType.ARTIFACT_UPDATED, art);
     if (this.store) this.store.transition(id, to);
     return true;
   }
@@ -87,7 +119,8 @@ export class ArtifactFacade {
     this.eventBus!.emit({
       id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 4)}`,
       type, timestamp: Date.now(),
-      executionId: 'artifact', source: 'artifact-facade',
+      executionId: (payload as any)?.sourceTask || 'artifact',
+      source: 'artifact-facade',
       payload,
     });
   }

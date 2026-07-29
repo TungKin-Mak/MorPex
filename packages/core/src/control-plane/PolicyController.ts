@@ -13,6 +13,7 @@ export interface PolicyCheckResult {
   allowed: boolean;
   reason: string;
   requiresHuman?: boolean;
+  deny?: boolean;
 }
 
 export class PolicyController {
@@ -53,6 +54,13 @@ export class PolicyController {
       reason: '策略允许',
       requiresHuman: false,
     };
+  }
+
+  /**
+   * evaluate — 统一策略评估入口（异步）
+   */
+  async evaluate(input: { action: string; goal: string; actor?: string }): Promise<PolicyCheckResult> {
+    return this.checkAction(input.action, 'MEDIUM');
   }
 
   /**

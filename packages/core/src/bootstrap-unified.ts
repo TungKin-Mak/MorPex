@@ -97,7 +97,7 @@ export async function bootstrapUnified(options?: {
   // 4. 注册 ArtifactFacade 到 ExecutionEngine（向后兼容）
   container.executionEngine.setArtifactFacade(container.artifactFacade);
 
-  // 5. 创建 CompanyFacade（强制要求 Runtime + ControlPlane）
+  // 5. 创建 CompanyFacade（构造时强制要求 Runtime + ControlPlane）
   const eventBus = container.eventBus;
   const departmentManager = new DepartmentManager(eventBus);
   const roleRegistry = new RoleRegistry(eventBus);
@@ -108,6 +108,9 @@ export async function bootstrapUnified(options?: {
     container.controlPlane,
     ceoId,
   );
+
+  // 等待 EventStore 就绪
+  await container.ready;
 
   // ── Ontology 迭代4 ──
   const objectTypeRegistry = new ObjectTypeRegistry();

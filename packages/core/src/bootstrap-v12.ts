@@ -110,12 +110,10 @@ export async function bootstrapV12(
   // SOPEngine 注入 BrainFacade：成功经验 → 自动提取 SOP
   brainFacade.setSOPEngine(sopEngine);
 
-  // ── 6. CEO 门面 ──
-  const companyFacade = new CompanyFacade(
-    departmentManager,
-    roleRegistry,
-    ceoId,
-  );
+  // ── 6. CEO 门面（使用 bootstrapUnified 以获得完整 Runtime + ControlPlane） ──
+  const { bootstrapUnified } = await import('./bootstrap-unified.js');
+  const unified = await bootstrapUnified({ ceoId });
+  const companyFacade = unified.companyFacade;
 
   // ── 7. 管理群（CEO 控制台） ──
   const managementHub = new ManagementHub(

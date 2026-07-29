@@ -279,6 +279,7 @@ export const EVENT_LAYERS: Record<string, EventType[]> = {
     EventType.MISSION_UPDATED,
     EventType.MISSION_COMPLETED,
     EventType.MISSION_FAILED,
+    EventType.MISSION_BLOCKED,
   ],
   planning: [
     EventType.PLAN_CREATED,
@@ -316,6 +317,8 @@ export const EVENT_LAYERS: Record<string, EventType[]> = {
   ],
   control: [
     EventType.APPROVAL_REQUIRED,
+    EventType.APPROVAL_AUTO_APPROVED,
+    EventType.APPROVAL_WAIT_HUMAN,
     EventType.APPROVAL_GRANTED,
     EventType.APPROVAL_DENIED,
     EventType.POLICY_EVALUATED,

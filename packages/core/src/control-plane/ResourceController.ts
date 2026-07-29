@@ -41,6 +41,13 @@ export class ResourceController {
   }
 
   /**
+   * check — 统一资源检查入口（异步）
+   */
+  async check(input: { goal: string; estimatedCost?: number }): Promise<ResourceAvailability> {
+    return this.checkAvailability(input.estimatedCost ?? 100, 1);
+  }
+
+  /**
    * checkAvailability — 完整资源可用性检查
    */
   checkAvailability(estimatedCost: number, executionSlots: number = 1): ResourceAvailability {

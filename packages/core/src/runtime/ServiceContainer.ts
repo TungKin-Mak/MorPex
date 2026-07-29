@@ -169,6 +169,8 @@ export class ServiceContainer {
   readonly artifactStore: PersistentArtifactStore;
   readonly controlPlane: ControlPlane;
   readonly learningEngine: CrossAgentLearningEngine;
+  private _eventStore?: import('../protocol/events/store/IEventStore.js').IEventStore;
+  private _ready: Promise<void>;
 
   constructor() {
     this.eventBus = new EventBus();
@@ -190,8 +192,8 @@ export class ServiceContainer {
     this.missionStore.init().catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
     this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
-    // 连接 EventStore 作为真相源（异步初始化）
-    this.initEventStore().catch((err: Error) => console.warn('[ServiceContainer] EventStore 初始化失败:', err.message));
+    // 连接 EventStore 作为真相源（异步初始化，通过 ready 等待）
+    this._ready = this.initEventStore();
     this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.controlPlane = new ControlPlane();
 
@@ -231,15 +233,28 @@ export class ServiceContainer {
   }
 
   /**
+   * ready — 等待所有异步初始化完成
+   * 确保 EventStore 等关键基础设施就绪后再对外暴露
+   */
+  get ready(): Promise<void> {
+    return this._ready;
+  }
+
+  /**
    * initEventStore — 异步初始化 EventStore 并接入 MissionController
    */
   private async initEventStore(): Promise<void> {
     try {
       const { UnifiedEventStore } = await import('../protocol/events/store/UnifiedEventStore.js');
-      this.missionController.setEventStore(new UnifiedEventStore());
-      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController');
-    } catch {
-      console.warn('[ServiceContainer] ⚠️ EventStore 不可用');
+      this._eventStore = new UnifiedEventStore();
+      this.missionController.setEventStore(this._eventStore);
+      // 后续 ArtifactFacade 也可接入
+      if (typeof (this.artifactFacade as any).setEventStore === 'function') {
+        (this.artifactFacade as any).setEventStore(this._eventStore);
+      }
+      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade');
+    } catch (err) {
+      console.warn('[ServiceContainer] ⚠️ EventStore 不可用:', (err as Error).message);
     }
   }
 
@@ -263,10 +278,22 @@ export class ServiceContainer {
       continueOnFailure: true,
       eventBus: this.eventBus,
     });
+
+    // 执行状态缓存，供 getStatus 返回 state 字段（Engine 轮询依赖）
+    const statusMap = new Map<string, {
+      state: 'running' | 'completed' | 'failed' | 'cancelled';
+      dagId: string;
+      result?: unknown;
+      error?: string;
+    }>();
+
     return {
       name: 'DAGRuntime',
       execute: async (goal: string, tasks: unknown[], context?: Record<string, unknown>) => {
         console.log('[ServiceContainer] DAGRuntime.execute:', goal.substring(0, 60));
+        const dagId = `dag_${Date.now()}`;
+        statusMap.set(dagId, { state: 'running', dagId });
+
         // 构造节点列表
         let nodes: import('../planes/runtime-kernel/dag/types.js').DAGNode[] = (tasks || []).map((t: any, i: number) => ({
           id: `node_${i}_${Date.now()}`,
@@ -279,7 +306,6 @@ export class ServiceContainer {
           retryCount: 0,
           maxRetries: 0,
         }));
-        // 默认单节点（无 tasks 时）
         if (nodes.length === 0) {
           nodes.push({
             id: `node_0_${Date.now()}`,
@@ -293,24 +319,51 @@ export class ServiceContainer {
             maxRetries: 0,
           });
         }
-        // 构造最小 ExecutionDAG
+
         const dag: import('../planes/runtime-kernel/dag/types.js').ExecutionDAG = {
-          id: `dag_${Date.now()}`,
+          id: dagId,
           nodes,
           edges: [],
           status: { totalNodes: nodes.length, totalEdges: 0, mutations: 0, isCyclic: false, canRollback: false, isComplete: false },
           createdAt: Date.now(),
         };
-        const result = await realRuntime.run(dag, context || {});
+
+        try {
+          const result = await realRuntime.run(dag, context || {});
+          const failed = (result as any)?.failedNodes?.length > 0 || (result as any)?.success === false;
+          statusMap.set(dagId, {
+            state: failed ? 'failed' : 'completed',
+            dagId,
+            result,
+            error: failed ? String((result as any)?.error ?? 'node failure') : undefined,
+          });
+          return { executionId: dagId, ...result };
+        } catch (err) {
+          statusMap.set(dagId, { state: 'failed', dagId, error: (err as Error).message });
+          throw err;
+        }
+      },
+
+      getStatus: (id: string) => {
+        const s = statusMap.get(id);
+        if (!s) {
+          return { state: 'failed', dagId: id, error: 'unknown executionId' };
+        }
         return {
-          executionId: result.dagId,
-          ...result,
+          state: s.state,          // ← Engine 轮询依赖此字段
+          dagId: s.dagId,
+          result: s.result,
+          error: s.error,
+          trace: realRuntime.executionTrace,
         };
       },
-      getStatus: (id: string) => {
-        return { dagId: id, trace: realRuntime.executionTrace };
+
+      cancel: async (id: string) => {
+        const s = statusMap.get(id);
+        if (s && s.state === 'running') {
+          statusMap.set(id, { ...s, state: 'cancelled' });
+        }
       },
-      cancel: async () => {},
     };
   }
 
@@ -326,7 +379,7 @@ export class ServiceContainer {
       await this.piBridge.init();
       console.log('[ServiceContainer] ✅ PiBridge 已初始化 (真实 LLM 模式)');
     } catch (err) {
-      console.warn('[ServiceContainer] ⚠️ PiBridge 不可用，使用模拟执行:', (err as Error).message);
+      console.warn('[ServiceContainer] ⚠️ PiBridge 不可用');
     }
   }
 
@@ -394,8 +447,17 @@ export class ServiceContainer {
             return { success: false, error: (err as Error).message, duration: 0 };
           }
         }
-        // 降级: 模拟执行（包含关键词以满足验证）
-        console.log('[ServiceContainer] ExecutionFabric 模拟:', action);
+        // ══ Mock 门禁 ══
+        // 生产环境禁止静默 Mock，需设置 MORPEX_ALLOW_MOCK=1（仅测试用）
+        if (process.env.MORPEX_ALLOW_MOCK !== '1' && process.env.NODE_ENV !== 'test') {
+          return {
+            success: false,
+            error: 'PiBridge 不可用且未允许 Mock（设置 MORPEX_ALLOW_MOCK=1 仅用于测试）',
+            duration: 0,
+          };
+        }
+        // 降级: 模拟执行（仅在测试/明确允许时）
+        console.warn('[ServiceContainer] ⚠️ ExecutionFabric 使用 Mock 降级 (MORPEX_ALLOW_MOCK=1)');
         const mockCode = generateMockCode(action, capability);
         return {
           success: true,
@@ -406,6 +468,7 @@ export class ServiceContainer {
             code: mockCode,
             document: mockCode,
             capabilities: ['Backend Development', 'Frontend Development', 'Database Design', 'API Design'],
+            mock: true,
           },
           duration: 0,
         };
