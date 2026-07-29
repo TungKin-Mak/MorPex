@@ -1,7 +1,7 @@
 {
   "servers": {
     "codebase-memory": {
-      "command": ".codebase-memory\\bin\\codebase-memory-mcp",
+      "command": "C:/Users/tungk/.local/bin/codebase-memory-mcp",
       "args": [],
       "env": {
         "CODEBASE_MEMORY_PROJECT_ROOT": "E:\\Morpex"
