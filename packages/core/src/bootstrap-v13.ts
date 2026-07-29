@@ -1,5 +1,8 @@
 /**
- * MorPex v13 Bootstrap — v12 + Brain/Planner/Tools/Action 增强
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
+ * v13 Bootstrap — v12 + Brain/Planner/Tools/Action 增强
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * v13 新增:
  *   - brain/ReflectionEngine + MetaLearner

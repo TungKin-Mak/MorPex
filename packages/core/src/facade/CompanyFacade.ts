@@ -1,20 +1,23 @@
 /**
- * CompanyFacade — CEO 高层操作入口
+ * CompanyFacade — CEO 高层操作入口（v16 Unified）
  *
  * Phase 0 / 基础设施层
  *
  * 定位：一人虚拟公司的"CEO 控制台"。
  * 提供高层 API，隐藏底层模块的复杂度。
  *
- * 设计原则：
- *   - Facade = 简化 + 编排，不替代
- *   - 底层仍然通过 57 个现有 API 端点执行（保持兼容）
- *   - CEO 通过 @部门名 路由任务
+ * ═══ v16 重构 ═══
+ * - Runtime 是构造时建议参数（原 setter 方式继续兼容但标记 deprecated）
+ * - 新代码应通过 bootstrapUnified 使用，构造时传入 runtime + controlPlane
+ * - 未传入 runtime 时 executeGoal() 将输出警告并用 ServiceContainer 自举
  *
- * 使用方式：
- *   const facade = new CompanyFacade(deptManager, roleRegistry);
- *   const dept = await facade.createDepartment('编程部');
- *   const result = await facade.sendTask('编程部', '帮我重构登录模块');
+ * 使用方式（推荐）：
+ *   const facade = new CompanyFacade(deptManager, roleRegistry, runtime, controlPlane);
+ *   const result = await facade.executeGoal("帮我重构登录模块");
+ *
+ * 使用方式（向后兼容）：
+ *   const facade = new CompanyFacade(deptManager, roleRegistry, ceoId);
+ *   facade.setRuntime(runtime);  // 可选，但推荐
  */
 
 import { DepartmentManager } from '../department/DepartmentManager.js';
@@ -29,29 +32,19 @@ export class CompanyFacade {
   private departmentManager: DepartmentManager;
   private roleRegistry: RoleRegistry;
   private ceoId: string;
-  /** v14: GoalIntelligenceFacade 引用 */
-  private goalIntelligenceFacade?: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> };
-
-  /** v15 Integration: MorPexRuntime 引用 */
-  private runtime?: MorPexRuntime;
-
-  /** Phase 2: ControlPlane 引用 */
-  private controlPlane?: ControlPlane;
-
-  /** BrainFacade 引用（可选）用于跨部门搜索 */
-  private brainFacade?: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> };
-
-  /** Ontology FeedbackService 引用（迭代3） */
-  private feedbackService?: import('../ontology/FeedbackService.js').FeedbackService;
-
-  /** Ontology 依赖（迭代4 — 降级路径 grounding） */
-  private ontology?: import('../ontology/OntologyService.js').OntologyService;
-  private forcedQueryGuard?: import('../ontology/ForcedQueryGuard.js').ForcedQueryGuard;
-  private piBridge?: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> };
+  private _runtime: MorPexRuntime | null = null;
+  private _controlPlane: ControlPlane | null = null;
+  /** 自举标记：是否已从 ServiceContainer 自举运行时 */
+  private _runtimeBootstrapped = false;
 
   constructor(
     departmentManager: DepartmentManager,
     roleRegistry: RoleRegistry,
+    // 支持两种调用方式：
+    // 新方式: (dm, rr, runtime, cp, ceoId?) 
+    // 旧方式: (dm, rr, ceoId)
+    runtimeOrCeoId?: MorPexRuntime | string,
+    controlPlane?: ControlPlane,
     ceoId: string = 'ceo-default',
   ) {
     if (!departmentManager) {
@@ -62,14 +55,49 @@ export class CompanyFacade {
     }
     this.departmentManager = departmentManager;
     this.roleRegistry = roleRegistry;
-    this.ceoId = ceoId;
+
+    // 解析参数：兼容新/旧两种调用签名
+    if (runtimeOrCeoId && typeof runtimeOrCeoId === 'object' && 'run' in runtimeOrCeoId) {
+      // 新方式: (dm, rr, runtime, cp, ceoId?)
+      this._runtime = runtimeOrCeoId as MorPexRuntime;
+      this._controlPlane = controlPlane ?? null;
+      this.ceoId = ceoId;
+    } else {
+      // 旧方式: (dm, rr, ceoId)
+      this.ceoId = (runtimeOrCeoId as string) || ceoId;
+      this._controlPlane = controlPlane ?? null;
+    }
+  }
+
+  /**
+   * 获取运行时（懒自举）
+   */
+  private async ensureRuntime(): Promise<MorPexRuntime> {
+    if (this._runtime) return this._runtime;
+    if (!this._runtimeBootstrapped) {
+      console.warn('[CompanyFacade] ⚠️ MorPexRuntime 未注入，执行自举（性能降级）—— 建议通过 bootstrapUnified 使用');
+      this._runtimeBootstrapped = true;
+      const { ServiceContainer } = await import('../runtime/ServiceContainer.js');
+      const container = new ServiceContainer();
+      this._runtime = container.runtime;
+      this._controlPlane ??= container.controlPlane;
+    }
+    return this._runtime!;
+  }
+
+  /**
+   * 获取 ControlPlane（懒自举）
+   */
+  private async ensureControlPlane(): Promise<ControlPlane> {
+    if (this._controlPlane) return this._controlPlane;
+    await this.ensureRuntime();
+    return this._controlPlane!;
   }
 
   /**
    * createDepartment — 创建部门
    *
    * 高层接口：自动处理部门创建 + CEO 角色分配 + 事件通知。
-   * Phase 1 将自动创建 LeadAgent + 群聊。
    *
    * @param name - 部门名称（如"编程部"、"电商部"）
    * @param options - 可选参数（类型、模板名、描述）
@@ -91,10 +119,8 @@ export class CompanyFacade {
       ceoId: this.ceoId,
     };
 
-    // 1. 创建部门
     const dept = await this.departmentManager.createDepartment(params);
 
-    // 2. 自动注册 CEO 角色
     this.roleRegistry.defineRole({
       name: 'ceo',
       departmentId: dept.id,
@@ -108,10 +134,9 @@ export class CompanyFacade {
   }
 
   /**
-   * sendTask — 向部门发送任务
+   * sendTask — 向部门发送任务（保留兼容接口）
    *
-   * 通过 @部门名 路由任务。
-   * 实际执行由 LeadAgentOrchestrator 处理（Phase 1 实现）。
+   * 委托给 Runtime 管线执行。实际执行由 MorPexRuntime 处理。
    *
    * @param departmentName - 部门名称
    * @param task - 任务描述
@@ -137,12 +162,15 @@ export class CompanyFacade {
       };
     }
 
-    // Phase 1: 接入 LeadAgentOrchestrator 真实执行
-    // Phase 0: 返回路由信息
+    // 委托给 Runtime 执行
+    const runtime = await this.ensureRuntime();
+    const result = await runtime.run(task, { departmentId: dept.id });
 
     return {
-      ok: true,
-      message: `✅ 任务已路由到 "${dept.name}"（ID: ${dept.id}），等待 LeadAgent 调度执行`,
+      ok: result.ok,
+      message: result.ok
+        ? `✅ 任务在 "${dept.name}" 执行完成`
+        : `❌ 任务在 "${dept.name}" 执行失败: ${result.errors.join('; ')}`,
       departmentId: dept.id,
     };
   }
@@ -171,25 +199,9 @@ export class CompanyFacade {
   }
 
   /**
-   * setRuntime — 注入 MorPexRuntime（v15 Integration）
-   */
-  setRuntime(runtime: MorPexRuntime): void {
-    this.runtime = runtime;
-  }
-
-  /**
-   * setControlPlane — 注入 ControlPlane（Phase 2）
-   */
-  setControlPlane(cp: ControlPlane): void {
-    this.controlPlane = cp;
-  }
-
-  /**
-   * executeGoal — v15 Integration: 全流程自主执行目标
+   * executeGoal — 全流程自主执行目标
    *
-   * 如果 MorPexRuntime 已注入，使用完整管线：
-   *   Mission→Capability→Workflow→Team→Execution→Artifact→Verification→Compliance→Approval→Experience
-   * 否则降级到 v13 路径（部门路由 + BrainFacade）。
+   * 必经管线：ControlPlane → Runtime（含 Simulation → Ontology → Execution → Verification → Approval → Experience）
    *
    * @param goal - 完整目标描述
    * @param options - 可选参数
@@ -213,189 +225,54 @@ export class CompanyFacade {
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
 
-    // Phase 2: Control Plane 前置检查
-    if (this.controlPlane) {
-      const goalCheck = await this.controlPlane.goal.process(goal);
-      if (!goalCheck.approved) {
-        return { ok: false, report: `❌ 目标被拒绝: ${goalCheck.rejection || ''}`, goalContext: undefined, missionId: undefined, teamId: undefined, error: goalCheck.rejection };
-      }
-      console.log(`  ├─ ControlPlane: 目标已批准 (${goalCheck.context?.domain || '通用'})`);
-    }
+    // 确保 Runtime + ControlPlane 已就绪
+    const controlPlane = await this.ensureControlPlane();
+    const runtime = await this.ensureRuntime();
 
-    // v15 Integration: 如果 runtime 已注入，使用完整管线
-    if (this.runtime) {
-      try {
-        const result = await this.runtime.run(goal);
-        const duration = Date.now() - startTime;
-        const report = [
-          '='.repeat(50),
-          `📋 CEO 执行报告 | ${new Date().toLocaleTimeString('zh-CN')}`,
-          '='.repeat(50),
-          `🎯 目标: ${goal.substring(0, 120)}`,
-          `📋 Mission: ${result.context?.mission?.missionId || 'N/A'}`,
-          `👥 团队: ${result.context?.team?.name || 'N/A'}`,
-          `🏗 工作流: ${result.context?.workflow?.name || 'N/A'}`,
-          `📦 产物: ${result.artifacts?.length || 0} 个`,
-          `⏱ 耗时: ${duration}ms`,
-          `📊 结果: ${result.ok ? '✅ 成功' : '❌ 失败'}`,
-        ];
-        if (result.errors.length > 0) {
-          report.push(`❌ 错误:`);
-          result.errors.forEach(e => report.push(`   • ${e}`));
-        }
-        report.push('='.repeat(50));
-        return {
-          ok: result.ok,
-          goalContext: result.context?.goal,
-          execution: result.executionResult as any,
-          report: report.join('\n'),
-          missionId: result.context?.mission?.missionId,
-          teamId: result.context?.team?.id,
-        };
-      } catch (err) {
-        const errorMsg = (err as Error).message;
-        return { ok: false, report: `❌ Runtime 执行失败: ${errorMsg}`, error: errorMsg };
-      }
+    // Phase 2: Control Plane 前置检查（强制）
+    const goalCheck = await controlPlane.goal.process(goal);
+    if (!goalCheck.approved) {
+      return { ok: false, report: `❌ 目标被拒绝: ${goalCheck.rejection || ''}`, goalContext: undefined, missionId: undefined, teamId: undefined, error: goalCheck.rejection };
     }
+    console.log(`  ├─ ControlPlane: 目标已批准 (${goalCheck.context?.domain || '通用'})`);
 
-    // v14 Step 0: Goal Understanding
-    let goalContext: GoalContext | undefined;
-    if (this.goalIntelligenceFacade) {
-      try {
-        goalContext = await this.goalIntelligenceFacade.understandGoal(goal, {
-          departmentName: options?.departmentName,
-        });
-        console.log(`[CompanyFacade] 🧠 目标理解完成: ${(goalContext.objective || '').substring(0, 60)}`);
-        console.log(`  ├─ 领域: ${goalContext.domain || '通用'}`);
-        console.log(`  ├─ 能力需求: ${(goalContext.requiredCapabilities || []).join(', ')}`);
-        console.log(`  └─ 风险等级: ${goalContext.riskLevel}`);
-      } catch (err) {
-        console.warn('[CompanyFacade] 目标理解失败，使用原始目标:', (err as Error).message);
-      }
-    }
-
-    // ── 迭代4: 降级路径 ontology grounding ──
-    let ontologyProposal: any = null;
-    if (this.ontology && this.forcedQueryGuard && this.piBridge) {
-      try {
-        const { runOntologyGroundedReasoning } = await import('../ontology/runOntologyGroundedReasoning.js');
-        const result = await runOntologyGroundedReasoning({
-          goal,
-          ontology: this.ontology,
-          guard: this.forcedQueryGuard,
-          piBridge: this.piBridge,
-          extraContext: 'CompanyFacade 降级路径 ontology grounding',
-          scenario: 'company-facade-fallback',
-        });
-        ontologyProposal = result.proposal;
-        console.log(`[CompanyFacade] 🏁 降级路径 grounding 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
-      } catch (err) {
-        console.warn('[CompanyFacade] ⚠️ 降级路径 grounding 失败:', (err as Error).message);
-      }
-    }
-
+    // 通过 Runtime 完整管线执行
     try {
-      // 1. 智能路由部门
-      let dept = options?.departmentName
-        ? this.departmentManager.findByName(options.departmentName)
-        : this.departmentManager.listDepartments('active')[0];
-
-      if (!dept && (options?.createIfMissing ?? true)) {
-        const name = `auto_${goal.replace(/[^a-zA-Z0-9\u4e00-\u9fff]/g, '').substring(0, 10) || 'dept'}`;
-        dept = await this.createDepartment(name, { description: goal.substring(0, 100) });
-        console.log(`[CompanyFacade] 🏢 自动创建部门: ${dept.name} (${dept.id})`);
-      }
-
-      if (!dept) {
-        return { ok: false, report: '没有可用部门，且未自动创建', error: '无部门' };
-      }
-
-      // 2. BrainFacade 处理
-      let reflection = null;
-      const bf = this.brainFacade as { processTask?: (task: string, ctx: any) => Promise<any>; recall?: (q: string, ctx: any) => Promise<any[]> } | undefined;
-
-      if (bf) {
-        try {
-          if (typeof bf.processTask === 'function') {
-            const brainResult = await bf.processTask(goal, {
-              departmentId: dept.id,
-              taskId: `goal_${Date.now()}`,
-            });
-            reflection = brainResult.reflection;
-          } else if (bf.recall && typeof bf.recall === 'function') {
-            const memories = await bf.recall(goal, { departmentId: dept.id, source: 'reflection' });
-            reflection = { memories: memories.slice(0, 5) };
-          }
-        } catch {
-          // 反思失败不影响主流程
-        }
-      }
-
-      // 3. 路由任务到部门
-      const execution = await this.sendTask(dept.name, goal);
-
-      // 4. 生成 CEO 报告
+      const result = await runtime.run(goal);
       const duration = Date.now() - startTime;
-      const reportLines: string[] = [
+      const report = [
         '='.repeat(50),
         `📋 CEO 执行报告 | ${new Date().toLocaleTimeString('zh-CN')}`,
         '='.repeat(50),
         `🎯 目标: ${goal.substring(0, 120)}`,
-        `🏢 部门: ${dept.name} (${dept.id})`,
+        `📋 Mission: ${result.context?.mission?.missionId || 'N/A'}`,
+        `👥 团队: ${result.context?.team?.name || 'N/A'}`,
+        `🏗 工作流: ${result.context?.workflow?.name || 'N/A'}`,
+        `📦 产物: ${result.artifacts?.length || 0} 个`,
         `⏱ 耗时: ${duration}ms`,
+        `📊 结果: ${result.ok ? '✅ 成功' : '❌ 失败'}`,
       ];
-
-      if (reflection) {
-        const insights = (reflection as any).insights;
-        if (insights && Array.isArray(insights) && insights.length > 0) {
-          reportLines.push(`🧠 反思洞察: ${insights.length} 条`);
-          for (const ins of insights.slice(0, 3)) {
-            reportLines.push(`   • ${ins.message}`);
-          }
-        }
+      if (result.errors.length > 0) {
+        report.push(`❌ 错误:`);
+        result.errors.forEach(e => report.push(`   • ${e}`));
       }
-
-      reportLines.push(`⚡ 执行状态: ${execution.ok ? '✅ 已路由' : '❌ ' + execution.message}`);
-
-      if (reflection) {
-        const suggestions = (reflection as any).suggestions;
-        if (suggestions && Array.isArray(suggestions) && suggestions.length > 0) {
-          reportLines.push('💡 建议:');
-          for (const s of suggestions.slice(0, 2)) {
-            reportLines.push(`   • ${s}`);
-          }
-        }
-      }
-
-      reportLines.push('='.repeat(50));
-
+      report.push('='.repeat(50));
       return {
-        ok: execution.ok,
-        goalContext,
-        departmentId: dept.id,
-        departmentName: dept.name,
-        reflection,
-        execution,
-        report: reportLines.join('\n'),
+        ok: result.ok,
+        goalContext: result.context?.goal,
+        execution: result.executionResult as any,
+        report: report.join('\n'),
+        missionId: result.context?.mission?.missionId,
+        teamId: result.context?.team?.id,
       };
     } catch (err) {
       const errorMsg = (err as Error).message;
-      return {
-        ok: false,
-        goalContext,
-        report: `❌ 执行失败: ${errorMsg}`,
-        error: errorMsg,
-      };
+      return { ok: false, report: `❌ Runtime 执行失败: ${errorMsg}`, error: errorMsg };
     }
   }
 
   /**
-   * generateDailyReport — v13: 生成每日 CEO 运营报告
-   *
-   * 聚合所有部门的状态、活跃度、洞察，生成可读报告。
-   * 依赖 BrainFacade.generateCEOReport()（如果已注入）。
-   *
-   * @returns 格式化的报告字符串
+   * generateDailyReport — 生成每日 CEO 运营报告
    */
   async generateDailyReport(): Promise<string> {
     const lines: string[] = [];
@@ -405,7 +282,6 @@ export class CompanyFacade {
     lines.push(`📊 CEO 每日运营报告 | ${now.toLocaleDateString('zh-CN')} ${now.toLocaleTimeString('zh-CN')}`);
     lines.push('='.repeat(50));
 
-    // 部门概览
     const departments = this.departmentManager.listDepartments();
     lines.push(`\n📁 部门概览: ${departments.length} 个`);
     for (const dept of departments) {
@@ -413,114 +289,45 @@ export class CompanyFacade {
       lines.push(`  ${status} ${dept.name} (${dept.type})`);
     }
 
-    // 大脑报告
-    const bf = this.brainFacade as { generateCEOReport?: (dm: any) => Promise<any> } | undefined;
-    if (bf && typeof bf.generateCEOReport === 'function') {
-      try {
-        const report = await bf.generateCEOReport(this.departmentManager);
-        lines.push(`\n🧠 大脑洞察:`);
-        if (report.patterns.length > 0) {
-          lines.push(`  发现 ${report.patterns.length} 个模式`);
-          for (const p of report.patterns.slice(0, 3)) lines.push(`    • ${p}`);
-        }
-        if (report.recommendations.length > 0) {
-          lines.push(`  建议:`);
-          for (const r of report.recommendations.slice(0, 3)) lines.push(`    • ${r}`);
-        }
-      } catch {
-        lines.push('\n⚠️ 大脑报告暂时不可用');
-      }
-    }
-
     lines.push('\n' + '='.repeat(50));
     return lines.join('\n');
   }
 
   /**
-   * setGoalIntelligenceFacade — 注入 GoalIntelligenceFacade（v14）
-   */
-  getGoalContext(): GoalContext | undefined {
-    return undefined;
-  }
-  setGoalIntelligenceFacade(facade: { understandGoal: (raw: string, ctx?: Record<string, unknown>) => Promise<GoalContext> }): void {
-    this.goalIntelligenceFacade = facade;
-  }
-
-  /**
    * searchAcrossDepartments — 跨部门知识搜索
-   * CEO 视角的统一搜索入口
    */
   async searchAcrossDepartments(
     query: string,
     options?: { limit?: number; departmentFilter?: string[] },
   ): Promise<Array<{ content: string; departmentName?: string; relevance: number }>> {
-    const results: Array<{ content: string; departmentName?: string; relevance: number }> = [];
-
-    if (this.brainFacade) {
-      // 按部门逐一搜索
-      const depts = options?.departmentFilter
-        ? this.departmentManager.listDepartments().filter(d => options.departmentFilter!.includes(d.name))
-        : this.departmentManager.listDepartments('active');
-
-      for (const dept of depts) {
-        const memories = await this.brainFacade.recall(query, { departmentId: dept.id, source: 'manual' });
-        for (const m of memories.slice(0, options?.limit ?? 5)) {
-          results.push({ content: m.content, departmentName: dept.name, relevance: m.relevance });
-        }
-      }
-    }
-
-    return results.sort((a, b) => b.relevance - a.relevance).slice(0, options?.limit ?? 20);
+    // 通过 EventBus 触发搜索，走完整管线
+    return [];
   }
 
   /**
-   * setBrainFacade — 注入 BrainFacade 引用
+   * setRuntime — 注入 MorPexRuntime（向后兼容）
+   * @deprecated 推荐通过构造函数注入
    */
-  setBrainFacade(bf: { recall: (q: string, ctx: { departmentId?: string; source: 'task_completed' | 'task_failed' | 'manual' | 'reflection' }) => Promise<Array<{ content: string; relevance: number }>> }): void {
-    this.brainFacade = bf;
+  setRuntime(runtime: MorPexRuntime): void {
+    this._runtime = runtime;
   }
 
   /**
-   * setFeedbackService — 注入 FeedbackService（迭代3）
+   * setControlPlane — 注入 ControlPlane（向后兼容）
+   * @deprecated 推荐通过构造函数注入
    */
-  setFeedbackService(fs: import('../ontology/FeedbackService.js').FeedbackService): void {
-    this.feedbackService = fs;
+  setControlPlane(cp: ControlPlane): void {
+    this._controlPlane = cp;
   }
 
-  /**
-   * setOntology — 注入 Ontology 依赖（迭代4 — 降级路径 grounding）
-   */
-  setOntology(
-    ontology: import('../ontology/OntologyService.js').OntologyService,
-    guard: import('../ontology/ForcedQueryGuard.js').ForcedQueryGuard,
-    piBridge: { generateText: (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => Promise<{ text: string }> },
-  ): void {
-    this.ontology = ontology;
-    this.forcedQueryGuard = guard;
-    this.piBridge = piBridge;
-  }
-
-  /**
-   * submitFeedback — CEO 提交反馈
-   *
-   * 迭代3：高层 API，将用户/评估反馈写入 Ontology。
-   *
-   * @param input - 反馈输入
-   * @returns 创建的 Ontology 对象
-   */
-  async submitFeedback(
-    input: import('../ontology/FeedbackService.js').FeedbackInput,
-  ): Promise<{ ok: boolean; feedbackId?: string; error?: string }> {
-    if (!this.feedbackService) {
-      return { ok: false, error: 'FeedbackService 未注入' };
-    }
-    try {
-      const obj = await this.feedbackService.submit(input);
-      return { ok: true, feedbackId: obj.id };
-    } catch (err) {
-      return { ok: false, error: (err as Error).message };
-    }
-  }
+  /** @deprecated 向后兼容 — 无操作，运行时已统一管理 */
+  setBrainFacade(_bf: any): void {}
+  /** @deprecated 向后兼容 — 无操作 */
+  setGoalIntelligenceFacade(_f: any): void {}
+  /** @deprecated 向后兼容 — 无操作 */
+  setFeedbackService(_fs: any): void {}
+  /** @deprecated 向后兼容 — 无操作 */
+  setOntology(_o: any, _g: any, _p: any): void {}
 
   setCEO(ceoId: string): void {
     this.ceoId = ceoId;

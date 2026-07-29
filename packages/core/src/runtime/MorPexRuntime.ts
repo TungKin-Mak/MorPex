@@ -36,6 +36,17 @@ export interface RunResult {
   errors: string[];
 }
 
+export interface RunOptions {
+  /** ⭐ P0: 模拟失败是否硬中止（默认 true） */
+  simulationHardFail?: boolean;
+  /** ⭐ P0: Ontology grounding 失败是否硬中止（默认 false） */
+  ontologyHardFail?: boolean;
+  /** ⭐ P0: 审批是否 await 人工决策（默认 false） */
+  awaitApproval?: boolean;
+  /** 部门 ID（可选） */
+  departmentId?: string;
+}
+
 export class MorPexRuntime {
   private eventBus: EventBus;
   private pipeline: PipelineOrchestrator;
@@ -94,9 +105,13 @@ export class MorPexRuntime {
   /** setEvaluationEngine — 注入 EvaluationEngine（迭代4） */
   setEvaluationEngine(e: EvaluationEngine): void { this.evaluationEngine = e; }
 
-  async run(goal: string): Promise<RunResult> {
+  async run(goal: string, options?: RunOptions): Promise<RunResult> {
     const errors: string[] = [];
     let context!: ExecutionContext;
+
+    const simHardFail = options?.simulationHardFail ?? true;
+    const ontoHardFail = options?.ontologyHardFail ?? false;
+    const awaitApproval = options?.awaitApproval ?? false;
 
     try {
       // ── Phase 1: Pipeline Orchestration (Mission → Team → Workflow) ──
@@ -128,12 +143,15 @@ export class MorPexRuntime {
           'RESOURCE_UNAVAILABLE',
           simResult.blockingIssues.join('; '),
         );
-        return {
-          ok: false,
-          context,
-          errors: simResult.blockingIssues,
-          artifacts: [],
-        };
+        if (simHardFail) {
+          return {
+            ok: false,
+            context,
+            errors: simResult.blockingIssues,
+            artifacts: [],
+          };
+        }
+        console.warn(`[MorPexRuntime] ⚠️ 模拟不可行但继续执行 (soft mode): ${simResult.blockingIssues.join('; ')}`);
       }
 
       // ── Phase 1.7: Ontology Grounded Reasoning（迭代4）──
@@ -153,29 +171,40 @@ export class MorPexRuntime {
           ontologyProposal = result.proposal;
           console.log(`[MorPexRuntime] 🏁 Ontology grounding 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
 
-          // 空事实或引用无效 → 硬门禁：标记 human_review 但不中止执行
-          if (!result.hasUsefulFacts) {
-            console.warn(`[MorPexRuntime] ⚠️ Ontology grounding 无有效事实，标记审查`);
+          // 空事实或引用无效 → 硬门禁：标记 human_review
+          const needsReview = !result.hasUsefulFacts || !result.queryTrace.referenceCheck.valid;
+          if (needsReview) {
             ontologyProposal.needs_human_review = true;
-          }
-          if (!result.queryTrace.referenceCheck.valid) {
-            console.warn(`[MorPexRuntime] ⚠️ 引用校验失败: ${result.queryTrace.referenceCheck.missing.join(', ')}`);
-            ontologyProposal.needs_human_review = true;
+            if (!result.hasUsefulFacts) {
+              console.warn(`[MorPexRuntime] ⚠️ Ontology grounding 无有效事实，标记审查`);
+            }
+            if (!result.queryTrace.referenceCheck.valid) {
+              console.warn(`[MorPexRuntime] ⚠️ 引用校验失败: ${result.queryTrace.referenceCheck.missing.join(', ')}`);
+            }
+            if (ontoHardFail) {
+              return {
+                ok: false,
+                context,
+                errors: [`Ontology grounding 失败: ${!result.hasUsefulFacts ? '无有效事实' : '引用校验失败'}`],
+                artifacts: [],
+              };
+            }
           }
         } catch (err) {
-          // ═══════════════════════════════════════════════
-          // 迭代4 硬门禁：grounding 失败 → 标记需人工审查，继续执行
-          // ═══════════════════════════════════════════════
-          console.error(`[MorPexRuntime] ❌ Ontology grounding 失败:`, (err as Error).message);
+          const errMsg = `Ontology grounding 失败: ${(err as Error).message}`;
+          console.error(`[MorPexRuntime] ❌ ${errMsg}`);
           this.missionController.addBlock(
             context.mission.missionId,
             'QUALITY_FAILED',
-            `Ontology grounding 失败: ${(err as Error).message}`,
+            errMsg,
           );
+          if (ontoHardFail) {
+            return { ok: false, context, errors: [errMsg], artifacts: [] };
+          }
         }
       }
 
-      // ── Phase 2: Execution ──
+      // ── Phase 2: Execution（统一执行引擎）──
       const execRequest: ExecutionRequest = {
         goal: context.goal.objective,
         mode: 'auto',
@@ -202,41 +231,27 @@ export class MorPexRuntime {
         };
       }
 
-      // ── Phase 3: Artifact Creation ──
-      // 从执行输出中提取文本内容（支持对象和字符串两种格式）
+      // ── Phase 3: Artifact Creation（仅由 Runtime 创建，Engine 不再创建）──
       const outputText = typeof execResult.output === 'string'
         ? execResult.output
         : execResult.output && typeof execResult.output === 'object'
           ? (execResult.output as any).text || (execResult.output as any).document || JSON.stringify(execResult.output, null, 2)
           : String(execResult.output || '');
 
-      // 创建文档类型产物（包含完整文本）
       const docArtifact = this.artifactFacade.create(
         'output',
         'document',
         context.executionId,
-        {
-          goal: context.goal.objective,
-          output: outputText,
-          text: outputText,
-        },
+        { goal: context.goal.objective, output: outputText, text: outputText },
       );
       context.artifacts.push(docArtifact.id);
 
-      // 创建代码类型产物（如果输出包含代码）
       const hasCode = outputText.includes('```') || /function|class|const |import |export /i.test(outputText);
       let codeArtifact: any = null;
       if (hasCode) {
         codeArtifact = this.artifactFacade.create(
-          'source',
-          'code',
-          context.executionId,
-          {
-            goal: context.goal.objective,
-            output: outputText,
-            text: outputText,
-            language: 'auto',
-          },
+          'source', 'code', context.executionId,
+          { goal: context.goal.objective, output: outputText, text: outputText, language: 'auto' },
         );
         context.artifacts.push(codeArtifact.id);
       }
@@ -264,6 +279,21 @@ export class MorPexRuntime {
           'HUMAN_WAITING',
           `等待审批: ${docArtifact.name}`,
         );
+        // ⭐ P0: awaitApproval 模式 — 阻塞直到人工审批完成
+        if (awaitApproval) {
+          console.log(`[MorPexRuntime] ⏸️ 等待人工审批: ${docArtifact.name}`);
+          // 暴露审批等待状态，外部可调用 approvalGate.decide()
+          return {
+            ok: false,
+            context,
+            executionResult: execResult,
+            artifacts: [docArtifact, codeArtifact].filter(Boolean),
+            verification: verResult,
+            compliance: complianceResult,
+            approval: approvalRequest,
+            errors: [`等待人工审批: ${docArtifact.name}`],
+          };
+        }
       }
 
       // ── Phase 5: Experience Mining ──
@@ -305,7 +335,7 @@ export class MorPexRuntime {
           });
           console.log(`[MorPexRuntime] 🔄 进化分析: ${evolutionResult.proposals.length} 个提案`);
         } catch (_err) {
-          // 进化分析失败不影响主流程
+          console.warn('[MorPexRuntime] ⚠️ 进化分析失败:', (_err as Error).message);
         }
       }
 
@@ -367,14 +397,6 @@ export class MorPexRuntime {
 
   /**
    * learnFromVerification — 将 TaskVerifier 的验证结果注入学习系统
-   *
-   * 使系统能从验证失败中学习，避免重复错误。
-   * 由 benchmark 或外部验证者调用。
-   *
-   * @param taskId      - 任务 ID
-   * @param taskTitle   - 任务标题
-   * @param checkpoints - 验证检查点结果（含 description, passed, score, matched, missing）
-   * @returns 是否成功存储学习经验
    */
   learnFromVerification(
     taskId: string,
@@ -396,7 +418,6 @@ export class MorPexRuntime {
       const experiences = this.learningEngine.learnFromVerification(taskId, taskTitle, checkpoints);
       console.log(`[MorPexRuntime] ✅ 验证学习完成: ${experiences.length} 条经验存储`);
 
-      // 同时将验证失败信息注入自我改进循环
       const failedCheckpoints = checkpoints
         .filter(cp => !cp.passed)
         .map(cp => cp.description);
@@ -412,7 +433,9 @@ export class MorPexRuntime {
           artifactQuality: passRate,
           verificationPassRate: passRate,
           failedCheckpoints,
-        }).catch(() => {});
+        }).catch((err: Error) => {
+          console.warn('[MorPexRuntime] ⚠️ 进化分析失败:', err.message);
+        });
       }
 
       return true;

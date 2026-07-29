@@ -187,9 +187,9 @@ export class ServiceContainer {
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();
-    this.missionStore.init().catch(() => {});
-    this.artifactStore.init().catch(() => {});
-    this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch(() => {}); } });
+    this.missionStore.init().catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
+    this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
+    this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
     this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.controlPlane = new ControlPlane();
 
@@ -201,7 +201,7 @@ export class ServiceContainer {
     this.learningEngine = new CrossAgentLearningEngine(expRepo, distiller, propagator, matcher);
 
     // 尝试将学习经验持久化到 SQLite（missions.db 中的 shared_experiences 表）
-    this.initLearningPersistence(expRepo).catch(() => {});
+    this.initLearningPersistence(expRepo).catch((err: Error) => console.warn('[ServiceContainer] 学习持久化初始化失败:', err.message));
 
     this.runtime = new MorPexRuntime(
       this.eventBus,

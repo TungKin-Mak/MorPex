@@ -98,17 +98,17 @@ Goal ──▶ Mission ──▶ Capability ──▶ Workflow ──▶ Team �
   └──────────────────────────────────← 闭环反馈 ←────────────────────────────────────────────┘
 ```
 
-| 环节 | 组件 | 状态 | 证据 |
-|------|------|------|------|
-| **Goal → Mission** | `GoalIntelligenceFacade.understandGoal()` → `MissionController.createMission()` | ✅ | GoalContext.goalId 传递给 MissionState.goalId |
-| **Mission → Capability** | `CapabilityDiscoverer.discover(goalContext)` 从 Mission 目标发现能力 | ✅ | discover() 接收 objective + requiredCapabilities |
-| **Capability → Workflow** | `WorkflowPluginRegistry.findForGoal(goal)` → 匹配 WorkflowProvider | ✅ | matchGoal(goal) 接口, ecommerce/hardware 等实现 |
-| **Workflow → Team** | `DynamicTeamOrchestrator.orchestrateWithCapability()` → 能力驱动团队 | ✅ | orchestrateWithCapability 内部顺序: Cap→WF→Team |
-| **Team → Execution** | `SubAgentFork.setExecutionEngine()` → 团队分配到执行引擎 | ⚠️ | 团队结构未显式传递到 ExecutionRequest |
-| **Execution → Artifact** | `UnifiedExecutionEngine.execute()` 成功后调用 `ArtifactFacade.createFromTask()` | ✅ | 自动创建 document 类型产物 |
-| **Artifact → Verification** | `VerificationEngine.verify(artifacts)` 检查产物质量 | ✅ | QualityRule 按类型检查 |
-| **Verification → Learning** | `BrainFacade.learn()` → `ExperienceMiner.mineFromCompletedTask()` → `SelfImprovementLoop.runAnalysis()` | ✅ | learn() 在 execute() 完成后调用 |
-| **Learning → Goal (反馈)** | `MetaLearner` 更新偏好/模式 → 影响下次 `GoalIntelligence` | ⚠️ | 偏好更新了但未自动回写到 GoalIntelligence 的解析策略 |
+| 环节                          | 组件                                                                                                      | 状态  | 证据                                             |
+| --------------------------- | ------------------------------------------------------------------------------------------------------- | --- | ---------------------------------------------- |
+| **Goal → Mission**          | `GoalIntelligenceFacade.understandGoal()` → `MissionController.createMission()`                         | ✅   | GoalContext.goalId 传递给 MissionState.goalId     |
+| **Mission → Capability**    | `CapabilityDiscoverer.discover(goalContext)` 从 Mission 目标发现能力                                           | ✅   | discover() 接收 objective + requiredCapabilities |
+| **Capability → Workflow**   | `WorkflowPluginRegistry.findForGoal(goal)` → 匹配 WorkflowProvider                                        | ✅   | matchGoal(goal) 接口, ecommerce/hardware 等实现     |
+| **Workflow → Team**         | `DynamicTeamOrchestrator.orchestrateWithCapability()` → 能力驱动团队                                          | ✅   | orchestrateWithCapability 内部顺序: Cap→WF→Team    |
+| **Team → Execution**        | `SubAgentFork.setExecutionEngine()` → 团队分配到执行引擎                                                         | ⚠️  | 团队结构未显式传递到 ExecutionRequest                    |
+| **Execution → Artifact**    | `UnifiedExecutionEngine.execute()` 成功后调用 `ArtifactFacade.createFromTask()`                              | ✅   | 自动创建 document 类型产物                             |
+| **Artifact → Verification** | `VerificationEngine.verify(artifacts)` 检查产物质量                                                           | ✅   | QualityRule 按类型检查                              |
+| **Verification → Learning** | `BrainFacade.learn()` → `ExperienceMiner.mineFromCompletedTask()` → `SelfImprovementLoop.runAnalysis()` | ✅   | learn() 在 execute() 完成后调用                      |
+| **Learning → Goal (反馈)**    | `MetaLearner` 更新偏好/模式 → 影响下次 `GoalIntelligence`                                                         | ⚠️  | 偏好更新了但未自动回写到 GoalIntelligence 的解析策略            |
 
 ### 2.2 闭环缺口
 
@@ -256,24 +256,24 @@ ExecutionEngine 内部有复杂度自适应 (simple→Fabric, medium→DAG, comp
 目标: "开发空气检测设备并销售到 Amazon"
 ```
 
-| 时间 | 事件 | 系统行为 | 状态保持 |
-|------|------|----------|----------|
-| **Day 1** | 产品规划 | `MissionController.createMission()` → `phase:'DISCOVERY'` | ✅ MissionState 创建 |
-| **Day 7** | 硬件失败 | `MissionController.addBlock('RESOURCE_UNAVAILABLE', '传感器缺货')` | ✅ Blocked 记录 |
-| **Day 15** | 供应链变化 | `MissionController.addRisk('HIGH', 'PCB良率低', 0.8)` | ✅ Risk 记录 |
-| **Day 20** | 重新设计 | `ConflictResolver.suggestReplan()` → 人工介入 | ⚠️ 建议生成, 但自动重新设计无 |
-| **Day 30** | 上线 | `MissionController.updateMission({status:'COMPLETED'})` | ✅ 完成 |
+| 时间         | 事件    | 系统行为                                                          | 状态保持              |
+| ---------- | ----- | ------------------------------------------------------------- | ----------------- |
+| **Day 1**  | 产品规划  | `MissionController.createMission()` → `phase:'DISCOVERY'`     | ✅ MissionState 创建 |
+| **Day 7**  | 硬件失败  | `MissionController.addBlock('RESOURCE_UNAVAILABLE', '传感器缺货')` | ✅ Blocked 记录      |
+| **Day 15** | 供应链变化 | `MissionController.addRisk('HIGH', 'PCB良率低', 0.8)`            | ✅ Risk 记录         |
+| **Day 20** | 重新设计  | `ConflictResolver.suggestReplan()` → 人工介入                     | ⚠️ 建议生成, 但自动重新设计无 |
+| **Day 30** | 上线    | `MissionController.updateMission({status:'COMPLETED'})`       | ✅ 完成              |
 
 ### 5.2 长期运行缺口
 
-| 能力 | 状态 | 问题 |
-|------|------|------|
-| **持久化** | ❌ 全部内存 | Node.js 重启 → 所有 Mission/Artifact/Experience 丢失 |
-| **断点恢复** | ❌ 无 | 系统重启后无法恢复 Day 15 的 Mission 状态 |
-| **定时检查** | ❌ 无 | 系统不知道 Day 7 到了该检查传感器 |
-| **外部事件** | ❌ 无 | 供应链变化需要人工输入到系统 |
-| **自动重试** | ⚠️ 部分 | Execution 层面有 retry, 但 Mission 层面无 replan |
-| **决策记录** | ✅ Timeline | MissionController.timeline[] 记录所有事件 |
+| 能力       | 状态         | 问题                                             |
+| -------- | ---------- | ---------------------------------------------- |
+| **持久化**  | ❌ 全部内存     | Node.js 重启 → 所有 Mission/Artifact/Experience 丢失 |
+| **断点恢复** | ❌ 无        | 系统重启后无法恢复 Day 15 的 Mission 状态                  |
+| **定时检查** | ❌ 无        | 系统不知道 Day 7 到了该检查传感器                           |
+| **外部事件** | ❌ 无        | 供应链变化需要人工输入到系统                                 |
+| **自动重试** | ⚠️ 部分      | Execution 层面有 retry, 但 Mission 层面无 replan      |
+| **决策记录** | ✅ Timeline | MissionController.timeline[] 记录所有事件            |
 
 ### 5.3 修复建议
 

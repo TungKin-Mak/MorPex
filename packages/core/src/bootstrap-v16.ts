@@ -1,5 +1,8 @@
 /**
- * MorPex v16 Bootstrap — v15 + MissionControl + CapabilityRegistry + Simulation + ApprovalGate
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
+ * v16 Bootstrap — v15 + MissionControl + CapabilityRegistry + Simulation + ApprovalGate
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * v16 新增:
  *   - mission-control/MissionController (项目总控)

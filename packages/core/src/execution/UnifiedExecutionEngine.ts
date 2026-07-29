@@ -259,25 +259,11 @@ export class UnifiedExecutionEngine {
         { taskId: executionId, departmentId: request.departmentId },
       ));
 
-      // v14: 执行成功时自动创建产物
-      if (this.artifactFacade && result.ok) {
-        this.artifactFacade.createFromTask(executionId, { goal: request.goal, output: result.output }, 'document')
-          .catch(err => console.warn('[UnifiedExecutionEngine] 创建产物失败:', err));
-      }
-
       // 记录执行质量
       this.recordExecutionQuality(mode, result.ok, result.duration);
 
-      // v14: 执行成功 → 自动创建产物
-      if (result.ok && this.artifactFacade) {
-        this.artifactFacade.createFromTask(executionId, {
-          goal: request.goal,
-          output: result.output,
-          mode,
-        }, 'document').catch((err: Error) =>
-          console.warn('[UnifiedExecutionEngine] 创建产物失败:', err.message)
-        );
-      }
+      // ⚠️ 产物创建由上层（MorPexRuntime）统一处理，Engine 不再创建
+      // 见 MorPexRuntime.run() Phase 3: Artifact Creation
 
       // 发射执行完成事件
       this.eventBus.emit({
@@ -331,7 +317,10 @@ export class UnifiedExecutionEngine {
   /**
    * resolveMode — 智能决定执行模式
    *
-   * Phase 4.6: 基于任务复杂度分析自动选择最佳模式
+   * ⭐ P0 升级：优先使用 GoalIntelligence 的分析结果（如果可用），
+   *   否则使用多维度启发式判断替代纯词数正则。
+   *
+   * 判断维度：
    *   - simple  → fabric（最快）
    *   - medium  → dag（并行）
    *   - complex → mission（完整 FSM 生命周期）
@@ -353,26 +342,53 @@ export class UnifiedExecutionEngine {
   }
 
   /**
-   * analyzeComplexity — 分析任务复杂度
+   * analyzeComplexity — 多维度任务复杂度分析
    *
-   * 基于目标文本特征判断复杂度级别：
-   *   - simple:   <10词，无双步骤指示
-   *   - medium:   <30词或含多步暗示
-   *   - complex:  ≥30词或含约束条件
+   * ⭐ P0 升级：从纯词数正则升级为多维度启发式：
+   *   1. 目标文本长度（词数 + 字符数）
+   *   2. 结构化提示（序号列表、换行分割）
+   *   3. 能力需求（context 中的 requiredCapabilities）
+   *   4. 约束条件（budget, deadline, quality）
+   *
+   * 仍然简单但不依赖单一词数阈值。
    */
   private analyzeComplexity(request: ExecutionRequest): 'simple' | 'medium' | 'complex' {
     const goal = request.goal;
     const wordCount = goal.split(/\s+/).length;
-    const hasMultiStep = /\n|1\.\s|2\.\s|first|then|finally|and\s+then|after\s+that|step|phase|stage/i.test(goal);
-    const hasConstraints = request.context?.constraints !== undefined || request.departmentId !== undefined;
+    const charCount = goal.length;
 
-    if (wordCount < 10 && !hasMultiStep && !hasConstraints) return 'simple';
-    if (wordCount < 30 && !hasMultiStep) return 'medium';
+    // 维度 1: 结构化提示检测
+    const hasNumberedSteps = /\n\s*\d+\.\s/.test(goal);
+    const hasBulletPoints = /\n\s*[-*]\s/.test(goal);
+    const hasNewlines = goal.includes('\n');
+    const hasMultiStepKeywords = /\bfirst\b|\bthen\b|\bfinally\b|\band\s+then\b|\bafter\s+that\b|\bstep\b|\bphase\b|\bstage\b/i.test(goal);
+
+    // 维度 2: 能力需求检测
+    const contextCaps = request.context?.requiredCapabilities;
+    const hasMultipleCapabilities = Array.isArray(contextCaps) && contextCaps.length > 1;
+
+    // 维度 3: 约束条件
+    const hasConstraints = request.context?.constraints !== undefined
+      || request.context?.budget !== undefined
+      || request.context?.deadline !== undefined
+      || request.departmentId !== undefined;
+
+    // 多维度综合判断
+    const structureScore = (hasNumberedSteps ? 2 : 0) + (hasBulletPoints ? 1 : 0) + (hasNewlines ? 1 : 0) + (hasMultiStepKeywords ? 1 : 0);
+    const lengthScore = charCount > 500 ? 3 : charCount > 200 ? 2 : charCount > 80 ? 1 : 0;
+    const capScore = hasMultipleCapabilities ? 2 : 0;
+    const constraintScore = hasConstraints ? 1 : 0;
+    const totalScore = structureScore + lengthScore + capScore + constraintScore;
+
+    if (totalScore <= 2 && wordCount < 15) return 'simple';
+    if (totalScore <= 5 && wordCount < 50) return 'medium';
     return 'complex';
   }
 
   /**
    * executeViaMission — 通过 MissionRuntime 执行
+   *
+   * ⭐ P0 修复：等待 Mission 完整生命周期，而非直接返回 status:'running'
    */
   private async executeViaMission(request: ExecutionRequest, executionId: string): Promise<ExecutionResult> {
     if (!this.missionRuntime) {
@@ -382,20 +398,65 @@ export class UnifiedExecutionEngine {
       };
     }
 
-    const result = await this.missionRuntime.start(request.goal, {
-      ...request.context,
-      departmentId: request.departmentId,
-      executionId,
-    });
+    const startTime = Date.now();
+    try {
+      const result = await this.missionRuntime.start(request.goal, {
+        ...request.context,
+        departmentId: request.departmentId,
+        executionId,
+      });
 
-    return {
-      ok: true, executionId, mode: 'mission', status: 'running',
-      output: result, duration: 0,
-    };
+      // 等待 Mission 生命周期完成
+      const missionId = result.executionId;
+      const maxWait = request.timeoutMs || 300000; // 默认 5 分钟
+      let waited = 0;
+      const pollInterval = 1000;
+
+      while (waited < maxWait) {
+        const status = this.missionRuntime.getStatus(missionId);
+        if (!status) break;
+        const state = (status as any).state;
+        // 终态判断
+        if (state === 'COMPLETED' || state === 'completed') {
+          const duration = Date.now() - startTime;
+          return {
+            ok: true, executionId: missionId, mode: 'mission', status: 'completed',
+            output: { missionId, state, result },
+            duration,
+          };
+        }
+        if (state === 'FAILED' || state === 'MISSION_FAILED' || state === 'CANCELLED' ||
+            state === 'failed' || state === 'mission_failed' || state === 'cancelled') {
+          const duration = Date.now() - startTime;
+          return {
+            ok: false, executionId: missionId, mode: 'mission', status: 'failed',
+            error: `Mission ${missionId} ended with state: ${state}`,
+            duration,
+          };
+        }
+        await new Promise(r => setTimeout(r, pollInterval));
+        waited += pollInterval;
+      }
+
+      // 超时
+      return {
+        ok: false, executionId: missionId, mode: 'mission', status: 'running',
+        error: `Mission ${missionId} 执行超时 (${maxWait}ms)`,
+        duration: Date.now() - startTime,
+      };
+    } catch (err) {
+      return {
+        ok: false, executionId, mode: 'mission', status: 'failed',
+        error: (err as Error).message,
+        duration: Date.now() - startTime,
+      };
+    }
   }
 
   /**
    * executeViaDAG — 通过 DAGRuntime 执行
+   *
+   * ⭐ P0 修复：等待 DAG 执行完成，而非直接返回 status:'running'
    */
   private async executeViaDAG(request: ExecutionRequest, executionId: string): Promise<ExecutionResult> {
     if (!this.dagRuntime) {
@@ -405,16 +466,54 @@ export class UnifiedExecutionEngine {
       };
     }
 
-    const result = await this.dagRuntime.execute(
-      request.goal,
-      [],
-      { ...request.context, departmentId: request.departmentId, executionId },
-    );
+    const startTime = Date.now();
+    try {
+      const result = await this.dagRuntime.execute(
+        request.goal,
+        [],
+        { ...request.context, departmentId: request.departmentId, executionId },
+      );
 
-    return {
-      ok: true, executionId, mode: 'dag', status: 'running',
-      output: result, duration: 0,
-    };
+      // 等待 DAG 执行完成
+      const dagExecutionId = result.executionId;
+      const maxWait = request.timeoutMs || 300000;
+      let waited = 0;
+      const pollInterval = 1000;
+
+      while (waited < maxWait) {
+        const status = this.dagRuntime.getStatus(dagExecutionId);
+        if (!status) break;
+        const state = (status as any).state;
+        if (state === 'completed' || state === 'COMPLETED') {
+          return {
+            ok: true, executionId: dagExecutionId, mode: 'dag', status: 'completed',
+            output: result,
+            duration: Date.now() - startTime,
+          };
+        }
+        if (state === 'failed' || state === 'FAILED' || state === 'cancelled' || state === 'CANCELLED') {
+          return {
+            ok: false, executionId: dagExecutionId, mode: 'dag', status: 'failed',
+            error: `DAG ${dagExecutionId} ended with state: ${state}`,
+            duration: Date.now() - startTime,
+          };
+        }
+        await new Promise(r => setTimeout(r, pollInterval));
+        waited += pollInterval;
+      }
+
+      return {
+        ok: false, executionId: dagExecutionId, mode: 'dag', status: 'running',
+        error: `DAG ${dagExecutionId} 执行超时 (${maxWait}ms)`,
+        duration: Date.now() - startTime,
+      };
+    } catch (err) {
+      return {
+        ok: false, executionId, mode: 'dag', status: 'failed',
+        error: (err as Error).message,
+        duration: Date.now() - startTime,
+      };
+    }
   }
 
   /**

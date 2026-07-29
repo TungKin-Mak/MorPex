@@ -105,4 +105,29 @@ export class ApprovalGate {
   getPending(): ApprovalRequest[] { return [...this.requests.values()].filter(r => !r.decision); }
   getHistory(): ApprovalRequest[] { return [...this.requests.values()].filter(r => r.decision); }
   getAll(): ApprovalRequest[] { return [...this.requests.values()]; }
+
+  /**
+   * waitForDecision — 等待人工审批决策（awaitHuman 模式）
+   *
+   * ⭐ P0: 阻塞直到审批被决定（外部调用 decide()）
+   * 超时返回 WAIT_HUMAN 状态。
+   *
+   * @param requestId - 审批请求 ID
+   * @param timeoutMs - 超时毫秒（默认 30 分钟）
+   * @returns 决定的 ApprovalRequest
+   */
+  async waitForDecision(requestId: string, timeoutMs: number = 1800000): Promise<ApprovalRequest> {
+    const req = this.requests.get(requestId);
+    if (!req) throw new Error(`审批请求不存在: ${requestId}`);
+    if (req.decision) return req;
+
+    const startTime = Date.now();
+    while (Date.now() - startTime < timeoutMs) {
+      const current = this.requests.get(requestId);
+      if (current?.decision) return current;
+      await new Promise(r => setTimeout(r, 2000));
+    }
+
+    return req; // 超时，decision 仍为 undefined
+  }
 }

@@ -770,6 +770,16 @@ export type {
   EvolutionEngineLike,
 } from './cognition/BrainFacade.js';
 
+// ═══════════════════════════════════════════════════════════════
+// v16 Unified Bootstrap — 唯一入口
+// ═══════════════════════════════════════════════════════════════
+export { bootstrapUnified } from './bootstrap-unified.js';
+export type { UnifiedBootstrapResult } from './bootstrap-unified.js';
+
+// ═══════════════════════════════════════════════════════════════
+// @deprecated 旧版本 Bootstrap — 请使用 bootstrapUnified()
+// ═══════════════════════════════════════════════════════════════
+/** @deprecated 请使用 bootstrapUnified */
 export { bootstrapV12 } from './bootstrap-v12.js';
 export type { V12BootstrapResult } from './bootstrap-v12.js';
 
@@ -811,6 +821,7 @@ export type { ActionPrimitive, ActionResult, ListingData, ListingResult } from '
 export { GovernanceDashboard } from './governance/index.js';
 
 // ── v13 Bootstrap ──
+/** @deprecated 请使用 bootstrapUnified */
 export { bootstrapV13 } from './bootstrap-v13.js';
 export type { V13BootstrapResult } from './bootstrap-v13.js';
 
@@ -835,6 +846,7 @@ export { CapabilityStore, SOPRegistry } from './experience/index.js';
 export type { CapabilityPattern, SOP } from './experience/index.js';
 
 // ── v14 Bootstrap ──
+/** @deprecated 请使用 bootstrapUnified */
 export { bootstrapV14 } from './bootstrap-v14.js';
 export type { V14BootstrapResult } from './bootstrap-v14.js';
 
@@ -864,6 +876,7 @@ export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './b
 export type { ImprovementInsight, Proposal } from './brain/index.js';
 
 // ── v15 Bootstrap ──
+/** @deprecated 请使用 bootstrapUnified */
 export { bootstrapV15 } from './bootstrap-v15.js';
 export type { V15BootstrapResult } from './bootstrap-v15.js';
 
@@ -925,6 +938,7 @@ export { SystemMetadataGraph, systemMetadataGraph } from './metadata/index.js';
 export type { Entity, EntityType, Relation, RelationType } from './metadata/index.js';
 
 // ── v16 Bootstrap ──
+/** @deprecated 请使用 bootstrapUnified */
 export { bootstrapV16 } from './bootstrap-v16.js';
 export type { V16BootstrapResult } from './bootstrap-v16.js';
 

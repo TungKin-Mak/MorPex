@@ -1,7 +1,10 @@
 /**
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
  * MorPex v15 Integration Bootstrap
  *
  * 目标: 将所有 v12-v16 模块接入真实运行链路，解决"模块存在≠系统具备能力"问题。
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * 核心变更:
  *   - ServiceContainer: 一键初始化所有服务

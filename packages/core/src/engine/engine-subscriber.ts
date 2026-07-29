@@ -47,7 +47,7 @@ export class EngineSubscriber {
         ts: event.timestamp,
         execId: event.executionId,
       };
-      this.eventStore.append(sourcingEvent).catch(() => {});
+      this.eventStore.append(sourcingEvent).catch((err: Error) => console.warn('[EngineSubscriber] EventStore append failed:', err.message));
     });
 
     this.subscribeTo('workflow.step_completed', (event) => {
@@ -61,7 +61,7 @@ export class EngineSubscriber {
         ts: event.timestamp,
         execId: event.executionId,
       };
-      this.eventStore.append(sourcingEvent).catch(() => {});
+      this.eventStore.append(sourcingEvent).catch((err: Error) => console.warn('[EngineSubscriber] EventStore append failed:', err.message));
     });
 
     this.subscribeTo('workflow.step_failed', (event) => {
@@ -75,7 +75,7 @@ export class EngineSubscriber {
         ts: event.timestamp,
         execId: event.executionId,
       };
-      this.eventStore.append(sourcingEvent).catch(() => {});
+      this.eventStore.append(sourcingEvent).catch((err: Error) => console.warn('[EngineSubscriber] EventStore append failed:', err.message));
     });
 
     // 订阅工作流完成事件 → MemoryBus
@@ -83,14 +83,14 @@ export class EngineSubscriber {
       if (!this.memoryBus) return;
       const p = event.payload as any;
       const summary = `工作流完成: execution=${event.executionId}, 步骤=${p?.totalSteps ?? '?'}, 耗时=${p?.totalDurationMs ?? '?'}ms`;
-      this.memoryBus.upsert('workflow_summary', summary, 3).catch(() => {});
+      this.memoryBus.upsert('workflow_summary', summary, 3).catch((err: Error) => console.warn('[EngineSubscriber] MemoryBus upsert failed:', err.message));
     });
 
     this.subscribeTo('workflow.failed', (event) => {
       if (!this.memoryBus) return;
       const p = event.payload as any;
       const summary = `工作流失败: execution=${event.executionId}, 错误=${p?.error ?? '?'}`;
-      this.memoryBus.upsert('workflow_failure', summary, 5).catch(() => {});
+      this.memoryBus.upsert('workflow_failure', summary, 5).catch((err: Error) => console.warn('[EngineSubscriber] MemoryBus upsert failed:', err.message));
     });
 
     // 订阅 Agent 结果事件 → MemoryBus（替代旧的 MemoryBusListener）
@@ -99,7 +99,7 @@ export class EngineSubscriber {
       const p = event.payload as any;
       const content = p?.content ?? p?.summary ?? '';
       if (content.length > 20) {
-        this.memoryBus.upsert('agent_reflection', content.slice(0, 2000), 3).catch(() => {});
+        this.memoryBus.upsert('agent_reflection', content.slice(0, 2000), 3).catch((err: Error) => console.warn('[EngineSubscriber] MemoryBus upsert failed:', err.message));
       }
     });
   }

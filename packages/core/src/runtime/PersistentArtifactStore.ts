@@ -51,7 +51,7 @@ export class PersistentArtifactStore {
         executionId: art.sourceTask,
         source: 'persistent-artifact-store',
         payload: { artifactId: id, from: art.status, to },
-      } as BaseEvent).catch(() => {});
+      } as BaseEvent).catch((err: Error) => console.warn('[PersistentArtifactStore] 事件写入失败:', err.message));
     }
     return true;
   }

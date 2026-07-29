@@ -1,5 +1,8 @@
 /**
- * MorPex v14 Bootstrap — v13 + Goal Intelligence + Artifact + Verification + Experience
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
+ * v14 Bootstrap — v13 + Goal Intelligence + Artifact + Verification + Experience
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * v14 新增:
  *   - goal-intelligence/GoalIntelligenceFacade (目标理解)

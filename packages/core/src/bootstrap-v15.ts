@@ -1,5 +1,8 @@
 /**
- * MorPex v15 Bootstrap — v14 + DynamicTeam + WorkflowPlugin + Compliance + SelfImprovement
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
+ * v15 Bootstrap — v14 + DynamicTeam + WorkflowPlugin + Compliance + SelfImprovement
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * v15 新增:
  *   - organization/DynamicTeamOrchestrator (动态团队编排)

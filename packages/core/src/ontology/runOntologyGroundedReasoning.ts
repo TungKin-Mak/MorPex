@@ -58,6 +58,46 @@ export interface GroundedReasoningResult {
   hasUsefulFacts: boolean;
 }
 
+// ═══════════════════════════════════════════════════════════════
+// ⭐ P2.7: Ontology grounding 缓存（避免重复两阶段 LLM 调用）
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * 简单 LRU 缓存：key = goal_hash, value = GroundedReasoningResult
+ * 只缓存简单目标（goal < 80 字符），缓存时间 5 分钟
+ */
+const groundingCache = new Map<string, { result: GroundedReasoningResult; timestamp: number }>();
+const CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+const CACHE_MAX_SIZE = 50;
+
+function getCacheKey(goal: string, scenario?: string): string {
+  // 只对短目标启用缓存
+  if (goal.length > 80) return '';
+  return `${scenario || ''}::${goal}`;
+}
+
+function getCachedResult(key: string): GroundedReasoningResult | null {
+  const entry = groundingCache.get(key);
+  if (!entry) return null;
+  if (Date.now() - entry.timestamp > CACHE_TTL) {
+    groundingCache.delete(key);
+    return null;
+  }
+  return entry.result;
+}
+
+function setCachedResult(key: string, result: GroundedReasoningResult): void {
+  if (!key) return;
+  // LRU 淘汰
+  if (groundingCache.size >= CACHE_MAX_SIZE) {
+    const oldest = [...groundingCache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+    if (oldest) groundingCache.delete(oldest[0]);
+  }
+  groundingCache.set(key, { result, timestamp: Date.now() });
+}
+
+// ═══════════════════════════════════════════════════════════════
+
 /**
  * runOntologyGroundedReasoning — 执行两阶段强制查询推理
  *
@@ -65,11 +105,23 @@ export interface GroundedReasoningResult {
  *   解析失败时执行默认安全查询（查询 Mission 类型），保证不空跑
  * Phase 2: 基于检索到的事实推理 → 输出 proposal
  *   引用校验失败时 emit ReferenceValidationFailed 事件
+ *
+ * ⭐ P2.7: 对简单目标启用缓存，避免重复两阶段 LLM 调用
  */
 export async function runOntologyGroundedReasoning(
   options: GroundedReasoningOptions,
 ): Promise<GroundedReasoningResult> {
   const { goal, missionId, ontology, guard, piBridge, extraContext, eventStore, scenario } = options;
+
+  // ⭐ P2.7: 检查缓存
+  const cacheKey = getCacheKey(goal, scenario);
+  if (cacheKey) {
+    const cached = getCachedResult(cacheKey);
+    if (cached) {
+      console.log(`[GroundedReasoning] 🎯 命中缓存 (goal=${goal.substring(0, 40)}...)`);
+      return cached;
+    }
+  }
   const executionId = missionId ?? `exec_${Date.now()}`;
 
   // 关联 missionId
@@ -218,7 +270,7 @@ export async function runOntologyGroundedReasoning(
   // 刷出 Trace 事件
   await guard.flushTrace(executionId, missionId);
 
-  return {
+  const result: GroundedReasoningResult = {
     executionId,
     proposal,
     queryTrace: {
@@ -228,6 +280,11 @@ export async function runOntologyGroundedReasoning(
     },
     hasUsefulFacts,
   };
+
+  // ⭐ P2.7: 写入缓存
+  setCachedResult(cacheKey, result);
+
+  return result;
 }
 
 /**

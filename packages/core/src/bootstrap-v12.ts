@@ -1,5 +1,8 @@
 /**
- * MorPex v12 Bootstrap — 组织层 + 交付层 + 大脑统一引导
+ * @deprecated 请使用 bootstrapUnified() from bootstrap-unified.js
+ * v12 Bootstrap — 组织层 + 交付层 + 大脑统一引导
+ * 
+ * 此文件保留向后兼容，但不再作为新入口使用。
  *
  * Phase 4.5 / 架构打磨
  *

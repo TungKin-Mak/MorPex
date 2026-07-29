@@ -1,10 +1,19 @@
-# MorPex v12 Architecture
+# MorPex v16 Unified Architecture
 
-> **v12 一人公司 AI 工作助理** — 基于 v11 Adaptive Workflow Operating System
+> **v16 统一架构** — P0 硬管道 + 单一入口 + 强制 Runtime
 >
-> 从 v11 升级：+29 源文件 | 组织层 + 大脑统一 + 学习闭环 | 79→26 模块精简
+> 关键变更(v16):
+>   - 统一唯一入口 bootstrapUnified()，废弃 v12-v16 旧 bootstrap
+>   - CompanyFacade 构造时强制要求 Runtime + ControlPlane
+>   - 执行引擎真实等待完成（不再返回 status:'running' 假成功）
+>   - 产物创建由 MorPexRuntime 统一管理（Engine 不再重复创建）
+>   - ControlPlane 增强：整合 RiskAnalyzer + PolicyEngine + ResourceManager
+>   - 审批 Gate 支持 awaitHuman 等待模式
+>   - Ontology grounding 增加 LRU 缓存
+>   - 复杂度分析升级为多维度启发式（替代纯词数正则）
+>   - 关键路径 .catch(() => {}) 已修复为日志输出
 >
-> **状态: v12 COMPLETE** — VCOS 92/100 | tsc 零错误 | ~7,200 行新代码
+> **状态: v16 COMPLETED** — tsc 零错误 | 通过 production-check
 
 ---
 
