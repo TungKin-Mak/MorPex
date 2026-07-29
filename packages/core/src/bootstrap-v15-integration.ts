@@ -54,7 +54,11 @@ export async function bootstrapV15Integration(options?: {
   try {
     const { WorkflowRegistry } = await import('./workflow/WorkflowProvider.js');
     container.teamOrchestrator.setWorkflowRegistry(WorkflowRegistry);
-    console.log('[bootstrapV15Integration] ✅ WorkflowRegistry 已注入');
+    // 注册内置工作流
+    const { ecommerceWorkflowProvider, xjmcuWorkflowProvider } = await import('../../workflows/ecommerce/workflow-provider.js');
+    WorkflowRegistry.register(ecommerceWorkflowProvider);
+    WorkflowRegistry.register(xjmcuWorkflowProvider);
+    console.log('[bootstrapV15Integration] ✅ WorkflowRegistry 已注入（含电商+MCU 工作流）');
   } catch {
     console.warn('[bootstrapV15Integration] ⚠️ WorkflowRegistry 不可用');
   }

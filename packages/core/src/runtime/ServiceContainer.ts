@@ -190,6 +190,8 @@ export class ServiceContainer {
     this.missionStore.init().catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
     this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
+    // 连接 EventStore 作为真相源（异步初始化）
+    this.initEventStore().catch((err: Error) => console.warn('[ServiceContainer] EventStore 初始化失败:', err.message));
     this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
     this.controlPlane = new ControlPlane();
 
@@ -228,6 +230,19 @@ export class ServiceContainer {
     this.runtime.setPiBridge(piBridge);
   }
 
+  /**
+   * initEventStore — 异步初始化 EventStore 并接入 MissionController
+   */
+  private async initEventStore(): Promise<void> {
+    try {
+      const { UnifiedEventStore } = await import('../protocol/events/store/UnifiedEventStore.js');
+      this.missionController.setEventStore(new UnifiedEventStore());
+      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController');
+    } catch {
+      console.warn('[ServiceContainer] ⚠️ EventStore 不可用');
+    }
+  }
+
   private createMissionRuntime(): MissionRuntimeLike {
     const mr = new MissionRuntime(this.eventBus);
     return {
@@ -242,13 +257,59 @@ export class ServiceContainer {
   }
 
   private createDAGRuntime(): DAGRuntimeLike {
+    const realRuntime = new DAGRuntime({
+      maxParallel: 4,
+      enablePriority: true,
+      continueOnFailure: true,
+      eventBus: this.eventBus,
+    });
     return {
       name: 'DAGRuntime',
-      execute: async (goal: string, _tasks: unknown[], _context?: Record<string, unknown>) => {
+      execute: async (goal: string, tasks: unknown[], context?: Record<string, unknown>) => {
         console.log('[ServiceContainer] DAGRuntime.execute:', goal.substring(0, 60));
-        return { executionId: `dag_${Date.now()}` };
+        // 构造节点列表
+        let nodes: import('../planes/runtime-kernel/dag/types.js').DAGNode[] = (tasks || []).map((t: any, i: number) => ({
+          id: `node_${i}_${Date.now()}`,
+          name: t?.name || `step_${i}`,
+          agentType: 'default',
+          description: t?.description || t?.name || goal.substring(0, 60),
+          deps: t?.deps || [],
+          status: 'pending' as const,
+          priority: 0,
+          retryCount: 0,
+          maxRetries: 0,
+        }));
+        // 默认单节点（无 tasks 时）
+        if (nodes.length === 0) {
+          nodes.push({
+            id: `node_0_${Date.now()}`,
+            name: goal.substring(0, 60),
+            agentType: 'default',
+            description: goal,
+            deps: [],
+            status: 'pending' as const,
+            priority: 0,
+            retryCount: 0,
+            maxRetries: 0,
+          });
+        }
+        // 构造最小 ExecutionDAG
+        const dag: import('../planes/runtime-kernel/dag/types.js').ExecutionDAG = {
+          id: `dag_${Date.now()}`,
+          nodes,
+          edges: [],
+          status: { totalNodes: nodes.length, totalEdges: 0, mutations: 0, isCyclic: false, canRollback: false, isComplete: false },
+          createdAt: Date.now(),
+        };
+        const result = await realRuntime.run(dag, context || {});
+        return {
+          executionId: result.dagId,
+          ...result,
+        };
       },
-      getStatus: () => ({}),
+      getStatus: (id: string) => {
+        return { dagId: id, trace: realRuntime.executionTrace };
+      },
       cancel: async () => {},
     };
   }

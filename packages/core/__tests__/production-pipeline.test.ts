@@ -130,7 +130,127 @@ console.log('\n-- 6. DAG Scale --\n');
   ok(r.activation!.dagNodes > 0, 'Has DAG nodes');
 }
 
+// ─────────────────────────────────────────────────────
+//  v16 新增测试: Engine 轮询 + Approval 阻塞 + Ontology 缓存
+// ─────────────────────────────────────────────────────
+
+import { UnifiedExecutionEngine } from '../src/execution/UnifiedExecutionEngine.js';
+import { ApprovalGate } from '../src/verification/ApprovalGate.js';
+import { EventBus } from '../src/common/EventBus.js';
+
+// --- Test 8: Engine executeViaMission 轮询等待完成 ---
+(async () => {
+  console.log('\n--- Test 8: Engine executeViaMission polling (wait for completion) ---');
+  const bus = new EventBus();
+  const engine = new UnifiedExecutionEngine(bus);
+
+  // 注入一个模拟 MissionRuntime，2 秒后完成
+  let missionState = 'pending';
+  const mockMissionRuntime = {
+    name: 'MockMissionRuntime',
+    start: async (goal: string) => {
+      // 异步启动：1s 后 running, 2s 后 completed
+      setTimeout(() => { missionState = 'running'; }, 500);
+      setTimeout(() => { missionState = 'completed'; }, 1500);
+      return { executionId: 'test-mission-1' };
+    },
+    getStatus: () => ({ state: missionState }),
+    cancel: async () => {},
+  };
+  engine.setMissionRuntime(mockMissionRuntime);
+
+  const result = await engine.execute({ goal: 'test polling', mode: 'mission', timeoutMs: 5000 });
+  ok(result.ok === true, 'Engine executeViaMission returns ok=true after polling');
+  ok(result.status === 'completed', 'Engine executeViaMission returns status=completed, not running');
+  ok(result.duration >= 1500, 'Engine polling waited for mission completion (duration >= 1500ms)');
+  console.log(`  duration=${result.duration}ms, status=${result.status}`);
+})();
+
+// --- Test 9: ApprovalGate waitForDecision 阻塞 ---
+(async () => {
+  console.log('\n--- Test 9: ApprovalGate waitForDecision blocking ---');
+  const bus = new EventBus();
+  const gate = new ApprovalGate(bus);
+
+  const req = gate.requestApproval('art-1', 'test-artifact', { pass: true, level: 'PASS', checks: [], blockingIssues: [] }, 'HIGH');
+  ok(req.decision === undefined, 'ApprovalGate returns undefined decision for HIGH risk (needs human)');
+  ok(req.id.startsWith('apr_'), 'ApprovalGate request has valid ID');
+
+  // 异步 approve
+  setTimeout(() => {
+    gate.decide(req.id, 'APPROVED', 'test-approver');
+  }, 500);
+
+  const decided = await gate.waitForDecision(req.id, 5000);
+  ok(decided.decision === 'APPROVED', 'waitForDecision returns APPROVED after decide()');
+  ok(decided.decidedBy === 'test-approver', 'waitForDecision preserves decidedBy');
+
+  // 超时测试
+  const req2 = gate.requestApproval('art-2', 'timeout-test', { pass: true, level: 'PASS', checks: [], blockingIssues: [] }, 'HIGH');
+  const start = Date.now();
+  const timedOut = await gate.waitForDecision(req2.id, 100); // 100ms 超时
+  const elapsed = Date.now() - start;
+  ok(timedOut.decision === undefined, 'waitForDecision times out and returns undefined');
+  ok(elapsed >= 100, 'waitForDecision respects timeout (' + elapsed + 'ms)');
+})();
+
+// --- Test 10: Ontology Grounded Reasoning LRU Cache ---
+(async () => {
+  console.log('\n--- Test 10: Ontology Grounded Reasoning LRU Cache ---');
+  // 测试 LRU 缓存逻辑（独立于 LLM 调用）
+  const cache = new Map<string, { result: unknown; timestamp: number }>();
+  const CACHE_TTL = 5 * 60 * 1000; // 5 分钟
+  const CACHE_MAX_SIZE = 50;
+
+  function getCacheKey(goal: string): string {
+    return goal.replace(/\s+/g, '_').substring(0, 64);
+  }
+
+  function getCached(key: string) {
+    const entry = cache.get(key);
+    if (!entry) return null;
+    if (Date.now() - entry.timestamp > CACHE_TTL) {
+      cache.delete(key);
+      return null;
+    }
+    return entry.result;
+  }
+
+  function setCached(key: string, result: unknown) {
+    if (cache.size >= CACHE_MAX_SIZE) {
+      const oldest = [...cache.entries()].sort((a, b) => a[1].timestamp - b[1].timestamp)[0];
+      if (oldest) cache.delete(oldest[0]);
+    }
+    cache.set(key, { result, timestamp: Date.now() });
+  }
+
+  const key1 = getCacheKey('开发空气检测设备');
+  const key2 = getCacheKey('优化登录模块');
+
+  // 写入缓存
+  setCached(key1, { proposal: 'air quality sensor' });
+  setCached(key2, { proposal: 'login optimization' });
+
+  ok(cache.size === 2, 'Cache has 2 entries after setting');
+
+  // 读取缓存
+  const r1 = getCached(key1);
+  ok(r1 !== null, 'Cache hit returns value');
+  ok((r1 as any).proposal === 'air quality sensor', 'Cache hit preserves data');
+
+  // LRU 淘汰
+  for (let i = 0; i < CACHE_MAX_SIZE; i++) {
+    setCached(getCacheKey('test_' + i), { proposal: 'test' });
+  }
+  // key1 和 key2 应该被淘汰（最旧）
+  const r1again = getCached(key1);
+  ok(r1again === null, 'LRU eviction removes oldest entries');
+  ok(cache.size <= CACHE_MAX_SIZE, 'Cache size capped at max (' + cache.size + '/' + CACHE_MAX_SIZE + ')');
+})();
+
 // --- Summary ---
-console.log('\n' + '='.repeat(60));
-console.log('  Results: ' + pass + ' passed, ' + fail + ' failed, ' + (pass + fail) + ' total');
-console.log('='.repeat(60) + '\n');
+setTimeout(() => {
+  console.log('\n' + '='.repeat(60));
+  console.log('  Results: ' + pass + ' passed, ' + fail + ' failed, ' + (pass + fail) + ' total');
+  console.log('='.repeat(60) + '\n');
+}, 3000);

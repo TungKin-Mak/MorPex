@@ -1,11 +1,14 @@
 import { EventBus } from '../common/EventBus.js';
+import { EventType } from '../protocol/events/EventType.js';
 import type { MissionState, MissionStatus, MissionPhase, MissionUpdate, BlockReason } from './MissionTypes.js';
 import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
+import type { IEventStore } from '../protocol/events/store/IEventStore.js';
 
 export class MissionController {
   private missions: Map<string, MissionState> = new Map();
   private eventBus: EventBus;
   private persistentStore?: { save: (mission: MissionState) => void };
+  private eventStore?: IEventStore;
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[MissionController] EventBus 是必填参数');
@@ -16,7 +19,15 @@ export class MissionController {
     this.persistentStore = store;
   }
 
-  createMission(goalId: string, objective: string): MissionState {
+  /**
+   * setEventStore — 注入 EventStore 作为真相源
+   * 所有 Mission 状态变更同时写入 EventStore
+   */
+  setEventStore(store: IEventStore): void {
+    this.eventStore = store;
+  }
+
+  async createMission(goalId: string, objective: string): Promise<MissionState> {
     const mission: MissionState = {
       missionId: `msn_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
       goalId, objective,
@@ -29,6 +40,17 @@ export class MissionController {
     };
     this.missions.set(mission.missionId, mission);
     if (this.persistentStore) this.persistentStore.save(mission);
+    // EventStore 写入（真相源）
+    if (this.eventStore) {
+      this.eventStore.append({
+        id: `evt_${mission.missionId}_created`,
+        type: EventType.MISSION_CREATED,
+        timestamp: Date.now(),
+        executionId: mission.missionId,
+        source: 'mission-controller',
+        payload: { missionId: mission.missionId, goalId, objective },
+      }).catch((err: Error) => console.warn('[MissionController] EventStore append failed:', err.message));
+    }
     systemMetadataGraph.registerEntity(mission.missionId, 'mission', objective.substring(0, 80), { goalId, status: 'ACTIVE', phase: 'DISCOVERY' });
     this.eventBus.emit({
       id: `evt_${Date.now()}`, type: 'mission.created', timestamp: Date.now(),
@@ -48,6 +70,17 @@ export class MissionController {
     if (update.risks) m.risks.push(...update.risks);
     if (update.timeline) m.timeline.push(...update.timeline);
     if (this.persistentStore) this.persistentStore.save(m);
+    // EventStore 写入（真相源）
+    if (this.eventStore) {
+      this.eventStore.append({
+        id: `evt_${update.missionId}_${Date.now()}`,
+        type: EventType.MISSION_UPDATED,
+        timestamp: Date.now(),
+        executionId: update.missionId,
+        source: 'mission-controller',
+        payload: { missionId: update.missionId, phase: update.phase, status: update.status, progress: update.progress },
+      }).catch((err: Error) => console.warn('[MissionController] EventStore append failed:', err.message));
+    }
     return m;
   }
 
@@ -56,10 +89,21 @@ export class MissionController {
     if (!m) return;
     m.blocks.push({ reason, description, raisedAt: Date.now() });
     systemMetadataGraph.addRelation(missionId, `${missionId}_block_${m.blocks.length}`, 'depends_on', 0.5, { reason, description });
+    // EventStore 写入
+    if (this.eventStore) {
+      this.eventStore.append({
+        id: `evt_${missionId}_block_${m.blocks.length}`,
+        type: EventType.MISSION_BLOCKED,
+        timestamp: Date.now(),
+        executionId: missionId,
+        source: 'mission-controller',
+        payload: { missionId, reason, description },
+      }).catch((err: Error) => console.warn('[MissionController] EventStore append failed:', err.message));
+    }
     m.status = 'BLOCKED';
     m.timeline.push({ timestamp: Date.now(), event: `BLOCKED: ${reason}`, detail: description });
     if (this.persistentStore) this.persistentStore.save(m);
-    this.eventBus.emit({ id: `evt_${Date.now()}`, type: 'mission.blocked', timestamp: Date.now(), executionId: missionId, source: 'mission-control', payload: { missionId, reason, description } });
+    this.eventBus.emit({ id: `evt_${Date.now()}`, type: EventType.MISSION_BLOCKED, timestamp: Date.now(), executionId: missionId, source: 'mission-control', payload: { missionId, reason, description } });
   }
 
   resolveBlock(missionId: string, blockIndex: number): void {

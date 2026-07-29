@@ -4,6 +4,7 @@
  * Stabilization: 增加 ApprovalPolicyRegistry 商业级策略引擎
  */
 import { EventBus } from '../common/EventBus.js';
+import { EventType } from '../protocol/events/EventType.js';
 import type { ComplianceResult } from './ComplianceChecker.js';
 
 export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'WAIT_HUMAN';
@@ -79,14 +80,15 @@ export class ApprovalGate {
     const autoDecision: ApprovalDecision = riskLevel === 'LOW' && complianceResult.pass ? 'APPROVED' : complianceResult.level === 'BLOCK' ? 'WAIT_HUMAN' : riskLevel === 'HIGH' ? 'WAIT_HUMAN' : 'APPROVED';
     const request: ApprovalRequest = { id: `apr_${Date.now()}`, artifactId, artifactName, complianceResult, riskLevel, summary, decision: autoDecision === 'APPROVED' ? 'APPROVED' : undefined, decidedBy: autoDecision === 'APPROVED' ? 'auto' : undefined, decidedAt: autoDecision === 'APPROVED' ? Date.now() : undefined };
     this.requests.set(request.id, request);
-    this.eventBus?.emit({ id: `evt_${Date.now()}`, type: `approval.${autoDecision === 'APPROVED' ? 'auto_approved' : 'wait_human'}`, timestamp: Date.now(), executionId: 'approval', source: 'approval-gate', payload: request });
+    const eventType = autoDecision === 'APPROVED' ? EventType.APPROVAL_AUTO_APPROVED : EventType.APPROVAL_WAIT_HUMAN;
+    this.eventBus?.emit({ id: `evt_${Date.now()}`, type: eventType, timestamp: Date.now(), executionId: 'approval', source: 'approval-gate', payload: request });
     return request;
   }
 
   /** Stabilization: 按策略自动决策 */
   requestApprovalForAction(action: ApprovalAction, riskLevel: RiskLevel, description: string, amount?: number): { approved: boolean; reason: string } {
     const needsHuman = ApprovalPolicyRegistry.needsHumanApproval(action, riskLevel, amount);
-    const eventType = needsHuman ? 'approval.wait_human' : 'approval.auto_approved';
+    const eventType = needsHuman ? EventType.APPROVAL_WAIT_HUMAN : EventType.APPROVAL_AUTO_APPROVED;
     this.eventBus?.emit({ id: `evt_${Date.now()}`, type: eventType, timestamp: Date.now(), executionId: 'approval', source: 'approval-gate', payload: { action, riskLevel, description, amount } });
     return needsHuman
       ? { approved: false, reason: `需要人工审批 (${action}/${riskLevel})` }

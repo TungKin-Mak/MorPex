@@ -61,6 +61,8 @@ export enum EventType {
   MISSION_COMPLETED = 'mission.completed',
   /** Mission 失败 */
   MISSION_FAILED = 'mission.failed',
+  /** Mission 被阻塞 */
+  MISSION_BLOCKED = 'mission.blocked',
 
   // ── Planning Layer ──
   /** 计划创建 */
@@ -121,6 +123,10 @@ export enum EventType {
   // ── Control Layer ──
   /** 请求人工审批 */
   APPROVAL_REQUIRED = 'approval.required',
+  /** 自动审批通过 */
+  APPROVAL_AUTO_APPROVED = 'approval.auto_approved',
+  /** 等待人工审批 */
+  APPROVAL_WAIT_HUMAN = 'approval.wait_human',
   /** 审批通过 */
   APPROVAL_GRANTED = 'approval.granted',
   /** 审批拒绝 */

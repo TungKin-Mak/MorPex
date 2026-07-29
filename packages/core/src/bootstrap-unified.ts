@@ -82,10 +82,14 @@ export async function bootstrapUnified(options?: {
   // 2. 创建 ServiceContainer（含所有服务 + MorPexRuntime + ControlPlane）
   const container = new ServiceContainer();
 
-  // 3. 注册 WorkflowRegistry
+  // 3. 注册 WorkflowRegistry（含内置工作流插件）
   try {
     container.teamOrchestrator.setWorkflowRegistry(WorkflowPluginRegistry);
-    console.log('[bootstrapUnified] ✅ WorkflowRegistry 已注入');
+    // 注册内置工作流
+    const { ecommerceWorkflowProvider, xjmcuWorkflowProvider } = await import('../../workflows/ecommerce/workflow-provider.js');
+    WorkflowPluginRegistry.register(ecommerceWorkflowProvider);
+    WorkflowPluginRegistry.register(xjmcuWorkflowProvider);
+    console.log('[bootstrapUnified] ✅ WorkflowRegistry 已注入（含电商+MCU 工作流）');
   } catch {
     console.warn('[bootstrapUnified] ⚠️ WorkflowRegistry 不可用');
   }

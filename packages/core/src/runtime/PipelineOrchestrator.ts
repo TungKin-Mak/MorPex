@@ -40,7 +40,7 @@ export class PipelineOrchestrator {
     steps.push({ phase: 'goal', result: goalContext });
 
     // 2. Mission Creation
-    const mission = this.missionController.createMission(goalContext.goalId, goalContext.objective);
+    const mission = await this.missionController.createMission(goalContext.goalId, goalContext.objective);
     this.missionController.updateMission({ missionId: mission.missionId, phase: 'PLANNING' });
     steps.push({ phase: 'mission', result: mission });
 
