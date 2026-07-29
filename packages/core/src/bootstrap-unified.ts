@@ -118,6 +118,15 @@ export async function bootstrapUnified(options?: {
     ceoId,
   );
 
+  // ⬅️ 从 EventStore 重建 SystemMetadataGraph（使状态可事件溯源）
+  try {
+    if ((container as any)._eventStore) {
+      await systemMetadataGraph.restoreFromEvents((container as any)._eventStore);
+    }
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ SystemMetadataGraph 重建失败:', (err as Error).message);
+  }
+
   // ── Ontology 迭代4 ──
   const objectTypeRegistry = new ObjectTypeRegistry();
   const ontology = new OntologyService(systemMetadataGraph, objectTypeRegistry);

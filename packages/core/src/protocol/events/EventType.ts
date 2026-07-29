@@ -131,6 +131,10 @@ export enum EventType {
   APPROVAL_GRANTED = 'approval.granted',
   /** 审批拒绝 */
   APPROVAL_DENIED = 'approval.denied',
+  /** 系统实体注册 */
+  SYSTEM_ENTITY_REGISTERED = 'system.entity.registered',
+  /** 系统关系添加 */
+  SYSTEM_RELATION_ADDED = 'system.relation.added',
   /** 策略评估完成 */
   POLICY_EVALUATED = 'policy.evaluated',
   /** 风险评估完成 */
@@ -328,6 +332,8 @@ export const EVENT_LAYERS: Record<string, EventType[]> = {
     EventType.SYSTEM_STARTED,
     EventType.SYSTEM_STOPPED,
     EventType.SYSTEM_ERROR,
+    EventType.SYSTEM_ENTITY_REGISTERED,
+    EventType.SYSTEM_RELATION_ADDED,
   ],
   artifact: [
     EventType.ARTIFACT_CREATED,

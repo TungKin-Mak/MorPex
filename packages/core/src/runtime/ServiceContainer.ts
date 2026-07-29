@@ -15,6 +15,7 @@ import { DAGRuntime } from './dag/DAGRuntime.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../control-plane/ControlPlane.js';
+import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 import { CrossAgentLearningEngine } from '../agent/learning/CrossAgentLearningEngine.js';
 import { ExperienceRepository } from '../agent/learning/ExperienceRepository.js';
 import { KnowledgeDistiller } from '../agent/learning/KnowledgeDistiller.js';
@@ -269,7 +270,9 @@ export class ServiceContainer {
       if (typeof (this.artifactFacade as any).setEventStore === 'function') {
         (this.artifactFacade as any).setEventStore(this._eventStore);
       }
-      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade');
+      // 接入 SystemMetadataGraph
+      systemMetadataGraph.setEventStore(this._eventStore);
+      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade + SystemMetadataGraph');
     } catch (err) {
       console.warn('[ServiceContainer] ⚠️ EventStore 不可用:', (err as Error).message);
     }
