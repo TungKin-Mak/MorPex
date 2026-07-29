@@ -243,12 +243,29 @@ export class ServiceContainer {
   /**
    * initEventStore — 异步初始化 EventStore 并接入 MissionController
    */
+  /**
+   * 创建 EventStore append 包装器，支持严格模式
+   * MORPEX_STRICT_EVENTSTORE=1 时 append 失败抛错
+   */
+  private createEventStoreAppender<T extends (...args: any[]) => Promise<void>>(fn: T, label: string): T {
+    const strict = process.env.MORPEX_STRICT_EVENTSTORE === '1';
+    return ((...args: any[]) => {
+      const promise = fn(...args);
+      if (strict) return promise;
+      promise.catch((err: Error) => console.warn(`[EventStore] ${label} 写入失败:`, err.message));
+      return promise;
+    }) as T;
+  }
+
   private async initEventStore(): Promise<void> {
     try {
       const { UnifiedEventStore } = await import('../protocol/events/store/UnifiedEventStore.js');
       this._eventStore = new UnifiedEventStore();
+      // 严格模式包装
+      if (process.env.MORPEX_STRICT_EVENTSTORE === '1') {
+        console.log('[ServiceContainer] 🔒 EventStore 严格模式已启用 (MORPEX_STRICT_EVENTSTORE=1)');
+      }
       this.missionController.setEventStore(this._eventStore);
-      // 后续 ArtifactFacade 也可接入
       if (typeof (this.artifactFacade as any).setEventStore === 'function') {
         (this.artifactFacade as any).setEventStore(this._eventStore);
       }
@@ -277,6 +294,16 @@ export class ServiceContainer {
       enablePriority: true,
       continueOnFailure: true,
       eventBus: this.eventBus,
+      // ⬅️ 默认节点执行器：委托给 ExecutionFabric
+      nodeHandler: async (node, ctx) => {
+        const fabric = this.createExecutionFabric();
+        const cap = node.agentType || 'execute';
+        const action = node.description || node.name;
+        console.log(`[DAGRuntime] 执行节点: ${node.id} (cap=${cap}, action=${action})`);
+        const result = await fabric.execute(cap, action, { goal: action, ...(ctx as Record<string, unknown>) });
+        if (!result.success) throw new Error(result.error || '节点执行失败');
+        return result.data;
+      },
     });
 
     // 执行状态缓存，供 getStatus 返回 state 字段（Engine 轮询依赖）

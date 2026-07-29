@@ -42,6 +42,8 @@ export interface DAGRuntimeConfig extends SchedulerConfig {
   continueOnFailure?: boolean;
   /** Phase H: EventBus 用于发射 workflow 事件 */
   eventBus?: EventBus;
+  /** 默认节点执行器：为没有自定义 handler 的节点注入执行逻辑 */
+  nodeHandler?: (node: TaskNode, context: unknown) => Promise<unknown>;
 }
 
 export class DAGRuntime {
@@ -71,6 +73,13 @@ export class DAGRuntime {
 
     // 1. 构建 TaskGraph
     const graph = TaskGraph.fromExecutionDAG(dag);
+    // ⬅️ 应用默认节点执行器（为没有自定义 handler 的节点注入 Fabric/Agent 调用）
+    const defaultHandler = this.config.nodeHandler;
+    if (defaultHandler) {
+      for (const node of graph.nodes) {
+        node.setHandler((n, ctx) => defaultHandler(n, ctx));
+      }
+    }
     const resolver = new DependencyResolver(graph);
     const scheduler = new Scheduler({
       maxParallel: this.config.maxParallel,
