@@ -567,7 +567,7 @@ export class MetaPlanner implements ExtensionDefinition {
             artifactCount: 0, selfHealingRetries: 0, pruningTokensSaved: 0, score: 0, createdAt: Date.now(),
             failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: execMsg.slice(0, 500), timestamp: Date.now() }],
           };
-          await mp.store.saveRecord(rec).catch(() => {});
+          await mp.store.saveRecord(rec).catch((err: Error) => console.warn('[MetaPlanner] saveRecord failed:', err.message));
           mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: execMsg });
           throw execErr;
         }
@@ -585,7 +585,7 @@ export class MetaPlanner implements ExtensionDefinition {
             artifactCount: 0, selfHealingRetries: 0, pruningTokensSaved: 0, score: 0, createdAt: Date.now(),
             failureDetails: [{ nodeId: 'orchestrator', category: 'unknown', summary: (err as Error).message.slice(0, 500), timestamp: Date.now() }],
           };
-          await mp.store.saveRecord(rec).catch(() => {});
+          await mp.store.saveRecord(rec).catch((e: Error) => console.warn('[MetaPlanner] saveRecord failed:', e.message));
           mp.emitEvent('metaplanner.plan_failed', { executionId, recordId, error: (err as Error).message });
           throw err;
         }
@@ -661,7 +661,7 @@ export class MetaPlanner implements ExtensionDefinition {
             artifact_count: record.artifactCount,
             created_at: Math.floor(Date.now() / 1000),
           },
-        }).catch(() => {});
+        }).catch((e: Error) => console.warn('[MetaPlanner] store.saveRecord failed:', e.message));
       }
 
       if (mp._config.autoExtractTemplates && record.success) {

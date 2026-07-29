@@ -64,8 +64,8 @@ import { PiAgentCoreRuntime } from '../../core/src/adapters/pi-agent-runtime.js'
 import type { MorPexEvent, KernelStatus, MorPexPlugin } from '../../core/src/common/types.js';
 
 // ── v12 Bootstrap ──
-import { bootstrapV12 } from '../../core/src/bootstrap-v12.js';
-import type { V12BootstrapResult } from '../../core/src/bootstrap-v12.js';
+import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
+import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import {
   HistoryStore, MemoryWiki, DocWatcher, DocTopology, MemoryRetriever,
   ZVecStorage,
@@ -244,8 +244,8 @@ export class StudioServer {
   private _archAuditor?: ArchitectureAuditor;
   private _replayEngine?: ReplayEngine;
 
-  // ── v12 组织层 + 交付层 ──
-  private v12?: V12BootstrapResult;
+  // ── v16 Unified Bootstrap ──
+  private v12?: import('../../core/src/bootstrap-unified.js').UnifiedBootstrapResult;
 
   // SSE
   private sseClients: Map<string, SSEClient> = new Map();
@@ -322,8 +322,8 @@ export class StudioServer {
     });
     this.emitInitTrace('studio-orchestrator', 'runtime');
 
-    // ★ v12 Bootstrap: 组织层 + 交付层
-    this.v12 = await bootstrapV12(this.kernel.eventBus, { ceoId: 'ceo-default' });
+    // ★ v16 Unified Bootstrap: 组织层 + 交付层
+    this.v12 = await bootstrapUnified({ ceoId: 'ceo-default' }) as any;
     this.emitInitTrace('v12-organization', 'control-plane');
 
     // ★ Second exercise pass: modules created after initComponents

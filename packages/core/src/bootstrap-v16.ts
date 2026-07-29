@@ -370,7 +370,7 @@ export async function bootstrapV16(
   // ── 事件监听 ──
   eventBus.on('brain.learn.request', (event: MorPexEvent) => {
     const exp = event.payload;
-    if (exp) brainFacade.learn(exp).catch(() => {});
+    if (exp) brainFacade.learn(exp).catch((err: Error) => console.warn("[bootstrapV16] brainFacade.learn failed:", err.message));
   });
   eventBus.on('department.task.completed', (event: MorPexEvent) => {
     const p = event.payload;

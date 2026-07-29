@@ -58,6 +58,11 @@ export interface UnifiedBootstrapResult {
   departmentManager: DepartmentManager;
   controlPlane: import('./control-plane/ControlPlane.js').ControlPlane;
 
+  // ── v12 兼容字段（StudioServer 需要） ──
+  managementHub: import('./organization/ManagementHub.js').ManagementHub;
+  groupChatManager: import('./interaction/GroupChatManager.js').GroupChatManager;
+  leadAgentOrchestrator: import('./department/LeadAgentOrchestrator.js').LeadAgentOrchestrator;
+
   // ── Ontology ──
   ontology: OntologyService;
   forcedQueryGuard: ForcedQueryGuard;
@@ -259,6 +264,11 @@ export async function bootstrapUnified(options?: {
     companyFacade,
     departmentManager,
     controlPlane: container.controlPlane,
+    // ── v12 兼容字段 ──
+    managementHub: new (await import('./organization/ManagementHub.js')).ManagementHub(eventBus, departmentManager, null as any, null as any, ceoId),
+    groupChatManager: new (await import('./interaction/GroupChatManager.js')).GroupChatManager(eventBus),
+    leadAgentOrchestrator: new (await import('./department/LeadAgentOrchestrator.js')).LeadAgentOrchestrator(eventBus, departmentManager, roleRegistry),
+    // ── Ontology ──
     ontology,
     forcedQueryGuard,
     objectTypeRegistry,

@@ -14,7 +14,7 @@
  *   - Phase 4.5: BrainFacade（统一 PersonalBrain + MemoryWiki + LearningLoop + EvolutionEngine）
  *
  * 使用方式：
- *   import { bootstrapV12 } from './core/src/bootstrap-v12.js';
+ *   @deprecated 请使用: import { bootstrapUnified } from './bootstrap-unified.js';
  *   const v12 = await bootstrapV12(eventBus);
  *   // v12.companyFacade.createDepartment("编程部");
  *   // v12.managementHub.handleCommand("@编程部 优化登录");

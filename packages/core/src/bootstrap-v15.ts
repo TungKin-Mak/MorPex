@@ -182,7 +182,7 @@ export async function bootstrapV15(
   // 11. 事件监听
   eventBus.on('brain.learn.request', (event: any) => {
     const exp = event.payload;
-    if (exp) brainFacade.learn(exp).catch(() => {});
+    if (exp) brainFacade.learn(exp).catch((err: Error) => console.warn("[bootstrapV15] brainFacade.learn failed:", err.message));
   });
   eventBus.on('department.task.completed', (event: any) => {
     const p = event.payload;

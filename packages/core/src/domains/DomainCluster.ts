@@ -352,7 +352,7 @@ export class DomainCluster {
   async releaseSubAgent(name: string, tokensUsed?: number): Promise<void> {
     const harness = this._subAgentRegistry.get(name);
     if (harness) {
-      await harness.abort().catch(() => {});
+      await harness.abort().catch((err: Error) => console.warn("[DomainCluster] abort failed:", err.message));
       this._subAgentRegistry.delete(name);
     }
     this._subAgentCount = Math.max(0, this._subAgentCount - 1);
