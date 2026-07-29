@@ -32,6 +32,50 @@ export class ArtifactFacade {
     this.eventStore = store;
   }
 
+  /**
+   * restoreFromEvents — 从 EventStore 事件重建产物状态
+   * 遍历 ARTIFACT_CREATED / ARTIFACT_UPDATED 事件恢复所有产物
+   */
+  async restoreFromEvents(eventStore: IEventStore): Promise<void> {
+    this.artifacts.clear();
+
+    const createdEvents = await eventStore.query({ type: EventType.ARTIFACT_CREATED });
+    for (const evt of createdEvents) {
+      const p = evt.payload as any;
+      if (p?.artifactId) {
+        const node: ArtifactNode = {
+          id: p.artifactId,
+          type: p.type || 'document',
+          name: p.name || p.artifactId,
+          version: p.version || 1,
+          status: 'CREATED',
+          sourceTask: p.sourceTask || '',
+          lineage: [],
+          createdAt: evt.timestamp,
+          updatedAt: evt.timestamp,
+          metadata: {},
+        };
+        this.artifacts.set(node.id, node);
+      }
+    }
+
+    // 应用状态转换事件（按时间顺序回放）
+    const updatedEvents = await eventStore.query({ type: EventType.ARTIFACT_UPDATED });
+    updatedEvents.sort((a, b) => a.timestamp - b.timestamp);
+    for (const evt of updatedEvents) {
+      const p = evt.payload as any;
+      if (p?.artifactId) {
+        const art = this.artifacts.get(p.artifactId);
+        if (art) {
+          art.status = p.status || art.status;
+          art.updatedAt = evt.timestamp;
+        }
+      }
+    }
+
+    console.log(`[ArtifactFacade] ✅ 从 EventStore 重建: ${this.artifacts.size} 个产物`);
+  }
+
   create(name: string, type: string, sourceTask: string, metadata?: Record<string, unknown>): ArtifactNode {
     const node: ArtifactNode = {
       id: `art_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,

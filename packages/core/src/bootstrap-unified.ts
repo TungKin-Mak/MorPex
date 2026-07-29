@@ -118,18 +118,26 @@ export async function bootstrapUnified(options?: {
     ceoId,
   );
 
-  // ⬅️ 从 EventStore 重建 SystemMetadataGraph（使状态可事件溯源）
+  // ⬅️ 从 EventStore 重建状态源（使状态可事件溯源）
   try {
-    if ((container as any)._eventStore) {
-      await systemMetadataGraph.restoreFromEvents((container as any)._eventStore);
+    const es = (container as any)._eventStore as any;
+    if (es) {
+      // 重建 SystemMetadataGraph
+      await systemMetadataGraph.restoreFromEvents(es);
+      // 重建 ArtifactFacade
+      if (typeof (container.artifactFacade as any).restoreFromEvents === 'function') {
+        await (container.artifactFacade as any).restoreFromEvents(es);
+      }
+      // Ontology 由构造函数中的 refreshCache() 自动恢复
     }
   } catch (err) {
-    console.warn('[bootstrapUnified] ⚠️ SystemMetadataGraph 重建失败:', (err as Error).message);
+    console.warn('[bootstrapUnified] ⚠️ 状态源重建失败:', (err as Error).message);
   }
 
   // ── Ontology 迭代4 ──
   const objectTypeRegistry = new ObjectTypeRegistry();
   const ontology = new OntologyService(systemMetadataGraph, objectTypeRegistry);
+  // OntologyService 构造函数已调用 refreshCache()，加载了重建后的数据
   const forcedQueryGuard = new ForcedQueryGuard();
 
   // PiBridge 包装（带缓存 + 懒初始化）

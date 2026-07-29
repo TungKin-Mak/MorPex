@@ -40,6 +40,16 @@ export class OntologyService {
   }
 
   /**
+   * restoreFromEvents — 从 EventStore 重建 Ontology 缓存
+   * 委托给 SystemMetadataGraph.restoreFromEvents()，然后刷新本地缓存
+   */
+  async restoreFromEvents(eventStore: import('../protocol/events/store/IEventStore.js').IEventStore): Promise<void> {
+    await this.graph.restoreFromEvents(eventStore);
+    this.refreshCache();
+    console.log(`[OntologyService] ✅ 缓存重建完成: ${this.entityCache.size} 条目`);
+  }
+
+  /**
    * refreshCache — 从 graph 重建本地索引
    */
   /**
