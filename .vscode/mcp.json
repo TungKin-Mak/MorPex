@@ -1,0 +1,11 @@
+{
+  "servers": {
+    "codebase-memory": {
+      "command": "codebase-memory-mcp",
+      "args": [],
+      "env": {
+        "CODEBASE_MEMORY_PROJECT_ROOT": "E:\\Morpex"
+      }
+    }
+  }
+}
