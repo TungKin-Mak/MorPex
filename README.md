@@ -6,7 +6,75 @@
 
 ---
 
-## Architecture
+## Ideal Target Architecture (vNext+ — Final Model)
+
+**All future iterations, upgrades, and refactoring will strictly follow this model.**
+
+```
+1. Entry & Governance Layer
+   CompanyFacade + ControlPlane (Goal/Policy/Resource/Agent/Evolution Controllers)
+
+2. Ontology Gate Layer ★ MANDATORY KNOWLEDGE GATE ★ (Graded: tier-0/1/2)
+   OntologyService + ForcedQueryGuard + runOntologyGroundedReasoning
+   ├── tier-0 Critical（资金/对外发布/架构变更/演化提案）→ 强制两阶段 + 引用校验 + 同步 Verification（禁止缓存）
+   ├── tier-1 Standard（规划、正式 Artifact）→ 两阶段 + 短 TTL 快照缓存
+   └── tier-2 Draft / Internal（草稿、内部反思）→ 尽力查询；无结果 → ControlledExploration + QueryMiss 事件
+   → Every generation/action MUST pass this gate. No fabrication allowed. QueryMiss is Signal.
+
+3. Planning Layer
+   DeliveryPlanner + HierarchicalPlanner + CrossDepartmentArbitrationEngine
+   (Plan 输出携带 ontologyRefs[] 引用 Trace，可审计)
+
+4. Cognition & Brain Layer
+   BrainFacade (unified) + ReflectionEngine + MetaLearner + SelfImprovementLoop
+   + CrossDepartmentKnowledgeSynthesizer
+
+5. Execution Layer (Bounded Autonomy)
+   UnifiedExecutionEngine + SubAgentFork + ExecutionFabric + MorPexRuntime (FSM/DAG)
+   (maxIterations / maxCostTokens / maxAttempts；超限终止 → Failure 事件进 FailureAnalyzer)
+
+6. Tools & Primitives Layer (Generic Foundation Only)
+   DomainPrimitiveRegistry
+   ├── KnowledgeQueryPrimitive   (MUST call Ontology Gate first)
+   ├── ArtifactGenerationPrimitive (MUST carry knowledge context + Pre-Side-Effect Verify)
+   ├── FileOperationPrimitive
+   ├── ShellExecutionPrimitive
+   └── APICallPrimitive
+
+7. Knowledge & Memory Layer
+   SystemMetadataGraph + OntologyService (8 entities × 10 relations)
+   MemoryWiki + ZVec + PersonalBrain + ArtifactRegistry + MemoryBus + UnifiedEventStore
+   (Working Memory 会话级弱一致 / Shared Knowledge 强一致或可验证最终一致 / Event Store 追加写可回放)
+
+8. Evolution Layer (Verifiable Evolution)
+   ExperienceMiner + FailureAnalyzer + PatternExtractor
+   ActiveEvolutionTrigger + PatternMigrationEngine + KnowledgeGapListener
+   (QueryMiss → Feedback → Evolution 闭环；演化须沙箱试跑 + 人工审批 + 版本化回滚)
+
+9. Workflow Plugin Layer (Domain Logic — Completely Isolated)
+   packages/workflows/<domain>/  (xjmcu, ecommerce, hardware, software)
+   All domain-specific logic lives here.
+
+10. Infrastructure
+    EventBus (Sole Communication Channel, at-least-once + 消费者幂等) + ConnectorRegistry + Observability
+```
+
+**Core Constraints**:
+- **Ontology Gate is mandatory** for all knowledge retrieval and generation.
+- **Knowledge First**: `KnowledgeQueryPrimitive` always queries Ontology first.
+- **No Domain Logic in Core**: Domain primitives belong exclusively in Workflow Plugins.
+- **Department Isolation**: Every operation carries `departmentId`.
+- **EventBus Only**: No direct module-to-module calls.
+
+**Core Constraints（vNext+ 增补）**:
+- **Graded Ontology Gate**: Gate 按风险分级（tier-0 强制两阶段 / tier-1 缓存 / tier-2 受控探索），禁止一刀切全量两阶段（`ontology/types.ts` → `RiskTier`）。
+- **Bounded Autonomy**: 所有 Agent 执行必须有 iteration / cost 上限，超限终止并产生 Failure 事件（`execution/SubAgentFork.ts` + `UnifiedExecutionEngine`）。
+- **QueryMiss is Signal**: 知识缺失不能静默失败，必须产生 `ontology.query.miss` 事件进入反馈/演化回路（`events/ontologyEvents.ts` + `runOntologyGroundedReasoning`）。
+- **Verifiable Evolution**: 演化必须沙箱试跑 + 人工审批 + 版本化可回滚（依赖 Event Sourcing）。
+
+See `morpex_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
+
+---
 
 ```
                          CEO
@@ -56,7 +124,75 @@ ontology/
 **核心原则**：LLM 必须先查 Ontology 再推理，
 所有规划级决策经过 `runOntologyGroundedReasoning` 闸门。
 
-See [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) for the complete architecture.
+## Ideal Target Architecture (vNext+ — Final Model)
+
+**All future iterations, upgrades, and refactoring will strictly follow this model.**
+
+```
+1. Entry & Governance Layer
+   CompanyFacade + ControlPlane (Goal/Policy/Resource/Agent/Evolution Controllers)
+
+2. Ontology Gate Layer ★ MANDATORY KNOWLEDGE GATE ★ (Graded: tier-0/1/2)
+   OntologyService + ForcedQueryGuard + runOntologyGroundedReasoning
+   ├── tier-0 Critical（资金/对外发布/架构变更/演化提案）→ 强制两阶段 + 引用校验 + 同步 Verification（禁止缓存）
+   ├── tier-1 Standard（规划、正式 Artifact）→ 两阶段 + 短 TTL 快照缓存
+   └── tier-2 Draft / Internal（草稿、内部反思）→ 尽力查询；无结果 → ControlledExploration + QueryMiss 事件
+   → Every generation/action MUST pass this gate. No fabrication allowed. QueryMiss is Signal.
+
+3. Planning Layer
+   DeliveryPlanner + HierarchicalPlanner + CrossDepartmentArbitrationEngine
+   (Plan 输出携带 ontologyRefs[] 引用 Trace，可审计)
+
+4. Cognition & Brain Layer
+   BrainFacade (unified) + ReflectionEngine + MetaLearner + SelfImprovementLoop
+   + CrossDepartmentKnowledgeSynthesizer
+
+5. Execution Layer (Bounded Autonomy)
+   UnifiedExecutionEngine + SubAgentFork + ExecutionFabric + MorPexRuntime (FSM/DAG)
+   (maxIterations / maxCostTokens / maxAttempts；超限终止 → Failure 事件进 FailureAnalyzer)
+
+6. Tools & Primitives Layer (Generic Foundation Only)
+   DomainPrimitiveRegistry
+   ├── KnowledgeQueryPrimitive   (MUST call Ontology Gate first)
+   ├── ArtifactGenerationPrimitive (MUST carry knowledge context + Pre-Side-Effect Verify)
+   ├── FileOperationPrimitive
+   ├── ShellExecutionPrimitive
+   └── APICallPrimitive
+
+7. Knowledge & Memory Layer
+   SystemMetadataGraph + OntologyService (8 entities × 10 relations)
+   MemoryWiki + ZVec + PersonalBrain + ArtifactRegistry + MemoryBus + UnifiedEventStore
+   (Working Memory 会话级弱一致 / Shared Knowledge 强一致或可验证最终一致 / Event Store 追加写可回放)
+
+8. Evolution Layer (Verifiable Evolution)
+   ExperienceMiner + FailureAnalyzer + PatternExtractor
+   ActiveEvolutionTrigger + PatternMigrationEngine + KnowledgeGapListener
+   (QueryMiss → Feedback → Evolution 闭环；演化须沙箱试跑 + 人工审批 + 版本化回滚)
+
+9. Workflow Plugin Layer (Domain Logic — Completely Isolated)
+   packages/workflows/<domain>/  (xjmcu, ecommerce, hardware, software)
+   All domain-specific logic lives here.
+
+10. Infrastructure
+    EventBus (Sole Communication Channel, at-least-once + 消费者幂等) + ConnectorRegistry + Observability
+```
+
+**Core Constraints**:
+- **Ontology Gate is mandatory** for all knowledge retrieval and generation.
+- **Knowledge First**: `KnowledgeQueryPrimitive` always queries Ontology first.
+- **No Domain Logic in Core**: Domain primitives belong exclusively in Workflow Plugins.
+- **Department Isolation**: Every operation carries `departmentId`.
+- **EventBus Only**: No direct module-to-module calls.
+
+**Core Constraints（vNext+ 增补）**:
+- **Graded Ontology Gate**: Gate 按风险分级（tier-0 强制两阶段 / tier-1 缓存 / tier-2 受控探索），禁止一刀切全量两阶段（`ontology/types.ts` → `RiskTier`）。
+- **Bounded Autonomy**: 所有 Agent 执行必须有 iteration / cost 上限，超限终止并产生 Failure 事件（`execution/SubAgentFork.ts` + `UnifiedExecutionEngine`）。
+- **QueryMiss is Signal**: 知识缺失不能静默失败，必须产生 `ontology.query.miss` 事件进入反馈/演化回路（`events/ontologyEvents.ts` + `runOntologyGroundedReasoning`）。
+- **Verifiable Evolution**: 演化必须沙箱试跑 + 人工审批 + 版本化可回滚（依赖 Event Sourcing）。
+
+See `morpex_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
+
+---
 
 ---
 
@@ -94,7 +230,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 | 🎮 **Control** | `control-plane/` | AI System Controller (5 Controllers) |
 | 📋 **Policy** | `policy/` | 统一策略引擎 (13 条默认策略) |
 | 📊 **Evaluation** | `evaluation/` | 5 维度系统级评分 (Plan/Agent/Tool/Output/Memory) |
-| 🧠 **Brain** | `brain/` + `cognition/` | ReflectionEngine, MetaLearner, Twins, SelfEvolution |
+| 🧠 **Brain** | `cognition/`（`brain/` 已废弃 deprecated） | ReflectionEngine, MetaLearner, Twins, SelfEvolution 统一入口 `cognition/BrainFacade` |
 | 📐 **Planning** | `planner/` | DeliveryPlanner + HierarchicalPlanner (HTN) + `planWithOntology` |
 | ⚡ **Execution** | `execution/` + `runtime/` | UnifiedExecutionEngine + MorPexRuntime (9 Phase) |
 | 📦 **Artifact** | `artifact/` | ArtifactBlueprint 先于执行 + 全生命周期 |
@@ -103,7 +239,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 | 🔍 **Goal** | `goal-intelligence/` | GoalIntelligenceFacade (parse/extract/analyze) |
 | 🗺️ **Capability** | `capability/` + `agent-capability/` | CapabilityRegistry + 层级能力图 |
 | 👥 **Organization** | `organization/` | DynamicTeamOrchestrator + AgentPoolProvider |
-| 🔌 **Workflow** | `workflow/` | WorkflowProvider 接口 (插件化) |
+| 🔌 **Workflow** | `workflow/`（插件目录 `packages/workflows/<domain>/`：xjmcu, ecommerce, hardware, software） | WorkflowProvider 接口 (插件化)，领域逻辑完全隔离 |
 | 🏛️ **Governance** | `governance/` | RuntimeManager + CostController + AlertEngine |
 | 🔗 **Metadata** | `metadata/` | SystemMetadataGraph (8 实体 × 10 关系) |
 | 🔍 **Trace** | `trace/` | TraceCollector (goal→artifact span) |
@@ -143,3 +279,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 7. **Plugin Architecture** — Workflow providers are external plugins, not core logic
 8. **Ontology Grounding** — LLM must query real facts from Ontology before reasoning (iter1-3)
 9. **Feedback Loop** — All feedback and query failures feed into Self Evolution (iter3)
+10. **Graded Ontology Gate** — Risk-tiered gate (tier-0/1/2), no one-size-fits-all two-phase
+11. **Bounded Autonomy** — Every SubAgent/Mission has iteration & cost ceilings
+12. **QueryMiss is Signal** — Knowledge gaps emit `ontology.query.miss` → Feedback → Evolution
+13. **Verifiable Evolution** — Sandbox + human approval + versioned rollback

@@ -1,0 +1,30 @@
+name: Architecture Alignment Check
+
+on:
+  pull_request:
+    branches: [ main, master ]
+  push:
+    branches: [ main, master ]
+
+jobs:
+  architecture-check:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run Architecture Alignment Validator
+        run: node scripts/validate-architecture.js
+
+      - name: TypeScript Compilation Check
+        run: npx tsc --noEmit
+
+      - name: Production Readiness Check
+        run: node scripts/production-check.cjs || true

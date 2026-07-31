@@ -276,10 +276,75 @@ const v12 = await bootstrapV12(eventBus);
 
 ---
 
-### 归档模块
+### 通用基础原语（v16+，第 6 层 — 领域无关）
 
-被归档的模块在 `packages/archived/`，可通过 `git checkout` 恢复：
-- agent-marketplace / agent-distributed / agent-team
-- agent-governance / agent-shared-memory
-- reliability-chaos / reliability-regression
-- observability-legacy / studio-federation
+`packages/core/src/tools/primitives/` 只存放**领域无关**的通用原语（领域逻辑必须在 `packages/workflows/<domain>/`）：
+
+| 原语 | 文件 | 职责 |
+|------|------|------|
+| `KnowledgeQueryPrimitive` | `KnowledgeQueryPrimitive.ts` | 知识查询（MUST 先过 Ontology Gate） |
+| `ArtifactGenerationPrimitive` | `ArtifactGenerationPrimitive.ts` | 产物生成（MUST 携带知识上下文；写文件前有 Pre-Side-Effect Verify 钩子） |
+| `FileOperationPrimitive` | `FileOperationPrimitive.ts` | 文件读写 |
+| `ShellExecutionPrimitive` | `ShellExecutionPrimitive.ts` | Shell 执行 |
+| `APICallPrimitive` | `APICallPrimitive.ts` | 外部 API 调用 |
+
+原语通过 `DomainPrimitiveRegistry.match(taskDesc)` 自动匹配，
+再经由 `ExecutionFabric` 或 `UnifiedExecutionEngine` 执行。
+领域原语（如 xjmcu 生成）请放在 `packages/workflows/<domain>/`。
+
+### 跨部门融合模块（v16+）
+
+| 模块 | 路径 | 职责 |
+|------|------|------|
+| `CrossDepartmentKnowledgeSynthesizer` | `brain/` | 跨部门知识融合 + 模式迁移 |
+| `CrossDepartmentArbitrationEngine` | `planner/` | 跨部门计划冲突检测与仲裁 |
+| `ActiveEvolutionTrigger` | `evolution/` | 主动进化触发（失败/质量下降时） |
+| `PatternMigrationEngine` | `evolution/` | 跨部门工作流模式迁移适配 |
+
+### 理想架构对齐铁律（vNext 最终模型）
+
+**所有迭代、升级、重构必须严格对齐 `README.md` 中的 Ideal Target Architecture（10 层模型）。**
+
+**禁止**：
+- 在 `planes/` 目录下新增任何代码（已废弃）
+- 在 `brain/` 目录下新增新模块（已合并到 `cognition/`）
+- 在 `control-plane/` 之外创建重复的 Controller 层
+- 领域逻辑进入 core（必须放在 `packages/workflows/<domain>/`）
+
+**必须**：
+- 新模块必须对应理想架构的某一层
+- Ontology Gate（第 2 层）是所有知识检索和生成的强制前置
+- 所有通用原语必须先调用 Ontology Gate
+- Brain 能力统一通过 `cognition/BrainFacade` 暴露
+
+### vNext+ 生产级约束（分级闸门 / 有界执行 / 缺失即信号）
+
+在 10 层模型之上，生产级升级必须遵守：
+
+1. **Graded Ontology Gate** — 按风险分级，禁止一刀切全量两阶段：
+   - `tier-0` Critical（资金/对外发布/架构变更/演化提案）→ 强制两阶段 + 引用校验 + 同步验证，禁止缓存
+   - `tier-1` Standard（默认）→ 两阶段；允许短 TTL 缓存
+   - `tier-2` Draft → 尽力查询；无结果进入 ControlledExploration
+   - 所有生成/查询必须显式或按场景默认声明 `riskTier`
+2. **Bounded Autonomy** — 每个 SubAgent / Mission 必须有迭代与成本上限：
+   - `maxAttempts`（迭代上限，SubAgentFork）/ `maxIterations`、`maxCostTokens`（UnifiedExecutionEngine）
+   - 超限 → 终止并产生 `* .budget.exceeded` / `*.iteration_limit` 事件进入 FailureAnalyzer，禁止空转
+3. **QueryMiss is Signal** — 知识缺失不能静默失败：
+   - 无结果必须产生 `ontology.query.miss` 事件（EventStore 持久化 + EventBus 广播）
+   - `KnowledgeGapListener` 将缺失写入 Feedback（source='query_miss'）驱动演化
+4. **Verifiable Evolution** — 演化提案必须：Ontology Gate（Tier-0）→ 评估 → 沙箱试跑 → 人工审批 → 版本化落地 + 可回滚；禁止「分析完直接改生产行为」
+5. **Plan 可追溯** — 规划输出必须携带 `ontologyRefs[]`（引用了哪些事实），供审计与评估
+
+**禁止**（vNext+ 追加）：
+- 将知识缺失静默吞掉（必须 emit QueryMiss 信号）
+- 让 Agent 无上限空转（必须配置迭代/成本上限）
+- 绕过分级 Gate 做「一刀切」或「全部降级」
+
+**检查命令**：
+```bash
+# 检查是否违反理想架构
+grep -rn "from ['\"].*planes/" packages/core/src --include="*.ts" | grep -v DEPRECATED
+
+# 运行架构对齐验证脚本
+node scripts/validate-architecture.js
+```
