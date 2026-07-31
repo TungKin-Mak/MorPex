@@ -112,6 +112,16 @@ export interface MemoryAPI {
   /** 写入：本体校验 → 置信度分流（高置信写权威图 / 低置信或冲突进确认队列） */
   upsert(input: UpsertEntityInput): Promise<UpsertResult>;
 
+  /** 情景/会话直接写入（低门槛，不经确认队列）—— 统一入口的 episodic 通道 */
+  rememberEpisode(content: string, meta?: {
+    source?: string;
+    sessionId?: string;
+    tags?: string[];
+    importance?: number;
+    dataset?: string;
+    scope?: string;
+  }): Promise<{ id?: string; ok: boolean }>;
+
   /** 人工确认：accept 写权威层，reject 丢弃 */
   confirm(ticketId: string, decision: ConfirmDecision, meta?: Record<string, unknown>): Promise<void>;
 

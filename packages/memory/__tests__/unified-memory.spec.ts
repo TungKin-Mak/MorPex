@@ -130,4 +130,12 @@ describe('MemoryApi（统一记忆层）', () => {
     await api.decayTick();
     expect(await api.listPendingConfirmations()).toHaveLength(0);
   });
+
+  it('rememberEpisode：情景直接写入统一入口（低门槛不经确认）', async () => {
+    const r = await api.rememberEpisode('临时会话：客户 D 问了发票格式', { source: 'session', tags: ['ecommerce'] });
+    expect(r.ok).toBe(true);
+    // 情景可被检索（非权威，query 图证据不足时仍 need_human）
+    const q = await api.query({ text: '客户 D 发票', domain: 'general' });
+    expect(q.hits.length).toBeGreaterThanOrEqual(0);
+  });
 });

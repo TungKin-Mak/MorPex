@@ -89,6 +89,22 @@ export class MemoryApi implements MemoryAPI {
 
   // ── 写入 ───────────────────────────────────────────────────────────
 
+  /** 情景/会话直接写入（低门槛，不经确认；会话级可带 sessionId） */
+  async rememberEpisode(content: string, meta: {
+    source?: string;
+    sessionId?: string;
+    tags?: string[];
+    importance?: number;
+    dataset?: string;
+    scope?: string;
+  } = {}): Promise<{ id?: string; ok: boolean }> {
+    const w = await this.engine.remember(content, {
+      dataset: meta.dataset ?? this.defaultDataset,
+      scope: meta.scope ?? this.defaultScope,
+      sessionId: meta.sessionId,
+    });
+    return { id: w.id, ok: w.ok };
+  }
   async upsert(input: UpsertEntityInput): Promise<UpsertResult> {
     // 1) 本体白名单校验
     const v = validateUpsert(input);
