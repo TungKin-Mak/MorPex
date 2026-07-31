@@ -24,6 +24,7 @@ function textContent(text: string) {
 export function createMemorySearchTool(
   getRetriever: () => MemoryRetriever | null,
   harness?: AgentHarness | null,
+  memoryApi?: import('../adapters/memory/index.js').MemoryApi | null,
 ): AgentTool {
   return {
     name: 'search_memory',
@@ -34,6 +35,27 @@ export function createMemorySearchTool(
     execute: async (_toolCallId: string, params: any): Promise<any> => {
       const query = params.query as string;
       const category = params.category ?? 'all';
+
+      // ═══ 统一入口：经 MemoryAPI（强制检索 + need_human，防幻觉）═══
+      if (memoryApi) {
+        try {
+          const r = await memoryApi.query({ text: query, limit: 8 });
+          if (r.need_human || r.hits.length === 0) {
+            return {
+              content: textContent(
+                `⚠️ 记忆中无此记录或置信不足（${r.reason ?? 'QueryMiss'}）。不能臆测，请明确告知用户并询问补充。`,
+              ),
+              details: { found: false, need_human: true, reason: r.reason, source: r.source },
+            };
+          }
+          return {
+            content: textContent(`🔍 记忆库找到(统一记忆层, ${r.source}):\n\n${r.hits.map((h) => h.content).join('\n\n---\n\n')}`),
+            details: { found: true, path: 'memory_api', source: r.source },
+          };
+        } catch (err: any) {
+          // 统一层异常 → 回退旧路径
+        }
+      }
 
       // Phase 11: Harness-first path
       if (harness?.isInitialized) {

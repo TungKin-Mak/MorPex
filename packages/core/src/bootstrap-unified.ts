@@ -186,9 +186,11 @@ export async function bootstrapUnified(options?: {
   try {
     const { createMemoryApi, createEngine } = await import('./adapters/memory/index.js');
     const { initializeCompanyMemory } = await import('./memory/CompanyKnowledge.js');
+    const { createMemoryApiBus } = await import('./memory/MemoryApiBus.js');
     const memoryApi = createMemoryApi({ engine: createEngine() });
     initializeCompanyMemory(memoryApi);
     (container as any).companyMemoryApi = memoryApi;
+    (container as any).memoryApiBus = createMemoryApiBus(memoryApi);
     console.log('[bootstrapUnified] ✅ 公司知识记忆已接入（MemoryAPI + cognee 引擎，Ontology Gate 第5工具）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ 公司知识记忆接入失败（不阻断，QueryMiss 兜底）:', (err as Error).message);
