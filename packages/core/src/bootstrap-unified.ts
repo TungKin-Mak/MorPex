@@ -182,6 +182,18 @@ export async function bootstrapUnified(options?: {
   initializeOntologyGateForArtifact(forcedQueryGuard, ontology, eventStore, eventBus);
   console.log('[bootstrapUnified] ✅ Ontology Gate 已注入到 KnowledgeQueryPrimitive & ArtifactGenerationPrimitive');
 
+  // ── 公司知识记忆（统一记忆层：cognee 引擎 + 确认队列 + 强制门禁）──
+  try {
+    const { createMemoryApi, createEngine } = await import('./adapters/memory/index.js');
+    const { initializeCompanyMemory } = await import('./memory/CompanyKnowledge.js');
+    const memoryApi = createMemoryApi({ engine: createEngine() });
+    initializeCompanyMemory(memoryApi);
+    (container as any).companyMemoryApi = memoryApi;
+    console.log('[bootstrapUnified] ✅ 公司知识记忆已接入（MemoryAPI + cognee 引擎，Ontology Gate 第5工具）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ 公司知识记忆接入失败（不阻断，QueryMiss 兜底）:', (err as Error).message);
+  }
+
   // PiBridge 包装（带缓存 + 懒初始化）
   let piBridgeInstance: any = null;
   const piBridgeWrapper = {

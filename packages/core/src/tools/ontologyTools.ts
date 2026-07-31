@@ -1,3 +1,5 @@
+import { queryCompanyKnowledge } from '../memory/CompanyKnowledge.js';
+
 /**
  * ontologyTools — Ontology LLM 工具定义 + 执行器
  *
@@ -68,6 +70,22 @@ export const ontologyToolDefinitions = [
       required: ['missionId'],
     },
   },
+  {
+    name: 'ontology_queryCompanyKnowledge',
+    description:
+      '查询公司知识记忆（产品/规则/经验/客户等，实体-关系图优先）。' +
+      '涉及公司事实时必须调用；结果含 need_human 标记，为 true 时不得用模型自身知识补全，必须询问用户。',
+    parameters: {
+      type: 'object',
+      properties: {
+        text: { type: 'string', description: '查询内容，如“报表产品定价”' },
+        domain: { type: 'string', description: 'company | product | code | 运营 | ...（缺省 company）' },
+        entityTypes: { type: 'array', items: { type: 'string' }, description: '限定实体类型（可选）' },
+        limit: { type: 'number', description: '最大返回条数' },
+      },
+      required: ['text'],
+    },
+  },
 ] as const;
 
 /**
@@ -108,6 +126,15 @@ export function createOntologyToolExecutor(
 
       case 'ontology_getCurrentState':
         result = await ontology.getCurrentState(String(args.missionId));
+        break;
+
+      case 'ontology_queryCompanyKnowledge':
+        result = await queryCompanyKnowledge({
+          text: String(args.text ?? ''),
+          domain: args.domain as string | undefined,
+          entityTypes: args.entityTypes as string[] | undefined,
+          limit: args.limit as number | undefined,
+        });
         break;
 
       default:

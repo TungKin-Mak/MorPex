@@ -79,6 +79,48 @@ export function createMemoryWiki(config?: _MemoryWikiConfig): _MemoryWiki {
 // Type-only import for factory signature
 type _MemoryWikiConfig = import('../../../../memory/src/index.js').MemoryWikiConfig;
 
+// ═══════════════════════════════════════════════════════════════════
+// 统一记忆层（MemoryAPI + cognee 引擎）—— 记忆系统统一改造新增
+// 只增不改：保留上方旧导出，新增统一记忆层桥接
+// ═══════════════════════════════════════════════════════════════════
+
+// ── 统一记忆层实例与工厂 ──
+export { createMemoryApi } from '../../../../memory/src/index.js';
+export { MemoryApi } from '../../../../memory/src/index.js';
+export type { MemoryApiOptions } from '../../../../memory/src/index.js';
+export { createEngine } from '../../../../memory/src/index.js';
+export type { EngineFactoryOptions } from '../../../../memory/src/index.js';
+export { CogneeEngine, MockEngine, CogneeClient } from '../../../../memory/src/index.js';
+
+// ── 统一记忆层类型 ──
+export type {
+  MemoryAPI,
+  MemoryEngine,
+  MemoryHit,
+  MemoryQueryRequest,
+  MemoryQueryResult,
+  MemoryQuerySource,
+  NeedHumanReason,
+  UpsertEntityInput,
+  UpsertResult,
+  ConfirmTicket,
+  ConfirmDecision,
+  ReflectResult,
+} from '../../../../memory/src/index.js';
+
+// ── 本体白名单 + 校验 ──
+export {
+  ENTITY_TYPES, RELATION_TYPES, DOMAIN_ONTOLOGY,
+  isEntityType, isRelationType, entitiesForDomain, relationsForDomain,
+  validateUpsert,
+} from '../../../../memory/src/index.js';
+
+// ── 门禁（强制检索 / L2 隔离）──
+export { ForceRetriever, buildEvidenceContext, CONFIDENCE_HUMAN_THRESHOLD } from '../../../../memory/src/index.js';
+export { isCompanyKnowledgeDomain, requiresGraphFacts } from '../../../../memory/src/index.js';
+
+export type { CogneeConfig } from '../../../../memory/src/index.js';
+
 /**
  * createMemoryRetriever — 创建 MemoryRetriever 实例
  */
