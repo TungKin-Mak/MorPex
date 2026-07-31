@@ -41,6 +41,7 @@ export type FailureCategory =
   | 'agent_unavailable'
   | 'dependency_failed'
   | 'resource_exhausted'
+  | 'knowledge_gap'
   | 'unknown';
 
 /** Failure analysis for a single workflow */
