@@ -191,6 +191,8 @@ export async function bootstrapUnified(options?: {
     initializeCompanyMemory(memoryApi);
     (container as any).companyMemoryApi = memoryApi;
     (container as any).memoryApiBus = createMemoryApiBus(memoryApi);
+    // 记忆收敛：学习闭环（BrainFacade.learn）落库走统一层
+    (container as any).brainFacade?.setMemoryApi?.(memoryApi);
     console.log('[bootstrapUnified] ✅ 公司知识记忆已接入（MemoryAPI + cognee 引擎，Ontology Gate 第5工具）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ 公司知识记忆接入失败（不阻断，QueryMiss 兜底）:', (err as Error).message);

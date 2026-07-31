@@ -149,6 +149,8 @@ export class BrainFacade {
   // 可注入的子系统（全部可选 — 优雅降级）
   private personalBrain: PersonalBrainLike | null = null;
   private memoryWiki: MemoryWikiLike | null = null;
+  /** ★ 统一记忆层（记忆收敛：学习闭环优先经 MemoryAPI 落库） */
+  private memoryApi: { rememberEpisode(c: string, m?: Record<string, unknown>): Promise<unknown>; query(r: { text: string; limit?: number; domain?: string }): Promise<{ hits: Array<{ content: string }> }> } | null = null;
   private learningLoop: LearningLoopLike | null = null;
   private evolutionEngine: EvolutionEngineLike | null = null;
 
@@ -239,6 +241,11 @@ export class BrainFacade {
 
   setMemoryWiki(wiki: MemoryWikiLike): void {
     this.memoryWiki = wiki;
+  }
+
+  /** ★ 注入统一记忆层（记忆收敛） */
+  setMemoryApi(api: BrainFacade['memoryApi']): void {
+    this.memoryApi = api;
   }
 
   setLearningLoop(loop: LearningLoopLike): void {
@@ -424,6 +431,19 @@ export class BrainFacade {
       }
     }
 
+    // ★ 统一记忆层（记忆收敛：学习闭环落库走 MemoryAPI）
+    if (this.memoryApi) {
+      try {
+        await this.memoryApi.rememberEpisode(content, {
+          source: context.source,
+          tags: context.departmentId ? [context.departmentId] : ['brain'],
+        });
+        stored = true;
+      } catch (err) {
+        console.warn('[BrainFacade] MemoryAPI.remember 失败:', (err as Error).message);
+      }
+    }
+
     // 尝试 MemoryWiki
     if (this.memoryWiki) {
       try {
@@ -508,6 +528,29 @@ export class BrainFacade {
         }
       } catch (err) {
         console.warn('[BrainFacade] PersonalBrain.recall 失败:', (err as Error).message);
+      }
+    }
+
+    // ★ 统一记忆层（记忆收敛）
+    if (this.memoryApi) {
+      try {
+        const r = await this.memoryApi.query({ text: query, limit: 5 });
+        for (const h of r.hits) {
+          const key = h.content.substring(0, 50);
+          if (!seen.has(key)) {
+            seen.add(key);
+            memories.push({
+              id: `mem_${Date.now()}_${memories.length}`,
+              content: h.content,
+              relevance: 0.9,
+              source: 'memory_api',
+              timestamp: Date.now(),
+              layer: 'episodic',
+            });
+          }
+        }
+      } catch (err) {
+        console.warn('[BrainFacade] MemoryAPI.recall 失败:', (err as Error).message);
       }
     }
 
