@@ -8,7 +8,7 @@
 ## 0. 会话第一步（强制）
 
 **先读 `SESSION_LOG.md`**（项目状态 / 上轮摘要 / 当前待办 / 关键路径）。不读 = 对项目一无所知。
-紧随读 `AGENTS.md`（跨工具入口）→ `CLAUDE.md`（开发铁律）→ `morpex_ARCHITECTURE.md`（架构唯一真相源）。
+紧随读 `AGENTS.md`（项目规则，跨工具入口）→ `morpex_ARCHITECTURE.md`（架构唯一真相源）。
 
 会话结束必须更新 `SESSION_LOG.md` 的「会话历史」与「当前待办」。
 

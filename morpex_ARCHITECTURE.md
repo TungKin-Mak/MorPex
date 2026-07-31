@@ -177,7 +177,7 @@ Ontology Gate
 - `scripts/validate-architecture.js` — 自动检测架构违规（含：废弃目录引用 / Ontology Gate 绑定 / PiBridge 隔离 / 领域关键词渗入 core / LLM 绕过 Gate / 插件标准接口）
 - `.github/workflows/architecture-check.yml` — CI 强制检查
 - `.github/PULL_REQUEST_TEMPLATE.md` — 强制填写对应架构层
-- `CLAUDE.md` — 已加入“理想架构对齐铁律”
+- `AGENTS.md` — 项目规则主文档（架构对齐铁律）
 
 ---
 
