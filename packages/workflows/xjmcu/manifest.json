@@ -2,6 +2,8 @@
   "name": "xjmcu",
   "version": "1.0.0",
   "description": "矽杰微 XJ MCU 全闭环开发：生成→编译→烧录→仿真",
+  "standard": "1.0",
+  "architecture_layer": "workflow-plugin",
   "actions": [
     "xjmcu.generate",
     "xjmcu.compile",

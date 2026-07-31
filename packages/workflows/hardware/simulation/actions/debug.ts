@@ -3,7 +3,10 @@
  */
 
 import { execSync } from 'child_process';
-import { resolve } from 'path';
+import { resolve, dirname } from 'path';
+import { fileURLToPath } from 'url';
+
+const __dirname = dirname(fileURLToPath(import.meta.url));
 
 export interface DebugInput {
   xbinPath: string;

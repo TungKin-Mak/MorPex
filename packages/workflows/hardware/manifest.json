@@ -3,20 +3,28 @@
   "version": "1.2.0",
   "description": "Hardware design workflow: PCB, Firmware, Simulation, Integration",
   "actions": [
-    "hardware.design_pcb",
-    "hardware.compile_firmware",
     "hardware.generate_firmware",
+    "hardware.compile_firmware",
     "hardware.build_project",
-    "hardware.run_simulation",
     "hardware.flash_firmware",
-    "hardware.debug_regs",
-    "hardware.xjmcu_pipeline"
+    "hardware.debug_regs"
   ],
   "artifacts": [
-    "PCBLayout", "SourceCode", "HexBinary", "XBINBinary",
-    "BuildReport", "SimulationReport", "RegisterDump", "PipelineReport"
+    "PCBLayout",
+    "SourceCode",
+    "HexBinary",
+    "XBINBinary",
+    "BuildReport",
+    "SimulationReport",
+    "RegisterDump",
+    "PipelineReport"
   ],
-  "validators": ["DFMChecker", "FCCompliance", "CodeValidator", "MemoryBoundChecker"],
+  "validators": [
+    "DFMChecker",
+    "FCCompliance",
+    "CodeValidator",
+    "MemoryBoundChecker"
+  ],
   "dependencies": {
     "firmware": "./firmware",
     "simulation": "./simulation"
