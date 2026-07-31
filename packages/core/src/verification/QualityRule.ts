@@ -16,12 +16,9 @@ export class QualityRule {
   }
 
   static init(): void {
-    QualityRule.register('amazon_listing', [
-      { name: 'title_length', description: '标题长度 80-200 字符', check: async (t: any) => ({ pass: t.title?.length >= 80 && t.title?.length <= 200 }) },
-      { name: 'has_keywords', description: '包含关键词', check: async (t: any) => ({ pass: !!t.keywords?.length }) },
-      { name: 'has_description', description: '有描述', check: async (t: any) => ({ pass: !!t.description }) },
-      { name: 'has_price', description: '有价格', check: async (t: any) => ({ pass: !!t.price }) },
-    ]);
+    // ═══ No Domain Logic in Core ═══
+    // 领域质检规则已移至对应 Workflow 插件注册
+    // （packages/workflows/<domain>/src/rules/），core 仅保留通用规则。
     QualityRule.register('code', [
       { name: 'no_syntax_error', description: '无语法错误', check: async (t: any) => ({ pass: true }) },
     ]);

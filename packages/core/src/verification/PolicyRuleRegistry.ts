@@ -25,29 +25,9 @@ export class PolicyRuleRegistry {
   }
 
   static init(): void {
-    PolicyRuleRegistry.register('e-commerce', {
-      id: 'restricted_category', domain: 'e-commerce', name: '受限分类检查',
-      description: '检查商品是否在 Amazon 受限分类中',
-      check: async (t) => ({ pass: !['weapons', 'drugs', 'animals'].includes((t.category as string) || '') }),
-      severity: 'ERROR',
-    });
-    PolicyRuleRegistry.register('e-commerce', {
-      id: 'trademark_check', domain: 'e-commerce', name: '商标检查',
-      description: '检查标题/描述是否包含注册商标',
-      check: async (t) => ({ pass: !/(TM|®|™)/.test((t.title as string) || '') }),
-      severity: 'WARNING',
-    });
-    PolicyRuleRegistry.register('hardware', {
-      id: 'fcc_check', domain: 'hardware', name: 'FCC 认证',
-      description: '电子产品需要 FCC 认证',
-      check: async () => ({ pass: false, message: '需要 FCC 认证 — 请联系合规部门' }),
-      severity: 'ERROR',
-    });
-    PolicyRuleRegistry.register('hardware', {
-      id: 'rohs_check', domain: 'hardware', name: 'RoHS 合规',
-      description: '产品需符合 RoHS 有害物质限制',
-      check: async () => ({ pass: false, message: '需要 RoHS 合规声明' }),
-      severity: 'ERROR',
-    });
+    // ═══ No Domain Logic in Core ═══
+    // 领域合规规则已移至对应 Workflow 插件注册
+    // （packages/workflows/<domain>/src/rules/），core 仅保留注册机制。
+    // 由各插件 bootstrap 在启动时调用 PolicyRuleRegistry.register() 注入领域规则。
   }
 }

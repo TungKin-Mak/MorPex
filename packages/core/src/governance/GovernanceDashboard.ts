@@ -328,8 +328,48 @@ export class GovernanceDashboard {
     return true;
   }
 
-  getGovernanceReport(): GovernanceReport {
+  /**
+   * getCostQualityReport — L10 成本-质量联合仪表盘
+   *
+   * 将成本、交付质量（成功率/产物质量）、系统健康、治理评分聚合为单一报告，
+   * 供运营/监控消费（与既有 GovernanceReport 互补，聚焦成本↔质量联动）。
+   */
+  getCostQualityReport(): {
+    score: number;
+    cost: { total: number; byModule: Record<string, number>; trend: 'low' | 'medium' | 'high' };
+    quality: { taskSuccessRate: number; artifactQuality: number; errorRate: number };
+    delivery: { latencyMs: number; throughput: number };
+    recommendations: string[];
+    generatedAt: number;
+  } {
+    const gov = this.getGovernanceReport();
+    const delivery = this.getDeliveryMetrics();
+    const costReport = this.getCostReport();
     const health = this.getSystemHealth();
+
+    const costLevel = costReport.totalCost > 200 ? 'high' : costReport.totalCost > 50 ? 'medium' : 'low';
+    const throughput = health.metrics.eventsProcessed / Math.max(1, (Date.now() - this.startTime) / 60000);
+
+    const recommendations: string[] = [...costReport.recommendations];
+    if (delivery.taskSuccessRate < 0.7) recommendations.push('任务成功率偏低，建议检查失败模式并触发演化分析');
+    if (costLevel === 'high' && delivery.taskSuccessRate < 0.8) recommendations.push('高成本 + 低质量：建议降级模型并复盘执行路径');
+    if (delivery.artifactQuality < 0.6) recommendations.push('产物质量偏低，建议增强副作用前校验/验证');
+
+    return {
+      score: gov.score,
+      cost: { total: Math.round(costReport.totalCost * 100) / 100, byModule: costReport.byModule, trend: costLevel },
+      quality: {
+        taskSuccessRate: Math.round(delivery.taskSuccessRate * 100) / 100,
+        artifactQuality: Math.round(delivery.artifactQuality * 100) / 100,
+        errorRate: Math.round(health.metrics.errorRate * 100) / 100,
+      },
+      delivery: { latencyMs: Math.round(delivery.avgLatency), throughput: Math.round(throughput * 100) / 100 },
+      recommendations,
+      generatedAt: Date.now(),
+    };
+  }
+
+  getGovernanceReport(): GovernanceReport {    const health = this.getSystemHealth();
     const cost = this.getCostReport();
     const compliance = this.getComplianceStatus();
 

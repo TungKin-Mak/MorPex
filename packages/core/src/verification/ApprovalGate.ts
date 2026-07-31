@@ -55,6 +55,13 @@ export class ApprovalPolicyRegistry {
     { action: 'send_message', riskLevel: 'CRITICAL', autoApprove: false, requireHuman: true },
   ];
 
+  /** vNext+ P2：策略修订号（热更新边界 — 策略变更时递增） */
+  private static revision = 0;
+
+  static getRevision(): number {
+    return ApprovalPolicyRegistry.revision;
+  }
+
   static needsHumanApproval(action: ApprovalAction, riskLevel: RiskLevel, amount?: number): boolean {
     const policy = ApprovalPolicyRegistry.policies.find(p => p.action === action && p.riskLevel === riskLevel);
     if (!policy) return true;
@@ -64,6 +71,7 @@ export class ApprovalPolicyRegistry {
 
   static register(policy: ApprovalPolicy): void {
     ApprovalPolicyRegistry.policies.push(policy);
+    ApprovalPolicyRegistry.revision++;
   }
 }
 

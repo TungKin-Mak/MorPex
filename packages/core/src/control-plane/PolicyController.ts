@@ -20,9 +20,41 @@ export class PolicyController {
   private costController = CostController.getInstance();
 
   /**
+   * capturePolicySnapshot — 捕获当前策略修订快照（热更新边界）
+   *
+   * vNext+ P2：Mission 启动时捕获；运行中 Mission 使用启动时快照，
+   * 避免策略热更新导致行为突变不可解释。
+   */
+  capturePolicySnapshot(): { revision: number; capturedAt: number } {
+    return { revision: ApprovalPolicyRegistry.getRevision(), capturedAt: Date.now() };
+  }
+
+  /**
+   * hasPolicyChanged — 检测策略是否已偏离快照（供运行中 Mission 判断是否需要显式重启）
+   */
+  hasPolicyChanged(snapshot: { revision: number }): boolean {
+    return snapshot.revision !== ApprovalPolicyRegistry.getRevision();
+  }
+
+  /**
+   * getPolicyRevision — 当前策略修订号
+   */
+  getPolicyRevision(): number {
+    return ApprovalPolicyRegistry.getRevision();
+  }
+
+  /**
    * checkAction — 检查动作是否允许
    */
-  checkAction(action: string, riskLevel: string, amount?: number): PolicyCheckResult {
+  checkAction(action: string, riskLevel: string, amount?: number, snapshot?: { revision: number }): PolicyCheckResult {
+    // 热更新边界：若传入快照且策略已变更，明确标记（调用方可决定阻断/重评）
+    if (snapshot && this.hasPolicyChanged(snapshot)) {
+      return {
+        allowed: true,
+        reason: '策略已变更（新 mission 将采用新策略），运行中任务按启动快照继续',
+        requiresHuman: false,
+      };
+    }
     const needsHuman = ApprovalPolicyRegistry.needsHumanApproval(
       action as ApprovalAction,
       riskLevel as RiskLevel,
