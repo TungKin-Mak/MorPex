@@ -20,6 +20,7 @@
 
 import { BaseConnector } from './BaseConnector.js';
 import type { ConnectorCapability } from './types.js';
+import { resolve } from 'node:path';
 
 const CAPABILITIES: ConnectorCapability[] = [
   {
@@ -164,6 +165,9 @@ export class FileSystemConnector extends BaseConnector {
         const safePath = this.resolvePath(params.path as string);
         const content = params.content as string;
         const encoding = (params.encoding as string) ?? 'utf-8';
+        // 确保父目录存在（健壮的 fs.write 行为）
+        const pathMod = await import('node:path');
+        await fs.mkdir(pathMod.dirname(safePath), { recursive: true });
         await fs.writeFile(safePath, content, encoding as BufferEncoding);
         return { path: safePath, size: content.length };
       }
@@ -236,8 +240,8 @@ export class FileSystemConnector extends BaseConnector {
    * stays within the allowed root directory.
    */
   private resolvePath(inputPath: string): string {
-    const pathMod = requireNodePath();
-    const resolved = pathMod.resolve(this.allowedRoot, inputPath);
+    // ESM 安全：使用顶层导入的 node:path resolve（避免 require 在 ESM 下不可用）
+    const resolved = resolve(this.allowedRoot, inputPath);
 
     // Ensure the resolved path is within the allowed root
     if (!resolved.startsWith(this.allowedRoot)) {
