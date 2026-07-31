@@ -399,6 +399,18 @@ export async function bootstrapUnified(options?: {
   brainSubscribe(EventType.MISSION_FAILED, 'failure');
   console.log('[bootstrapUnified] ✅ Brain 已接通：ReflectionEngine + MetaLearner 订阅执行/任务事件');
 
+  // L4 全功能实现：BrainFacade 统一入口接入（executeGoal 完成后触发 learn 学习闭环）
+  try {
+    const { BrainFacade } = await import('./cognition/BrainFacade.js');
+    const brainFacade = new BrainFacade(eventBus);
+    brainFacade.setLearningLoop((container as any).learningEngine ?? undefined);
+    companyFacade.setBrainFacade(brainFacade);
+    (container as any).brainFacade = brainFacade;
+    console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ BrainFacade 接入失败（不阻断）:', (err as Error).message);
+  }
+
   // ── 架构全功能实现：接通 L7 Memory / L8 Evolution / L10 Observability ──
   // L7: MemoryWiki（SQLite + ZVec 向量库）
   try {

@@ -89,6 +89,8 @@ export class CompanyFacade {
     return dept;
   }
 
+  private brainFacade: any = null;
+
   /**
    * sendTask — 委托 executeGoal（不跳过 ControlPlane 门禁）
    */
@@ -155,6 +157,23 @@ export class CompanyFacade {
         result.errors.forEach(e => lines.push(`   • ${e}`));
       }
       lines.push('='.repeat(50));
+      // L4 全功能实现：任务完成后喂给 Brain 学习闭环（持久化经验 + 提模式）
+      if (this.brainFacade?.learn) {
+        try {
+          await this.brainFacade.learn({
+            taskId: result.context?.executionId ?? `exec_${Date.now()}`,
+            goal: goal,
+            result: result.ok ? 'success' : 'failure',
+            output: result.ok ? (result.executionResult as any)?.output ?? undefined : undefined,
+            error: result.ok ? undefined : (result.errors?.[0] ?? undefined),
+            duration: Date.now() - startTime,
+            departmentId: runOpts.departmentId,
+            capabilities: ((result.context?.capabilities as { name?: string }[] | undefined) ?? []).map((c) => c.name ?? String(c)),
+          });
+        } catch {
+          // Brain 学习失败不阻断主流程
+        }
+      }
       return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id };
     } catch (err) {
       return { ok: false, report: `❌ Runtime 执行失败: ${(err as Error).message}`, error: (err as Error).message };
@@ -182,7 +201,7 @@ export class CompanyFacade {
     if (process.env.NODE_ENV === 'production') throw new Error('[CompanyFacade] 生产环境禁止 setControlPlane，请使用构造注入');
     this.controlPlane = cp;
   }
-  setBrainFacade(_: any): void {}
+  setBrainFacade(brain: any): void { this.brainFacade = brain; }
   setGoalIntelligenceFacade(_: any): void {}
   setFeedbackService(_: any): void {}
   setOntology(_o: any, _g: any, _p: any): void {}
