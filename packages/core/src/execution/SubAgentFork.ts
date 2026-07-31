@@ -45,6 +45,10 @@ export interface SubAgentTask {
   timeoutMs: number;
   retryCount: number;
   maxRetries: number;
+  /** vNext+: Bounded Autonomy — 已尝试次数（含重试） */
+  attempts: number;
+  /** vNext+: Bounded Autonomy — 最大尝试次数（迭代上限） */
+  maxAttempts: number;
 }
 
 export interface SubAgentFleet {
@@ -86,6 +90,12 @@ export interface SubAgentForkConfig {
   maxConcurrency: number;
   /** 是否开启记忆快照 */
   memorySnapshotEnabled: boolean;
+  /** vNext+: 单任务最大尝试次数（迭代上限，含重试；默认 = defaultMaxRetries + 1） */
+  defaultMaxAttempts?: number;
+  /** vNext+: 舰队级 Token 成本上限（可选，默认不限） */
+  maxCostTokens?: number;
+  /** vNext+: 舰队级 USD 成本上限（可选，默认不限） */
+  maxCostUSD?: number;
 }
 
 const DEFAULT_CONFIG: SubAgentForkConfig = {
@@ -93,6 +103,7 @@ const DEFAULT_CONFIG: SubAgentForkConfig = {
   defaultMaxRetries: 2,
   maxConcurrency: 5,
   memorySnapshotEnabled: true,
+  defaultMaxAttempts: 3,
 };
 
 // ── SubAgentFork ──
@@ -120,6 +131,12 @@ export class SubAgentFork {
 
   /** 每个 fleet 的进度回调（Phase 4.6：结构化进度） */
   private progressCallbacks: Map<string, ProgressCallback> = new Map();
+
+  /** vNext+: 每个 fleet 的累计成本（Bounded Autonomy — Cost Ceiling） */
+  private fleetCosts: Map<string, { tokens: number; usd: number }> = new Map();
+
+  /** vNext+: 可选成本估算钩子（由调用方注入真实计费） */
+  private costEstimator?: (task: SubAgentTask) => Promise<{ tokens: number; usd?: number }>;
 
   /** 工具质量追踪器（Phase 4.6：可选注入） */
   private toolQualityTracker?: { recordCall: (toolName: string, success: boolean, latencyMs: number, error?: string) => void };
@@ -169,6 +186,58 @@ export class SubAgentFork {
     this.toolQualityTracker = tracker;
   }
 
+  /**
+   * setCostEstimator — 注入成本估算钩子（vNext+ Bounded Autonomy）
+   *
+   * 每个子任务完成后调用，用于累计舰队成本并触发 Cost Ceiling。
+   */
+  setCostEstimator(estimator: (task: SubAgentTask) => Promise<{ tokens: number; usd?: number }>): void {
+    this.costEstimator = estimator;
+  }
+
+  /**
+   * getFleetCost — 获取舰队累计成本（vNext+ Bounded Autonomy）
+   */
+  getFleetCost(fleetId: string): { tokens: number; usd: number } | undefined {
+    return this.fleetCosts.get(fleetId);
+  }
+
+  /**
+   * isFleetOverBudget — 舰队是否已超成本上限（vNext+ Cost Ceiling）
+   */
+  isFleetOverBudget(fleetId: string): boolean {
+    const cost = this.fleetCosts.get(fleetId);
+    if (!cost) return false;
+    if (this.config.maxCostTokens !== undefined && cost.tokens >= this.config.maxCostTokens) return true;
+    if (this.config.maxCostUSD !== undefined && cost.usd >= this.config.maxCostUSD) return true;
+    return false;
+  }
+
+  /**
+   * emitBudgetExceeded — 发射预算超限事件并标记剩余任务失败（vNext+）
+   */
+  private failFleetByBudget(fleet: SubAgentFleet, reason: string): void {
+    for (const task of fleet.tasks) {
+      if (task.status === 'pending' || task.status === 'running') {
+        task.status = 'failed';
+        task.error = `budget exceeded: ${reason}`;
+      }
+    }
+    this.eventBus.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'sub_agent.budget.exceeded',
+      timestamp: Date.now(),
+      executionId: fleet.id,
+      source: 'sub-agent-fork',
+      payload: {
+        fleetId: fleet.id,
+        departmentId: fleet.departmentId,
+        reason,
+        cost: this.fleetCosts.get(fleet.id) ?? { tokens: 0, usd: 0 },
+      },
+    });
+  }
+
   // ═══════════════════════════════════════════════════════════════
   // Fleet 管理
   // ═══════════════════════════════════════════════════════════════
@@ -196,6 +265,8 @@ export class SubAgentFork {
       timeoutMs?: number;
       maxRetries?: number;
       metadata?: Record<string, unknown>;
+      /** vNext+: 单任务最大尝试次数（迭代上限，覆盖 config） */
+      maxAttempts?: number;
       /** 进度回调（Phase 4.6） */
       onProgress?: ProgressCallback;
     },
@@ -217,6 +288,9 @@ export class SubAgentFork {
         timeoutMs,
         retryCount: 0,
         maxRetries,
+        // vNext+: Bounded Autonomy — 迭代上限（含重试）
+        attempts: 0,
+        maxAttempts: options?.maxAttempts ?? this.config.defaultMaxAttempts ?? maxRetries + 1,
       })),
       status: 'spawning',
       createdAt: Date.now(),
@@ -279,7 +353,10 @@ export class SubAgentFork {
       }
 
       const promise = this.executeTask(fleet, task);
-      executing.add(promise.then(() => { executing.delete(promise); }));
+      // ⚠️ 修复：必须删除加入集合的链式 promise（chained），
+      // 否则 executing 集合永不收缩 → while 等待槽位时无限循环挂起
+      const chained = promise.then(() => { executing.delete(chained); });
+      executing.add(chained);
     }
 
     // 等待所有任务完成
@@ -346,6 +423,30 @@ export class SubAgentFork {
 
     task.status = 'running';
     task.startedAt = startTime;
+    // vNext+: Bounded Autonomy — 每次执行（含重试）计数
+    task.attempts++;
+
+    // vNext+: Cost Ceiling — 执行前检查舰队预算（快速失败，避免空转）
+    if (this.isFleetOverBudget(fleet.id)) {
+      task.status = 'failed';
+      task.error = 'budget exceeded: 舰队已超成本上限';
+      this.eventBus.emit({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'sub_agent.task.failed',
+        timestamp: Date.now(),
+        executionId: fleet.id,
+        source: 'sub-agent-fork',
+        payload: {
+          taskId: task.id,
+          fleetId: fleet.id,
+          departmentId: fleet.departmentId,
+          error: task.error,
+          retryCount: task.retryCount,
+          duration: Date.now() - startTime,
+        },
+      });
+      return;
+    }
 
     // 设置 DepartmentContext
     DepartmentContext.partitionKey(fleet.departmentId);
@@ -405,6 +506,24 @@ export class SubAgentFork {
       task.completedAt = Date.now();
       task.result = result;
 
+      // vNext+: Cost Ceiling — 任务完成后累计成本（若注入了成本估算钩子）
+      if (this.costEstimator) {
+        try {
+          const cost = await this.costEstimator(task);
+          const prev = this.fleetCosts.get(fleet.id) ?? { tokens: 0, usd: 0 };
+          this.fleetCosts.set(fleet.id, {
+            tokens: prev.tokens + cost.tokens,
+            usd: prev.usd + (cost.usd ?? 0),
+          });
+          if (this.isFleetOverBudget(fleet.id)) {
+            this.failFleetByBudget(fleet, `舰队成本已达上限 tokens=${prev.tokens + cost.tokens}`);
+            console.warn(`[SubAgentFork] ⛔ 舰队"${fleet.name}"成本超限，已终止未完成任务`);
+          }
+        } catch (err) {
+          console.warn(`[SubAgentFork] ⚠️ 成本估算失败:`, (err as Error).message);
+        }
+      }
+
       // 进度回调：子任务完成
       const completedPct = totalTasks > 0 ? Math.round(((pctBase + 1) / totalTasks) * 100) : 100;
       cb?.(makeProgressEvent('subtask.completed', `完成: ${task.description.substring(0, 60)}`, completedPct, {
@@ -440,6 +559,37 @@ export class SubAgentFork {
       });
     } catch (err) {
       const errorMsg = (err as Error).message;
+
+      // vNext+: Bounded Autonomy — 迭代上限（含重试）
+      if (task.attempts >= task.maxAttempts) {
+        task.status = 'failed';
+        task.error = `iteration limit reached (${task.attempts}/${task.maxAttempts}): ${errorMsg}`;
+
+        this.eventBus.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'sub_agent.task.iteration_limit',
+          timestamp: Date.now(),
+          executionId: fleet.id,
+          source: 'sub-agent-fork',
+          payload: {
+            taskId: task.id,
+            fleetId: fleet.id,
+            departmentId: fleet.departmentId,
+            attempts: task.attempts,
+            maxAttempts: task.maxAttempts,
+            error: errorMsg,
+          },
+        });
+
+        // 进度回调：迭代上限失败
+        const limitPct = totalTasks > 0 ? Math.round(((pctBase + 1) / totalTasks) * 100) : 100;
+        cb?.(makeProgressEvent('subtask.failed', `迭代上限: ${task.description.substring(0, 60)}`, limitPct, {
+          taskId: task.id,
+          departmentId: fleet.departmentId,
+          metadata: { error: task.error, attempts: task.attempts },
+        }));
+        return;
+      }
 
       // 判断是否可重试
       if (task.retryCount < task.maxRetries) {

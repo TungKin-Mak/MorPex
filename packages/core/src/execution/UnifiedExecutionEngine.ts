@@ -30,6 +30,7 @@ import { DepartmentContext } from '../department/DepartmentContext.js';
 import { makeProgressEvent } from '../common/ProgressCallback.js';
 import type { DepartmentId } from '../department/types.js';
 import type { ProgressCallback } from '../common/ProgressCallback.js';
+import { DomainPrimitiveRegistry } from '../tools/DomainPrimitiveRegistry.js';
 
 // ── Types ──
 
@@ -47,6 +48,10 @@ export interface ExecutionRequest {
   context?: Record<string, unknown>;
   /** 超时（毫秒） */
   timeoutMs?: number;
+  /** vNext+: Bounded Autonomy — 最大轮询/步骤迭代次数（默认 300） */
+  maxIterations?: number;
+  /** vNext+: Bounded Autonomy — Token 成本上限（可选，需配合成本钩子） */
+  maxCostTokens?: number;
   /** 任务 ID（可选） */
   taskId?: string;
   /** 进度回调（Phase 4.6） */
@@ -122,6 +127,15 @@ export class UnifiedExecutionEngine {
   // 执行质量追踪（按模式统计成功/失败/延迟）
   private executionQuality: Record<string, { success: number; total: number; avgDuration: number }> = {};
 
+  /** vNext+: 可选成本钩子：每次迭代累计 Token 消耗 */
+  private costRecorder: ((executionId: string, tokens: number) => void) | null = null;
+
+  /** vNext+ 全功能实现：NL→结构化参数提取钩子（简单任务路由到原语时使用） */
+  private paramExtractor: ((goal: string, primitiveName: string, inputSchema: Record<string, unknown>) => Promise<Record<string, unknown>>) | null = null;
+
+  /** vNext+: 每次执行的累计 Token 成本 */
+  private executionCosts: Map<string, number> = new Map();
+
   /** v13: 注册的 Action Executors */
   private actionExecutors: Map<string, ActionExecutorLike> = new Map();
 
@@ -163,11 +177,65 @@ export class UnifiedExecutionEngine {
   }
 
   /**
+   * setCostRecorder — 注入成本记录钩子（vNext+ Bounded Autonomy）
+   *
+   * 每次迭代调用，累计 Token 消耗以触发 Cost Ceiling。
+   */
+  setCostRecorder(recorder: (executionId: string, tokens: number) => void): void {
+    this.costRecorder = recorder;
+  }
+
+  /**
+   * setParamExtractor — 注入 NL→结构化参数提取器（vNext+ 全功能实现）
+   *
+   * 简单任务路由到原语时，将自然语言目标提取为符合原语 inputSchema 的参数。
+   */
+  setParamExtractor(extractor: (goal: string, primitiveName: string, inputSchema: Record<string, unknown>) => Promise<Record<string, unknown>>): void {
+    this.paramExtractor = extractor;
+  }
+
+  /**
    * setArtifactFacade — 注入 ArtifactFacade（v14）
    * 执行成功后自动创建产物
    */
   setArtifactFacade(facade: { createFromTask(taskId: string, content: unknown, type: string): Promise<unknown> }): void {
     this.artifactFacade = facade;
+  }
+
+  /**
+   * getExecutionCost — 获取执行累计成本（vNext+）
+   */
+  getExecutionCost(executionId: string): number {
+    return this.executionCosts.get(executionId) ?? 0;
+  }
+
+  /**
+   * emitBudgetExceeded — 发射预算超限事件并返回失败结果（vNext+）
+   */
+  private emitBudgetExceeded(
+    executionId: string,
+    goal: string,
+    mode: ExecutionMode,
+    reason: string,
+    duration: number,
+  ): ExecutionResult {
+    this.eventBus.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'execution.budget.exceeded',
+      timestamp: Date.now(),
+      executionId,
+      source: 'unified-execution-engine',
+      payload: { goal, mode, reason, duration },
+    });
+    return {
+      ok: false,
+      executionId,
+      mode,
+      status: 'failed',
+      error: `[Bounded Autonomy] ${reason}`,
+      duration,
+      metrics: { reason, costTokens: this.getExecutionCost(executionId) },
+    };
   }
 
   /**
@@ -332,7 +400,15 @@ export class UnifiedExecutionEngine {
 
     const complexity = this.analyzeComplexity(request);
 
-    if (complexity === 'simple' && this.executionFabric) return 'fabric';
+    // vNext+ 全功能实现：简单任务 + 高置信原语/ActionExecutor → 走 executeAuto
+    // （原语优先于 fabric/LLM 生成，让第 6 层真正可执行）
+    if (complexity === 'simple') {
+      const primMatch = DomainPrimitiveRegistry.matchBest(request.goal);
+      if (primMatch && primMatch.confidence >= 0.7) return 'auto';
+      if (this.executionFabric) return 'fabric';
+      if (this.dagRuntime) return 'dag';
+    }
+
     if (complexity === 'medium' && this.dagRuntime) return 'dag';
     if (this.missionRuntime) return 'mission';
     if (this.dagRuntime) return 'dag';
@@ -409,10 +485,26 @@ export class UnifiedExecutionEngine {
       // 等待 Mission 生命周期完成
       const missionId = result.executionId;
       const maxWait = request.timeoutMs || 300000; // 默认 5 分钟
+      const maxIterations = request.maxIterations ?? 300; // vNext+: 迭代上限
+      const maxCostTokens = request.maxCostTokens; // vNext+: Token 成本上限
       let waited = 0;
+      let iterations = 0;
+      let costTokens = 0;
       const pollInterval = 1000;
 
       while (waited < maxWait) {
+        // vNext+: Bounded Autonomy — 迭代/成本上限
+        iterations++;
+        costTokens += 1;
+        this.executionCosts.set(missionId, costTokens);
+        this.costRecorder?.(missionId, 1);
+        if (maxCostTokens !== undefined && costTokens >= maxCostTokens) {
+          return this.emitBudgetExceeded(missionId, request.goal, 'mission', `Cost ceiling reached (${costTokens}/${maxCostTokens} tokens)`, Date.now() - startTime);
+        }
+        if (iterations > maxIterations) {
+          return this.emitBudgetExceeded(missionId, request.goal, 'mission', `Iteration cap reached (${iterations}/${maxIterations})`, Date.now() - startTime);
+        }
+
         const status = this.missionRuntime.getStatus(missionId);
         if (!status) break;
         const state = (status as any).state;
@@ -477,10 +569,26 @@ export class UnifiedExecutionEngine {
       // 等待 DAG 执行完成
       const dagExecutionId = result.executionId;
       const maxWait = request.timeoutMs || 300000;
+      const maxIterations = request.maxIterations ?? 300; // vNext+: 迭代上限
+      const maxCostTokens = request.maxCostTokens; // vNext+: Token 成本上限
       let waited = 0;
+      let iterations = 0;
+      let costTokens = 0;
       const pollInterval = 1000;
 
       while (waited < maxWait) {
+        // vNext+: Bounded Autonomy — 迭代/成本上限
+        iterations++;
+        costTokens += 1;
+        this.executionCosts.set(dagExecutionId, costTokens);
+        this.costRecorder?.(dagExecutionId, 1);
+        if (maxCostTokens !== undefined && costTokens >= maxCostTokens) {
+          return this.emitBudgetExceeded(dagExecutionId, request.goal, 'dag', `Cost ceiling reached (${costTokens}/${maxCostTokens} tokens)`, Date.now() - startTime);
+        }
+        if (iterations > maxIterations) {
+          return this.emitBudgetExceeded(dagExecutionId, request.goal, 'dag', `Iteration cap reached (${iterations}/${maxIterations})`, Date.now() - startTime);
+        }
+
         const status = this.dagRuntime.getStatus(dagExecutionId);
         if (!status) break;
         const state = (status as any).state;
@@ -569,6 +677,45 @@ export class UnifiedExecutionEngine {
     }
 
     const complexity = this.analyzeComplexity(request);
+
+    // vNext+ 全功能实现：第 6 层原语注册中心兜底（仅 simple 任务，避免复杂任务被通用原语误截）
+    if (complexity === 'simple') {
+      const primMatch = DomainPrimitiveRegistry.matchBest(request.goal);
+      if (primMatch && primMatch.confidence >= 0.7) {
+        request.onProgress?.(makeProgressEvent('task.progress', `匹配通用原语: ${primMatch.primitive.name} (${(primMatch.confidence * 100).toFixed(0)}%)`, 10, {
+          taskId: executionId, departmentId: request.departmentId,
+          metadata: { reason: primMatch.reason },
+        }));
+        const primParams: Record<string, unknown> = { goal: request.goal, ...(request.context as Record<string, unknown>) };
+        // 全功能实现：用参数提取器把自然语言目标转成原语结构化参数（失败则回退 goal 透传）
+        if (this.paramExtractor) {
+          try {
+            const extracted = await this.paramExtractor(
+              request.goal,
+              primMatch.primitive.name,
+              (primMatch.primitive as { inputSchema?: Record<string, unknown> }).inputSchema ?? {},
+            );
+            Object.assign(primParams, extracted);
+          } catch {
+            // 提取失败不阻断，原语用 goal 透传兜底
+          }
+        }
+        const primResult = await DomainPrimitiveRegistry.execute(
+          primMatch.primitive.name,
+          primParams,
+          { departmentId: request.departmentId },
+        );
+        return {
+          ok: primResult.success,
+          executionId,
+          mode: 'auto',
+          status: primResult.success ? 'completed' : 'failed',
+          output: primResult.data,
+          error: primResult.error,
+          duration: 0,
+        };
+      }
+    }
 
     // simple → fabric（最快路径）
     if (complexity === 'simple' && this.executionFabric) {
