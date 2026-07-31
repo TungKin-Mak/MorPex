@@ -6,6 +6,38 @@
 
 export type ObjectId = string;
 
+/**
+ * RiskTier — Ontology Gate 风险分级（vNext+ Graded Ontology Gate）
+ *
+ * 分级强制 + 可降级（理想架构优化 vNext+）：
+ *   - tier-0  Critical（资金/对外发布/架构变更/演化提案）
+ *     → 强制两阶段 + 引用校验 + 同步 Verification，禁止缓存
+ *   - tier-1  Standard（规划、正式 Artifact）
+ *     → 两阶段；允许 Ontology 快照缓存（短 TTL）
+ *   - tier-2  Draft / Internal（草稿、内部反思）
+ *     → 尽力查询；无结果可进入 ControlledExploration
+ *       （必须记录 QueryMiss 事件，驱动 Evolution）
+ */
+export type RiskTier = 'tier-0' | 'tier-1' | 'tier-2';
+
+/**
+ * QueryMissSignal — 知识缺失信号（QueryMiss is Signal）
+ *
+ * 无结果不能静默失败，必须产生可观测的 feedback 信号驱动演化。
+ */
+export interface QueryMissSignal {
+  /** 触发缺失时的风险分级 */
+  tier: RiskTier;
+  /** 查询目标 */
+  goal: string;
+  /** 缺失原因 */
+  reason: 'no_results' | 'reference_validation_failed' | 'parse_failed';
+  /** tier-2 是否进入受控探索（ControlledExploration） */
+  controlledExploration: boolean;
+  /** 缺失发生时间 */
+  timestamp: number;
+}
+
 export interface OntologyObject {
   id: ObjectId;
   type: string;
@@ -68,4 +100,13 @@ export interface OntologyProposal {
   raw?: unknown;
   /** 提案内容（与 payload 同义，LLM 输出中常用） */
   proposal?: unknown;
+  /**
+   * ControlledExploration 标志（Tier-2 draft 降级）
+   * 无可用事实时置 true，表示允许在受控范围内探索而非硬崩。
+   */
+  controlled_exploration?: boolean;
+  /** QueryMiss 信号：本次 Gate 查询未命中任何可用事实 */
+  query_miss?: boolean;
+  /** 本次 Gate 执行采用的风险分级 */
+  risk_tier?: RiskTier;
 }

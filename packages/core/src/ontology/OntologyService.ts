@@ -231,6 +231,10 @@ export class OntologyService {
     type: string;
     properties: Record<string, unknown>;
     status?: string;
+    /** vNext+ P2：事实来源（bootstrap/knowledge-plugin/人工等） */
+    source?: string;
+    /** vNext+ P2：事实置信度 0-1 */
+    confidence?: number;
   }): Promise<OntologyObject> {
     // 校验必填属性（P1.1）
     if (this.typeRegistry) {
@@ -241,10 +245,33 @@ export class OntologyService {
     }
 
     const id = input.id ?? `${input.type.toLowerCase()}_${Date.now()}`;
+    // ═══ vNext+ P2：简单冲突策略（同 key 高置信覆盖，否则标记 conflict）═══
+    const existing = await this.getObject(id);
+    if (existing) {
+      const existingConf = (existing.metadata?.confidence as number | undefined) ?? 0.5;
+      const newConf = input.confidence ?? 0.5;
+      if (newConf < existingConf) {
+        // 新写入置信度更低 → 不覆盖，标记冲突（保留高置信旧值）
+        this.graph.registerEntity(id, this.normalizeEntityType(input.type) ?? 'mission', String(input.properties.title ?? input.properties.name ?? id), {
+          ...existing.metadata,
+          conflict: true,
+          conflictDetail: `low-confidence(${newConf}) write blocked by existing(${existingConf})`,
+          updatedAt: Date.now(),
+        });
+        this.invalidateCache(id);
+        return (await this.getObject(id))!;
+      }
+    }
+
     const name = String(input.properties.title ?? input.properties.name ?? id);
     const metadata = {
       ...input.properties,
       status: input.status,
+      // ═══ vNext+ P2：事实元数据（source/confidence/version/timestamp）═══
+      source: input.source ?? 'system',
+      confidence: input.confidence ?? 0.5,
+      version: (existing?.version ?? 0) + 1,
+      recordedAt: Date.now(),
       updatedAt: Date.now(),
     };
 

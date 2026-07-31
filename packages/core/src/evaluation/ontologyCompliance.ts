@@ -12,6 +12,11 @@
 
 import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
 
+// ═══════════════════════════════════════════════════════════════
+// vNext+ 增强：评估「引用覆盖率 / 无引用生成 / QueryMiss」维度
+//   与现有 5 维评分衔接（ontologyCompliance 作为额外维度注入）
+// ═══════════════════════════════════════════════════════════════
+
 export interface OntologyComplianceScore {
   /** 查询合规分：0（未查询）或 1（已查询） */
   queryScore: number;
@@ -23,6 +28,12 @@ export interface OntologyComplianceScore {
   referencedCount: number;
   /** 缺失的 ID（引用了但未检索） */
   missingIds: string[];
+  /** vNext+: 是否检测到 QueryMiss（查询执行但未检索到任何事实） */
+  queryMissDetected: boolean;
+  /** vNext+: 实际检索到的对象数 */
+  retrievedCount: number;
+  /** vNext+: 引用覆盖率 = referencedCount 中有效比例（0-1） */
+  coverageRatio: number;
 }
 
 /**
@@ -45,12 +56,22 @@ export function scoreOntologyCompliance(
   const { valid, missing } = guard.validateReferences(executionId, referencedIds);
   const referencedCount = referencedIds.length;
 
+  // vNext+: QueryMiss 检测 — 查询执行过但未检索到任何对象 ID
+  const retrievedCount = guard.getRetrievedIds(executionId).length;
+  const queryMissDetected = callCount > 0 && retrievedCount === 0;
+
+  // vNext+: 引用覆盖率 — 有效引用 / 总引用
+  const coverageRatio = referencedCount > 0
+    ? (referencedCount - missing.length) / referencedCount
+    : 0;
+
   // 无引用 = 0.5（中性，可能不需要引用）
   // 全部有效 = 1
   // 有缺失 = 0
+  // vNext+: QueryMiss（查了但没检索到事实）= 0.2（知识缺口，提示补知识）
   let referenceScore: number;
   if (referencedCount === 0) {
-    referenceScore = 0.5;
+    referenceScore = queryMissDetected ? 0.2 : 0.5;
   } else {
     referenceScore = valid ? 1 : 0;
   }
@@ -61,5 +82,8 @@ export function scoreOntologyCompliance(
     callCount,
     referencedCount,
     missingIds: missing,
+    queryMissDetected,
+    retrievedCount,
+    coverageRatio,
   };
 }

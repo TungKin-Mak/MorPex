@@ -1,5 +1,5 @@
 /**
- * ontology — 轻量本体层
+ * ontology — 轻量本体层（理想架构第 2 层：Ontology Gate ★ MANDATORY）
  *
  * 迭代1：
  *   - OntologyService：包装现有 MetadataGraph
@@ -11,6 +11,9 @@
  *   - objectTypes：核心 Object Types 定义
  *   - projectors：从现有数据投影到 Ontology
  *   - runOntologyGroundedReasoning：共享推理方法
+ *
+ * 重要：此层是所有知识检索和生成的**强制前置 Gate**。
+ * 任何生成/行动必须先经过 ForcedQueryGuard + runOntologyGroundedReasoning。
  */
 
 export * from './types.js';
@@ -23,6 +26,12 @@ export type { CoreObjectType, CoreRelationType, ObjectTypeSchema } from './objec
 export { MissionProjector, ArtifactProjector } from './projectors/index.js';
 export { runOntologyGroundedReasoning } from './runOntologyGroundedReasoning.js';
 export type { GroundedReasoningOptions, GroundedReasoningResult } from './runOntologyGroundedReasoning.js';
+// vNext+: Ontology Gate 事件工厂（RiskTier / QueryMissSignal 已由 export * from './types.js' 导出）
+export {
+  createQueryMissEvent,
+  createReferenceValidationFailedEvent,
+} from '../events/ontologyEvents.js';
+export type { OntologyQueryMissEvent } from '../events/ontologyEvents.js';
 
 // ── 迭代3 ──
 export { FeedbackService } from './FeedbackService.js';

@@ -13,7 +13,7 @@
 
 import type { OntologyService } from './OntologyService.js';
 import type { ForcedQueryGuard } from './ForcedQueryGuard.js';
-import type { OntologyProposal } from './types.js';
+import type { OntologyProposal, RiskTier } from './types.js';
 import {
   ontologyToolDefinitions,
   createOntologyToolExecutor,
@@ -23,7 +23,10 @@ import {
   buildReasoningUserPrompt,
 } from '../prompts/forced-query-system.js';
 import type { IEventStore } from '../protocol/events/store/IEventStore.js';
-import { createReferenceValidationFailedEvent } from '../events/ontologyEvents.js';
+import {
+  createReferenceValidationFailedEvent,
+  createQueryMissEvent,
+} from '../events/ontologyEvents.js';
 
 export interface GroundedReasoningOptions {
   goal: string;
@@ -40,10 +43,28 @@ export interface GroundedReasoningOptions {
   };
   /** 额外的系统提示上下文 */
   extraContext?: string;
-  /** EventStore 引用（可选，用于 emit 引用失败事件） */
+  /** EventStore 引用（可选，用于 emit 引用失败/缺失事件） */
   eventStore?: IEventStore;
+  /** EventBus 引用（可选，vNext+：QueryMiss 经总线实时通知演化监听器） */
+  eventBus?: {
+    emit(event: {
+      id: string;
+      type: string;
+      timestamp: number;
+      executionId: string;
+      source: string;
+      payload: Record<string, unknown>;
+    }): void;
+  };
   /** 执行场景标签（用于日志和事件） */
   scenario?: string;
+  /**
+   * 风险分级（vNext+ Graded Ontology Gate）
+   *   tier-0 Critical：强制两阶段 + 引用校验 + 同步 Verification，禁止缓存
+   *   tier-1 Standard（默认）：两阶段；允许短 TTL 缓存
+   *   tier-2 Draft/Internal：尽力查询；无结果 → ControlledExploration + QueryMiss 事件
+   */
+  riskTier?: RiskTier;
 }
 
 export interface GroundedReasoningResult {
@@ -56,6 +77,20 @@ export interface GroundedReasoningResult {
   };
   /** 是否有可用的事实（非空结果） */
   hasUsefulFacts: boolean;
+  /** 本次推理的风险分级 */
+  riskTier: RiskTier;
+  /**
+   * 知识缺失信号（QueryMiss is Signal）
+   * 无结果时必填，用于驱动 Feedback / Evolution。
+   */
+  queryMiss?: {
+    tier: RiskTier;
+    goal: string;
+    reason: 'no_results' | 'reference_validation_failed' | 'parse_failed';
+    /** tier-2 是否已进入受控探索（ControlledExploration） */
+    controlledExploration: boolean;
+    timestamp: number;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -70,10 +105,12 @@ const groundingCache = new Map<string, { result: GroundedReasoningResult; timest
 const CACHE_TTL = 5 * 60 * 1000; // 5 分钟
 const CACHE_MAX_SIZE = 50;
 
-function getCacheKey(goal: string, scenario?: string): string {
+function getCacheKey(goal: string, scenario?: string, riskTier?: RiskTier): string {
   // 只对短目标启用缓存
   if (goal.length > 80) return '';
-  return `${scenario || ''}::${goal}`;
+  // tier-0 禁止缓存：资金/对外发布/架构变更必须强制两阶段 + 同步验证
+  if (riskTier === 'tier-0') return '';
+  return `${riskTier || 'tier-1'}::${scenario || ''}::${goal}`;
 }
 
 function getCachedResult(key: string): GroundedReasoningResult | null {
@@ -112,13 +149,16 @@ export async function runOntologyGroundedReasoning(
   options: GroundedReasoningOptions,
 ): Promise<GroundedReasoningResult> {
   const { goal, missionId, ontology, guard, piBridge, extraContext, eventStore, scenario } = options;
+  const eventBus = options.eventBus;
+  // vNext+: Graded Ontology Gate — 默认 Standard（tier-1）
+  const riskTier: RiskTier = options.riskTier ?? 'tier-1';
 
-  // ⭐ P2.7: 检查缓存
-  const cacheKey = getCacheKey(goal, scenario);
+  // ⭐ P2.7: 检查缓存（仅 tier-1/tier-2；tier-0 强制完整两阶段）
+  const cacheKey = getCacheKey(goal, scenario, riskTier);
   if (cacheKey) {
     const cached = getCachedResult(cacheKey);
     if (cached) {
-      console.log(`[GroundedReasoning] 🎯 命中缓存 (goal=${goal.substring(0, 40)}...)`);
+      console.log(`[GroundedReasoning] 🎯 命中缓存 (tier=${riskTier}, goal=${goal.substring(0, 40)}...)`);
       return cached;
     }
   }
@@ -200,11 +240,62 @@ export async function runOntologyGroundedReasoning(
   const trace = guard.getTrace(executionId);
   const retrievedIds = guard.getRetrievedIds(executionId);
   const hasUsefulFacts = retrievedIds.length > 0;
+
+  // ═══════════════════════════════════════════════════════════
+  // vNext+: QueryMiss is Signal — 知识缺失必须可观测
+  //   无结果不能静默失败，必须产生 QueryMiss 事件 + 分级行为：
+  //     tier-0 → needsHumanReview（强制人工介入）
+  //     tier-1 → 记录缺失并提示补充知识
+  //     tier-2 → ControlledExploration（受控探索，允许尽力而为）
+  // ═══════════════════════════════════════════════════════════
+  let queryMiss: GroundedReasoningResult['queryMiss'];
   if (!hasUsefulFacts) {
-    console.warn(`[GroundedReasoning] ⚠️ 查询完成但未获取到任何对象 ID（空结果）`);
+    console.warn(`[GroundedReasoning] ⚠️ 查询完成但未获取到任何对象 ID（QueryMiss, tier=${riskTier}）`);
+
+    const controlledExploration = riskTier === 'tier-2';
+    queryMiss = {
+      tier: riskTier,
+      goal,
+      reason: 'no_results',
+      controlledExploration,
+      timestamp: Date.now(),
+    };
+
+    if (eventStore) {
+      try {
+        await eventStore.append(createQueryMissEvent(executionId, {
+          missionId,
+          tier: riskTier,
+          goal,
+          reason: 'no_results',
+          controlledExploration,
+          retrievedObjectIds: retrievedIds,
+        }));
+        console.log(`  ├─ 📝 已记录 QueryMiss 事件 (tier=${riskTier}, controlledExploration=${controlledExploration})`);
+      } catch (err) {
+        console.warn(`[GroundedReasoning] ⚠️ 写入 QueryMiss 事件失败:`, (err as Error).message);
+      }
+    }
+
+    // vNext+: 经 EventBus 实时广播，驱动 KnowledgeGapListener / Evolution
+    eventBus?.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'ontology.query.miss',
+      timestamp: Date.now(),
+      executionId,
+      source: 'ontology',
+      payload: {
+        missionId,
+        tier: riskTier,
+        goal,
+        reason: 'no_results',
+        controlledExploration,
+        retrievedObjectIds: retrievedIds,
+      },
+    });
   }
 
-  console.log(`  └─ ✅ 强制查询通过 (${trace?.toolCalls.length ?? 0} 次调用, ${retrievedIds.length} 个对象)`);
+  console.log(`  └─ ✅ 强制查询通过 (${trace?.toolCalls.length ?? 0} 次调用, ${retrievedIds.length} 个对象, tier=${riskTier})`);
 
   // ---------- Phase 2: 基于事实推理 ----------
   console.log(`[GroundedReasoning] 🏁 Phase 2 - 基于事实推理`);
@@ -223,13 +314,25 @@ export async function runOntologyGroundedReasoning(
 
   const proposal = normalizeProposal(reasoningResponse.text);
 
-  // 如果空结果，强制标记 missing_info
+  // 空结果处理：分级行为 + QueryMiss 标记（vNext+）
   if (!hasUsefulFacts) {
     proposal.missing_info = [
       ...(proposal.missing_info ?? []),
       'Ontology 查询未返回任何对象，请考虑放宽查询条件或人工确认数据是否存在',
     ];
-    proposal.needs_human_review = true;
+    // tier-0：强制人工介入；tier-2：允许受控探索继续；tier-1：记录并提示
+    if (riskTier === 'tier-0') {
+      proposal.needs_human_review = true;
+    } else if (riskTier === 'tier-2') {
+      // ControlledExploration：不硬性要求人工审批，但缺失信号已发出
+      proposal.needs_human_review = proposal.needs_human_review ?? false;
+      proposal.missing_info = [
+        ...(proposal.missing_info ?? []),
+        '[ControlledExploration] tier-2 允许在无事实情况下尽力而为，缺失已记录为 QueryMiss 信号',
+      ];
+    } else {
+      proposal.needs_human_review = true;
+    }
   }
 
   // 引用校验
@@ -263,6 +366,32 @@ export async function runOntologyGroundedReasoning(
         console.warn(`[GroundedReasoning] ⚠️ 写入引用失败事件失败:`, (err as Error).message);
       }
     }
+
+    // vNext+: 引用校验失败也是 QueryMiss 信号（tier-2 允许受控探索继续）
+    if (!queryMiss) {
+      const refControlled = riskTier === 'tier-2';
+      queryMiss = {
+        tier: riskTier,
+        goal,
+        reason: 'reference_validation_failed',
+        controlledExploration: refControlled,
+        timestamp: Date.now(),
+      };
+      if (eventStore) {
+        try {
+          await eventStore.append(createQueryMissEvent(executionId, {
+            missionId,
+            tier: riskTier,
+            goal,
+            reason: 'reference_validation_failed',
+            controlledExploration: refControlled,
+            retrievedObjectIds: retrievedIds,
+          }));
+        } catch {
+          // 事件写入失败不阻断主流程
+        }
+      }
+    }
   }
 
   console.log(`  └─ ✅ 推理完成, 引用 ${proposal.referenced_object_ids.length} 个 ID, 有效=${check.valid}`);
@@ -279,6 +408,8 @@ export async function runOntologyGroundedReasoning(
       referenceCheck: check,
     },
     hasUsefulFacts,
+    riskTier,
+    queryMiss,
   };
 
   // ⭐ P2.7: 写入缓存

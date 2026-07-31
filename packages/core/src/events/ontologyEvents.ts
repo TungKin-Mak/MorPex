@@ -19,6 +19,8 @@ export const OntologyEventTypes = {
   ObjectUpserted: 'ontology.object.upserted',
   /** 关系创建 */
   RelationCreated: 'ontology.relation.created',
+  /** 知识缺失（QueryMiss is Signal） */
+  QueryMiss: 'ontology.query.miss',
 } as const;
 
 export type OntologyEventType = (typeof OntologyEventTypes)[keyof typeof OntologyEventTypes];
@@ -76,6 +78,61 @@ export function createQueryPerformedEvent(
       missionId,
       toolCalls,
       retrievedObjectIds,
+      timestamp: Date.now(),
+    },
+  };
+}
+
+/**
+ * OntologyQueryMissEvent — 知识缺失事件（QueryMiss is Signal）
+ *
+ * 无结果不能静默失败：
+ *   - tier-0：必须人工介入（needsHumanReview=true）
+ *   - tier-1：记录缺失并提示补充知识
+ *   - tier-2：进入 ControlledExploration，同时驱动 Evolution
+ */
+export interface OntologyQueryMissEvent extends BaseEvent {
+  type: 'ontology.query.miss';
+  payload: {
+    executionId: string;
+    missionId?: string;
+    tier: string;
+    goal: string;
+    reason: string;
+    controlledExploration: boolean;
+    retrievedObjectIds: string[];
+    timestamp: number;
+  };
+}
+
+/**
+ * createQueryMissEvent — 创建知识缺失事件
+ */
+export function createQueryMissEvent(
+  executionId: string,
+  input: {
+    missionId?: string;
+    tier: string;
+    goal: string;
+    reason: 'no_results' | 'reference_validation_failed' | 'parse_failed';
+    controlledExploration: boolean;
+    retrievedObjectIds: string[];
+  },
+): OntologyQueryMissEvent {
+  return {
+    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'ontology.query.miss',
+    timestamp: Date.now(),
+    executionId,
+    source: 'ontology',
+    payload: {
+      executionId,
+      missionId: input.missionId,
+      tier: input.tier,
+      goal: input.goal,
+      reason: input.reason,
+      controlledExploration: input.controlledExploration,
+      retrievedObjectIds: input.retrievedObjectIds,
       timestamp: Date.now(),
     },
   };
