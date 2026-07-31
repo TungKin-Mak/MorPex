@@ -20,7 +20,7 @@ import type {
   PluginContext,
   EventBus,
   MorPexEvent,
-} from '../../../common/types.js';
+} from '../../common/types.js';
 import { ArtifactRegistry } from './ArtifactRegistry.js';
 import type { ArtifactPluginConfig, ArtifactInstance, ArtifactStatus } from './types.js';
 

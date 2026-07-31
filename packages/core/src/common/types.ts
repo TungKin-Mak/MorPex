@@ -2,7 +2,7 @@
  * MorPexCore — 核心接口定义
  *
  * 这是整个 MorPexCore 的类型基础。
- * Event Schema 最先冻结，之后所有 planes/ 插件的开发都基于它展开。
+ * Event Schema 最先冻结，之后所有插件层的开发都基于它展开。
  *
  * ═══ MorPex v8 Phase 1 ═══
  * 事件协议已标准化为 protocol/events/ 模块。

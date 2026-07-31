@@ -10,7 +10,7 @@
  * - execution-aware recall — 根据执行历史和模式检索
  */
 
-import type { MemoryRecord } from '../planes/agent-plane/types.js';
+import type { MemoryRecord } from '../agent/harness/types.js';
 
 export interface ActivationContext {
   /** 当前执行状态 */

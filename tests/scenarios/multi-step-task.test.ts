@@ -3,8 +3,8 @@
  */
 import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
 import { DAGRuntime } from '../../packages/core/src/runtime/dag/DAGRuntime.js';
-import { AgentHarness } from '../../packages/core/src/planes/agent-plane/AgentHarness.js';
-import { GoalExtractor } from '../../packages/core/src/planes/control-plane/intent/GoalExtractor.js';
+import { AgentHarness } from '../../packages/core/src/agent/harness/AgentHarness.js';
+import { GoalExtractor } from '../../packages/core/src/goal-intelligence/intent/GoalExtractor.js';
 import { TraceBuilder, AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

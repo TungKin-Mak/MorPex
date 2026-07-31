@@ -18,8 +18,8 @@ import { CognitivePipeline } from '../../packages/core/src/runtime/cognitive-loo
 import { EventBus } from '../../packages/core/src/common/EventBus.js';
 import { ContextAssemblyEngine } from '../../packages/core/src/context/ContextAssemblyEngine.js';
 import { ContextPersistence } from '../../packages/core/src/context/ContextPersistence.js';
-import { ArtifactPlane } from '../../packages/core/src/planes/artifact-plane/ArtifactPlane.js';
-import { ArtifactSqliteRepository } from '../../packages/core/src/planes/artifact-plane/ArtifactSqliteRepository.js';
+import { ArtifactPlane } from '../../packages/core/src/artifact/plane/ArtifactPlane.js';
+import { ArtifactSqliteRepository } from '../../packages/core/src/artifact/plane/ArtifactSqliteRepository.js';
 import { AgentRegistry } from '../../packages/core/src/agent/registry/AgentRegistry.js';
 import { AgentScheduler } from '../../packages/core/src/agent/scheduler/AgentScheduler.js';
 import { AgentMessageBus } from '../../packages/core/src/agent/communication/AgentMessageBus.js';

@@ -35,7 +35,7 @@ import type {
   PluginContext,
   EventBus,
   MorPexEvent,
-} from '../../../common/types.js';
+} from '../../common/types.js';
 import { IntentResolver } from './IntentResolver.js';
 import type { IntentPluginConfig, IntentResult } from './types.js';
 

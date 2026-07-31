@@ -46,9 +46,9 @@ import { WorkflowRegistry } from '../../core/src/evolution/workflow/WorkflowRegi
 import { WorkflowExecutor } from '../../core/src/evolution/workflow/WorkflowExecutor.js';
 import { EventStore as EventSourcingStore } from '../../core/src/protocol/events/store/index.js';
 import { registerRuntimeRoutes } from './RuntimeAPI.js';
-import { KnowledgeGraph } from '../../core/src/planes/knowledge-plane/knowledge/KnowledgeGraph.js';
-import { ArtifactRegistry } from '../../core/src/planes/knowledge-plane/artifacts/ArtifactRegistry.js';
-import { IntentPlugin } from '../../core/src/planes/control-plane/intent/plugin.js';
+import { KnowledgeGraph } from '../../core/src/metadata/knowledge/KnowledgeGraph.js';
+import { ArtifactRegistry } from '../../core/src/artifact/registry/ArtifactRegistry.js';
+import { IntentPlugin } from '../../core/src/goal-intelligence/intent/plugin.js';
 
 import { DomainClusterManager } from '../../core/src/domains/DomainClusterManager.js';
 import { CrossDomainRouter } from '../../core/src/router/CrossDomainRouter.js';
@@ -131,7 +131,7 @@ import { SandboxManager } from '../../core/src/runtime/sandbox/SandboxManager.js
 import { ExecutionFSM } from '../../core/src/runtime/state-machine/ExecutionFSM.js';
 import { GoalGraph } from '../../core/src/cognition/goal/GoalGraph.js';
 import { UnifiedEventStore } from '../../core/src/protocol/events/store/UnifiedEventStore.js';
-import { ArtifactPlane } from '../../core/src/planes/artifact-plane/ArtifactPlane.js';
+import { ArtifactPlane } from '../../core/src/artifact/plane/ArtifactPlane.js';
 
 // ── 配置 ──
 

@@ -1,7 +1,7 @@
 /**
  * Integration: Runtime → Harness — Full 7-context environment
  */
-import { AgentHarness, ContextBuilder } from '../../packages/core/src/planes/agent-plane/index.js';
+import { AgentHarness, ContextBuilder } from '../../packages/core/src/agent/harness/index.js';
 import { AssertionContext, TraceBuilder, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

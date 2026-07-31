@@ -12,9 +12,9 @@
  */
 import { ExecutionFSM, ExecutionState } from '../runtime/state-machine/ExecutionFSM.js';
 import { DAGRuntime } from '../runtime/dag/DAGRuntime.js';
-import { AgentHarness, ContextBuilder } from '../planes/agent-plane/index.js';
-import { GoalExtractor } from '../planes/control-plane/intent/GoalExtractor.js';
-import { ConstraintAnalyzer } from '../planes/control-plane/intent/ConstraintAnalyzer.js';
+import { AgentHarness, ContextBuilder } from '../agent/harness/index.js';
+import { GoalExtractor } from '../goal-intelligence/intent/GoalExtractor.js';
+import { ConstraintAnalyzer } from '../goal-intelligence/intent/ConstraintAnalyzer.js';
 import { ExperienceExtractor } from '../learning/ExperienceExtractor.js';
 import { PlanEvaluator } from '../learning/PlanEvaluator.js';
 import type { ExecutionTraceReport, ExecutionTraceEntry, TestResult } from './types.js';

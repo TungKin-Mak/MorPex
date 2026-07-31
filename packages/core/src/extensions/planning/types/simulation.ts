@@ -1,5 +1,5 @@
-import type { DAGNode } from '../../../planes/runtime-kernel/dag/types.js';
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { DAGNode } from '../../../runtime/dag/types.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { Milestone } from './config.js';
 
 // ═══════════════════════════════════════════════════════════════

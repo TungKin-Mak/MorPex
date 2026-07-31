@@ -1,4 +1,4 @@
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { Milestone } from './config.js';
 import type { SimulationReport, DAGPatch, DeviationEvent, PrePlanContext, PrePlanResult, PostPlanContext, PostPlanResult, RuntimeEventContext, RuntimeEventResult, MemoryBusLogEntry } from './simulation.js';
 

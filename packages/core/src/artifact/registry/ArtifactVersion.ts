@@ -6,7 +6,7 @@
  */
 
 import type { ArtifactVersion, ArtifactInstance } from './types.js';
-import { ExecutionIdentity } from '../../../common/ExecutionIdentity.js';
+import { ExecutionIdentity } from '../../common/ExecutionIdentity.js';
 
 const identity = new ExecutionIdentity();
 

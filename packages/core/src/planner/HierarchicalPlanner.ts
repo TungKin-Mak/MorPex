@@ -45,6 +45,11 @@ export interface DAGPlan {
     mode: 'quick' | 'full';
     source: 'hierarchical-planner' | 'brain-facade' | 'rule-based';
   };
+  /**
+   * vNext+: Ontology Reference Trace
+   * 规划时经 Ontology Gate 检索到的事实 ID 列表。
+   */
+  ontologyRefs?: string[];
 }
 
 export interface HierarchicalPlannerLike {
@@ -176,6 +181,8 @@ export class HierarchicalPlanner {
           mode: subGoals.length <= 3 ? 'quick' : 'full',
           source: 'hierarchical-planner',
         },
+        // vNext+: 引用 Trace — 透传 Ontology Gate 检索到的事实 ID
+        ontologyRefs: (context as Record<string, unknown> | undefined)?.ontologyRetrievedIds as string[] | undefined,
       };
 
       this.eventBus.emit({

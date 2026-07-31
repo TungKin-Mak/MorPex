@@ -25,7 +25,7 @@ function eq<T>(a: T, b: T, m: string) { if (a === b) pass++; else { console.erro
 console.log('\n📋 1. KnowledgeGraph\n');
 {
   try {
-    const { KnowledgeGraph } = await import('../src/planes/knowledge-plane/knowledge/KnowledgeGraph.js');
+    const { KnowledgeGraph } = await import('../src/metadata/knowledge/KnowledgeGraph.js');
     const tmpDir = mkdtempSync(path.join(tmpdir(), 'kg-'));
     
     const kg = new KnowledgeGraph({ dataDir: tmpDir });
@@ -87,7 +87,7 @@ console.log('\n📋 1. KnowledgeGraph\n');
 console.log('\n📋 2. ArtifactRegistry\n');
 {
   try {
-    const { ArtifactRegistry } = await import('../src/planes/knowledge-plane/artifacts/ArtifactRegistry.js');
+    const { ArtifactRegistry } = await import('../src/artifact/registry/ArtifactRegistry.js');
     const R = ArtifactRegistry;
     
     // 使用默认配置（无 dataDir）
@@ -133,7 +133,7 @@ console.log('\n📋 2. ArtifactRegistry\n');
 console.log('\n📋 3. VectorStore\n');
 {
   try {
-    const { VectorStore } = await import('../src/planes/knowledge-plane/memory/VectorStore.js');
+    const { VectorStore } = await import('../src/memory/knowledge/VectorStore.js');
     ok(typeof VectorStore === 'function', 'VectorStore 是类');
     
     // VectorStore 需要 zvec 外部包，可能无法实例化

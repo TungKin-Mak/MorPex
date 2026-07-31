@@ -5,7 +5,7 @@
  *
  * 使用自执行模式，兼容 Node.js --test 运行。
  */
-import { ArtifactPlane } from '../src/planes/artifact-plane/ArtifactPlane.js';
+import { ArtifactPlane } from '../src/artifact/plane/ArtifactPlane.js';
 
 let passed = 0; let failed = 0;
 function assert(c: boolean, m: string) { if (!c) throw new Error(m); }

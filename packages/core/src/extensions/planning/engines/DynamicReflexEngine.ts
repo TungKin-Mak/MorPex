@@ -27,7 +27,7 @@ import type {
   MemoryBusLogEntry,
   DeviationRecord,
 } from '../types.js';
-import type { DAGNode as DAGEngineNode } from '../../../planes/runtime-kernel/dag/types.js';
+import type { DAGNode as DAGEngineNode } from '../../../runtime/dag/types.js';
 
 /** 偏差防护守卫接口 */
 interface DeviationGuardInterface {

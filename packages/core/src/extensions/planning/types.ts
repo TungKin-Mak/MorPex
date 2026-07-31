@@ -26,9 +26,9 @@
  *   - 契约先行：引擎代码消费类型，而非反向
  */
 
-import type { ExecutionDAG } from '../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { DAGNode } from '../../domains/types.js';
-import type { DAGNode as DAGEngineNode } from '../../planes/runtime-kernel/dag/types.js';
+import type { DAGNode as DAGEngineNode } from '../../runtime/dag/types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // Section 1: 计划模板

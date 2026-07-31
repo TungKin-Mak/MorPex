@@ -6,8 +6,8 @@
 
 import { Type } from '../adapters/pi-ai-types.js';
 import type { AgentTool } from '../adapters/pi-types.js';
-import { KnowledgeGraph } from '../planes/knowledge-plane/knowledge/KnowledgeGraph.js';
-import type { AgentHarness } from '../planes/agent-plane/AgentHarness.js';
+import { KnowledgeGraph } from '../metadata/knowledge/KnowledgeGraph.js';
+import type { AgentHarness } from '../agent/harness/AgentHarness.js';
 
 export function createKnowledgeGraphSkill(
   kg: KnowledgeGraph,

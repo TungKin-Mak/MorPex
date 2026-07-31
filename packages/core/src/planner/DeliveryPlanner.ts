@@ -78,6 +78,12 @@ export interface Plan {
   mode: PlanningMode;
   createdAt: number;
   metadata?: Record<string, unknown>;
+  /**
+   * vNext+: Ontology Reference Trace
+   * 本计划引用的 Ontology 对象 ID 列表（规划时经 Ontology Gate 检索到的事实）。
+   * 用于可审计性：任何计划应可回溯到其依赖的事实。
+   */
+  ontologyRefs?: string[];
 }
 
 export interface SimulationResult {
@@ -737,6 +743,8 @@ export class DeliveryPlanner {
         mode,
         createdAt: Date.now(),
         metadata: raw.metadata as Record<string, unknown> ?? {},
+        // vNext+: 引用 Trace（若外部引擎已提供）
+        ontologyRefs: Array.isArray(raw.ontologyRefs) ? raw.ontologyRefs as string[] : undefined,
       };
     }
 
@@ -792,6 +800,8 @@ export class DeliveryPlanner {
         source: 'hierarchical-planner',
         complexity: dagPlan.metadata.complexity,
       },
+      // vNext+: 引用 Trace — 从 HierarchicalPlanner 的 DAGPlan 透传
+      ontologyRefs: dagPlan.ontologyRefs,
     };
   }
 

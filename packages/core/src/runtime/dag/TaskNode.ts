@@ -3,7 +3,7 @@
  *
  * 包装 DAGNode，添加运行时执行状态。
  */
-import type { DAGNode, DAGNodeStatus } from '../../planes/runtime-kernel/dag/types.js';
+import type { DAGNode, DAGNodeStatus } from './types.js';
 
 export type TaskNodeStatus = 'pending' | 'ready' | 'running' | 'success' | 'failed' | 'skipped';
 

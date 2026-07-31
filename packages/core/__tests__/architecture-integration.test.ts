@@ -9,8 +9,8 @@ import { DAGRuntime } from '../src/runtime/dag/DAGRuntime.js';
 import { CheckpointManager } from '../src/runtime/checkpoint/CheckpointManager.js';
 import { RecoveryManager } from '../src/runtime/checkpoint/RecoveryManager.js';
 import { ReplayEngine } from '../src/runtime/checkpoint/ReplayEngine.js';
-import { AgentHarness } from '../src/planes/agent-plane/AgentHarness.js';
-import { ContextBuilder } from '../src/planes/agent-plane/ContextBuilder.js';
+import { AgentHarness } from '../src/agent/harness/AgentHarness.js';
+import { ContextBuilder } from '../src/agent/harness/ContextBuilder.js';
 
 let passed = 0; let failed = 0;
 function test(name: string, fn: () => void | Promise<void>) {

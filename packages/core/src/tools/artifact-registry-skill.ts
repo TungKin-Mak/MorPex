@@ -7,9 +7,9 @@
 
 import { Type } from '../adapters/pi-ai-types.js';
 import type { AgentTool } from '../adapters/pi-types.js';
-import { ArtifactRegistry } from '../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
-import type { ArtifactInstance } from '../planes/knowledge-plane/artifacts/types.js';
-import type { AgentHarness } from '../planes/agent-plane/AgentHarness.js';
+import { ArtifactRegistry } from '../artifact/registry/ArtifactRegistry.js';
+import type { ArtifactInstance } from '../artifact/registry/types.js';
+import type { AgentHarness } from '../agent/harness/AgentHarness.js';
 
 export function createArtifactRegistrySkill(
   registry: ArtifactRegistry,

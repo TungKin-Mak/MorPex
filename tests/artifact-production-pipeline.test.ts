@@ -11,11 +11,11 @@
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
-import { ArtifactRegistry } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactRegistry.js';
-import { ArtifactGraph } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactGraph.js';
-import { ArtifactLineage } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactLineage.js';
-import { ArtifactEvaluator } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactEvaluator.js';
-import { AgentHarness, ContextBuilder } from '../packages/core/src/planes/agent-plane/index.js';
+import { ArtifactRegistry } from '../packages/core/src/artifact/registry/ArtifactRegistry.js';
+import { ArtifactGraph } from '../packages/core/src/artifact/registry/ArtifactGraph.js';
+import { ArtifactLineage } from '../packages/core/src/artifact/registry/ArtifactLineage.js';
+import { ArtifactEvaluator } from '../packages/core/src/artifact/registry/ArtifactEvaluator.js';
+import { AgentHarness, ContextBuilder } from '../packages/core/src/agent/harness/index.js';
 
 const OUTPUT_DIR = './data/deliverables-demo';
 fs.mkdirSync(OUTPUT_DIR, { recursive: true });

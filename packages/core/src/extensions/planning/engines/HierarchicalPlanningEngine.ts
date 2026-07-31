@@ -11,7 +11,7 @@
  * historical data, NOT agent execution.
  */
 
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { PlanExperienceStore } from '../PlanExperienceStore.js';
 
 // ── Types ──

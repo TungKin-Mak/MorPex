@@ -17,8 +17,8 @@ import { MorPexKernel } from './src/common/Kernel.js';
 import type { KernelConfig as _KernelConfig } from './src/common/Kernel.js';
 import { setAgentFactory, AgentFactory } from './src/services/AgentFactory.js';
 import { RuntimeKernelIntegrator } from './src/runtime/RuntimeKernelIntegrator.js';
-import { ArtifactPlugin } from './src/planes/knowledge-plane/artifacts/plugin.js';
-import { KnowledgeGraphPlugin } from './src/planes/knowledge-plane/knowledge/plugin.js';
+import { ArtifactPlugin } from './src/artifact/registry/plugin.js';
+import { KnowledgeGraphPlugin } from './src/metadata/knowledge/plugin.js';
 import { MemoryActivationEngine } from './src/memory/MemoryActivationEngine.js';
 
 /** AgentRuntime 接口（来自 @earendil-works/pi-agent-core） */

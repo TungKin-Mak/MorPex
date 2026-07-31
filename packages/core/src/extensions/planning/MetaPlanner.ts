@@ -47,7 +47,7 @@ import { StrategicDeconstructor } from './engines/StrategicDeconstructor.js';
 import { LookAheadSimulator } from './engines/LookAheadSimulator.js';
 import { DynamicReflexEngine } from './engines/DynamicReflexEngine.js';
 import { TopologyExplorer } from './engines/TopologyExplorer.js';
-import type { ExecutionDAG } from '../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { SessionContext } from '../../common/types.js';
 
 // ── v2.6 升级模块导入 ──────────────────────────────────
@@ -68,8 +68,8 @@ import { PipelineExecutor, type PipelineInput } from './pipeline/PipelineExecuto
 // ★ MemoryWiki import
 import { MemoryWiki, MemoryRetriever } from '../../../../memory/src/index.js';
 import type { EventBus } from '../../common/EventBus.js';
-import type { KnowledgeGraph } from '../../planes/knowledge-plane/knowledge/KnowledgeGraph.js';
-import type { ArtifactRegistry } from '../../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import type { KnowledgeGraph } from '../../metadata/knowledge/KnowledgeGraph.js';
+import type { ArtifactRegistry } from '../../artifact/registry/ArtifactRegistry.js';
 import type { ZVecStorage } from '../../../../memory/src/index.js';
 
 type OrchestrateFn = (userInput: string, sessionCtx?: SessionContext) => Promise<{ dag: ExecutionDAG; result: unknown }>;

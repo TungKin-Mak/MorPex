@@ -304,7 +304,7 @@ async function main() {
   // 26. KnowledgeGraph (basic — stub)
   console.log('\n--- 26. KnowledgeGraph ---');
   try {
-    const { KnowledgeGraph } = await import('../src/planes/knowledge-plane/knowledge/KnowledgeGraph.js');
+    const { KnowledgeGraph } = await import('../src/metadata/knowledge/KnowledgeGraph.js');
     const kg = new KnowledgeGraph({ dataDir: '.' });
     
     // Stub 版 KnowledgeGraph: addEntity 返回 this, 无持久化

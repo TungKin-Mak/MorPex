@@ -3,7 +3,7 @@
  *
  * 管理节点和边的数据结构和组织。
  */
-import type { DAGEdge, DAGStatus, ExecutionDAG } from '../../planes/runtime-kernel/dag/types.js';
+import type { DAGEdge, DAGStatus, ExecutionDAG } from './types.js';
 import { TaskNode } from './TaskNode.js';
 
 export class TaskGraph {

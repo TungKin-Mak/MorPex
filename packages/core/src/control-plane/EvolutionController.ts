@@ -6,9 +6,9 @@
  * - 提供进化分析和策略模拟
  */
 
-import { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
+import { SelfImprovementLoop } from '../cognition/index.js';
 import { OrganizationTwin } from '../cognition/twin/OrganizationTwin.js';
-import { SafetyMonitor } from '../brain/SafetyMonitor.js';
+import { SafetyMonitor } from '../cognition/index.js';
 
 export interface EvolutionMetrics {
   taskSuccessRate: number;

@@ -1,7 +1,7 @@
 /**
  * Architecture: Harness Boundary — no direct provider access
  */
-import { AgentHarness } from '../../packages/core/src/planes/agent-plane/AgentHarness.js';
+import { AgentHarness } from '../../packages/core/src/agent/harness/AgentHarness.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

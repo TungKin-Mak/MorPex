@@ -1,4 +1,4 @@
-import type { MorPexPlugin } from '../../../common/types.js';
+import type { MorPexPlugin } from '../../common/types.js';
 
 export class KnowledgeGraphPlugin implements MorPexPlugin {
   name = 'knowledge-graph-plugin';

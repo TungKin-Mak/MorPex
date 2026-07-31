@@ -14,9 +14,9 @@ import { SqliteEventStore, createSqliteEventStore } from '../src/protocol/events
 import { ContextPersistence } from '../src/context/ContextPersistence.js';
 import type { ExecutionContext } from '../src/context/ContextBuilder.js';
 import { ContextVersioner } from '../src/context/ContextVersioner.js';
-import { ArtifactSqliteRepository } from '../src/planes/artifact-plane/ArtifactSqliteRepository.js';
-import { ArtifactManager } from '../src/planes/artifact-plane/ArtifactManager.js';
-import type { ArtifactRecord } from '../src/planes/artifact-plane/types.js';
+import { ArtifactSqliteRepository } from '../src/artifact/plane/ArtifactSqliteRepository.js';
+import { ArtifactManager } from '../src/artifact/plane/ArtifactManager.js';
+import type { ArtifactRecord } from '../src/artifact/plane/types.js';
 
 let passed = 0;
 let failed = 0;

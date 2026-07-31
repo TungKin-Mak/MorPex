@@ -13,7 +13,7 @@
 
 import type { MorPexEvent, EventBus, MorPexPlugin } from '../../core/src/common/types.js';
 import { LLMProvider } from '../../core/src/services/LLMProvider.js';
-import { IntentPlugin } from '../../core/src/planes/control-plane/intent/plugin.js';
+import { IntentPlugin } from '../../core/src/goal-intelligence/intent/plugin.js';
 import { IndustryPlugin } from '../../core/index.js';
 
 /**

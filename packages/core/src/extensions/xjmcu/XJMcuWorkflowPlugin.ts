@@ -1,6 +1,9 @@
 /**
  * XJMcuWorkflowPlugin v3.0 — 矽杰微 MCU 工作流插件
  *
+ * @deprecated 领域逻辑必须位于 packages/workflows/xjmcu/（No Domain Logic in Core）。
+ *   本文件已无外部消费者，保留仅为兼容；新实现请使用 packages/workflows/xjmcu/。
+ *
  * 工作流（与工程师实际开发方式一致）:
  *   1. 找 Demo: 从记忆系统提取需要的外设 Demo 代码
  *   2. 查寄存器: 提供 datasheet 的 SFR 位定义

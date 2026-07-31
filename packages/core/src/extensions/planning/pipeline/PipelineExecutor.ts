@@ -48,7 +48,7 @@ import * as fsp from 'node:fs/promises';
 import * as path from 'node:path';
 
 import type { SessionContext } from '../../../common/types.js';
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { DAGNode } from '../../../domains/types.js';
 
 import type {

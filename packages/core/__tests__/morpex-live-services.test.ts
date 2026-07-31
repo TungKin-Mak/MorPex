@@ -37,7 +37,7 @@ async function main() {
   // ════════════════════════════════════════════
   console.log('📋 1. VectorStore (zvec + BGE-M3)\n');
   if (ev) try {
-    const { VectorStore } = await import('../src/planes/knowledge-plane/memory/VectorStore.js');
+    const { VectorStore } = await import('../src/memory/knowledge/VectorStore.js');
     const td = tmpDir();
     const vs = new VectorStore({ dataPath: td, collectionName: 'test', dimension: 1024, embedUrl: 'http://localhost:3100' });
     await new Promise(r => setTimeout(r, 2000));
@@ -72,7 +72,7 @@ async function main() {
   // ════════════════════════════════════════════
   console.log('📋 3. KnowledgeGraph (deep persistence)\n');
   try {
-    const { KnowledgeGraph } = await import('../src/planes/knowledge-plane/knowledge/KnowledgeGraph.js');
+    const { KnowledgeGraph } = await import('../src/metadata/knowledge/KnowledgeGraph.js');
     const td = tmpDir();
     const kg = new KnowledgeGraph({ dataDir: td });
 
@@ -122,7 +122,7 @@ async function main() {
   // ════════════════════════════════════════════
   console.log('📋 4. ArtifactRegistry (real persistence)\n');
   try {
-    const { ArtifactRegistry } = await import('../src/planes/knowledge-plane/artifacts/ArtifactRegistry.js');
+    const { ArtifactRegistry } = await import('../src/artifact/registry/ArtifactRegistry.js');
     const R = ArtifactRegistry;
 
     const a1 = R.createArtifact({ name: 'ReqDoc', type: 'document', content: '# Req V1', createdBy: 'pm' });

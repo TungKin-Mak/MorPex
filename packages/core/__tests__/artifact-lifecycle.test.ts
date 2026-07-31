@@ -1,8 +1,8 @@
 /**
  * Artifact Tests — ArtifactGraph + Lineage
  */
-import { ArtifactGraph } from '../src/planes/knowledge-plane/artifacts/ArtifactGraph.js';
-import { ArtifactLineage } from '../src/planes/knowledge-plane/artifacts/ArtifactLineage.js';
+import { ArtifactGraph } from '../src/artifact/registry/ArtifactGraph.js';
+import { ArtifactLineage } from '../src/artifact/registry/ArtifactLineage.js';
 
 const assert = (c: boolean, m: string) => { if (!c) throw new Error('FAIL: ' + m); };
 

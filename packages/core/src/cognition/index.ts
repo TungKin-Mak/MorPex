@@ -30,6 +30,32 @@ export type {
   EvolutionEngineLike,
 } from './BrainFacade.js';
 
+// ── 统一大脑核心（原 brain/ 模块，现统一由 cognition 层管理） ──
+export { ReflectionEngine } from '../brain/ReflectionEngine.js';
+export type { BrainReflectionState, BrainReflectionResult, ReflectionEngineLike } from '../brain/ReflectionEngine.js';
+
+export { MetaLearner } from '../brain/MetaLearner.js';
+export type { TaskRecord, UserFeedback, LearningResult, MetaLearnerLike } from '../brain/MetaLearner.js';
+
+export { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
+export { ImprovementAnalyzer } from '../brain/ImprovementAnalyzer.js';
+export { EvolutionProposal } from '../brain/EvolutionProposal.js';
+export { SafetyMonitor } from '../brain/SafetyMonitor.js';
+export type { ImprovementInsight } from '../brain/ImprovementAnalyzer.js';
+export type { Proposal } from '../brain/EvolutionProposal.js';
+export type { Observation } from '../brain/SafetyMonitor.js';
+
+export { CrossDepartmentKnowledgeSynthesizer } from '../brain/CrossDepartmentKnowledgeSynthesizer.js';
+export type {
+  SynthesisCandidate,
+  SynthesisResult,
+  MigrationResult,
+  CrossDeptSynthesisStats,
+  MemoryWikiQueryLike,
+  MetaLearnerPatternLike,
+  BehaviorTwinCompareLike,
+} from '../brain/CrossDepartmentKnowledgeSynthesizer.js';
+
 // ── Personal Twin Graph ──
 export { PersonalTwinGraph } from './twin/index.js';
 

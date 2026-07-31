@@ -9,7 +9,7 @@ import type {
   DecisionTrace,
   PlanActivationResult,
 } from './pipeline-types.js';
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 
 // ═══════════════════════════════════════════════════════════════════════
 // Section 20: Pipeline Orchestration Types (管道编排类型)

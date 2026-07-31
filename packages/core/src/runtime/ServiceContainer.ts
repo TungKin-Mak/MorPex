@@ -165,6 +165,8 @@ export class ServiceContainer {
   readonly approvalGate: ApprovalGate;
   readonly experienceMiner: ExperienceMiner;
   readonly simulator: ExecutionSimulator;
+  /** L3 全功能实现：真实 MissionRuntime（供 DeliveryPlanner 接入规划阶段；构造器内赋值） */
+  missionRuntime!: import('./mission/MissionRuntime.js').MissionRuntime;
   readonly runtime: MorPexRuntime;
   readonly missionStore: PersistentMissionStore;
   readonly artifactStore: PersistentArtifactStore;
@@ -280,6 +282,7 @@ export class ServiceContainer {
 
   private createMissionRuntime(): MissionRuntimeLike {
     const mr = new MissionRuntime(this.eventBus);
+    this.missionRuntime = mr;
     return {
       name: 'MissionRuntime',
       start: async (goal: string, context?: Record<string, unknown>) => {
@@ -325,7 +328,7 @@ export class ServiceContainer {
         statusMap.set(dagId, { state: 'running', dagId });
 
         // 构造节点列表
-        let nodes: import('../planes/runtime-kernel/dag/types.js').DAGNode[] = (tasks || []).map((t: any, i: number) => ({
+        let nodes: import('../runtime/dag/types.js').DAGNode[] = (tasks || []).map((t: any, i: number) => ({
           id: `node_${i}_${Date.now()}`,
           name: t?.name || `step_${i}`,
           agentType: 'default',
@@ -350,7 +353,7 @@ export class ServiceContainer {
           });
         }
 
-        const dag: import('../planes/runtime-kernel/dag/types.js').ExecutionDAG = {
+        const dag: import('../runtime/dag/types.js').ExecutionDAG = {
           id: dagId,
           nodes,
           edges: [],

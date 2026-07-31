@@ -21,7 +21,7 @@
 import { createRequire } from 'module';
 import * as path from 'path';
 import * as fs from 'fs';
-import { recoverZVecLocks } from '../../../../../memory/src/index.js';
+import { recoverZVecLocks } from '../../../../memory/src/index.js';
 
 const require = createRequire(import.meta.url);
 

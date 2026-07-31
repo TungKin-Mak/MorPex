@@ -294,8 +294,8 @@ console.log('\n📋 13. Memory Infra\n');
 console.log('\n📋 14. Agent Modules\n');
 {
   const modules = [
-    ['AgentOrchestrator', '../src/planes/agent-plane/orchestrator/AgentOrchestrator.js'],
-    ['SwarmEngine', '../src/planes/agent-plane/swarm/SwarmEngine.js'],
+    ['AgentOrchestrator', '../src/agent/harness/orchestrator/AgentOrchestrator.js'],
+    ['SwarmEngine', '../src/agent/harness/swarm/SwarmEngine.js'],
     ['AgentService', '../src/services/AgentService.js'],
     ['PiAdapter', '../src/gateway/adapters/PiAdapter.js'],
     ['AgentFactory', '../src/services/AgentFactory.js'],

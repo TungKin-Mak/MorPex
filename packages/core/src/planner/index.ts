@@ -1,15 +1,9 @@
 /**
  * planner — 统一规划层
- *
- * Phase 2 / 交付层
- * 对外暴露 DeliveryPlanner（统一规划入口）
- * 对内委托给 MetaPlanner / CognitivePipeline / SimulationEngine
- *
- * v13 新增:
- *   HierarchicalPlanner — 分层任务网络（HTN）规划器
  */
 
 export { DeliveryPlanner } from './DeliveryPlanner.js';
+export { DeliveryPlannerAdapter } from './DeliveryPlannerAdapter.js';
 export type {
   PlanningMode,
   PlanningRequest,
@@ -31,3 +25,12 @@ export type {
   PlanContext,
   HierarchicalPlannerLike,
 } from './HierarchicalPlanner.js';
+
+export { CrossDepartmentArbitrationEngine } from './CrossDepartmentArbitrationEngine.js';
+export type {
+  Conflict,
+  ArbitrationResult,
+  DeptPriority,
+  ArbitrationPolicy,
+  PlanWithTasks,
+} from './CrossDepartmentArbitrationEngine.js';

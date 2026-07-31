@@ -2,7 +2,7 @@
  * Pipeline Stage Helpers — pure utility functions extracted from PipelineExecutor
  */
 import type { SemanticTag } from '../../types.js';
-import type { ExecutionDAG } from '../../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { DESNodeResult } from '../../types.js';
 
 // ═══════════════════════════════════════════════════════════════════

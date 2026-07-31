@@ -19,7 +19,7 @@ import type {
   SimulationRecommendation,
 } from '../types.js';
 import type { PlanExperienceStore } from '../PlanExperienceStore.js';
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { DAGNodeData, ExecutionRecordData, FailurePatternData, VectorStoreService } from '../pipeline/service-types.js';
 
 const DEFAULT_RISK_THRESHOLD = 0.7;

@@ -8,8 +8,8 @@
  */
 
 import { MorPexKernel } from './src/common/Kernel.js';
-import { IntentPlugin } from './src/planes/control-plane/intent/plugin.js';
-import type { IntentResult } from './src/planes/control-plane/intent/types.js';
+import { IntentPlugin } from './src/goal-intelligence/intent/plugin.js';
+import type { IntentResult } from './src/goal-intelligence/intent/types.js';
 
 async function main() {
   console.log('\n═══════════════════════════════════════════════');

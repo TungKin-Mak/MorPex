@@ -8,7 +8,7 @@
  *   2. 循环: 解析依赖 → 调度 → 执行 → 直到完成或失败
  *   3. 返回 DAGResult
  */
-import type { ExecutionDAG } from '../../planes/runtime-kernel/dag/types.js';
+import type { ExecutionDAG } from './types.js';
 import { TaskGraph } from './TaskGraph.js';
 import { DependencyResolver } from './DependencyResolver.js';
 import { Scheduler, type SchedulerConfig } from './Scheduler.js';

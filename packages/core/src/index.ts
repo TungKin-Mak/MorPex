@@ -43,7 +43,7 @@ export type { ParsedCommand, HubStatusReport } from './organization/index.js';
 export { CompanyFacade } from './facade/index.js';
 
 // ── Agent Harness v2 (Phase 2) ──
-export { AgentHarness, ContextBuilder } from './planes/agent-plane/index.js';
+export { AgentHarness, ContextBuilder } from './agent/harness/index.js';
 export type {
   HarnessContext,
   IntentContext,
@@ -53,8 +53,8 @@ export type {
   ExecutionState as HarnessExecutionState,
   PermissionContext,
   ExperienceContext,
-} from './planes/agent-plane/index.js';
-export type { MemoryRecord, ArtifactRef as AgentArtifactRef, Experience as AgentExperience, HarnessEventCallback } from './planes/agent-plane/index.js';
+} from './agent/harness/index.js';
+export type { MemoryRecord, ArtifactRef as AgentArtifactRef, Experience as AgentExperience, HarnessEventCallback } from './agent/harness/index.js';
 
 // ── Runtime Kernel v2 (Phase 1) ──
 export {
@@ -143,11 +143,11 @@ export type {
 } from './router/ArbitrationHandler.js';
 
 // ── Knowledge Plane — Artifact Intelligence (Phase 3) ──
-export { ArtifactGraph, ArtifactLineage, ArtifactEvaluator, ArtifactDependencyResolver, ArtifactEmbedding } from './planes/knowledge-plane/artifacts/index.js';
-export type { ArtifactNode, ArtifactEdge, ArtifactCapability, ArtifactDependency, ArtifactUsageRecord, ArtifactEvaluation, LineageQuery, LineagePath, ArtifactEmbedding as ArtifactEmbeddingType } from './planes/knowledge-plane/artifacts/index.js';
+export { ArtifactGraph, ArtifactLineage, ArtifactEvaluator, ArtifactDependencyResolver, ArtifactEmbedding } from './artifact/registry/index.js';
+export type { ArtifactNode, ArtifactEdge, ArtifactCapability, ArtifactDependency, ArtifactUsageRecord, ArtifactEvaluation, LineageQuery, LineagePath, ArtifactEmbedding as ArtifactEmbeddingType } from './artifact/registry/index.js';
 
 // ── v9.1 Independent Artifact Plane ──
-export { ArtifactPlane, ArtifactManager, ArtifactRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactEventEmitter, ArtifactLineageTracker, ArtifactSqliteRepository } from './planes/artifact-plane/index.js';
+export { ArtifactPlane, ArtifactManager, ArtifactRepository, ArtifactStagingArea, ArtifactValidator, ArtifactVerifier, ArtifactVersionService, ArtifactEventEmitter, ArtifactLineageTracker, ArtifactSqliteRepository } from './artifact/plane/index.js';
 export type {
   ArtifactType as ArtifactPlaneType,
   ArtifactStatus as ArtifactPlaneStatus,
@@ -170,20 +170,20 @@ export type {
   LineageEdge as ArtifactLineageEdge,
   LineagePath as ArtifactPlaneLineagePath,
   StagingConfig,
-} from './planes/artifact-plane/index.js';
+} from './artifact/plane/index.js';
 
 // ── Memory Activation Engine (Phase 4) ──
 export { MemoryActivationEngine } from './memory/MemoryActivationEngine.js';
 export type { ActivationContext, ActivationResult } from './memory/MemoryActivationEngine.js';
 
 // ── Intent Intelligence Layer (Phase 5) ──
-export { GoalExtractor, ConstraintAnalyzer, PriorityEngine, RiskDetector, ExecutionPolicyGenerator, IntentResolver } from './planes/control-plane/intent/index.js';
-export type { StructuredGoal } from './planes/control-plane/intent/index.js';
+export { GoalExtractor, ConstraintAnalyzer, PriorityEngine, RiskDetector, ExecutionPolicyGenerator, IntentResolver } from './goal-intelligence/intent/index.js';
+export type { StructuredGoal } from './goal-intelligence/intent/index.js';
 // Constraints exported from common/types.js below (canonical)
-export type { Constraints as IntentConstraints } from './planes/control-plane/intent/index.js';
-export type { PriorityResult, PriorityFactor } from './planes/control-plane/intent/index.js';
-export type { Risk } from './planes/control-plane/intent/index.js';
-export type { ExecutionPolicy } from './planes/control-plane/intent/index.js';
+export type { Constraints as IntentConstraints } from './goal-intelligence/intent/index.js';
+export type { PriorityResult, PriorityFactor } from './goal-intelligence/intent/index.js';
+export type { Risk } from './goal-intelligence/intent/index.js';
+export type { ExecutionPolicy } from './goal-intelligence/intent/index.js';
 
 // ── Learning Loop (Phase 6) ──
 export { ExperienceExtractor, PlanEvaluator, StrategyOptimizer, TemplateEvolutionEngine } from './learning/index.js';
@@ -573,8 +573,8 @@ export { AgentFactory, SecurityBoundaryException } from './services/AgentFactory
 export type { AgentSpawnContext } from './services/AgentFactory.js';
 
 // ── ExecutionOrchestrator (Conflict 3) — Control Plane 编排器 ──
-export { ExecutionOrchestrator } from './planes/control-plane/orchestrator/ExecutionOrchestrator.js';
-export type { ExecutionDAG } from './planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+export { ExecutionOrchestrator } from './control-plane/orchestrator/ExecutionOrchestrator.js';
+export type { ExecutionDAG } from './control-plane/orchestrator/ExecutionOrchestrator.js';
 
 // MemoryBusListener was a ghost module — removed
 
@@ -787,19 +787,19 @@ export type { V12BootstrapResult } from './bootstrap-v12.js';
 // v13 增强模块
 // ═══════════════════════════════════════════════════════════════
 
-// ── Brain 增强: ReflectionEngine + MetaLearner ──
-export { ReflectionEngine, MetaLearner } from './brain/index.js';
+// ── Brain 增强: ReflectionEngine + MetaLearner (已合并到 cognition 层) ──
+export { ReflectionEngine, MetaLearner } from './cognition/index.js';
 export type {
   BrainReflectionState,
   BrainReflectionResult,
   ReflectionEngineLike,
-} from './brain/index.js';
+} from './cognition/index.js';
 export type {
   TaskRecord,
   UserFeedback,
   LearningResult,
   MetaLearnerLike,
-} from './brain/index.js';
+} from './cognition/index.js';
 
 // ── Planner 增强: HierarchicalPlanner (HTN) ──
 export { HierarchicalPlanner } from './planner/HierarchicalPlanner.js';
@@ -813,9 +813,33 @@ export type {
 export { ToolFactory, ToolRegistry } from './tools/index.js';
 export type { ToolSchema, RegisteredTool, ToolGenContext } from './tools/index.js';
 
-// ── 领域原语: AmazonListingAction, MarketResearchAction ──
-export { AmazonListingAction, MarketResearchAction } from './tools/primitives/index.js';
-export type { ActionPrimitive, ActionResult, ListingData, ListingResult } from './tools/primitives/index.js';
+// ── 通用原语注册中心（第 6 层：DomainPrimitiveRegistry）──
+export { DomainPrimitiveRegistry } from './tools/DomainPrimitiveRegistry.js';
+export type {
+  PrimitiveRegistration,
+  PrimitiveMatchResult,
+  PrimitiveStats,
+} from './tools/DomainPrimitiveRegistry.js';
+
+// ── 通用基础原语 ──
+export {
+  KnowledgeQueryPrimitive,
+  FileOperationPrimitive,
+  ArtifactGenerationPrimitive,
+  ShellExecutionPrimitive,
+  APICallPrimitive,
+} from './tools/primitives/index.js';
+export type {
+  ActionPrimitive,
+  ActionResult,
+  KnowledgeQuery,
+  KnowledgeQueryResult,
+  FileOperationRequest,
+  ArtifactGenerationRequest,
+  ArtifactGenerationResult,
+  APICallRequest,
+  ShellExecutionRequest,
+} from './tools/primitives/index.js';
 
 // ── 治理看板: GovernanceDashboard (VCOS 100) ──
 export { GovernanceDashboard } from './governance/index.js';
@@ -831,7 +855,7 @@ export type { V13BootstrapResult } from './bootstrap-v13.js';
 // v14 新增模块
 // ═══════════════════════════════════════════════════════════════
 
-// ── Goal Intelligence (v14) — ConstraintAnalyzer 已从 planes/control-plane/intent 导出
+// ── Goal Intelligence (v14) — ConstraintAnalyzer 已从 goal-intelligence/intent 导出
 export { GoalIntelligenceFacade, GoalParser, GoalValidator } from './goal-intelligence/index.js';
 export type { GoalParseResult, GoalContext } from './contracts/goal.js';
 
@@ -872,8 +896,8 @@ export { RuntimeManager, CostController, AlertEngine } from './governance/index.
 export type { Alert, AlertLevel } from './governance/index.js';
 
 // ── Self Improvement Loop (v15) ──
-export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './brain/index.js';
-export type { ImprovementInsight, Proposal } from './brain/index.js';
+export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './cognition/index.js';
+export type { ImprovementInsight, Proposal } from './cognition/index.js';
 
 // ── v15 Bootstrap ──
 /** @deprecated 请使用 bootstrapUnified */
@@ -926,8 +950,8 @@ export { OrganizationTwin } from './cognition/twin/index.js';
 export type { OrgRole, OrgDecision } from './cognition/twin/index.js';
 
 // ── Safety Monitor (Phase 2) ──
-export { SafetyMonitor } from './brain/index.js';
-export type { Observation } from './brain/index.js';
+export { SafetyMonitor } from './cognition/index.js';
+export type { Observation } from './cognition/index.js';
 
 // ── Policy Engine (Phase 2 — 统一策略引擎) ──
 export { PolicyEngine as UnifiedPolicyEngine, policyEngine } from './policy/index.js';

@@ -31,7 +31,7 @@ export class AgentCreateTool implements AgentTool {
 
   parameters = Type.Object({
     domain: Type.String({ description: '目标领域 ID（如 hardware_engineering）' }),
-    expert_name: Type.String({ description: '专家名称（如 pcb-designer、firmware-engineer）' }),
+    expert_name: Type.String({ description: '专家名称（如 design-expert、firmware-engineer）' }),
     goal: Type.String({ description: '任务目标描述' }),
     vfsMountUri: optionalProp(Type.String({ description: '产物 URI 摘要，用于惰性灌水。格式: artifact://{domain}/{type}/{id}' })),
   });

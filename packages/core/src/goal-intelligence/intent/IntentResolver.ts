@@ -17,20 +17,20 @@
  */
 
 import type { IntentResult, IntentType, Domain, IntentResolverDeps } from './types.js';
-import { LLMProvider } from '../../../services/LLMProvider.js';
-import { extractJson } from '../../../utils/extractJson.js';
+import { LLMProvider } from '../../services/LLMProvider.js';
+import { extractJson } from '../../utils/extractJson.js';
 import { GoalExtractor } from './GoalExtractor.js';
 import { ConstraintAnalyzer } from './ConstraintAnalyzer.js';
 import { PriorityEngine } from './PriorityEngine.js';
 import { RiskDetector } from './RiskDetector.js';
 import { ExecutionPolicyGenerator } from './ExecutionPolicyGenerator.js';
-import type { MemoryActivationEngine, ActivationContext } from '../../../memory/MemoryActivationEngine.js';
+import type { MemoryActivationEngine, ActivationContext } from '../../memory/MemoryActivationEngine.js';
 
 /**
  * 获取 parseJsonWithRepair 适配器
  * 优先使用 pi-ai 的版本（通过适配层），回退到本地 extractJson
  */
-import { mpParseJsonWithRepair } from '../../../adapters/pi-utils.js';
+import { mpParseJsonWithRepair } from '../../adapters/pi-utils.js';
 
 async function getParseJsonWithRepair(): Promise<((json: string) => any) | null> {
   return mpParseJsonWithRepair ?? null;

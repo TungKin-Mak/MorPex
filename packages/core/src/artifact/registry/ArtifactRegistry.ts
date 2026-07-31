@@ -24,8 +24,8 @@ import type {
   ArtifactPluginConfig,
 } from './types.js';
 import { createVersionSnapshot } from './ArtifactVersion.js';
-import { ExecutionIdentity } from '../../../common/ExecutionIdentity.js';
-import { AsyncResourceLocker, VersionConflictError } from '../../../utils/AsyncResourceLocker.js';
+import { ExecutionIdentity } from '../../common/ExecutionIdentity.js';
+import { AsyncResourceLocker, VersionConflictError } from '../../utils/AsyncResourceLocker.js';
 
 /** URI 解析结果 */
 export interface ArtifactURIResult {
@@ -440,4 +440,4 @@ export class ArtifactRegistry {
   }
 }
 
-export { VersionConflictError } from '../../../utils/AsyncResourceLocker.js';
+export { VersionConflictError } from '../../utils/AsyncResourceLocker.js';

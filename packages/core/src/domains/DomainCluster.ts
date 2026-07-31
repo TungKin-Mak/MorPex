@@ -38,7 +38,7 @@ import { AgentCreateTool } from '../tools/AgentCreateTool.js';
 import { TeamSayTool, type AgentRegistry } from '../tools/TeamSayTool.js';
 import { ReadArtifactTool } from '../tools/ReadArtifactTool.js';
 import { createAskUserTool } from '../tools/ask-user-tool.js';
-import type { ArtifactRegistry } from '../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import type { ArtifactRegistry } from '../artifact/registry/ArtifactRegistry.js';
 
 /**
  * DomainCluster — 领域集群

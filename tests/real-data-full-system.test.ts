@@ -12,20 +12,20 @@ import { DAGRuntime, TaskGraph, TaskNode } from '../packages/core/src/runtime/da
 import { CheckpointManager } from '../packages/core/src/runtime/checkpoint/CheckpointManager.js';
 import { RecoveryManager } from '../packages/core/src/runtime/checkpoint/RecoveryManager.js';
 import { ReplayEngine } from '../packages/core/src/runtime/checkpoint/ReplayEngine.js';
-import { AgentHarness, ContextBuilder } from '../packages/core/src/planes/agent-plane/index.js';
+import { AgentHarness, ContextBuilder } from '../packages/core/src/agent/harness/index.js';
 import { MemoryActivationEngine } from '../packages/core/src/memory/MemoryActivationEngine.js';
-import { ArtifactGraph } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactGraph.js';
-import { ArtifactLineage } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactLineage.js';
+import { ArtifactGraph } from '../packages/core/src/artifact/registry/ArtifactGraph.js';
+import { ArtifactLineage } from '../packages/core/src/artifact/registry/ArtifactLineage.js';
 import { ExperienceExtractor } from '../packages/core/src/learning/ExperienceExtractor.js';
 import { PlanEvaluator } from '../packages/core/src/learning/PlanEvaluator.js';
 import { StrategyOptimizer } from '../packages/core/src/learning/StrategyOptimizer.js';
 import { TemplateEvolutionEngine } from '../packages/core/src/learning/TemplateEvolutionEngine.js';
-import { GoalExtractor } from '../packages/core/src/planes/control-plane/intent/GoalExtractor.js';
-import { ConstraintAnalyzer } from '../packages/core/src/planes/control-plane/intent/ConstraintAnalyzer.js';
-import { PriorityEngine } from '../packages/core/src/planes/control-plane/intent/PriorityEngine.js';
-import { RiskDetector } from '../packages/core/src/planes/control-plane/intent/RiskDetector.js';
-import { ExecutionPolicyGenerator } from '../packages/core/src/planes/control-plane/intent/ExecutionPolicyGenerator.js';
-import { ArtifactRegistry } from '../packages/core/src/planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import { GoalExtractor } from '../packages/core/src/goal-intelligence/intent/GoalExtractor.js';
+import { ConstraintAnalyzer } from '../packages/core/src/goal-intelligence/intent/ConstraintAnalyzer.js';
+import { PriorityEngine } from '../packages/core/src/goal-intelligence/intent/PriorityEngine.js';
+import { RiskDetector } from '../packages/core/src/goal-intelligence/intent/RiskDetector.js';
+import { ExecutionPolicyGenerator } from '../packages/core/src/goal-intelligence/intent/ExecutionPolicyGenerator.js';
+import { ArtifactRegistry } from '../packages/core/src/artifact/registry/ArtifactRegistry.js';
 
 // ── 真实测试数据 ──
 const REAL_USER_REQUEST = 'Build a REST API for task management with TypeScript, Express.js, and PostgreSQL. Support CRUD operations, JWT authentication, and request validation. Must handle 1000+ concurrent users with < 100ms response time. Deploy to Kubernetes with CI/CD pipeline.';

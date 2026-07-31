@@ -18,7 +18,7 @@ import { DomainClusterManager } from '../domains/DomainClusterManager.js';
 import { LLMProvider } from '../services/LLMProvider.js';
 import { extractJson } from '../utils/extractJson.js';
 import { compileLeaderPrompt } from '../prompts/leader-prompt.js';
-import type { ExecutionDAG } from '../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../control-plane/orchestrator/ExecutionOrchestrator.js';
 
 // ═══════════════════════════════════════════════════════════════
 // Single-Shot LLM 响应结构

@@ -12,8 +12,8 @@ import { ExecutionSimulator } from '../simulation/ExecutionSimulator.js';
 import { DynamicTeamOrchestrator } from '../organization/DynamicTeamOrchestrator.js';
 import type { ExecutionContext } from './ExecutionContext.js';
 import type { Artifact } from '../contracts/artifact.js';
-import { SafetyMonitor } from '../brain/SafetyMonitor.js';
-import { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
+import { SafetyMonitor } from '../cognition/index.js';
+import { SelfImprovementLoop } from '../cognition/index.js';
 import { systemMetadataGraph } from '../metadata/SystemMetadataGraph.js';
 import type { CrossAgentLearningEngine } from '../agent/learning/CrossAgentLearningEngine.js';
 

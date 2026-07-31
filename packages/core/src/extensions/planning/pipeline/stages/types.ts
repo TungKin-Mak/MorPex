@@ -16,9 +16,9 @@ import type { PipelineLogger } from '../../PipelineLogger.js';
 import type { MemoryWiki, MemoryRetriever, JSONLWriter } from '../../../../adapters/memory/index.js';
 import type { DEFAULT_DES_CONFIG } from '../../types.js';
 import type { SemanticTag } from '../../types.js';
-import type { KnowledgeGraph } from '../../../../planes/knowledge-plane/knowledge/KnowledgeGraph.js';
-import type { ArtifactRegistry } from '../../../../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
-import type { VectorStore } from '../../../../planes/knowledge-plane/memory/VectorStore.js';
+import type { KnowledgeGraph } from '../../../../metadata/knowledge/KnowledgeGraph.js';
+import type { ArtifactRegistry } from '../../../../artifact/registry/ArtifactRegistry.js';
+import type { VectorStore } from '../../../../memory/knowledge/VectorStore.js';
 
 export interface PipelineStageContext {
   pipelineLogger: PipelineLogger;

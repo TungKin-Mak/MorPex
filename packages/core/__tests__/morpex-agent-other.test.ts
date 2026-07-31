@@ -30,7 +30,7 @@ async function main() {
   // 5. ExecutionOrchestrator
   console.log('\n--- 5. ExecutionOrchestrator ---');
   try {
-    const eo = await import('../src/planes/control-plane/orchestrator/ExecutionOrchestrator.js');
+    const eo = await import('../src/control-plane/orchestrator/ExecutionOrchestrator.js');
     ok(typeof eo.ExecutionOrchestrator === 'function' || typeof eo === 'object', 'Module loads');
     console.log('  ✅ ExecutionOrchestrator');
   } catch (e: any) { console.error('  ❌ ExecutionOrchestrator:', e.message); fail++; }
@@ -149,7 +149,7 @@ async function main() {
   // 22. Knowledge plugin
   console.log('\n--- 22. Knowledge Plane Knowledge Plugin ---');
   try {
-    const kp = await import('../src/planes/knowledge-plane/knowledge/plugin.js');
+    const kp = await import('../src/metadata/knowledge/plugin.js');
     ok(typeof kp === 'object', 'Module loads');
     console.log('  ✅ Knowledge Plugin');
   } catch (e: any) { console.error('  ❌ Knowledge Plugin:', e.message); fail++; }
@@ -157,7 +157,7 @@ async function main() {
   // 23. Artifact plugin
   console.log('\n--- 23. Artifact Plugin ---');
   try {
-    const ap = await import('../src/planes/knowledge-plane/artifacts/plugin.js');
+    const ap = await import('../src/artifact/registry/plugin.js');
     ok(typeof ap.ArtifactPlugin === 'function' || typeof ap === 'object', 'Module loads');
     console.log('  ✅ Artifact Plugin');
   } catch (e: any) { console.error('  ❌ Artifact Plugin:', e.message); fail++; }
@@ -167,7 +167,7 @@ async function main() {
   // 28. Intent Plugin
   console.log('\n--- 28. Intent Plugin ---');
   try {
-    const ip2 = await import('../src/planes/control-plane/intent/plugin.js');
+    const ip2 = await import('../src/goal-intelligence/intent/plugin.js');
     ok(typeof ip2.IntentPlugin === 'function' || typeof ip2 === 'object', 'Module loads');
     console.log('  ✅ Intent Plugin');
   } catch (e: any) { console.error('  ❌ Intent Plugin:', e.message); fail++; }

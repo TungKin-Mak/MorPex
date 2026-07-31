@@ -218,7 +218,7 @@ async function main() {
   console.log('\n📋 Phase 12: Cross-Domain Knowledge Graph');
   console.log('─'.repeat(50));
 
-  const { KnowledgeGraph } = await import('./planes/knowledge-plane/knowledge/KnowledgeGraph.js');
+  const { KnowledgeGraph } = await import('./metadata/knowledge/KnowledgeGraph.js');
   const kg = new KnowledgeGraph({ dataDir: './data/test-cross-domain-kg' });
 
   // 创建跨领域实体

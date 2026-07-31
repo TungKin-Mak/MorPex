@@ -9,11 +9,11 @@
  * Router 只分析，不执行。通过 ExecutionOrchestrator 串联执行引擎。
  */
 
-import { CrossDomainRouter } from '../../../router/CrossDomainRouter.js';
-import { DomainDispatcher } from '../../../router/DomainDispatcher.js';
-import { DAGRuntime } from '../../../runtime/dag/DAGRuntime.js';
-import type { DAGNode } from '../../../domains/types.js';
-import type { SessionContext } from '../../../common/types.js';
+import { CrossDomainRouter } from '../../router/CrossDomainRouter.js';
+import { DomainDispatcher } from '../../router/DomainDispatcher.js';
+import { DAGRuntime } from '../../runtime/dag/DAGRuntime.js';
+import type { DAGNode } from '../../domains/types.js';
+import type { SessionContext } from '../../common/types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // ExecutionDAG — 标准化 DAG 产出物

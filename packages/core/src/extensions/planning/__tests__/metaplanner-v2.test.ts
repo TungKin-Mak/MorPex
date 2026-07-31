@@ -40,7 +40,7 @@ import type {
   DeviationEvent,
   MemoryBusLogEntry,
 } from '../PlanTypes.js';
-import type { ExecutionDAG } from '../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { SessionContext } from '../../../workflow/types.js';
 
 // ── 辅助：创建已初始化的 MetaPlanner（用于需要 store 的集成测试） ──

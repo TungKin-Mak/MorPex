@@ -1,5 +1,5 @@
 import type { PlanExecutionRecord } from './plan-templates.js';
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 
 // ═══════════════════════════════════════════════════════════════
 // Section 12: v2 配置 & 偏差守卫类型

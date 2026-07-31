@@ -1,5 +1,9 @@
 /**
- * XJMCU 工作流插件 — 统一导出
+ * @deprecated 领域逻辑必须位于 packages/workflows/xjmcu/（No Domain Logic in Core）。
+ *   本文件（含 XJMcuWorkflowPlugin）已无外部消费者，保留仅为兼容；
+ *   新实现请使用 packages/workflows/xjmcu/（ActionPrimitive + bootstrap 注册）。
+ *
+ * XJMCU 工作流插件 — 统一导出（已废弃）
  *
  * 流程:
  *   1. retrieveKnowledge()  — 从记忆系统检索芯片知识

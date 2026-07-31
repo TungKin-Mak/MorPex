@@ -7,7 +7,7 @@
 import { Type } from '../adapters/pi-ai-types.js';
 import type { AgentTool } from '../adapters/pi-types.js';
 import type { MemoryRetriever } from '../../../memory/src/index.js';
-import type { AgentHarness } from '../planes/agent-plane/AgentHarness.js';
+import type { AgentHarness } from '../agent/harness/AgentHarness.js';
 
 const T: any = Type;
 const searchMemorySchema = T.Object({

@@ -19,7 +19,7 @@
  *   - Non-critical: failures don't abort pipeline
  */
 
-import type { ExecutionDAG } from '../../../planes/control-plane/orchestrator/ExecutionOrchestrator.js';
+import type { ExecutionDAG } from '../../../control-plane/orchestrator/ExecutionOrchestrator.js';
 import type { DESConfig, IShadowSimulationReport } from '../types.js';
 
 // ═══════════════════════════════════════════════════════════════════════

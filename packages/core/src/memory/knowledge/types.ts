@@ -16,7 +16,7 @@ export type {
   MemoryStorageAdapter,
   WriteDecision,
   MemorySystemConfig,
-} from '../../../../../memory/src/index.js';
+} from '../../../../memory/src/index.js';
 
 // Legacy aliases
 export type MemoryImportance = 1 | 2 | 3 | 4 | 5;

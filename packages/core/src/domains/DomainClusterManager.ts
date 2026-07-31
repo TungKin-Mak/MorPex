@@ -26,8 +26,8 @@ import {
   type AgentHarness,
   type InMemorySessionRepo,
 } from '../adapters/domain-cluster.js';
-import { KnowledgeGraph } from '../planes/knowledge-plane/knowledge/KnowledgeGraph.js';
-import { ArtifactRegistry } from '../planes/knowledge-plane/artifacts/ArtifactRegistry.js';
+import { KnowledgeGraph } from '../metadata/knowledge/KnowledgeGraph.js';
+import { ArtifactRegistry } from '../artifact/registry/ArtifactRegistry.js';
 import { LLMProvider } from '../services/LLMProvider.js';
 
 /** LLM 调用函数签名 */

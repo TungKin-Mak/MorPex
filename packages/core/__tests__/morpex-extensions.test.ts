@@ -76,7 +76,7 @@ async function main() {
   // 2. AgentOrchestrator
   console.log('\n--- 2. AgentOrchestrator ---\n');
   try {
-    const { AgentOrchestrator } = await import('../src/planes/agent-plane/orchestrator/AgentOrchestrator.js');
+    const { AgentOrchestrator } = await import('../src/agent/harness/orchestrator/AgentOrchestrator.js');
     
     const orch = new AgentOrchestrator();
     
@@ -107,7 +107,7 @@ async function main() {
   // 3. SwarmEngine
   console.log('\n--- 3. SwarmEngine ---\n');
   try {
-    const { SwarmEngine } = await import('../src/planes/agent-plane/swarm/SwarmEngine.js');
+    const { SwarmEngine } = await import('../src/agent/harness/swarm/SwarmEngine.js');
     
     const swarm = new SwarmEngine();
     
