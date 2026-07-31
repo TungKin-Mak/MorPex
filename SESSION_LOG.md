@@ -36,14 +36,19 @@
 | S3 | 07-31 | planes/ 迁移 | planes/ 全部实现迁至 canonical 层（runtime/artifact/metadata/memory/agent/goal-intelligence/control-plane），孤儿删除，对齐 26→0 | `refactor(planes)` |
 | S4 | 07-31 | 实现度审计 + 第 6 层接线 | 10 层实现度矩阵；primitives 注入真实 piBridge + 注册 + fs/LLM/Connector | `feat(execution)` 等 |
 | S5 | 07-31 | P0a/P0b/P1a + 全层接线 | 执行引擎消费原语注册中心 + ConnectorRegistry 装配（修 FileSystemConnector 双 bug）+ Brain 事件接线 + MemoryWiki/Governance/Evolution 接线 + ManagementHub crash 修复 | `feat(execution)`/`feat(bootstrap)`/`fix(connectors)` |
-| S6 | 07-31 | L3 接入 + 沙箱 + 治理 P2 + 分提交 | DeliveryPlannerAdapter(HTN replan+Arbitration) 接入 MissionRuntime + EvolutionSandbox + 成本-质量仪表盘 + Ontology 元数据/冲突 + Policy 热更新快照 + 198 项分 11 提交 + BrainFacade 学习闭环 + 回归测试 | 全部 11 提交 |
+| S6 | 07-31 | L3 接入 + 沙箱 + 治理 P2 | DeliveryPlannerAdapter(HTN replan+Arbitration) 接入 MissionRuntime + EvolutionSandbox + 成本-质量仪表盘 + Ontology 元数据/冲突 + Policy 热更新快照 + BrainFacade 学习闭环 + 回归测试 | `feat(planner)`/`feat(evolution)`/`feat(governance)` 等 |
+| S7 | 07-31 | 分提交 + BrainFacade + 回归测试 | 198 项变更分 11 个逻辑提交（docs/planes/ontology/execution/workflows/evolution/planner/governance/connectors/bootstrap/brain）；BrainFacade 接入 executeGoal→learn；feature-regression 测试(7 用例) | `2a86e61` 等 11 提交 |
+| S8 | 07-31 | 会话记忆机制 | 创建 `SESSION_LOG.md`（会话历史/待办/关键路径）+ CLAUDE.md 会话交接约定；提交 `5b3fe92` | `5b3fe92` |
+| S9 | 07-31 | AGENTS.md 跨工具入口 | 创建 `AGENTS.md`（主流工具自动发现的标准入口，指向 SESSION_LOG）；提交 `2e68840` | `2e68840` |
+| S10 | 07-31 | pi-coding-agent 项目配置 | 探索 `~/.pi` 机制（CONFIG_DIR_NAME=.pi）；创建项目级 `.pi/SYSTEM.md`（pi 系统入口薄壳）；撤销全局配置；提交 `0b7f521` | `0b7f521` |
+| S11 | 07-31 | 文档职责分工 | **AGENTS.md=项目规则（吸收原 CLAUDE.md 全部规则并更新）**；**SESSION_LOG.md=会话进度**；**舍弃 CLAUDE.md**（git rm）；更新引用；提交 `c891fb0` | `c891fb0` |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 11 提交（ahead 11）→ `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 15 提交（ahead 15）→ `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）完善**：参考开源框架（候选 mem0 / Letta(MemGPT) / langchain / Zep），当前地基 = MemoryWiki(SQLite+ZVec) + SystemMetadataGraph(8实体×10关系) + EventStore(追加可回放)；架构已定义记忆一致性模型（Working 弱一致 / Shared 强一致 / EventStore 追加）
@@ -80,6 +85,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`2a86e61 feat(brain): BrainFacade 统一入口接入 + 回归测试`（11 提交均未推送）
+- 当前 HEAD：`c891fb0 docs: 文档职责分工`（15 提交均未推送）
 - 上游基线：`54db194 状态源 Step2+4`（origin/master）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
