@@ -43,8 +43,23 @@ import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
 import { FeedbackService } from './ontology/FeedbackService.js';
 import { FeedbackAwareLearner } from './cognition/FeedbackAwareLearner.js';
 
+// ── Ontology Gate for Primitives ──
+import { initializeOntologyGate, setPiBridge as setKqpBridge } from './tools/primitives/KnowledgeQueryPrimitive.js';
+import { initializeOntologyGateForArtifact, setPiBridge as setAgpBridge } from './tools/primitives/ArtifactGenerationPrimitive.js';
+import { KnowledgeGapListener } from './evolution/KnowledgeGapListener.js';
+import { DomainPrimitiveRegistry } from './tools/DomainPrimitiveRegistry.js';
+import {
+  KnowledgeQueryPrimitive,
+  FileOperationPrimitive,
+  ArtifactGenerationPrimitive,
+  ShellExecutionPrimitive,
+  APICallPrimitive,
+} from './tools/primitives/index.js';
+
 // ── v16 模块 ──
 import { SelfImprovementLoop } from './brain/SelfImprovementLoop.js';
+import { ReflectionEngine } from './cognition/index.js';
+import { MetaLearner } from './cognition/index.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { ApprovalGate } from './verification/ApprovalGate.js';
 import { MissionController } from './mission-control/MissionController.js';
@@ -91,16 +106,38 @@ export async function bootstrapUnified(options?: {
   // ⬅️ 尽早等待 EventStore 就绪，避免后续注册/写入竞态
   await container.ready;
 
-  // 3. 注册 WorkflowRegistry（含内置工作流插件）
+  // 3. 注册 WorkflowRegistry + 加载 Workflow 插件（理想架构第 9 层）
   try {
     container.teamOrchestrator.setWorkflowRegistry(WorkflowPluginRegistry);
-    // 注册内置工作流
-    const { ecommerceWorkflowProvider, xjmcuWorkflowProvider } = await import('../../workflows/ecommerce/workflow-provider.js');
+    // 旧接口兼容：注册 4 个插件的 WorkflowProvider
+    const { ecommerceWorkflowProvider } = await import('../../workflows/ecommerce/workflow-provider.js');
+    const { hardwareWorkflowProvider } = await import('../../workflows/hardware/workflow-provider.js');
+    const { softwareWorkflowProvider } = await import('../../workflows/software/workflow-provider.js');
+    const { xjmcuWorkflowProvider } = await import('../../workflows/xjmcu/workflow-provider.js');
     WorkflowPluginRegistry.register(ecommerceWorkflowProvider);
+    WorkflowPluginRegistry.register(hardwareWorkflowProvider);
+    WorkflowPluginRegistry.register(softwareWorkflowProvider);
     WorkflowPluginRegistry.register(xjmcuWorkflowProvider);
-    console.log('[bootstrapUnified] ✅ WorkflowRegistry 已注入（含电商+MCU 工作流）');
-  } catch {
-    console.warn('[bootstrapUnified] ⚠️ WorkflowRegistry 不可用');
+    console.log('[bootstrapUnified] ✅ WorkflowRegistry 已注入 4 个插件');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ Workflow 插件加载失败:', (err as Error).message);
+  }
+
+  // 3.1 注册 Workflow 插件的 ActionPrimitive（理想架构第 9 层 → 第 6 层注册中心）
+  try {
+    const { bootstrapEcommerceWorkflow } = await import('../../workflows/ecommerce/src/bootstrap.js');
+    const { bootstrapHardwareWorkflow } = await import('../../workflows/hardware/src/bootstrap.js');
+    const { bootstrapSoftwareWorkflow } = await import('../../workflows/software/src/bootstrap.js');
+    const { bootstrapXJMcuWorkflow } = await import('../../workflows/xjmcu/src/bootstrap.js');
+    await Promise.all([
+      bootstrapEcommerceWorkflow('ecommerce'),
+      bootstrapHardwareWorkflow('hardware'),
+      bootstrapSoftwareWorkflow('software'),
+      bootstrapXJMcuWorkflow('xjmcu'),
+    ]);
+    console.log('[bootstrapUnified] ✅ 4 个 Workflow 插件的 ActionPrimitive 已注册');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ Workflow 插件 ActionPrimitive 注册失败:', (err as Error).message);
   }
 
   // 4. 注册 ArtifactFacade 到 ExecutionEngine（向后兼容）
@@ -140,6 +177,11 @@ export async function bootstrapUnified(options?: {
   // OntologyService 构造函数已调用 refreshCache()，加载了重建后的数据
   const forcedQueryGuard = new ForcedQueryGuard();
 
+  // ★★★ 注入 Ontology Gate 到通用原语 ★★★
+  initializeOntologyGate(forcedQueryGuard, ontology, eventStore, eventBus);
+  initializeOntologyGateForArtifact(forcedQueryGuard, ontology, eventStore, eventBus);
+  console.log('[bootstrapUnified] ✅ Ontology Gate 已注入到 KnowledgeQueryPrimitive & ArtifactGenerationPrimitive');
+
   // PiBridge 包装（带缓存 + 懒初始化）
   let piBridgeInstance: any = null;
   const piBridgeWrapper = {
@@ -160,6 +202,86 @@ export async function bootstrapUnified(options?: {
 
   // 注入到 MorPexRuntime
   container.setOntology(ontology, forcedQueryGuard, piBridgeWrapper);
+
+  // ── 架构全功能实现：接通第 6 层（Tools & Primitives）+ 第 10 层 connector ──
+  // 1) 注入真实 piBridge → 原语路径的 Ontology Gate 两阶段推理不再空转
+  setKqpBridge(piBridgeWrapper.generateText.bind(piBridgeWrapper));
+  setAgpBridge(piBridgeWrapper.generateText.bind(piBridgeWrapper));
+
+  // 2) 装配 ConnectorRegistry（第 10 层基础设施）：FileSystem + Shell 真实 connector
+  const { resolve, join } = await import('path');
+  const { ConnectorRegistry, FileSystemConnector, ShellConnector } = await import('@morpex/connectors');
+  const connectorRegistry = new ConnectorRegistry();
+  await connectorRegistry.register(new FileSystemConnector(resolve('data')));
+  await connectorRegistry.register(new ShellConnector());
+  // 默认放行规则（全功能实现：让 connector 可被原语执行；高风险动作仍需 ApprovalGate）
+  connectorRegistry.addPermissionRule({ connectorPattern: 'filesystem', actionPattern: 'fs.*', allowedRoles: ['*'], destructive: false, requiresApproval: false });
+  connectorRegistry.addPermissionRule({ connectorPattern: 'shell', actionPattern: 'shell.*', allowedRoles: ['*'], destructive: false, requiresApproval: false });
+  console.log(`[bootstrapUnified] ✅ ConnectorRegistry 已装配（${[...connectorRegistry.list()].length} 个 connector + 默认权限规则）`);
+
+  // 3) FileOperationPrimitive → ConnectorRegistry (fs.*，部门隔离：data/deliverables-<deptId>/)
+  FileOperationPrimitive.setConnectorExecutor(async (action: string, params: Record<string, unknown>) => {
+    const deptId = String(params.departmentId ?? params.deptId ?? 'global');
+    const writePath = action === 'fs.write' ? join('data', `deliverables-${deptId}`, String(params.path ?? 'deliverable.txt')) : String(params.path ?? '');
+    return connectorRegistry.execute({ action, params: { ...params, path: writePath }, executionId: 'layer6', timeout: 15000 } as never);
+  });
+
+  // 4) ShellExecutionPrimitive → ConnectorRegistry (shell.exec)
+  ShellExecutionPrimitive.setShellExecutor(async (p) =>
+    connectorRegistry.execute({
+      action: 'shell.exec',
+      params: { command: p.command, args: p.args ?? [], cwd: p.cwd, timeout: p.timeout },
+      executionId: 'shell',
+      timeout: p.timeout ?? 30000,
+    } as never),
+  );
+
+  // 5) APICallPrimitive → 内置 fetch HTTP 执行器（Node20 全局 fetch；无第三方 HTTP connector）
+  APICallPrimitive.setHttpExecutor(async (p) => {
+    try {
+      const res = await fetch(p.url, {
+        method: p.method,
+        headers: p.headers,
+        body: p.body !== undefined ? JSON.stringify(p.body) : undefined,
+        signal: p.timeout ? AbortSignal.timeout(p.timeout) : undefined,
+      });
+      return { success: res.ok, data: { status: res.status, body: await res.text() }, duration: 0 };
+    } catch (err) {
+      return { success: false, error: (err as Error).message, duration: 0 };
+    }
+  });
+
+  // 6) 注入 LLM 生成器 + 文件写入器（文件经 FileOperationPrimitive 落盘）
+  const fileOpPrimitive = new FileOperationPrimitive();
+  ArtifactGenerationPrimitive.setLLMCaller((prompt: string) =>
+    piBridgeWrapper.generateText({ prompt, maxTokens: 2000 }).then((r) => r.text),
+  );
+  ArtifactGenerationPrimitive.setFileWriter(async (path: string, content: string, deptId: string) =>
+    fileOpPrimitive.execute({ operation: 'write', path, content }, { departmentId: deptId }),
+  );
+
+  // 7) 注册 5 个通用基础原语到 DomainPrimitiveRegistry（第 6 层注册中心）
+  DomainPrimitiveRegistry.registerMultiple([
+    new KnowledgeQueryPrimitive(),
+    new FileOperationPrimitive(),
+    new ArtifactGenerationPrimitive(),
+    new ShellExecutionPrimitive(),
+    new APICallPrimitive(),
+  ]);
+
+  // 8) NL→结构化参数提取器：简单任务路由到原语时，用 LLM 按 inputSchema 提取参数
+  container.executionEngine.setParamExtractor(async (goal: string, primitiveName: string, inputSchema: Record<string, unknown>) => {
+    try {
+      const schemaJson = JSON.stringify(inputSchema ?? {}).slice(0, 800);
+      const res = await piBridgeWrapper.generateText({
+        prompt: `根据原语 "${primitiveName}" 的输入 Schema，从任务描述中提取参数并只输出 JSON 对象。\n任务: ${goal}\nSchema: ${schemaJson}\n输出 JSON:`, maxTokens: 300, temperature: 0,
+      });
+      const match = res.text.match(/\{[\s\S]*\}/);
+      if (match) return JSON.parse(match[0]);
+    } catch { /* 提取失败回退 goal 透传 */ }
+    return {};
+  });
+  console.log(`[bootstrapUnified] ✅ 第 6 层已接通：5 个通用原语注册 + 真实 PiBridge + ConnectorRegistry/fs/LLM 注入（注册中心共 ${DomainPrimitiveRegistry.list().length} 个原语）`);
 
   // 设置 Trace 事件钩子
   if (eventStore) {
@@ -240,6 +362,97 @@ export async function bootstrapUnified(options?: {
   // ── 迭代4: FeedbackAwareLearner ──
   const feedbackAwareLearner = new FeedbackAwareLearner(eventStore ?? undefined);
 
+  // ── vNext+: KnowledgeGapListener（QueryMiss → Feedback → Evolution 闭环）──
+  const knowledgeGapListener = new KnowledgeGapListener({
+    eventBus,
+    feedbackService,
+  });
+  knowledgeGapListener.attach();
+  console.log('[bootstrapUnified] ✅ KnowledgeGapListener 已挂载（QueryMiss → Feedback → Evolution）');
+
+  // ── 架构全功能实现：接通第 4 层 Brain（ReflectionEngine + MetaLearner）──
+  const reflectionEngine = new ReflectionEngine(eventBus);
+  reflectionEngine.setLLMCaller({
+    generateText: async (opts: { prompt: string; maxTokens?: number; temperature?: number }) =>
+      piBridgeWrapper.generateText({ prompt: opts.prompt, maxTokens: opts.maxTokens ?? 500, temperature: opts.temperature ?? 0.3 }),
+  });
+  const metaLearner = new MetaLearner(eventBus);
+  const brainSubscribe = (type: string, result: 'success' | 'failure') => {
+    eventBus.on(type, (event: any) => {
+      const p = event?.payload ?? {};
+      const executionId = p.executionId ?? p.id ?? 'exec';
+      const goal = p.goal ?? p.missionId ?? '';
+      const taskRecord = {
+        taskId: executionId,
+        goal: typeof goal === 'string' ? goal : JSON.stringify(goal),
+        result,
+        duration: p.duration ?? 0,
+        departmentId: p.departmentId,
+      };
+      void reflectionEngine.reflect({ recentTasks: [taskRecord] }).catch(() => {});
+      void metaLearner.learnFromTask(taskRecord).catch(() => {});
+    });
+  };
+  brainSubscribe(EventType.EXECUTION_COMPLETED, 'success');
+  brainSubscribe(EventType.EXECUTION_FAILED, 'failure');
+  brainSubscribe(EventType.MISSION_COMPLETED, 'success');
+  brainSubscribe(EventType.MISSION_FAILED, 'failure');
+  console.log('[bootstrapUnified] ✅ Brain 已接通：ReflectionEngine + MetaLearner 订阅执行/任务事件');
+
+  // ── 架构全功能实现：接通 L7 Memory / L8 Evolution / L10 Observability ──
+  // L7: MemoryWiki（SQLite + ZVec 向量库）
+  try {
+    const { MemoryWiki } = await import('@morpex/memory');
+    const memoryWiki = new MemoryWiki({ dbPath: 'data/memory/wiki.db', zvecPath: 'data/memory/zvec' });
+    await memoryWiki.initialize();
+    (container as any).memoryWiki = memoryWiki;
+    console.log('[bootstrapUnified] ✅ L7 MemoryWiki 已初始化（SQLite + ZVec）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ L7 MemoryWiki 初始化失败（不阻断）:', (err as Error).message);
+  }
+
+  // L8: Evolution（ActiveEvolutionTrigger 构造即订阅 mission.completed/evaluation.scored；FailureAnalyzer 供批分析）
+  const { ActiveEvolutionTrigger, FailureAnalyzer, EvolutionSandbox } = await import('./evolution/index.js');
+  const activeEvolutionTrigger = new ActiveEvolutionTrigger(eventBus);
+  const failureAnalyzer = new FailureAnalyzer();
+  // vNext+ L8：演化安全沙箱（沙箱试跑 + 版本化 + 人工审批 + 回滚入口）
+  const evolutionSandbox = new EvolutionSandbox({ eventStore: (container as any)._eventStore ?? undefined });
+  activeEvolutionTrigger.setEvolutionSandbox(evolutionSandbox);
+  (container as any).activeEvolutionTrigger = activeEvolutionTrigger;
+  (container as any).failureAnalyzer = failureAnalyzer;
+  (container as any).evolutionSandbox = evolutionSandbox;
+  console.log('[bootstrapUnified] ✅ L8 Evolution 已接通：ActiveEvolutionTrigger + EvolutionSandbox（沙箱/版本化/回滚）+ FailureAnalyzer');
+
+  // L10: Observability（GovernanceDashboard 全量指标 + CostController 成本 + AlertEngine 告警）
+  const { GovernanceDashboard, CostController, AlertEngine } = await import('./governance/index.js');
+  const governanceDashboard = new GovernanceDashboard(eventBus);
+  CostController.getInstance().init(eventBus);
+  const alertEngine = new AlertEngine(eventBus);
+  (container as any).governanceDashboard = governanceDashboard;
+  (container as any).alertEngine = alertEngine;
+  console.log('[bootstrapUnified] ✅ L10 Observability 已接通：GovernanceDashboard + CostController + AlertEngine');
+
+  // ── 架构全功能实现：接通 L3 Planning（DeliveryPlanner → MissionRuntime 规划阶段）──
+  try {
+    const { DeliveryPlanner, DeliveryPlannerAdapter } = await import('./planner/index.js');
+    const { HierarchicalPlanner } = await import('./planner/HierarchicalPlanner.js');
+    const { CrossDepartmentArbitrationEngine } = await import('./planner/CrossDepartmentArbitrationEngine.js');
+    const deliveryPlanner = new DeliveryPlanner(eventBus);
+    deliveryPlanner.setPiBridge(piBridgeWrapper);
+    deliveryPlanner.setOntology(ontology);
+    deliveryPlanner.setForcedQueryGuard(forcedQueryGuard);
+    const hierarchicalPlanner = new HierarchicalPlanner(eventBus);
+    (hierarchicalPlanner as any).setPiBridge?.(piBridgeWrapper);
+    const arbitration = new CrossDepartmentArbitrationEngine(eventBus);
+    container.missionRuntime.setPlanner(new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration }));
+    (container as any).deliveryPlanner = deliveryPlanner;
+    (container as any).hierarchicalPlanner = hierarchicalPlanner;
+    (container as any).arbitrationEngine = arbitration;
+    console.log('[bootstrapUnified] ✅ L3 Planning 已接通：DeliveryPlanner + HierarchicalPlanner(HTN replan) + CrossDepartmentArbitration');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ L3 Planning 接入失败（不阻断）:', (err as Error).message);
+  }
+
   // ── 事件监听（增量投影） ──
   eventBus.on(EventType.MISSION_CREATED, async (event: any) => {
     const p = event.payload;
@@ -276,15 +489,23 @@ export async function bootstrapUnified(options?: {
   console.log(`  ├─ 🏁 Ontology: OntologyService + ForcedQueryGuard + Projectors`);
   console.log(`  └─ companyFacade.executeGoal(): 必经 ControlPlane → Runtime 完整管线`);
 
+  // ── v12 兼容字段（全功能实现修复：先构造依赖再装配 ManagementHub，避免 null orchestrator 崩溃）──
+  const { ManagementHub } = await import('./organization/ManagementHub.js');
+  const { GroupChatManager } = await import('./interaction/GroupChatManager.js');
+  const { LeadAgentOrchestrator } = await import('./department/LeadAgentOrchestrator.js');
+  const groupChatManager = new GroupChatManager(eventBus);
+  const leadAgentOrchestrator = new LeadAgentOrchestrator(eventBus, departmentManager, roleRegistry);
+  const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
+
   return {
     container,
     companyFacade,
     departmentManager,
     controlPlane: container.controlPlane,
     // ── v12 兼容字段 ──
-    managementHub: new (await import('./organization/ManagementHub.js')).ManagementHub(eventBus, departmentManager, null as any, null as any, ceoId),
-    groupChatManager: new (await import('./interaction/GroupChatManager.js')).GroupChatManager(eventBus),
-    leadAgentOrchestrator: new (await import('./department/LeadAgentOrchestrator.js')).LeadAgentOrchestrator(eventBus, departmentManager, roleRegistry),
+    managementHub,
+    groupChatManager,
+    leadAgentOrchestrator,
     // ── Ontology ──
     ontology,
     forcedQueryGuard,
