@@ -42,6 +42,8 @@
 | S9 | 07-31 | AGENTS.md 跨工具入口 | 创建 `AGENTS.md`（主流工具自动发现的标准入口，指向 SESSION_LOG）；提交 `2e68840` | `2e68840` |
 | S10 | 07-31 | pi-coding-agent 项目配置 | 探索 `~/.pi` 机制（CONFIG_DIR_NAME=.pi）；创建项目级 `.pi/SYSTEM.md`（pi 系统入口薄壳）；撤销全局配置；提交 `0b7f521` | `0b7f521` |
 | S11 | 07-31 | 文档职责分工 | **AGENTS.md=项目规则（吸收原 CLAUDE.md 全部规则并更新）**；**SESSION_LOG.md=会话进度**；**舍弃 CLAUDE.md**（git rm）；更新引用；提交 `c891fb0` | `c891fb0` |
+| S12 | 07-31 | 记忆系统 company_memory（Python） | 按《一人AI公司记忆系统详细设计方案》实现独立 Python 模块 `company_memory/`：Graphiti(graphiti-core 0.29.3+Neo4j5.26)权威层 + SQLite 情景层 + Working Buffer + 确认队列 + 衰减/巩固生命周期 + MCP stdio；26 pytest 通过；真实 Graphiti+DeepSeek 端到端验证（产品事实自动写+优先检索 / 低置信进确认队列 / need_human 硬逻辑）；Docker compose 起 Neo4j；TS 桥接示例 examples/ts_bridge.ts | 未提交（待推） |
+| S13 | 08-01 | 记忆系统统一改造（TS + cognee 引擎） | **选型收敛**：MemoryJS(npm包损坏+4★)/supermemory(Win CLI不支持+版本早)/mem0(图弱+服务重)/agentmemory(coding专用) → **cognee**（29.6k★,TS SDK,本地文件存储 SQLite+LanceDB+KuzuDB,图核心+本体生成+TEMPORAL双时间,无Docker）；cognee P0 spike 全过；**统一记忆层 @morpex/memory 落地**（P0，8测试）：MemoryAPI契约/本体白名单/确认队列/强制门禁/L2隔离/cognee HTTP适配器(手动multipart)/MockEngine；**Gate接线**：ontologyTools第5工具 ontology_queryCompanyKnowledge + CompanyKnowledge注册表 + bootstrap装配；**废弃重复的 Python company_memory/**（被 cognee 取代）；**真实联调通**：TS→cognee 写入/图证据检索/空检索→need_human；门禁：tsc 0 + 28测试 + validate-architecture 100% + production-check 8/8 | 未提交（待推） |
 
 ---
 
@@ -51,7 +53,10 @@
 - [ ] **推送提交**：本地 `master` 领先远端 15 提交（ahead 15）→ `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
-- [ ] **记忆系统（L7）完善**：参考开源框架（候选 mem0 / Letta(MemGPT) / langchain / Zep），当前地基 = MemoryWiki(SQLite+ZVec) + SystemMetadataGraph(8实体×10关系) + EventStore(追加可回放)；架构已定义记忆一致性模型（Working 弱一致 / Shared 强一致 / EventStore 追加）
+- [ ] **记忆系统（L7）整合（S13 已落地 P0，剩 P1 收尾）**：
+  · ✅ 已交付：统一记忆层 @morpex/memory（MemoryAPI+白名单+确认队列+强制门禁+cognee引擎）+ Gate 第5工具接线 + cognee 真实联调 + 废弃 Python company_memory
+  · ⏳ 待办：完整 lifecycle（reflect 巩固流水线 / invalidate 双时间失效 / decayTick）；cognee server 一键部署脚本（systemd/PM2/文档）；现有碎片最终归拢确认（SystemMetadataGraph 运行时对象图 / MemoryWiki Episodic / PersonalBrain 学习闭环 — 已明确职责不重复）
+  · ⚠️ 环境：cognee server 需本地 Python 环境（spike venv 在 /tmp/cognee_spike :8001）；Docker Desktop 曾误杀已重启恢复
 
 ### 🟡 已知遗留（外部依赖，非紧急）
 - [ ] L9 真实领域插件：ecommerce(Amazon SP-API)/software(云部署) 需外部凭证，骨架已就绪（`packages/workflows/<domain>/src/actions/`）
