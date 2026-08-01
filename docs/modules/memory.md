@@ -1,5 +1,7 @@
 # 模块名称：记忆系统 v2 (MemoryBus)
 
+> ⚠️ **已废弃组件提示（S17）**：本文档描述的 `ZVecStorage` / `EmbeddingClient` / `@zvec/zvec` / BGE-M3 已全部移除（语义检索由 cognee 统一记忆层接管）。MemoryWiki（SQLite 部分）与 DocWatcher/Topology/MemoryRetriever 仍有效。本文档保留作历史参考。
+>
 > 路径: `packages/memory/` | 入口: `packages/memory/src/index.ts` | 版本: 3.0.0
 >
 > 设计文档: `docs/architecture/memory-system-v2.md`

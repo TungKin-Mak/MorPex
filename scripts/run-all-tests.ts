@@ -3,7 +3,7 @@
  * run-all-tests.ts — MorPex v2.5 全量集成测试启动器
  *
  * 功能:
- *   1. 检查 embedding server (BGE-M3 on :3100)
+ *   1. 检查外部服务可用性（cognee 记忆引擎等）
  *   2. 清理旧的测试数据
  *   3. 依次运行所有测试脚本
  *   4. 汇总结果
@@ -92,39 +92,11 @@ async function runTest(scriptName: string): Promise<TestResult> {
   });
 }
 
-async function checkEmbeddingServer(): Promise<boolean> {
-  try {
-    const resp = await fetch('http://localhost:3100/health', { signal: AbortSignal.timeout(2000) });
-    return resp.ok;
-  } catch {
-    try {
-      const resp = await fetch('http://localhost:3100/', { signal: AbortSignal.timeout(2000) });
-      return resp.ok;
-    } catch {
-      return false;
-    }
-  }
-}
-
 async function main() {
   console.log(`${BRIGHT}╔══════════════════════════════════════════════════════════════╗${RESET}`);
   console.log(`${BRIGHT}║     MorPex v2.5 全量集成测试启动器                           ║${RESET}`);
   console.log(`${BRIGHT}║     ${new Date().toISOString()}                       ║${RESET}`);
   console.log(`${BRIGHT}╚══════════════════════════════════════════════════════════════╝${RESET}`);
-
-  // 检查 embedding 服务器
-  if (!QUICK) {
-    console.log(`\n${CYAN}检查 BGE-M3 embedding 服务器 (localhost:3100)...${RESET}`);
-    const available = await checkEmbeddingServer();
-    if (available) {
-      console.log(`${GREEN}✓ Embedding 服务器可用${RESET}`);
-    } else {
-      console.log(`${YELLOW}⚠ Embedding 服务器不可用 — 向量测试将跳过${RESET}`);
-      console.log(`  启动方式: cd tools-python && python embedding-server.py --model-path data/models/bge-m3 --mode http --port 3100`);
-    }
-  } else {
-    console.log(`\n${YELLOW}快速模式: 跳过 embedding 依赖测试${RESET}`);
-  }
 
   // 定义测试顺序 (按依赖关系)
   const testScripts = QUICK

@@ -68,7 +68,6 @@ import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import {
   HistoryStore, MemoryWiki, DocWatcher, DocTopology, MemoryRetriever,
-  ZVecStorage,
 } from '../../memory/src/index.js';
 import { createMemorySearchTool } from '../../core/index.js';
 import type { AgentTool } from '../../core/src/adapters/pi-types.js';
@@ -177,7 +176,6 @@ export class StudioServer {
   private docTopology?: DocTopology;
   private memoryRetriever?: MemoryRetriever;
   // MemoryBus replaced by MemoryWiki
-  private zvec!: ZVecStorage;
   private repo!: import('@earendil-works/pi-agent-core').InMemorySessionRepo;
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   private controlModel: any; // getModel('deepseek', 'deepseek-v4-flash') — pi-ai Model generic constraint incompatible
@@ -856,7 +854,6 @@ export class StudioServer {
       artifactRegistry: this.artifacts,
       memoryWiki: this.wiki,
       memoryRetriever: this.memoryRetriever,
-      zvecStorage: this.zvec,
       historyStore: this.history,
       brainPersistor: BrainPersistor, // static class, use restore()
       personalBrain: this.v8PersonalBrain,
@@ -972,20 +969,17 @@ export class StudioServer {
       });
     };
 
-    this.zvec = new ZVecStorage({ dataPath: './data/zvec' });
-    const wiki = new MemoryWiki({ zvecPath: './data/wiki' });
+    const wiki = new MemoryWiki();
     this.wiki = wiki;
     this.docWatcher = new DocWatcher(wiki, { dir: './data/wiki' });
     this.docTopology = new DocTopology(wiki, './data/wiki');
     this.emitInitTrace('doc-topology', 'knowledge');
     this.memoryRetriever = new MemoryRetriever(wiki);
-    this.emitInitTrace('zvec-storage', 'knowledge');
     this.emitInitTrace('memory-wiki', 'knowledge');
     this.emitInitTrace('doc-watcher', 'knowledge');
     this.emitInitTrace('memory-retriever', 'knowledge');
     console.log(`  ├─ KnowledgeGraph ✅`);
     console.log(`  ├─ Artifacts      ✅`);
-    console.log(`  ├─ ZVec           ✅`);
     console.log(`  ├─ MemoryWiki     ✅`);
   }
 
@@ -1578,7 +1572,6 @@ export class StudioServer {
     ex('knowledge-graph','query','knowledge', () => (self.knowledgeGraph as any)?.query?.(content));
     ex('memory-wiki','addDocument','knowledge', () => (self.wiki as any)?.addDocument?.({ id: `req_${Date.now()}`, content }));
     ex('memory-retriever','retrieve','knowledge', () => (self.memoryRetriever as any)?.retrieve?.(content, 3));
-    ex('zvec-storage','store','knowledge', () => (self.zvec as any)?.store?.(`r_${Date.now()}`, content));
     ex('history-store','append','knowledge', () => (self.history as any)?.append?.({ content, ts: Date.now() }));
     ex('personal-brain','storeFact','knowledge', () => (self.v8PersonalBrain as any)?.storeFact?.(content.slice(0,80),['req']));
     ex('brain-persistor','persist','knowledge', () => (self.v8PersonalBrain as any)?.persist?.());
@@ -1643,7 +1636,6 @@ export class StudioServer {
       try { (self.memoryRetriever as any)?.retrieve?.(goal, 3); RuntimeInvoker.call('memory-retriever', 'retrieve', async () => {}, null, { goal }, 'knowledge').catch(() => {}); } catch {}
       try { (self.knowledgeGraph as any)?.query?.(goal); RuntimeInvoker.call('knowledge-graph', 'query', async () => {}, null, { goal }, 'knowledge').catch(() => {}); } catch {}
       try { (self.wiki as any)?.addDocument?.({ id: `ctx_${taskId}`, content: goal, metadata: { domainId } }); RuntimeInvoker.call('memory-wiki', 'addDocument', async () => {}, null, { taskId }, 'knowledge').catch(() => {}); } catch {}
-      try { (self.zvec as any)?.store?.(taskId, goal); RuntimeInvoker.call('zvec-storage', 'store', async () => {}, null, { taskId }, 'knowledge').catch(() => {}); } catch {}
       try { (self.history as any)?.append?.({ taskId, goal, domainId, timestamp: Date.now() }); RuntimeInvoker.call('history-store', 'append', async () => {}, null, { taskId }, 'knowledge').catch(() => {}); } catch {}
       try { (self.v8PersonalBrain as any)?.storeFact?.(`Exec: ${goal.slice(0, 80)}`, ['execution', domainId]); RuntimeInvoker.call('personal-brain', 'storeFact', async () => {}, null, {}, 'knowledge').catch(() => {}); } catch {}
       try { (self.v8AuditTrail as any)?.record?.({ action: 'node_execute', taskId, domainId, timestamp: Date.now() }); RuntimeInvoker.call('audit-trail', 'record', async () => {}, null, { taskId }, 'control-plane').catch(() => {}); } catch {}

@@ -1,29 +1,27 @@
 /**
- * MemoryWiki.ts — SQLite + Zvec 统一记忆后端
+ * MemoryWiki.ts — SQLite 统一记忆后端（SQLite-only）
  *
  * v1.0: 替代 31 个 JSONL 文件的分散持久化。
+ * v2.0: 移除 ZVec 向量搜索 + BGE-M3 embedding（已废弃，语义检索由 cognee 统一记忆层接管）。
  *
  * 持久层:
- *   SQLite (WAL 模式) — 图拓扑 + 元数据 + 索引查询
- *   Zvec (HNSW)       — 1024 维语义向量搜索
+ *   SQLite (WAL 模式) — 图拓扑 + 元数据 + 领域表 + 事件日志
  *
  * 缓存层:
  *   L1: 查询结果 LRU (5min TTL, 1000 entries)
- *   L2: Embedding 文本→向量 LRU (2h TTL, 5000 entries)
  *
  * 使用:
- *   const wiki = new MemoryWiki({ dbPath, zvecPath, embedder });
- *   await wiki.remember({ id, type, name, embedding, data, relations });
- *   const result = await wiki.query(embedding, { topK: 10, hops: 2 });
+ *   const wiki = new MemoryWiki({ dbPath });
+ *   await wiki.remember({ id, type, name, data, relations });
+ *   const result = await wiki.query(embedding, { topK: 10, hops: 2 });  // 向量召回已移除，恒返回空
  */
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { createRequire } from 'node:module';
 import { LRUCache } from 'lru-cache';
 import type {
   MemoryItem, MemoryRelation, QueryOptions, QueryResult,
-  VectorHit, GraphNode, EmbeddingProvider, MemoryWikiConfig,
+  VectorHit, GraphNode, MemoryWikiConfig,
 } from './types.js';
 import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
 
@@ -31,13 +29,10 @@ import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
 // 默认配置
 // ═══════════════════════════════════════════════════════════════
 
-const DEFAULT_CONFIG: Required<Omit<MemoryWikiConfig, 'embedder'>> = {
+const DEFAULT_CONFIG: Required<MemoryWikiConfig> = {
   dbPath: './data/memory.db',
-  zvecPath: './data/zvec_wiki',
   queryCacheMax: 1000,
   queryCacheTTL: 1000 * 60 * 5,
-  embedCacheMax: 5000,
-  embedCacheTTL: 1000 * 60 * 60 * 2,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -47,15 +42,9 @@ const DEFAULT_CONFIG: Required<Omit<MemoryWikiConfig, 'embedder'>> = {
 export class MemoryWiki {
   // ── 持久层 ──
   private db: ReturnType<typeof import('better-sqlite3')> | null = null;
-  private zvecColl: Record<string, unknown> | null = null;
-  private zvecPath: string;
-
-  // ── Embedding ──
-  private embedder: EmbeddingProvider | null;
 
   // ── 缓存 ──
   private queryCache: LRUCache<string, QueryResult>;
-  private embeddingCache: LRUCache<string, number[]>;
 
   // ── 状态 ──
   private _ready = false;
@@ -63,20 +52,11 @@ export class MemoryWiki {
   constructor(config: MemoryWikiConfig = {}) {
     const cfg = { ...DEFAULT_CONFIG, ...config };
 
-    this.zvecPath = path.resolve(cfg.zvecPath);
-    this.embedder = config.embedder ?? null;
-
     // L1 查询缓存
     this.queryCache = new LRUCache({
       max: cfg.queryCacheMax,
       ttl: cfg.queryCacheTTL,
       updateAgeOnGet: true,
-    });
-
-    // L2 Embedding 缓存
-    this.embeddingCache = new LRUCache({
-      max: cfg.embedCacheMax,
-      ttl: cfg.embedCacheTTL,
     });
   }
 
@@ -108,57 +88,8 @@ export class MemoryWiki {
     this.db.pragma('foreign_keys = ON');
     this.db.exec(MEMORY_WIKI_SCHEMA);
 
-    // 2. Zvec
-    try {
-      const _require = createRequire(import.meta.url);
-      const zvec = _require('@zvec/zvec');
-      const schema = new zvec.ZVecCollectionSchema({
-        name: 'wiki_vectors',
-        vectors: {
-          name: 'embedding',
-          dataType: zvec.ZVecDataType.VECTOR_FP32,
-          dimension: 1024,
-        },
-        fields: [
-          { name: 'doc_id', dataType: zvec.ZVecDataType.STRING },
-        ],
-      });
-
-      try {
-        this.zvecColl = zvec.ZVecOpen(this.zvecPath);
-      } catch {
-        try {
-          this.zvecColl = zvec.ZVecCreateAndOpen(this.zvecPath, schema);
-        } catch (createErr: unknown) {
-          const backupPath = this.zvecPath + '.backup.' + Date.now();
-          console.warn(`[MemoryWiki] zvec 不兼容，尝试备份到: ${path.basename(backupPath)}`);
-          try {
-            // 尝试重命名旧目录（备份）
-            fs.renameSync(this.zvecPath, backupPath);
-            this.zvecColl = zvec.ZVecCreateAndOpen(this.zvecPath, schema);
-          } catch {
-            // ★ 修复: Windows 上 rename/rm 可能失败（EPERM，zvec 持有文件句柄）
-            // 改用新路径
-            const newPath = this.zvecPath + '_' + Date.now();
-            console.warn(`[MemoryWiki] 备份失败，使用新路径: ${path.basename(newPath)}`);
-            try {
-              this.zvecColl = zvec.ZVecCreateAndOpen(newPath, schema);
-              this.zvecPath = newPath;
-            } catch (newPathErr: unknown) {
-              console.warn(`[MemoryWiki] zvec 初始化失败: ${(newPathErr as Error).message}，向量搜索降级`);
-              this.zvecColl = null;
-            }
-          }
-        }
-      }
-      console.log('[MemoryWiki] zvec 就绪');
-    } catch {
-      console.warn('[MemoryWiki] zvec 不可用 — 向量搜索降级');
-      this.zvecColl = null;
-    }
-
     this._ready = true;
-    console.log('[MemoryWiki] 初始化完成 (SQLite + zvec)');
+    console.log('[MemoryWiki] 初始化完成 (SQLite-only)');
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -172,32 +103,6 @@ export class MemoryWiki {
     if (!this.db) throw new Error('MemoryWiki not initialized');
 
     const now = Math.floor(Date.now() / 1000);
-
-    // 自动计算 embedding
-    let emb = item.embedding;
-    if (!emb && item.name && this.embedder) {
-      const cachedEmb = this.embeddingCache.get(item.name);
-      if (cachedEmb) {
-        emb = cachedEmb;
-      } else {
-        const computed = await this.embedder.embed(item.name);
-        if (computed) {
-          emb = computed;
-          this.embeddingCache.set(item.name, computed);
-        }
-      }
-    }
-
-    // Zvec 向量写入
-    if (emb && this.zvecColl) {
-      try {
-        (this.zvecColl as { upsertSync: (doc: Record<string, unknown>) => void }).upsertSync({
-          id: item.id,
-          vectors: { embedding: emb },
-          fields: { doc_id: item.id },
-        });
-      } catch { /* 向量写入失败不阻塞 */ }
-    }
 
     // SQLite 写入（事务）—— 通用实体表 + 领域专用表
     const insertEntity = this.db.prepare(`
@@ -496,22 +401,9 @@ export class MemoryWiki {
     const cached = this.queryCache.get(cacheKey);
     if (cached) return cached;
 
-    // Zvec 向量召回
-    let vectorHits: VectorHit[] = [];
-    if (this.zvecColl) {
-      try {
-        const results = (this.zvecColl as { querySync: (q: Record<string, unknown>) => Array<{ id: string; score: number }> }).querySync({
-          fieldName: 'embedding',
-          vector: queryEmbedding,
-          topk: topK * 3,
-          outputFields: ['doc_id'],
-        });
-        vectorHits = (results ?? []).map((r: { id: string; score: number }) => ({
-          id: r.id ?? (r as unknown as Record<string, string>).doc_id,
-          score: r.score ?? 0,
-        }));
-      } catch { /* zvec 查询失败 → 只用图遍历 */ }
-    }
+    // 向量召回已移除（zvec/BGE-M3 废弃，语义检索由 cognee 统一记忆层接管）
+    // vectors 恒为空数组，图遍历的种子 id 为空 → 返回空结果（保留签名兼容）
+    const vectorHits: VectorHit[] = [];
 
     // SQLite 图遍历
     const ids = vectorHits.map(v => v.id);
@@ -816,8 +708,6 @@ export class MemoryWiki {
       kgRelations: (this.db.prepare('SELECT COUNT(*) as cnt FROM kg_relations').get() as { cnt: number }).cnt,
       memoryEntries: (this.db.prepare('SELECT COUNT(*) as cnt FROM memory_entries').get() as { cnt: number }).cnt,
       queryCacheSize: this.queryCache.size,
-      embedCacheSize: this.embeddingCache.size,
-      zvecReady: this.zvecColl !== null,
     };
   }
 
@@ -827,14 +717,6 @@ export class MemoryWiki {
 
   invalidateQueryCache(): void {
     this.queryCache.clear();
-  }
-
-  invalidateEmbeddingCache(text?: string): void {
-    if (text) {
-      this.embeddingCache.delete(text);
-    } else {
-      this.embeddingCache.clear();
-    }
   }
 
   // ═════════════════════════════════════════════════════════════

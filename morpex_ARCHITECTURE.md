@@ -43,7 +43,7 @@ All future development **must** strictly follow this 10-layer model.
 
 7. Knowledge & Memory Layer
    SystemMetadataGraph + OntologyService (8 entities × 10 relations)
-   MemoryWiki + ZVec + PersonalBrain + ArtifactRegistry + MemoryBus + UnifiedEventStore
+   MemoryAPI (cognee 权威图谱) + MemoryWiki(SQLite) + PersonalBrain + ArtifactRegistry + UnifiedEventStore
    (Working Memory 会话级弱一致 / Shared Knowledge 强一致或可验证最终一致 / Event Store 追加写可回放)
 
 8. Evolution Layer (Verifiable Evolution)
@@ -163,7 +163,8 @@ Ontology Gate
 
 ### Layer 7: Knowledge & Memory（Aligned）
 - `metadata/SystemMetadataGraph.ts`（8 实体 × 10 关系）+ `ontology/OntologyService.ts`
-- `memory/`（MemoryWiki + ZVec + PersonalBrain）+ `artifact/ArtifactRegistry` + `protocol/events/UnifiedEventStore`
+- `memory/`（MemoryWiki(SQLite) + PersonalBrain）+ `artifact/ArtifactRegistry` + `protocol/events/UnifiedEventStore`
+- 权威语义检索：`@morpex/memory` 统一记忆层（MemoryAPI + cognee 图谱引擎，ZVec/BGE-M3 已废弃移除）
 - 记忆一致性：Working Memory 会话级弱一致；Shared Knowledge 强一致/可验证最终一致；Event Store 追加写可回放
 
 ### Layer 8: Evolution（Aligned）

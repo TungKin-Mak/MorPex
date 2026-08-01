@@ -428,13 +428,13 @@ export async function bootstrapUnified(options?: {
   }
 
   // ── 架构全功能实现：接通 L7 Memory / L8 Evolution / L10 Observability ──
-  // L7: MemoryWiki（SQLite + ZVec 向量库）
+  // L7: MemoryWiki（SQLite 统一后端）
   try {
     const { MemoryWiki } = await import('@morpex/memory');
-    const memoryWiki = new MemoryWiki({ dbPath: 'data/memory/wiki.db', zvecPath: 'data/memory/zvec' });
+    const memoryWiki = new MemoryWiki({ dbPath: 'data/memory/wiki.db' });
     await memoryWiki.initialize();
     (container as any).memoryWiki = memoryWiki;
-    console.log('[bootstrapUnified] ✅ L7 MemoryWiki 已初始化（SQLite + ZVec）');
+    console.log('[bootstrapUnified] ✅ L7 MemoryWiki 已初始化（SQLite-only）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ L7 MemoryWiki 初始化失败（不阻断）:', (err as Error).message);
   }

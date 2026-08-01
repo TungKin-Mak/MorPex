@@ -31,12 +31,9 @@ FROM node:22-alpine AS backend-builder
 
 WORKDIR /app
 
-# 安装系统依赖（zvec 需要编译工具）
-RUN apk add --no-cache python3 make g++ git
-
 # 安装后端依赖
 COPY package.json package-lock.json ./
-RUN npm ci --ignore-scripts && npm rebuild @zvec/zvec
+RUN npm ci --ignore-scripts
 
 # TypeScript 类型检查（编译前）
 COPY tsconfig.json ./
@@ -70,7 +67,7 @@ COPY src/ ./src/
 COPY --from=frontend-builder /app/studio/ui/dist ./studio/ui/dist
 
 # 创建数据目录
-RUN mkdir -p /app/data/zvec /app/data/sessions /app/data/workspace \
+RUN mkdir -p /app/data/sessions /app/data/workspace \
   && chown -R morpex:morpex /app/data
 
 # 健康检查脚本
@@ -81,11 +78,9 @@ RUN chmod +x /app/scripts/health-check.sh
 ENV NODE_ENV=production
 ENV PORT=8080
 ENV HOST=0.0.0.0
-ENV EMBEDDING_URL=
 ENV DEEPSEEK_API_KEY=
 ENV LLM_MODEL=deepseek-chat
 ENV CONFIG_PATH=
-ENV SKIP_EMBEDDING=1  # Docker 内默认跳过 Python embedding
 
 # 暴露端口
 EXPOSE 8080

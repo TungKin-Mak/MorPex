@@ -1,23 +1,22 @@
 /**
  * @morpex/memory — 入口 (v2)
  *
- * Memory System: MemoryWiki (SQLite + ZVec) + ZVecStorage + HistoryStore
+ * Memory System: MemoryWiki (SQLite-only) + HistoryStore + 统一记忆层 (MemoryAPI/cognee)
  */
 
 // ── 存储适配器 ──
-export { ZVecStorage } from './storage/ZVecStorage.js';
 export { JSONLWriter } from './storage/JSONLWriter.js';
 export { HistoryStore } from './storage/HistoryStore.js';
 export type { CycleRecord, TaskRecord, ExecutionRecord, HistoryRecord } from './storage/HistoryStore.js';
 
-// ── MemoryWiki v1.0 (SQLite + Zvec 统一后端) ──
+// ── MemoryWiki v1.0 (SQLite 统一后端) ──
 export { MemoryWiki } from './wiki/MemoryWiki.js';
 export { MEMORY_WIKI_SCHEMA, TABLES } from './wiki/schema.js';
 export { migrateJSONLtoSQLite, getMigrationSources } from './wiki/migrate.js';
 export type {
   MemoryItem as WikiMemoryItem, MemoryRelation as WikiMemoryRelation,
   QueryOptions as WikiQueryOptions, QueryResult as WikiQueryResult,
-  VectorHit, GraphNode, EmbeddingProvider, MemoryWikiConfig,
+  VectorHit, GraphNode, MemoryWikiConfig,
   MigrationSource, MigrationResult,
 } from './wiki/types.js';
 export type { TableName } from './wiki/schema.js';
@@ -34,10 +33,6 @@ export { JSONLCompactor } from './storage/Compactor.js';
 export type { CompactorConfig } from './storage/Compactor.js';
 export { LogRotator } from './storage/LogRotator.js';
 export type { LogRotatorConfig } from './storage/LogRotator.js';
-
-// ── 向量 ──
-export { EmbeddingClient } from './vector/EmbeddingClient.js';
-export { recoverZVecLocks } from './vector/ZVecLockRecovery.js';
 
 // ── 基础类型 ──
 export type {

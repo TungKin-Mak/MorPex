@@ -27,7 +27,6 @@ export type {
   WikiQueryResult,
   VectorHit,
   GraphNode,
-  EmbeddingProvider,
   MemoryWikiConfig,
 } from '../../../../memory/src/index.js';
 
@@ -63,7 +62,6 @@ export { MemoryWiki } from '../../../../memory/src/index.js';
 export { MemoryRetriever } from '../../../../memory/src/index.js';
 export { DocWatcher } from '../../../../memory/src/index.js';
 export { DocTopology } from '../../../../memory/src/index.js';
-export { ZVecStorage } from '../../../../memory/src/index.js';
 
 // ── 工厂函数 ──
 
@@ -134,9 +132,6 @@ export type { CompactorConfig } from '../../../../memory/src/index.js';
 export { JSONLCompactor } from '../../../../memory/src/index.js';
 export { LogRotator } from '../../../../memory/src/index.js';
 export type { LogRotatorConfig } from '../../../../memory/src/index.js';
-
-// ── 工具函数 ──
-export { recoverZVecLocks } from '../../../../memory/src/index.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // MemoryBridge — 静态单例桥接器

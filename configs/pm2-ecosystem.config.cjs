@@ -2,14 +2,10 @@
  * PM2 Ecosystem — MorPex v2.0 全栈进程管理
  *
  * 架构:
- *   morpex-embed    (Embedding Server, Python BGE-M3, 端口 3100)
  *   morpex-backend  (StudioServer + MorPexCore, 端口 8080)
  *   morpex-ui       (Vite 前端开发服务器, 端口 3000)
  *
- * zvec 安全:
- *   - ZVecOpen 自动检测 crash residue（30/30 SIGKILL 测试通过）
- *   - kill_timeout 给足时间让 zvec 安全落盘
- *   - 三级降级：Open → Create → Backup+重建
+ * 记忆引擎（cognee :8001）由 scripts/start-cognee.sh 独立管理，不入 PM2。
  *
  * 使用:
  *   pm2 start configs/pm2-ecosystem.config.cjs      # 首次启动全部
@@ -30,27 +26,6 @@ const isWin = process.platform === 'win32';
 
 module.exports = {
   apps: [
-    // ── Embedding Server (Python BGE-M3) ──
-    {
-      name: 'morpex-embed',
-      script: 'tools-python/embedding-server.py',
-      interpreter: isWin ? 'python' : 'python3',
-      interpreterArgs: '-u',
-      args: '--model-path data/models/bge-m3 --mode http --port 3100',
-      cwd: __dirname + '/..',
-      env: { PYTHONUNBUFFERED: '1' },
-      autorestart: true,
-      max_restarts: 3,
-      restart_delay: 5000,
-      log_date_format: 'YYYY-MM-DD HH:mm:ss Z',
-      error_file: './logs/embed-error.log',
-      out_file: './logs/embed-out.log',
-      merge_logs: true,
-      kill_timeout: 15000,
-      wait_ready: true,
-      listen_timeout: 30000,
-    },
-
     // ── StudioServer 后端 (node --import tsx/esm) ──
     {
       name: 'morpex-backend',

@@ -23,20 +23,5 @@ services:
       retries: 3
       start_period: 10s
 
-  embedding:
-    build:
-      context: ../tools-python
-      dockerfile: Dockerfile
-    ports:
-      - "3100:3100"
-    environment:
-      - MODEL_PATH=/models/bge-m3
-    volumes:
-      - embedding-models:/models
-    restart: unless-stopped
-    profiles:
-      - full
-
 volumes:
   morpex-data:
-  embedding-models:

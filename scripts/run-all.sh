@@ -2,13 +2,12 @@
 # ═══════════════════════════════════════════════════════════════════
 # run-all.sh — MorPex 全栈一键启动（开发模式）
 #
-# 启动 3 个服务：
+# 启动 2 个服务：
 #   1. cognee 记忆引擎    :8001   （Python，本地文件存储，统一记忆层）
-#   2. Embedding Server   :3100   （Python BGE-M3，ZVec 向量化）
-#   3. StudioServer 后端  :8080   （MorPex Core + 记忆系统接线）
+#   2. StudioServer 后端  :8080   （MorPex Core + 记忆系统接线）
 #
 # 用法：
-#   ./scripts/run-all.sh            # 后台启动 cognee+embed，前台运行后端
+#   ./scripts/run-all.sh            # 后台启动 cognee，前台运行后端
 #   ./scripts/run-all.sh --bg       # 全部后台运行（nohup）
 #   ./scripts/run-all.sh --status   # 查看 3 个服务健康状态
 #   ./scripts/run-all.sh stop       # 停止全部（后台模式）
@@ -42,7 +41,7 @@ pick_cognee_python() {
 
 status() {
   echo "── 服务状态 ──────────────────────────────"
-  for spec in "cognee:${COGNEE_PORT}:http://localhost:${COGNEE_PORT}/health" "embed:3100:http://localhost:3100/health" "backend:${PORT}:http://localhost:${PORT}/api/health"; do
+  for spec in "cognee:${COGNEE_PORT}:http://localhost:${COGNEE_PORT}/health" "backend:${PORT}:http://localhost:${PORT}/api/health"; do
     name="${spec%%:*}"; rest="${spec#*:}"; p="${rest%%:*}"; url="${rest#*:}"
     if curl -sf -m 3 "$url" >/dev/null 2>&1; then
       echo "  ✅ $name  :$p 在线"
@@ -59,7 +58,7 @@ stop() {
     rm -f "$PIDFILE"
   fi
   # 兜底：按端口停
-  for port in "$COGNEE_PORT" 3100 "$PORT"; do
+  for port in "$COGNEE_PORT" "$PORT"; do
     pid="$(netstat -ano 2>/dev/null | awk -v p=":$port " '$4==p{print $5;exit}')"
     [ -n "${pid:-}" ] && taskkill //PID "$pid" //F 2>/dev/null || true
   done
@@ -117,19 +116,7 @@ else
   echo "▶ cognee 已在运行 :${COGNEE_PORT}"
 fi
 
-# ── 2. Embedding Server ──
-if ! curl -sf -m 2 "http://localhost:3100/health" >/dev/null 2>&1; then
-  echo "▶ 启动 Embedding Server :3100 ..."
-  nohup python -u tools-python/embedding-server.py --model-path data/models/bge-m3 --mode http --port 3100 \
-    >>"$ROOT/logs/embedding.log" 2>&1 &
-  echo $! >> "$PIDFILE"
-  sleep 6
-  curl -sf -m 3 "http://localhost:3100/health" >/dev/null && echo "  ✅ Embedding 就绪 :3100" || echo "  ⚠ Embedding 加载中（BGE-M3 预热），见 logs/embedding.log"
-else
-  echo "▶ Embedding 已在运行 :3100"
-fi
-
-# ── 3. 后端 ──
+# ── 2. 后端 ──
 if [ "$MODE" = "--bg" ]; then
   echo "▶ 后台启动 StudioServer :${PORT} ..."
   nohup node --import tsx/esm packages/studio/server/index.ts >>"$ROOT/logs/backend.log" 2>&1 &

@@ -1,11 +1,9 @@
 {
   "paths": {
-    "zvecDb": "./data/zvec",
     "workspace": "./data/workspace"
   },
   "models": {
-    "default": "deepseek-chat",
-    "embedding": "bge-m3"
+    "default": "deepseek-chat"
   },
   "agents": {
     "maxParallel": 8,

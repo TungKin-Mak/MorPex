@@ -17,8 +17,6 @@ function ok(c: boolean, m: string) { if (c) { pass++; console.log(`  ✅ ${m}`);
 function eq<T>(a: T, b: T, m: string) { if (String(a) === String(b)) pass++; else { console.error(`  ❌ ${m}: ${JSON.stringify(a)} ≠ ${JSON.stringify(b)}`); fail++; } }
 function skip(m: string) { skipCount++; console.log(`  ⏭️ ${m}`); }
 function tmpDir(): string { return mkdtempSync(path.join(tmpdir(), 'morpex-live-')); }
-async function embedOk(): Promise<boolean> { try { const r = await fetch('http://localhost:3100/health'); const d: any = await r.json(); return d?.ok === true; } catch { return false; } }
-
 async function main() {
   console.log('\n═══════════════════════════════════════════════');
   console.log('   MorPex — 真实服务深度集成测试 v3');
@@ -26,38 +24,8 @@ async function main() {
 
   // ── 0. Health Check ──
   console.log('📋 0. External Services\n');
-  const ev = await embedOk(); if (ev) { ok(true, 'Embedding Server: ONLINE'); } else { console.log(`  ⚠️ Embedding Server: OFFLINE (跳过 embedding 测试)`); }
   ok(!!process.env.DEEPSEEK_API_KEY, `DeepSeek API Key: ${process.env.DEEPSEEK_API_KEY ? '✓' : '✗'}`);
-  ok(existsSync('data/zvec/manifest.0'), 'zvec manifest exists');
   ok(existsSync('data/memory.db'), 'MemoryWiki SQLite DB exists');
-  console.log('');
-
-  // ════════════════════════════════════════════
-  // 1. VectorStore
-  // ════════════════════════════════════════════
-  console.log('📋 1. VectorStore (zvec + BGE-M3)\n');
-  if (ev) try {
-    const { VectorStore } = await import('../src/memory/knowledge/VectorStore.js');
-    const td = tmpDir();
-    const vs = new VectorStore({ dataPath: td, collectionName: 'test', dimension: 1024, embedUrl: 'http://localhost:3100' });
-    await new Promise(r => setTimeout(r, 2000));
-    ok(true, 'VectorStore created');
-
-    const results: string[] = await vs.search('programming language', 3);
-    ok(Array.isArray(results), 'search returns array');
-    if (results.length > 0) console.log(`    search returned ${results.length} results`);
-
-    vs.delete('test_doc');
-    ok(true, 'delete works');
-
-    const cs = vs.cacheStats;
-    ok(typeof cs.hits === 'number', 'cacheStats.hits');
-
-    vs.invalidateCache();
-    ok(true, 'invalidateCache works');
-    rmSync(td, { recursive: true, force: true });
-  } catch (e: any) { console.error(`  ⚠️ VectorStore: ${e.message}`); for (let i = 0; i < 5; i++) skip(`VectorStore #${i+1}`); }
-  else { for (let i = 0; i < 5; i++) skip(`VectorStore #${i+1}`); }
   console.log('');
 
   // ════════════════════════════════════════════

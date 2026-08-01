@@ -12,7 +12,7 @@ export { MemoryRetriever } from './MemoryRetriever.js';
 export type { RetrievalResult, ErrorRetrievalResult } from './MemoryRetriever.js';
 export type {
   MemoryItem, MemoryRelation, QueryOptions, QueryResult,
-  VectorHit, GraphNode, EmbeddingProvider, MemoryWikiConfig,
+  VectorHit, GraphNode, MemoryWikiConfig,
   MigrationSource, MigrationResult,
 } from './types.js';
 export type { TableName } from './schema.js';

@@ -16,7 +16,7 @@ export interface MemoryItem {
   type: string;
   /** 人类可读名称 */
   name: string;
-  /** BGE-M3 1024 维向量（可选，无向量则只存 SQLite） */
+  /** 向量（可选，语义检索已由 cognee 接管；无向量则只存 SQLite） */
   embedding?: number[];
   /** 结构化数据（JSON 列，SQLite 支持 JSON 函数查询） */
   data?: Record<string, unknown>;
@@ -67,35 +67,16 @@ export interface GraphNode {
 }
 
 // ═══════════════════════════════════════════════════════════════
-// Embedding 提供者接口（依赖注入）
-// ═══════════════════════════════════════════════════════════════
-
-export interface EmbeddingProvider {
-  /** 计算文本的向量（可能命中缓存） */
-  embed(text: string): Promise<number[] | null>;
-  /** 缓存统计 */
-  cacheStats?: () => { hits: number; misses: number; hitRate: number };
-}
-
-// ═══════════════════════════════════════════════════════════════
 // MemoryWiki 配置
 // ═══════════════════════════════════════════════════════════════
 
 export interface MemoryWikiConfig {
   /** SQLite 数据库路径 */
   dbPath?: string;
-  /** zvec 向量库路径 */
-  zvecPath?: string;
-  /** Embedding 提供者（VectorStore 的 getEmbedding） */
-  embedder?: EmbeddingProvider;
   /** L1 查询缓存大小 */
   queryCacheMax?: number;
   /** L1 查询缓存 TTL（毫秒） */
   queryCacheTTL?: number;
-  /** L2 Embedding 缓存大小 */
-  embedCacheMax?: number;
-  /** L2 Embedding 缓存 TTL（毫秒） */
-  embedCacheTTL?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

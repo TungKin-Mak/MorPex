@@ -132,7 +132,6 @@ export interface MemoryStats {
 // ── 配置 ──
 
 export interface MemorySystemConfig {
-  embedUrl?: string;
   dataPath?: string;
   collectionName?: string;
   dimension?: number;

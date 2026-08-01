@@ -3,22 +3,19 @@
   "version": "2.0.0",
   "private": true,
   "type": "module",
-  "description": "MorPex Memory System — 5-layer memory architecture with zvec vector store + BGE-M3 embeddings",
+  "description": "MorPex Memory System — MemoryWiki(SQLite) + 统一记忆层(MemoryAPI/cognee)",
   "main": "./src/index.js",
   "exports": {
     ".": "./src/index.js",
     "./types": "./src/types.js",
-    "./storage": "./src/storage/index.js",
-    "./vector": "./src/vector/index.js"
+    "./storage": "./src/storage/index.js"
   },
   "scripts": {
     "test": "vitest run",
     "test:watch": "vitest",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "@zvec/zvec": "^0.5.0"
-  },
+  "dependencies": {},
   "peerDependencies": {
     "typescript": ">=5.0.0"
   }

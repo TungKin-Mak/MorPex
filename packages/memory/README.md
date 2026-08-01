@@ -1,192 +1,84 @@
 # @morpex/memory — 记忆系统
 
-> **独立记忆引擎模块**，5 层记忆架构 + zvec 向量存储 + BGE-M3 嵌入
+> **统一记忆层**：MemoryWiki（SQLite-only 图/元数据持久化）+ MemoryAPI（cognee 权威知识图谱引擎 + 白名单 + 确认队列 + 强制门禁）。
+> zvec 向量库与 BGE-M3 embedding 已废弃移除（S17），语义检索由 cognee 统一记忆层接管。
 
 ---
 
-## 架构
+## 组成
 
+| 模块 | 职责 | 状态 |
+|------|------|------|
+| **MemoryAPI** (`api/`) | 统一记忆契约：`upsert`（写图）/ `query`（强制检索，空/低置信 → `need_human`）/ `rememberEpisode` / 确认队列 | ✅ 权威层 |
+| **cognee 引擎** (`engines/cognee/`) | 本地知识图谱（图核心 + 本体生成 + 双时间），HTTP 接入，无 Docker | ✅ |
+| **MemoryWiki** (`wiki/`) | SQLite 统一后端：kg 实体/关系 + 领域表 + 事件日志 + 查询缓存；**已剥离 zvec/BGE-M3** | ✅ SQLite-only |
+| **MemoryRetriever** (`wiki/`) | 关键词/标签检索（`retrieveForTask`），供 Studio 记忆搜索工具 | ✅ |
+| **HistoryStore / JSONL / Compactor / LogRotator** (`storage/`) | 执行历史与运维工具 | ✅ |
+| **门禁** (`gate/`) | `ForceRetriever`：空检索/低置信 → `need_human`，禁止模型补全（防幻觉） | ✅ |
+| **本体白名单** (`ontology/`) | 实体/关系类型白名单 + 校验 | ✅ |
+
+## MemoryAPI 使用
+
+```typescript
+import { createMemoryApi, createEngine } from '@morpex/memory';
+
+const api = createMemoryApi({
+  engine: createEngine({ baseUrl: process.env.COGNEE_URL ?? 'http://localhost:8001' }),
+});
+
+// 写（高置信直接进图；低置信/冲突进确认队列）
+const u = await api.upsert({
+  name: 'MorPex 报表产品', entityType: 'Product',
+  facts: ['定价 899 元/月'], confidence: 0.95,
+});
+// u.status === 'written' | 'pending_confirm'
+
+// 查（强制检索：空/低置信 → need_human=true，不伪造）
+const r = await api.query({ text: '报表产品定价多少', domain: 'product' });
+if (r.need_human) { /* 询问用户 */ } else { /* 用 r.hits（纯图证据）回答 */ }
 ```
-┌──────────────────────────────────────────────────────────────────┐
-│                     @morpex/memory                                │
-│                                                                  │
-│  ┌─────────────┐  ┌──────────────┐  ┌────────────────────────┐  │
-│  │ MemoryEngine │  │  VectorStore │  │  EmbeddingClient       │  │
-│  │ (5层记忆)    │  │ (zvec向量库) │  │ (BGE-M3 HTTP客户端)   │  │
-│  │              │  │              │  │                        │  │
-│  │ L1 工作记忆  │  │ upsertSync() │  │  POST /embed          │  │
-│  │ L2 情景记忆  │  │ querySync()  │  │  POST /embed-batch    │  │
-│  │ L3 语义记忆  │  │ deleteSync() │  │                        │  │
-│  │ L4 流程记忆  │  │ close()      │  └────────────────────────┘  │
-│  │ L5 反思记忆  │  └──────────────┘                             │
-│  └──────┬───────┘                                               │
-│         │                                                        │
-│         ├── 写: write() → Embedding → zvec.upsertSync()          │
-│         └── 查: query() → Embedding → zvec.querySync() → 结果    │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  ZVecLockRecovery                                        │   │
-│  │  启动时自动清除残留 LOCK 文件，绝不碰数据库               │   │
-│  └──────────────────────────────────────────────────────────┘   │
-│                                                                  │
-│  ┌──────────────────────────────────────────────────────────┐   │
-│  │  Storage Adapters                                        │   │
-│  │  ├─ ZVecStorage   — 向量持久化 (zvec C++ 原生库)         │   │
-│  │  ├─ JSONLStorage  — JSONL 文件存储 (Fallback)            │   │
-│  │  └─ MemoryStorage — 内存存储 (测试/临时)                 │   │
-│  └──────────────────────────────────────────────────────────┘   │
-└──────────────────────────────────────────────────────────────────┘
+
+## MemoryWiki 使用（SQLite-only）
+
+```typescript
+import { MemoryWiki } from '@morpex/memory';
+
+const wiki = new MemoryWiki({ dbPath: './data/memory.db' });
+await wiki.initialize();
+await wiki.remember({ id: 'e1', type: 'PlanRecord', name: '...', data: { ... }, relations: [] });
+const stats = wiki.getStats(); // kgEntities / kgRelations / ...
+wiki.close();
 ```
 
-## 5 层记忆架构
+## 引擎部署（cognee）
 
-| 层级 | 名称 | 存储位置 | 持久化 | 说明 |
-|------|------|----------|--------|------|
-| L1 | Working Memory | 内存 Map | ❌ | 当前执行上下文，进程退出丢失 |
-| L2 | Episodic Memory | zvec + JSONL | ✅ | 历史执行记录，向量化可搜索 |
-| L3 | Semantic Memory | zvec + JSONL | ✅ | 概念/知识，高 importance |
-| L4 | Procedural Memory | zvec + JSONL | ✅ | 流程/技能，写入闸门控制 |
-| L5 | Reflective Memory | JSONL | ✅ | 自我反思/元学习，定期压缩 |
-
-## 写入闸门
-
+```bash
+COGNEE_PORT=8001 ./scripts/start-cognee.sh --bg   # 一键启动（建 venv → 装 cognee → 起 :8001）
+curl http://localhost:8001/health
+npx tsx scripts/e2e-cognee.ts                     # 端到端验证（写 → 图检索 → need_human）
 ```
-write(content, importance)
-  │
-  ├── importance ≥ 5  ──→ 直接存入
-  ├── importance ≥ 3  ──→ 写闸门检查 → 存入/拒绝
-  └── importance < 2  ──→ 大概率拒绝
-       │
-       └── 被拒绝的记忆 → 触发 L5 反思 → 总结后重新评估
-```
+
+引擎离线时 `MemoryAPI.query` 返回 `need_human=true`（不伪造）；`upsert` 转确认队列。**引擎故障不会导致幻觉。**
 
 ## 文件结构
 
 ```
 packages/memory/
-├── package.json              # 独立包配置
-├── README.md                 # 本文档
-│
 ├── src/
 │   ├── index.ts              # 入口 — 导出所有组件
-│   ├── types.ts              # 类型定义
-│   │
-│   ├── core/
-│   │   ├── MemoryEngine.ts   # 5层记忆引擎核心
-│   │   └── WriteGate.ts      # 写闸门决策
-│   │
-│   ├── storage/
-│   │   ├── index.ts          # 存储适配器入口
-│   │   ├── ZVecStorage.ts    # zvec 向量持久化
-│   │   ├── JSONLStorage.ts   # JSONL 文件存储 (Fallback)
-│   │   └── MemoryStorage.ts  # 内存存储 (测试用)
-│   │
-│   ├── vector/
-│   │   ├── index.ts          # 向量服务入口
-│   │   ├── EmbeddingClient.ts # BGE-M3 HTTP 客户端
-│   │   └── ZVecLockRecovery.ts # LOCK 文件恢复
-│   │
-│   └── api/
-│       └── routes.ts         # REST API 路由 (Express)
-│
-├── __tests__/
-│   ├── MemoryEngine.test.ts
-│   ├── WriteGate.test.ts
-│   └── ZVecLockRecovery.test.ts
-│
-└── docs/
-    └── ARCHITECTURE.md       # 详细架构文档
+│   ├── memory-types.ts       # 统一记忆契约类型（MemoryAPI/EngineHit/...）
+│   ├── api/                  # MemoryApi + createMemoryApi + 确认队列
+│   ├── engines/              # cognee / mock 引擎适配器
+│   ├── gate/                 # ForceRetriever（need_human 门禁）
+│   ├── ontology/             # 公司知识本体白名单 + 校验
+│   ├── wiki/                 # MemoryWiki(SQLite) + DocWatcher/Topology + MemoryRetriever
+│   └── storage/              # HistoryStore / JSONLWriter / Compactor / LogRotator
+├── __tests__/unified-memory.spec.ts   # 统一记忆层测试（mock 引擎）
+└── README.md
 ```
 
-## 数据存储
+## 历史（已移除组件）
 
-```
-data/
-└── zvec/
-    ├── LOCK                  # 集合锁 (非正常退出后残留)
-    ├── manifest.0            # zvec 集合清单
-    ├── del.0                 # 删除标记
-    │
-    ├── idmap.0/              # RocksDB 标量存储
-    │   ├── LOCK              # RocksDB 锁 (非正常退出后残留)
-    │   ├── MANIFEST-*        # RocksDB 清单
-    │   ├── CURRENT           # 当前状态
-    │   ├── *.sst             # 数据表
-    │   └── *.log             # WAL 日志
-    │
-    └── 0/                    # 向量索引
-        ├── embedding.index.* # HNSW 索引文件
-        ├── scalar.*.ipc      # 标量 IPC
-        └── *.wal             # 向量 WAL
-
-data/
-└── sessions/
-    └── *.jsonl               # 会话 JSONL 备份
-```
-
-## 写入流程
-
-```
-应用层调用 memory.write({ type, content, tags, importance })
-        │
-        ▼
-MemoryEngine.write()
-        │
-        ├── 1. WriteGate.decide(importance)
-        │     └── reject → return null (写闸门拒绝)
-        │
-        ├── 2. 创建 MemoryItem { id, type, content, tags, importance, createdAt }
-        │
-        ├── 3. L1: 加入短期记忆 (shortTerm, 上限100条)
-        │
-        ├── 4. L2-L4: 持久化
-        │     ├── VectorStore.index(id, content, tags)
-        │     │     ├── EmbeddingClient.getEmbedding(content) → BGE-M3
-        │     │     └── zvec.upsertSync({ id, vectors, fields })
-        │     │
-        │     └── JSONLStorage.append(item) (备份)
-        │
-        ├── 5. L5: 触发反思 (如果写闸门拒绝率过高)
-        │
-        └── 6. 回调 onMemoryStored(item, decision)
-```
-
-## 查询流程
-
-```
-应用层调用 memory.query({ text, type?, tags?, limit? })
-        │
-        ▼
-MemoryEngine.query()
-        │
-        ├── 1. 如果有 text → 语义搜索
-        │     ├── EmbeddingClient.getEmbedding(text) → 向量
-        │     └── zvec.querySync({ vector, topK, filter }) → ids[]
-        │
-        ├── 2. 如果有 type/tags → 标量过滤
-        │     └── zvec query filter 表达式
-        │
-        ├── 3. 合并 L1 短期记忆 + 持久化结果
-        │
-        └── 4. 回调 onMemoryRecalled(query, results)
-```
-
-## 启动方式
-
-```bash
-# 1. 启动嵌入服务
-python tools-python/embedding-server.py --model-path data/models/bge-m3 --port 3100
-
-# 2. 在应用中使用
-import { createMemorySystem } from '@morpex/memory';
-
-const memory = createMemorySystem({
-  embedUrl: 'http://localhost:3100',
-  dataPath: './data/zvec',
-});
-
-await memory.initialize();
-await memory.write({ type: 'semantic', content: '...', importance: 4 });
-const results = await memory.query({ text: '搜索关键词' });
-await memory.shutdown();
-```
+- **zvec**（`@zvec/zvec`）：HNSW 向量库。被 cognee 图+向量能力取代（S17 移除）。
+- **BGE-M3 embedding**（`tools-python/embedding-server.py` + `data/models/bge-m3`）：本地嵌入服务。被 cognee fastembed 取代（S17 移除）。
+- **MemoryBus v2**（`core/MemoryBus.js`）：已不存在的旧实现，相关 e2e 一并删除。

@@ -155,7 +155,6 @@ export const DEFAULT_MODULES: ModuleRegistration[] = [
   { id: 'artifact-registry',         name: 'artifact-registry',         layer: 'knowledge', version: '9.2.0' },
   { id: 'memory-wiki',               name: 'memory-wiki',               layer: 'knowledge', version: '9.2.0' },
   { id: 'memory-retriever',          name: 'memory-retriever',          layer: 'knowledge', version: '9.2.0' },
-  { id: 'zvec-storage',              name: 'zvec-storage',              layer: 'knowledge', version: '9.2.0' },
   { id: 'history-store',             name: 'history-store',             layer: 'knowledge', version: '9.2.0' },
   { id: 'brain-persistor',           name: 'brain-persistor',           layer: 'knowledge', version: '9.2.0' },
   { id: 'workflow-intelligence',     name: 'workflow-intelligence',     layer: 'knowledge', version: '9.2.0' },

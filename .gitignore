@@ -41,3 +41,6 @@ repomix-output.xml
 # src/
 # Pi/
 # studio/
+
+# ── 运行时 PID 文件 ──
+.run-all.pids

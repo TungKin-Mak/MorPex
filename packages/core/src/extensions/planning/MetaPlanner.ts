@@ -70,7 +70,11 @@ import { MemoryWiki, MemoryRetriever } from '../../../../memory/src/index.js';
 import type { EventBus } from '../../common/EventBus.js';
 import type { KnowledgeGraph } from '../../metadata/knowledge/KnowledgeGraph.js';
 import type { ArtifactRegistry } from '../../artifact/registry/ArtifactRegistry.js';
-import type { ZVecStorage } from '../../../../memory/src/index.js';
+
+/** 向量存储结构接口（zvec 已废弃移除；保留结构以兼容注入方，如测试 Mock） */
+export interface VectorStoreLike {
+  search(text: string, topK: number): Promise<string[]>;
+}
 
 type OrchestrateFn = (userInput: string, sessionCtx?: SessionContext) => Promise<{ dag: ExecutionDAG; result: unknown }>;
 type WrappedOrchestrateFn = OrchestrateFn;
@@ -125,7 +129,7 @@ export class MetaPlanner implements ExtensionDefinition {
   // 外部引用
   private knowledgeGraph: KnowledgeGraph | null = null;
   private artifactRegistry: ArtifactRegistry | null = null;
-  private vectorStore: ZVecStorage | null = null;
+  private vectorStore: VectorStoreLike | null = null;
   private modelRegistry: Record<string, unknown> | null = null;
   private _eventBus: EventBus | null = null;
 
@@ -137,7 +141,7 @@ export class MetaPlanner implements ExtensionDefinition {
     v2?: Partial<MetaPlannerV2Config>;
     knowledgeGraph?: KnowledgeGraph | null;
     artifactRegistry?: ArtifactRegistry | null;
-    vectorStore?: ZVecStorage | null;
+    vectorStore?: VectorStoreLike | null;
     eventBus?: EventBus | null;
     pipelineLogger?: PipelineLogger;
     modelRegistry?: Record<string, unknown> | null;

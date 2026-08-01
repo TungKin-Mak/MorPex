@@ -184,9 +184,9 @@ Permission    Predict       Quality      Sandbox               Discovery
 | artifact-registry | knowledge | Artifact CRUD + event emission |
 | artifact-plane | knowledge | Unified artifact storage |
 | artifact-writer | knowledge | Artifact file persistence |
-| memory-wiki | knowledge | Wiki document storage (SQLite+Zvec) |
+| memory-wiki | knowledge | Wiki document storage (SQLite) |
 | memory-retriever | knowledge | Semantic memory search |
-| zvec-storage | knowledge | Vector embedding storage |
+
 | history-store | knowledge | Chat history persistence |
 | brain-persistor | knowledge | PersonalBrain to MemoryWiki bridge |
 | personal-brain | knowledge | 5-layer memory (working to workflow) |
@@ -480,9 +480,8 @@ COMPLETED → LearningPlane.record() → Evolution → Federation
 | CrossDomainRouter | 单次 LLM 调用拆解 DAG | `LLMProvider.get()(prompt)` |
 | AgentHarness | pi-agent-core 真实 Agent 循环 | LLM + 工具 + 记忆 |
 | ArtifactWriter | `fs.writeFileSync` 落盘 | 产物保存到 `data/mirror/workspace/` |
-| MemoryWiki + ZVecStorage | SQLite + BGE-M3 嵌入 | 真实向量存储和检索 |
+| MemoryWiki | SQLite 持久化（图+领域表） | 知识/元数据存储；语义检索由 cognee 统一记忆层接管 |
 | VerificationEngine | 步骤/输出/错误/产物 四维检查 | 加权评分，真实数据 |
-| EmbeddingClient | HTTP 调用 BGE-M3 服务 | 不可用时返回 `null`，不返回假向量 |
 | UnifiedEventStore | SQLite WAL 模式 | 323 行完整实现 |
 | SandboxManager | `child_process.execFile` 真实执行 | Python/JS/Go/Bash/TS 支持 |
 | CheckpointManager | 接入 DAG 执行链路 | 每批节点后保存检查点 |

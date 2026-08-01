@@ -18,7 +18,11 @@ import type { DEFAULT_DES_CONFIG } from '../../types.js';
 import type { SemanticTag } from '../../types.js';
 import type { KnowledgeGraph } from '../../../../metadata/knowledge/KnowledgeGraph.js';
 import type { ArtifactRegistry } from '../../../../artifact/registry/ArtifactRegistry.js';
-import type { VectorStore } from '../../../../memory/knowledge/VectorStore.js';
+
+/** 向量存储结构接口（zvec 已废弃移除；保留结构以兼容可选注入） */
+export interface VectorStoreLike {
+  search(text: string, topK: number): Promise<string[]>;
+}
 
 export interface PipelineStageContext {
   pipelineLogger: PipelineLogger;
@@ -26,7 +30,7 @@ export interface PipelineStageContext {
   desConfig: typeof DEFAULT_DES_CONFIG;
   store: PlanExperienceStore;
   knowledgeGraph: KnowledgeGraph;
-  vectorStore: VectorStore;
+  vectorStore: VectorStoreLike | null;
   topologyExplorer: TopologyExplorer | null;
   analyzer: PlanAnalyzer;
   deviationGuard: DeviationGuard;

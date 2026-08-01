@@ -52,7 +52,6 @@ export interface ExerciseContext {
   artifactRegistry?: any;
   memoryWiki?: any;
   memoryRetriever?: any;
-  zvecStorage?: any;
   historyStore?: any;
   brainPersistor?: any;
   personalBrain?: any;
@@ -490,10 +489,6 @@ export async function exerciseAllModules(ctx: ExerciseContext): Promise<string[]
 
   await chain.invokeIf(ctx.memoryRetriever, 'memory-retriever', 'retrieve',
     () => safe(() => ctx.memoryRetriever?.retrieve?.('exercise query')),
-    'knowledge');
-
-  await chain.invokeIf(ctx.zvecStorage, 'zvec-storage', 'store',
-    () => safe(() => ctx.zvecStorage?.store?.('ex', [0.1, 0.2])),
     'knowledge');
 
   await chain.invokeIf(ctx.historyStore, 'history-store', 'append',

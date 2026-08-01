@@ -43,7 +43,7 @@
 
 7. Knowledge & Memory Layer
    SystemMetadataGraph + OntologyService (8 entities × 10 relations)
-   MemoryWiki + ZVec + PersonalBrain + ArtifactRegistry + MemoryBus + UnifiedEventStore
+   MemoryAPI (cognee 权威图谱) + MemoryWiki(SQLite) + PersonalBrain + ArtifactRegistry + UnifiedEventStore
    (Working Memory 会话级弱一致 / Shared Knowledge 强一致或可验证最终一致 / Event Store 追加写可回放)
 
 8. Evolution Layer (Verifiable Evolution)
@@ -161,7 +161,7 @@ ontology/
 
 7. Knowledge & Memory Layer
    SystemMetadataGraph + OntologyService (8 entities × 10 relations)
-   MemoryWiki + ZVec + PersonalBrain + ArtifactRegistry + MemoryBus + UnifiedEventStore
+   MemoryAPI (cognee 权威图谱) + MemoryWiki(SQLite) + PersonalBrain + ArtifactRegistry + UnifiedEventStore
    (Working Memory 会话级弱一致 / Shared Knowledge 强一致或可验证最终一致 / Event Store 追加写可回放)
 
 8. Evolution Layer (Verifiable Evolution)
