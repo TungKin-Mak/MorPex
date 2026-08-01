@@ -63,13 +63,14 @@
 | S20 | 08-01 | 完成全部候选（L9 插件/phase0-smoke/BrainFacade 重包/Planner 接入） | **B. phase0-smoke 修复（真 bug）**：`ApprovalAction` 无 `execute_goal` → `!policy→true` 兜底 → 所有 goal 永远需人工审批（主入口被卡死）；补 execute_goal 默认策略（LOW/MEDIUM 自动批准、HIGH/CRITICAL 人工）+ CompanyFacade 部门校验前置（先于审批门禁）+ sendTask 消息含路由部门 + 测试注入 stub runtime/真实 ControlPlane（19/19）。**A. L9 插件**：`.env.example` 加凭证占位（AMAZON_SP_API_KEY/AWS_*/GITHUB_TOKEN 等，缺省 mock 降级、凭证就绪即生效）+ workflow-plugins 测试（4 provider 加载 + mock 降级，3/3）。**D. Planner 非 Mission 接入**：CompanyFacade.setDeliveryPlanner + executeGoal 非 mission 模式先规划（planId 注入 runOpts + 返回 plan 字段，失败非阻断）；bootstrap 装配（4/4）。**C. BrainFacade 完整重包**：聚合 MemoryActivationEngine（activateMemory）+ DeliveryPlanner（planGoal），getStats.systems 扩展（6/6）。**附带**：critical-cognitive-pipeline 脚本式→规范 vitest（9/9，修复 worker 挂起）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 精选 11 文件 114 测试全过 + 后端重启装配验证 | `780868d` `12fee5b` `769ad86` `6c62aaa` `3b4866e` |
 | S21 | 08-01 | 测试专项清理（全量 vitest 全绿） | **根因**：`vitest run` 全目录 32 文件失败——①30+ 脚本式测试（v11 遗留，main()/process.exit 直跑）混入 include 致 No test suite/worker 挂起；②vitest alias 只配根、缺 `@morpex/contracts/*` 等子路径（tsconfig 已配）；③S17 移除 zvec 后残留死引用。**修复**：vitest.config exclude 32 个脚本式（保留 tsx 手动运行）+ alias 补全 contracts/connectors/core/memory/workflow-sdk 子路径；清理 morpex-knowledge 的 VectorStore 块、morpex-crossdomain 的 VectorStoreAdapter/MemoryBusListener 条目。**效果**：`npx vitest run` **35 文件 254 测试全过**（原 32 failed）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 全量 vitest 254 全过 | `da63678` |
 | S22 | 08-01 | 架构严格审计（揭露“100% 对齐”虚标）+ 接线修复 + LearningLoop 补全 + brain 迁移 + capability 推断 | **审计结论**：`validate-architecture.js` 的 100% 是**负向合规**（检测无违规），不验证组件存在/实现/装配。正向核验 53 组件：L2/L3/L5/L6/L7/L9/L10 真实；**L8 autoEvolve 永不触发**、**L4 BrainFacade reflectionEngine/metaLearner 字段 null + Synthesizer 未装配**、**L1 Agent/Evolution Controller 死组件**、**BrainFacade.learningLoop 无实现类**、文档称“Brain 已并入 cognition/”但实际未迁。**修复**：① bootstrap 注入 SelfImprovementLoop + setReflectionEngine/setMetaLearner + Synthesizer 装配；② checkAll 可选 capability 门禁 + **goal→capability 自动推断**（enableCapabilityInference 默认关）；③ **LearningLoop 实现**（聚合 learning/ 三件套，注入 BrainFacade）；④ **brain/ 8 文件真实迁移 cognition/**（目录删除）；⑤ 修复 `checkCapabilityAvailable` 存在性≠可用性（改 findForCapability）+ `CapabilityRegistry.init()` 从未被调用（改惰性 seed）。**文档**：morpex_ARCHITECTURE.md 100% 降级 + §6 审计记录表 + 10/10 层真实落地。**门禁**：tsc 0 + 架构无违规 + production 8/8 + 全量 vitest 37 文件 265 全过 | `deb84eb` `8fa3729` `0e2c1af` |
+| S23 | 08-01 | **AICOS-Core 8 层架构重构**（10层→8层）+ 逐文件注册表 + 全量清理 + 冒烟验证 | **架构重构**（用户定夺 4 裁决）：Evaluation 独立 L6（从 governance 拆出）；Gate 独立目录（从 ontology 拆出 ForcedQueryGuard/runOntologyGroundedReasoning/types/ontologyEvents）；planning+learning 并入 cognition/（planner/→cognition/planning/）；knowledge/ 聚合（ontology-service+graph+artifact+memory+context）；infrastructure/ 聚合（common+observability+tools+protocol+utils+adapters）；governance/ 聚合（control-plane+capability）；execution/ 聚合（runtime→execution/runtime/）；evolution/ 聚合（capability feedback 并入）。core/src 收敛为 **10 顶层目录**（facade/governance/knowledge/gate/cognition/execution/evaluation/evolution/infrastructure/workflow）。**文档**：docs/AICOS_CORE_ARCHITECTURE.md（8 层单一真相源，取代 morpex_ARCHITECTURE.md）+ docs/AICOS_CORE_FILE_REGISTRY.md（346 文件功能+职责边界）+ docs/PROJECT_TREE.md。**清理**：19 份历史文档→docs/_archive/；死测试/孤儿脚本/benchmark→packages/archived/；AGENTS/README/.pi/SESSION_LOG 全部 10层→8层更新；validate-architecture.js 8 层路径化。**冒烟**：实机启动 StudioServer（8080/8099），8 层管线端到端贯通（Governance→Gate→Cognition→Execution→Evaluation→Evolution），53✅/0错误；发现并修复 MemoryMessages.ts pi-augmentations 引用 bug。**门禁**：tsc 0 + validate 100% + vitest 30 文件 199 全过 + production 8/8 | `0818014` `ccaaef8` `17da849` |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 **4** 提交（S22 后续：`8fa3729` LearningLoop + `f96b611` 补全标记 + `0e2c1af` brain 迁移/capability 推断 + `0f471fa` 文档）。网络恢复后执行 `git push origin master`（github.com:443 多次超时）
+- [ ] **推送提交**：本地 `master` 领先远端 **8** 提交（S22×4：`8fa3729`/`f96b611`/`0e2c1af`/`0f471fa` + S23×3：`0818014` AICOS 8层重构/`ccaaef8` 文档/`17da849` 清理冒烟修复）。**github.com 被网络层封锁**（curl/bing 可达、github:443 超时、git:// 超时、无代理），换可访问网络后 `git push origin master` 一次性推送
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -98,21 +99,21 @@
 | 关注点 | 路径 |
 |--------|------|
 | 统一运行时装配 | `packages/core/src/bootstrap-unified.ts` |
-| Ontology Gate | `packages/core/src/ontology/`（types/runOntologyGroundedReasoning/OntologyService） |
-| 执行引擎 + 原语兜底 | `packages/core/src/execution/UnifiedExecutionEngine.ts` |
-| 原语注册中心 | `packages/core/src/tools/DomainPrimitiveRegistry.ts` + `tools/primitives/` |
-| Connector 层 | `packages/connectors/src/` |
-| 规划层 | `packages/core/src/planner/`（DeliveryPlanner + Adapter + Arbitration） |
-| 演化沙箱 | `packages/core/src/evolution/EvolutionSandbox.ts` |
-| 治理/观测 | `packages/core/src/governance/GovernanceDashboard.ts` |
-| 记忆 | `packages/memory/src/`（MemoryWiki/ZVec）+ `packages/core/src/memory/knowledge/` |
+| L1 治理/授权 | `packages/core/src/governance/`（control-plane + capability + policy/risk/approval/resource/alert/verification） |
+| L2 知识权威 | `packages/core/src/knowledge/`（ontology + graph + artifact + memory + context） |
+| L3 Ontology Gate | `packages/core/src/gate/`（ForcedQueryGuard/runOntologyGroundedReasoning/types/ontologyEvents） |
+| L4 认知与规划 | `packages/core/src/cognition/`（brain + planning + learning + twin/goal/workflow/decision/memory） |
+| L5 执行 | `packages/core/src/execution/`（fabric + harness + runtime/） |
+| L6 评价 | `packages/core/src/evaluation/`（EvaluationEngine/QualityScorer/ontologyCompliance） |
+| L7 演化 | `packages/core/src/evolution/`（EvolutionSandbox + workflow + mining） |
+| L8 基础设施 | `packages/core/src/infrastructure/`（adapters/common/observability/protocol/tools/utils） |
+| 唯一入口 | `packages/core/src/facade/`（CompanyFacade + gateway） |
 | 插件 | `packages/workflows/<domain>/` |
-| 实现度矩阵 | `docs/IMPLEMENTATION_AUDIT.md` |
 
 ---
 
 ## 5. 版本基线
 
-- 当前 HEAD：`0f471fa docs: S22 收官——brain 迁移 + capability 推断记录`（S22，本地领先远端 **4**，未推送）
+- 当前 HEAD：`17da849 chore(cleanup): 归档陈旧文档/死测试/孤儿脚本 + 冒烟修复`（S23，本地领先远端 **8**，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
-- 架构唯一真相源：`morpex_ARCHITECTURE.md`
+- 架构唯一真相源：`docs/AICOS_CORE_ARCHITECTURE.md`（AICOS-Core 8 层）+ `docs/AICOS_CORE_FILE_REGISTRY.md`（346 文件注册表）；旧 `morpex_ARCHITECTURE.md` 已归档
