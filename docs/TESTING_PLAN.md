@@ -75,8 +75,8 @@
 | PolicyController（策略热更新） | ✅ | `feature-regression` / `governance-controllers` |
 | ResourceController（资源配额） | ✅ | `governance-controllers.test.ts` |
 | AgentController（agent 管理） | ⚠️ | 仅 `architecture-audit-fixes` 提及，无行为断言 |
-| **EvolutionController（演化提案控制）** | ❌ | 无任何测试引用 |
-| **PolicyEngine（13 条策略规则引擎）** | ❌ | 无直接测试（被间接使用） |
+| **EvolutionController（演化提案控制）** | ✅ | `policy-engine.test.ts`（孪生集成/策略模拟/分析/观测） |
+| **PolicyEngine（13 条策略规则引擎）** | ✅ | `policy-engine.test.ts`（默认规则优先级/workflow 策略/agent 策略/execute 副作用，25 用例） |
 | ApprovalGate / 审批门禁 | ✅ | `phase0-smoke`（execute_goal 分级审批） |
 | CostController / AlertEngine / AuditTrail | ⚠️ | 无直接测试 |
 
@@ -104,7 +104,7 @@
 | ReflectionEngine（反思） | ✅ | `v13-brain.test.ts` |
 | MetaLearner（元学习） | ✅ | `v13-brain.test.ts` |
 | LearningLoop / SelfImprovementLoop | ✅ | `learning-loop-impl.test.ts` |
-| CrossDepartmentKnowledgeSynthesizer | ⚠️ | 装配存在，无行为测试 |
+| CrossDepartmentKnowledgeSynthesizer | ✅ | `synthesizer-fabric.test.ts`（依赖注入/跨部门融合/模式迁移/事件，10 用例） |
 | PersonalBrain / BrainPersistor（记忆化） | ✅ | `memory-activation` / `unified-memory.spec` |
 
 ### L5 执行层
@@ -113,7 +113,7 @@
 | UnifiedExecutionEngine（迭代/成本上限） | ✅ | `bounded-autonomy.test.ts` |
 | SubAgentFork（maxIterations/maxCostTokens） | ✅ | `bounded-autonomy.test.ts` |
 | MorPexRuntime（9 Phase FSM） | ✅ | `morpex-runtime.test.ts`（stub engine 闭环：Pipeline→Simulation→Engine→Artifact→Verification→Mission COMPLETED）+ `execution-fsm.test.ts`（ExecutionFSM 状态机直接测试） |
-| ExecutionFabric / DependencyCoordinator | ⚠️ | 无直接测试 |
+| ExecutionFabric / DependencyCoordinator | ✅ | `synthesizer-fabric.test.ts`（能力注册/解析执行/覆盖/重试/agentId 直连，8 用例） |
 | PersistentMissionStore / ArtifactStore | ✅ | `stage1-persistence`（脚本式）/ `recovery-lifecycle` |
 
 ### L6 评价层
@@ -144,8 +144,8 @@
 | EvolutionSandbox（沙箱试跑） | ✅ | `evolution-closed-loop.test.ts` |
 | apply/revert/verify 自动回滚 | ✅ | `evolution-closed-loop.test.ts`（8 用例：幂等/补偿） |
 | ExperienceMiner / FailureAnalyzer | ✅ | `evolution-closed-loop` |
-| PatternExtractor / PatternMigrationEngine | ⚠️ | 无直接测试 |
-| ActiveEvolutionTrigger / KnowledgeGapListener | ⚠️ | 无直接测试 |
+| PatternExtractor / PatternMigrationEngine | ✅ | `evolution-closed-loop`（接线）+ `synthesizer-fabric.test.ts`（migratePattern adapted/partial/failed） |
+| ActiveEvolutionTrigger / KnowledgeGapListener | ✅ | `evolution-closed-loop.test.ts`（连续失败触发 + 配置阈值） |
 
 ### L9 Workflow 插件层
 | 功能点 | 状态 | 归属测试 |
@@ -241,7 +241,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 |------|----------|------|------|
 | 层覆盖（10 层有测试归属） | 矩阵人工核对（§3） | L6 ❌、L1 部分 ❌ | 10/10 层 ✅ |
 | 组件级引用覆盖 | grep 测试文件引用核心模块 | 32 核心组件 7 个 ❌ / 8 个 ⚠️ | ❌→0，⚠️→≤3 |
-| 测试数 | vitest | 388 | ≥400 |
+| 测试数 | vitest | 430 | ≥450 |
 | 用例通过率 | 统一入口报告 | 100% | ≥98% |
 | 架构违规 | validate-architecture | 0 | 0 |
 | 静态错误 | tsc | 0 | 0 |
@@ -265,7 +265,8 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 - [x] ~~**ArtifactFacade / MorPexRuntime FSM 状态机直接测试**~~ ✅（`artifact-facade.test.ts`：产物生命周期状态机 VALID_TRANSITIONS + Blueprint 依赖编排 + 事件广播，15 用例；`execution-fsm.test.ts`：ExecutionFSM 合法/非法转换 + 回调审计 + 持久化恢复，15 用例；`morpex-runtime.test.ts`：run() 9 阶段闭环 execute→artifact→verification→mission COMPLETED，5 用例）
 - [x] ~~**SSE 流真实推送测试**~~ ✅（`sse-execute-e2e.test.ts`：建连收 connected 首帧 + POST /api/execute 触发后 SSE 实时收到 execution.engine.started，含竞态防护——先等订阅就绪再触发）
 - [x] ~~**/api/execute 闭环测试**~~ ✅（`sse-execute-e2e.test.ts` HTTP 执行→事件流透传 + `morpex-runtime.test.ts` execute→artifact→评估 全链路）
-10. 补 ⚠️ 组件：CrossDepartmentKnowledgeSynthesizer / ExecutionFabric / PatternMigrationEngine / ActiveEvolutionTrigger
+- [x] ~~**EvolutionController + PolicyEngine 测试**~~ ✅（`policy-engine.test.ts`：默认规则优先级/自定义规则/execute 副作用/workflow+agent 策略/EvolutionController 集成，25 用例）
+- [x] ~~**补 ⚠️ 组件**~~ ✅（`synthesizer-fabric.test.ts`：CrossDepartmentKnowledgeSynthesizer 融合+迁移 10 用例 + ExecutionFabric 能力/重试 8 用例；PatternMigrationEngine/ActiveEvolutionTrigger 已由 evolution-closed-loop 覆盖）
 
 ### 🟢 P2（增强与自动化）
 11. k6 负载测试纳入 --full 档 + CI 可选 job
