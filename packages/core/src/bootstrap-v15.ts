@@ -28,8 +28,8 @@ import { SOPEngine } from './evolution/SOPEngine.js';
 import { DepartmentKPITracker } from './department/DepartmentKPITracker.js';
 
 // v13
-import { ReflectionEngine } from './brain/ReflectionEngine.js';
-import { MetaLearner } from './brain/MetaLearner.js';
+import { ReflectionEngine } from './cognition/ReflectionEngine.js';
+import { MetaLearner } from './cognition/MetaLearner.js';
 import { HierarchicalPlanner } from './planner/HierarchicalPlanner.js';
 import { ToolFactory } from './tools/ToolFactory.js';
 import { ToolRegistry } from './tools/ToolRegistry.js';
@@ -49,7 +49,7 @@ import { ComplianceChecker } from './verification/ComplianceChecker.js';
 import { RuntimeManager } from './governance/RuntimeManager.js';
 import { CostController } from './governance/CostController.js';
 import { AlertEngine } from './governance/AlertEngine.js';
-import { SelfImprovementLoop } from './brain/SelfImprovementLoop.js';
+import { SelfImprovementLoop } from './cognition/SelfImprovementLoop.js';
 
 export interface V15BootstrapResult {
   eventBus: EventBus;

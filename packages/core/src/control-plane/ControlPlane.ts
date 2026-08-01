@@ -13,6 +13,7 @@ import { PolicyController, type PolicyCheckResult } from './PolicyController.js'
 import { ResourceController, type ResourceAvailability } from './ResourceController.js';
 import { AgentController } from './AgentController.js';
 import { EvolutionController } from './EvolutionController.js';
+import { CapabilityRegistry } from '../capability/CapabilityRegistry.js';
 
 export interface ControlPlaneCheckResult {
   approved: boolean;
@@ -90,8 +91,10 @@ export class ControlPlane {
     // 2.5 ═══ S22 审计修复：Agent 能力门禁（可选接线，显式传 capability 才检查）═══
     // AgentController 此前构造但 checkAll 从不调用（死组件）；此处接通：
     // 仅当调用方显式声明所需 capability 时，检查其是否可用，默认不改变既有行为。
+    // ⚠️ 用 AgentController.findForCapability 判断「活跃 agent 可用性」
+    //   （checkCapabilityAvailable 只查能力存在性，对已注册能力恒返回 true，无法用于门禁）。
     const requiredCapability = options?.capability as string | undefined;
-    if (requiredCapability && !this.agent.checkCapabilityAvailable(requiredCapability)) {
+    if (requiredCapability && this.agent.findForCapability(requiredCapability).length === 0) {
       return {
         approved: false,
         goal: goalCheck,
@@ -99,6 +102,25 @@ export class ControlPlane {
         details,
         rejection: `能力不可用: ${requiredCapability}`,
       };
+    }
+
+    // 2.5.5 ═══ S22: goal→capability 自动推断（可选，默认关闭）═══
+    // 开启后：从 goal 文本推断所需能力（匹配能力名/领域词），对可识别能力做 Agent 可用性门禁。
+    // 默认关闭——避免对无法识别的通用 goal 误拒，保持既有行为不变。
+    const enableInference = options?.enableCapabilityInference as boolean | undefined;
+    if (enableInference && !requiredCapability) {
+      const inferred = inferGoalCapabilities(goal);
+      for (const cap of inferred) {
+        if (this.agent.findForCapability(cap).length === 0) {
+          return {
+            approved: false,
+            goal: goalCheck,
+            policy: policyCheck,
+            details,
+            rejection: `能力不可用（自动推断）: ${cap}`,
+          };
+        }
+      }
     }
 
     // 3. 资源检查
@@ -126,4 +148,22 @@ export class ControlPlane {
       details,
     };
   }
+}
+
+/**
+ * inferGoalCapabilities — goal→capability 自动推断（S22）
+ *
+ * 从 goal 文本推断所需能力：匹配 CapabilityRegistry 中能力的「名称词」或「领域词」
+ * （词长≥3，避免过度匹配）。仅返回可识别的能力，识别不到 → 空（放行）。
+ */
+function inferGoalCapabilities(goal: string): string[] {
+  if (!goal) return [];
+  const lower = goal.toLowerCase();
+  return CapabilityRegistry.getAll()
+    .filter((c) => {
+      const nameWords = c.name.toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+      const domainWords = (c.domains ?? []).join(' ').toLowerCase().split(/[^a-z0-9]+/).filter((w) => w.length >= 3);
+      return nameWords.some((w) => lower.includes(w)) || domainWords.some((w) => lower.includes(w));
+    })
+    .map((c) => c.name);
 }

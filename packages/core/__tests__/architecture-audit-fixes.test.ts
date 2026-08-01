@@ -11,10 +11,10 @@ import { EventBus } from '../src/common/EventBus.js';
 import { ActiveEvolutionTrigger } from '../src/evolution/ActiveEvolutionTrigger.js';
 import { BrainFacade } from '../src/cognition/BrainFacade.js';
 import { ControlPlane } from '../src/control-plane/ControlPlane.js';
-import { ReflectionEngine } from '../src/brain/ReflectionEngine.js';
-import { MetaLearner } from '../src/brain/MetaLearner.js';
-import { SelfImprovementLoop } from '../src/brain/SelfImprovementLoop.js';
-import { CrossDepartmentKnowledgeSynthesizer } from '../src/brain/CrossDepartmentKnowledgeSynthesizer.js';
+import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
+import { MetaLearner } from '../src/cognition/MetaLearner.js';
+import { SelfImprovementLoop } from '../src/cognition/SelfImprovementLoop.js';
+import { CrossDepartmentKnowledgeSynthesizer } from '../src/cognition/CrossDepartmentKnowledgeSynthesizer.js';
 
 describe('S22 架构审计修复', () => {
   it('L8: 注入 SelfImprovementLoop 后 autoEvolve 不再跳过', async () => {
@@ -59,5 +59,27 @@ describe('S22 架构审计修复', () => {
     // 不传 capability → 走原门禁（默认行为不变）
     const normal = await plane.checkAll('写爬虫', { estimatedCost: 50 });
     expect(normal.approved).toBe(true);
+  });
+});
+
+describe('S22 goal→capability 自动推断', () => {
+  it('开启推断：识别到能力且不可用 → 拒绝', async () => {
+    const plane = new ControlPlane();
+    // 'amazon' 命中 Amazon Listing 能力的领域词；Agent 未注册该能力 → 拒绝
+    const denied = await plane.checkAll('创建 amazon 商品上架', { estimatedCost: 50, enableCapabilityInference: true });
+    expect(denied.approved).toBe(false);
+    expect(denied.rejection).toContain('能力不可用（自动推断）');
+  });
+
+  it('开启推断：识别不到能力（通用 goal）→ 放行', async () => {
+    const plane = new ControlPlane();
+    const ok = await plane.checkAll('写一个爬虫脚本', { estimatedCost: 50, enableCapabilityInference: true });
+    expect(ok.approved).toBe(true);
+  });
+
+  it('默认关闭推断：不因能力缺失拒绝', async () => {
+    const plane = new ControlPlane();
+    const ok = await plane.checkAll('创建 amazon 商品上架', { estimatedCost: 50 });
+    expect(ok.approved).toBe(true);
   });
 });

@@ -3,8 +3,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventBus } from '../src/common/EventBus.js';
-import { ReflectionEngine } from '../src/brain/ReflectionEngine.js';
-import { MetaLearner } from '../src/brain/MetaLearner.js';
+import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
+import { MetaLearner } from '../src/cognition/MetaLearner.js';
 
 describe('ReflectionEngine', () => {
   let eventBus: EventBus;

@@ -12,7 +12,7 @@
 import type { OntologyObject } from '../ontology/types.js';
 import type { IEventStore } from '../protocol/events/store/IEventStore.js';
 import type { BaseEvent } from '../protocol/events/BaseEvent.js';
-import type { SelfImprovementLoop } from '../brain/SelfImprovementLoop.js';
+import type { SelfImprovementLoop } from './SelfImprovementLoop.js';
 
 export interface EvolutionSignal {
   /** 反馈测试用例 */

@@ -93,7 +93,8 @@ export class CapabilityRegistry {
   }
 
   static init(): void {
-    CapabilityRegistry.capabilities.clear();
+    // S22：惰性 seed——仅当注册表为空时写入默认能力（不覆盖业务 register）
+    if (CapabilityRegistry.capabilities.size > 0) return;
     const defaults: Array<Omit<Capability, 'createdAt'>> = [
       { name: 'PCB Design', description: '印刷电路板设计', provider: 'hardware', successRate: 0.85, totalRuns: 100, requiredTools: ['eda-tool', 'simulation'], estimatedDuration: 172800000, dependencies: [], domains: ['hardware', 'electronics'], steps: ['原理图设计', 'PCB布局', 'DFM检查'], extractedFrom: [] },
       { name: 'Firmware Development', description: '嵌入式固件开发', provider: 'hardware', successRate: 0.82, totalRuns: 80, requiredTools: ['compiler', 'debugger'], estimatedDuration: 259200000, dependencies: ['PCB Design'], domains: ['hardware', 'embedded'], steps: ['驱动开发', '协议栈', '测试'], extractedFrom: [] },
@@ -108,3 +109,6 @@ export class CapabilityRegistry {
     defaults.forEach(c => CapabilityRegistry.register(c));
   }
 }
+
+// S22：模块加载时初始化默认能力（此前 init() 从未被调用 → getAll() 恒空）
+CapabilityRegistry.init();

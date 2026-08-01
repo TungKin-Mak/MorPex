@@ -57,7 +57,7 @@ import {
 } from './tools/primitives/index.js';
 
 // ── v16 模块 ──
-import { SelfImprovementLoop } from './brain/SelfImprovementLoop.js';
+import { SelfImprovementLoop } from './cognition/SelfImprovementLoop.js';
 import { ReflectionEngine } from './cognition/index.js';
 import { MetaLearner } from './cognition/index.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
@@ -444,7 +444,7 @@ export async function bootstrapUnified(options?: {
     companyFacade.setBrainFacade(brainFacade);
     (container as any).brainFacade = brainFacade;
     // ═══ S22 审计修复：装配 CrossDepartmentKnowledgeSynthesizer（此前完全未接线）═══
-    const { CrossDepartmentKnowledgeSynthesizer } = await import('./brain/CrossDepartmentKnowledgeSynthesizer.js');
+    const { CrossDepartmentKnowledgeSynthesizer } = await import('./cognition/CrossDepartmentKnowledgeSynthesizer.js');
     (container as any).crossDeptSynthesizer = new CrossDepartmentKnowledgeSynthesizer(eventBus);
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
   } catch (err) {
@@ -467,7 +467,7 @@ export async function bootstrapUnified(options?: {
   const { ActiveEvolutionTrigger, FailureAnalyzer, EvolutionSandbox } = await import('./evolution/index.js');
   const activeEvolutionTrigger = new ActiveEvolutionTrigger(eventBus);
   // ═══ S22 审计修复：注入 SelfImprovementLoop → 激活 autoEvolve（此前永不触发）═══
-  const { SelfImprovementLoop } = await import('./brain/SelfImprovementLoop.js');
+  const { SelfImprovementLoop } = await import('./cognition/SelfImprovementLoop.js');
   const selfImprovementLoop = new SelfImprovementLoop();
   activeEvolutionTrigger.setSelfImprovementLoop(selfImprovementLoop);
   (container as any).selfImprovementLoop = selfImprovementLoop;

@@ -30,8 +30,8 @@ import { SOPEngine } from './evolution/SOPEngine.js';
 import { DepartmentKPITracker } from './department/DepartmentKPITracker.js';
 
 // v13 模块
-import { ReflectionEngine } from './brain/ReflectionEngine.js';
-import { MetaLearner } from './brain/MetaLearner.js';
+import { ReflectionEngine } from './cognition/ReflectionEngine.js';
+import { MetaLearner } from './cognition/MetaLearner.js';
 import { HierarchicalPlanner } from './planner/HierarchicalPlanner.js';
 import { ToolFactory } from './tools/ToolFactory.js';
 import { ToolRegistry } from './tools/ToolRegistry.js';

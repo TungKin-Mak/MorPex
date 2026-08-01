@@ -24,8 +24,8 @@
 
 import { EventBus } from '../common/EventBus.js';
 import type { MorPexEvent } from '../common/types.js';
-import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from '../brain/ReflectionEngine.js';
-import type { MetaLearnerLike, TaskRecord } from '../brain/MetaLearner.js';
+import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from './ReflectionEngine.js';
+import type { MetaLearnerLike, TaskRecord } from './MetaLearner.js';
 
 // ── Types ──
 
@@ -391,7 +391,7 @@ export class BrainFacade {
    * @param context - 上下文
    * @returns 反思结果和学习更新
    */
-  async processTask(task: string, context?: BrainContext): Promise<{ reflection: BrainReflectionResult; memoryUpdate: import('../brain/MetaLearner.js').LearningResult | null }> {
+  async processTask(task: string, context?: BrainContext): Promise<{ reflection: BrainReflectionResult; memoryUpdate: import('./MetaLearner.js').LearningResult | null }> {
     const state: BrainReflectionState = {
       recentTasks: [],
       departmentId: context?.departmentId,
@@ -409,7 +409,7 @@ export class BrainFacade {
       reflection = { insights: [], risks: [], suggestions: [], confidence: 0.5 };
     }
 
-    let memoryUpdate: import('../brain/MetaLearner.js').LearningResult | null = null;
+    let memoryUpdate: import('./MetaLearner.js').LearningResult | null = null;
     if (this.metaLearner) {
       try {
         memoryUpdate = await this.metaLearner.learnFromTask({
