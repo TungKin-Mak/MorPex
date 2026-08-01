@@ -7,10 +7,10 @@
  * 3. L1：ControlPlane.checkAll 传 capability 时走 AgentController 能力门禁
  */
 import { describe, it, expect, vi } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { ActiveEvolutionTrigger } from '../src/evolution/ActiveEvolutionTrigger.js';
 import { BrainFacade } from '../src/cognition/BrainFacade.js';
-import { ControlPlane } from '../src/control-plane/ControlPlane.js';
+import { ControlPlane } from '../src/governance/control-plane/ControlPlane.js';
 import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
 import { MetaLearner } from '../src/cognition/MetaLearner.js';
 import { SelfImprovementLoop } from '../src/cognition/SelfImprovementLoop.js';

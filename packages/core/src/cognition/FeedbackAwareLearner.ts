@@ -9,9 +9,9 @@
  * 输出：改进提案（Prompt 调整 / SOP 更新 / 强制规则加强）
  */
 
-import type { OntologyObject } from '../ontology/types.js';
-import type { IEventStore } from '../protocol/events/store/IEventStore.js';
-import type { BaseEvent } from '../protocol/events/BaseEvent.js';
+import type { OntologyObject } from '../gate/types.js';
+import type { IEventStore } from '../infrastructure/protocol/events/store/IEventStore.js';
+import type { BaseEvent } from '../infrastructure/protocol/events/BaseEvent.js';
 import type { SelfImprovementLoop } from './SelfImprovementLoop.js';
 
 export interface EvolutionSignal {

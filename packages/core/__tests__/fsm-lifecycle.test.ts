@@ -1,7 +1,7 @@
 /**
  * FSM Tests — 10-state lifecycle validation
  */
-import { ExecutionFSM, ExecutionState } from '../src/runtime/state-machine/ExecutionFSM.js';
+import { ExecutionFSM, ExecutionState } from '../src/execution/runtime/state-machine/ExecutionFSM.js';
 
 const assert = (c: boolean, m: string) => { if (!c) throw new Error('FAIL: ' + m); };
 

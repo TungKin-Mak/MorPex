@@ -18,8 +18,8 @@
  *   - 验证完成时发射: verification.behavior.completed
  */
 
-import { EventBus } from '../../../core/src/common/EventBus.js';
-import type { Mission, MissionPlan, MissionResult, PlanStep } from '../../../core/src/runtime/mission/types.js';
+import { EventBus } from '../../../core/src/infrastructure/common/EventBus.js';
+import type { Mission, MissionPlan, MissionResult, PlanStep } from '../../../core/src/execution/runtime/mission/types.js';
 import { ExpectedTraceBuilder } from './expected-trace-builder.js';
 import { TraceComparator } from './trace-comparator.js';
 import { QualityScoreEngine } from './quality-score.js';

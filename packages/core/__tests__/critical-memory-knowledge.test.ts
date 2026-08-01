@@ -11,7 +11,7 @@ import * as fs from 'node:fs';
 import * as path from 'node:path';
 import { mkdtempSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
 let pass = 0, fail = 0;
 function ok(c: boolean, m: string) { if (c) pass++; else { console.error('  ❌ ' + m); fail++; } }
@@ -32,7 +32,7 @@ async function run() {
     } catch {
       // Try alternative import paths
       try {
-        const mod = await import('../src/protocol/events/store/SqliteEventStore.js');
+        const mod = await import('../src/infrastructure/protocol/events/store/SqliteEventStore.js');
         EventStore = mod.SqliteEventStore;
       } catch {
         console.log('  ⚠️ EventStore not found, using inline test');
@@ -117,12 +117,12 @@ async function run() {
     console.log('\n📋 4. Memory activation\n');
     let MemoryActivationService: any;
     try {
-      const mod = await import('../src/memory/MemoryActivationService.js');
+      const mod = await import('../src/knowledge/memory/MemoryActivationService.js');
       MemoryActivationService = mod.MemoryActivationService || mod.default;
     } catch {
       // Try alternative path
       try {
-        const mod = await import('../src/context/MemoryActivationService.js');
+        const mod = await import('../src/knowledge/context/MemoryActivationService.js');
         MemoryActivationService = mod.MemoryActivationService || mod.default;
       } catch {
         MemoryActivationService = null;
@@ -141,7 +141,7 @@ async function run() {
     console.log('\n📋 5. Context assembly verification\n');
     let ContextAssemblyEngine: any;
     try {
-      const mod = await import('../src/context/ContextAssemblyEngine.js');
+      const mod = await import('../src/knowledge/context/ContextAssemblyEngine.js');
       ContextAssemblyEngine = mod.ContextAssemblyEngine;
     } catch {
       ContextAssemblyEngine = null;
@@ -162,7 +162,7 @@ async function run() {
       KnowledgeGraph = mod.KnowledgeGraph || mod.default;
     } catch {
       try {
-        const mod = await import('../src/memory/KnowledgeGraph.js');
+        const mod = await import('../src/knowledge/memory/KnowledgeGraph.js');
         KnowledgeGraph = mod.KnowledgeGraph || mod.default;
       } catch {
         KnowledgeGraph = null;
@@ -182,7 +182,7 @@ async function run() {
     let SqliteEventStore: any;
     let Database: any;
     try {
-      const mod = await import('../src/protocol/events/store/SqliteEventStore.js');
+      const mod = await import('../src/infrastructure/protocol/events/store/SqliteEventStore.js');
       SqliteEventStore = mod.SqliteEventStore;
       const dbMod = await import('better-sqlite3');
       Database = dbMod.default || dbMod;

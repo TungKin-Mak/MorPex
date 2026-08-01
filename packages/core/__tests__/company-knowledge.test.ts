@@ -5,16 +5,16 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import {
   createMemoryApi,
   MockEngine,
-} from '../src/adapters/memory/index.js';
+} from '../src/infrastructure/adapters/memory/index.js';
 import {
   queryCompanyKnowledge,
   initializeCompanyMemory,
-} from '../src/memory/CompanyKnowledge.js';
-import { createOntologyToolExecutor } from '../src/tools/ontologyTools.js';
-import { ForcedQueryGuard } from '../src/ontology/ForcedQueryGuard.js';
-import { OntologyService } from '../src/ontology/OntologyService.js';
-import { systemMetadataGraph } from '../src/metadata/SystemMetadataGraph.js';
-import { ObjectTypeRegistry } from '../src/ontology/ObjectTypeRegistry.js';
+} from '../src/knowledge/memory/CompanyKnowledge.js';
+import { createOntologyToolExecutor } from '../src/infrastructure/tools/ontologyTools.js';
+import { ForcedQueryGuard } from '../src/gate/ForcedQueryGuard.js';
+import { OntologyService } from '../src/knowledge/ontology/OntologyService.js';
+import { systemMetadataGraph } from '../src/knowledge/graph/SystemMetadataGraph.js';
+import { ObjectTypeRegistry } from '../src/knowledge/ontology/ObjectTypeRegistry.js';
 
 describe('公司知识记忆（Gate 接线）', () => {
   it('未接入 → notConnected + need_human（不伪造）', async () => {

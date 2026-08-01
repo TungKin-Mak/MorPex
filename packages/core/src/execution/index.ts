@@ -33,3 +33,10 @@ export type {
   DAGRuntimeLike,
   ExecutionFabricLike,
 } from './UnifiedExecutionEngine.js';
+
+// ── 团队编排（L5：原 organization/ 归位）──
+export { DynamicTeamOrchestrator } from './DynamicTeamOrchestrator.js';
+export { TeamBuilder } from './TeamBuilder.js';
+export { AgentAllocator } from './AgentAllocator.js';
+export { DependencyCoordinator } from './DependencyCoordinator.js';
+export type { DynamicTeam, TeamMember, DependencyGraph, TeamSpec } from './types.js';

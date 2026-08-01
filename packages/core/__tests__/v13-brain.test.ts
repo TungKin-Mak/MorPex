@@ -2,7 +2,7 @@
  * v13 Brain 模块测试 — ReflectionEngine + MetaLearner
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
 import { MetaLearner } from '../src/cognition/MetaLearner.js';
 

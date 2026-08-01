@@ -5,10 +5,10 @@
  */
 
 import Database from 'better-sqlite3';
-import { RetryPolicy } from '../src/common/resilience/RetryPolicy.js';
-import { CircuitBreaker, CircuitOpenError } from '../src/common/resilience/CircuitBreaker.js';
-import { ErrorHandlerService } from '../src/common/resilience/ErrorHandlerService.js';
-import { CheckpointManager } from '../src/runtime/checkpoint/CheckpointManager.js';
+import { RetryPolicy } from '../src/infrastructure/common/resilience/RetryPolicy.js';
+import { CircuitBreaker, CircuitOpenError } from '../src/infrastructure/common/resilience/CircuitBreaker.js';
+import { ErrorHandlerService } from '../src/infrastructure/common/resilience/ErrorHandlerService.js';
+import { CheckpointManager } from '../src/execution/runtime/checkpoint/CheckpointManager.js';
 
 let pass = 0, fail = 0;
 function ok(c: boolean, m: string) { if (c) pass++; else { console.error('  ❌ ' + m); fail++; } }

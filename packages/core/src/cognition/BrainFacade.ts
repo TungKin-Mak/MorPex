@@ -22,8 +22,8 @@
  *   const memories = await brain.recall('登录模块', { departmentId: 'dept_xxx' });
  */
 
-import { EventBus } from '../common/EventBus.js';
-import type { MorPexEvent } from '../common/types.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
+import type { MorPexEvent } from '../infrastructure/common/types.js';
 import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from './ReflectionEngine.js';
 import type { MetaLearnerLike, TaskRecord } from './MetaLearner.js';
 
@@ -472,20 +472,8 @@ export class BrainFacade {
       }
     }
 
-    // 尝试 MemoryWiki
-    if (this.memoryWiki) {
-      try {
-        await this.memoryWiki.remember(content, {
-          departmentId: context.departmentId,
-          taskId: context.taskId,
-          source: context.source,
-          timestamp: Date.now(),
-        });
-        stored = true;
-      } catch (err) {
-        console.warn('[BrainFacade] MemoryWiki.remember 失败:', (err as Error).message);
-      }
-    }
+    // P1 收敛：MemoryWiki 直写分支移除（@morpex/memory 内部已含 wiki 存储，避免三写重复持久化）
+    // 权威写入 = MemoryAPI（上分支）；PersonalBrain 为内存快速层；兜底 = fallbackStore
 
     // Fallback
     if (!stored) {
@@ -510,7 +498,7 @@ export class BrainFacade {
         source: context.source,
         systemsUsed: {
           personalBrain: !!this.personalBrain && stored,
-          memoryWiki: !!this.memoryWiki && stored,
+          memoryApi: !!this.memoryApi && stored,
           fallback: !stored,
         },
       },
@@ -582,29 +570,7 @@ export class BrainFacade {
       }
     }
 
-    // MemoryWiki
-    if (this.memoryWiki) {
-      try {
-        const results = await this.memoryWiki.search(query, {
-          departmentId: context?.departmentId,
-        });
-        for (const r of results) {
-          const key = r.content.substring(0, 50);
-          if (!seen.has(key)) {
-            seen.add(key);
-            memories.push({
-              id: `mw_${Date.now()}_${memories.length}`,
-              content: r.content,
-              relevance: r.score,
-              source: 'memory-wiki',
-              timestamp: Date.now(),
-            });
-          }
-        }
-      } catch (err) {
-        console.warn('[BrainFacade] MemoryWiki.search 失败:', (err as Error).message);
-      }
-    }
+    // P1 收敛：MemoryWiki 直查分支移除（MemoryAPI.query 已覆盖 wiki 后端；双查重复）
 
     // Fallback
     if (memories.length === 0 && this.fallbackStore.length > 0) {

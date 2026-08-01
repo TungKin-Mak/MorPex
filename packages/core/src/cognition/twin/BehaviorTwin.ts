@@ -21,7 +21,7 @@
  *   - 系统交互时间戳（recordActivity）
  */
 
-import type { Mission, MissionResult, MissionPlan } from '../../runtime/mission/types.js';
+import type { Mission, MissionResult, MissionPlan } from '../../execution/runtime/mission/types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 类型定义

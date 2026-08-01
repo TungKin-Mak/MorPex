@@ -1,8 +1,8 @@
 /**
  * TC-3.4 EventBus — 事件总线测试
  */
-import { EventBus } from '../src/common/EventBus.js';
-import type { MorPexEvent } from '../src/common/types.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import type { MorPexEvent } from '../src/infrastructure/common/types.js';
 
 let pass = 0, fail = 0;
 function ok(c: boolean, m: string) { if (c) pass++; else { console.log('  ❌ ' + m); fail++; } }

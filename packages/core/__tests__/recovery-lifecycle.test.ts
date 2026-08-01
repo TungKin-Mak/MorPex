@@ -1,9 +1,9 @@
 /**
  * Recovery Tests — Checkpoint + Recovery + Replay
  */
-import { CheckpointManager } from '../src/runtime/checkpoint/CheckpointManager.js';
-import { RecoveryManager } from '../src/runtime/checkpoint/RecoveryManager.js';
-import { ReplayEngine } from '../src/runtime/checkpoint/ReplayEngine.js';
+import { CheckpointManager } from '../src/execution/runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../src/execution/runtime/checkpoint/RecoveryManager.js';
+import { ReplayEngine } from '../src/execution/runtime/checkpoint/ReplayEngine.js';
 
 const assert = (c: boolean, m: string) => { if (!c) throw new Error('FAIL: ' + m); };
 

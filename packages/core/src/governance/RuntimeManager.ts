@@ -1,4 +1,4 @@
-import { EventBus } from '../common/EventBus.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export interface RuntimeContext {
   executionId: string;

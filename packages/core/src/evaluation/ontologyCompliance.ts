@@ -10,7 +10,7 @@
  *   // 将分数注入 evaluation 报告的额外维度
  */
 
-import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+import type { ForcedQueryGuard } from '../gate/ForcedQueryGuard.js';
 
 // ═══════════════════════════════════════════════════════════════
 // vNext+ 增强：评估「引用覆盖率 / 无引用生成 / QueryMiss」维度

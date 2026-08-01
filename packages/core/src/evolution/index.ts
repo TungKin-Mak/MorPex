@@ -46,14 +46,12 @@ export type {
 } from './workflow/index.js';
 
 // ── v11 Evolution Engine ──
-export { ExperienceMiner } from './ExperienceMiner.js';
-export type { MinedExperience, MiningConfig } from './ExperienceMiner.js';
 
+export { ExperienceMiner } from './ExperienceMiner.js';
+export { PatternExtractor } from './PatternExtractor.js';
 export { FailureAnalyzer } from './FailureAnalyzer.js';
 export type { FailureMode, FailureCategory, WorkflowFailureAnalysis, FailureAnalysisConfig } from './FailureAnalyzer.js';
 
-export { PatternExtractor, PATTERN_TEMPLATES } from './PatternExtractor.js';
-export type { ExtractedPattern, PatternCategory, PatternExtractorConfig } from './PatternExtractor.js';
 
 // ── v16+ 主动进化 ──
 export { ActiveEvolutionTrigger } from './ActiveEvolutionTrigger.js';

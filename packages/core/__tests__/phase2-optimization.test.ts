@@ -9,11 +9,11 @@
  *   - SqliteEventStore.getCompactionService() integration
  */
 import Database from 'better-sqlite3';
-import { SqliteEventStore } from '../src/protocol/events/store/SqliteEventStore.js';
-import { CompactionService } from '../src/observability/CompactionService.js';
-import { MetricsCollector } from '../src/observability/MetricsCollector.js';
-import type { BaseEvent } from '../src/protocol/events/BaseEvent.js';
-import { EventType } from '../src/protocol/events/EventType.js';
+import { SqliteEventStore } from '../src/infrastructure/protocol/events/store/SqliteEventStore.js';
+import { CompactionService } from '../src/infrastructure/observability/CompactionService.js';
+import { MetricsCollector } from '../src/infrastructure/observability/MetricsCollector.js';
+import type { BaseEvent } from '../src/infrastructure/protocol/events/BaseEvent.js';
+import { EventType } from '../src/infrastructure/protocol/events/EventType.js';
 
 let passed = 0; let failed = 0;
 function assert(cond: boolean, msg: string) { if (cond) passed++; else { console.error('  ❌ ' + msg); failed++; } }

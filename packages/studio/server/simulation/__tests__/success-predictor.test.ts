@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { SuccessPredictor } from '../success-predictor.js';
-import type { MissionPlan } from '../../../../core/src/runtime/mission/types.js';
+import type { MissionPlan } from '../../../../core/src/execution/runtime/mission/types.js';
 
 describe('SuccessPredictor', () => {
   const predictor = new SuccessPredictor();

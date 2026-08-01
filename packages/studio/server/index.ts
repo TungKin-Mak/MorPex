@@ -1,7 +1,7 @@
 /**
  * Studio Server — 入口文件
  *
- * 启动 MorPexCore Kernel + StudioServer 桥接层
+ * 启动理想架构 StudioServer（bootstrapUnified 装配 L1-L10）
  *
  * 使用方式：
  *   npx tsx packages/studio/server/index.ts
@@ -15,13 +15,10 @@ import { StudioServer } from './StudioServer.js';
 
 const PORT = parseInt(process.env.PORT || '8080', 10);
 const MIRROR_PATH = process.env.MIRROR_PATH || './data/mirror';
-const FRONTEND_DIST = process.env.FRONTEND_DIST || './packages/studio/ui/dist';
-
 async function main() {
   const studio = new StudioServer({
     port: PORT,
     mirrorBasePath: MIRROR_PATH,
-    frontendDist: FRONTEND_DIST,
   });
 
   // 捕获停止信号
@@ -40,7 +37,6 @@ async function main() {
   try {
     await studio.start();
     console.log(`[Studio] 🚀 Studio 服务器运行在 http://localhost:${PORT}`);
-    console.log(`[Studio]   前端构建: ${FRONTEND_DIST}`);
   } catch (err) {
     console.error('[Studio] ❌ 启动失败:', err);
     process.exit(1);

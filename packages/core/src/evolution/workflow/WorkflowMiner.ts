@@ -16,7 +16,7 @@
 
 import { WorkflowIntelligence } from '../../cognition/workflow/WorkflowIntelligence.js';
 import { WorkflowMemory } from '../../cognition/memory/WorkflowMemory.js';
-import type { Mission } from '../../runtime/mission/types.js';
+import type { Mission } from '../../execution/runtime/mission/types.js';
 import type { WorkflowCandidate, WorkflowStepDef } from './types.js';
 import type { WorkflowPattern } from '../../cognition/workflow/types.js';
 

@@ -11,8 +11,8 @@
  * 输出用于 Policy Approval 的执行前决策。
  */
 
-import type { EventBus } from '../../../core/src/common/EventBus.js';
-import type { Mission, MissionPlan } from '../../../core/src/runtime/mission/types.js';
+import type { EventBus } from '../../../core/src/infrastructure/common/EventBus.js';
+import type { Mission, MissionPlan } from '../../../core/src/execution/runtime/mission/types.js';
 import { SimulationTwin } from './simulation-twin.js';
 import { PlanSimulator } from './plan-simulator.js';
 import type { PlanSimulationOutput } from './plan-simulator.js';

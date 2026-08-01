@@ -9,11 +9,11 @@
  */
 
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { SubAgentFork } from '../src/execution/SubAgentFork.js';
 import { UnifiedExecutionEngine } from '../src/execution/UnifiedExecutionEngine.js';
 import { scoreOntologyCompliance } from '../src/evaluation/ontologyCompliance.js';
-import { ForcedQueryGuard } from '../src/ontology/ForcedQueryGuard.js';
+import { ForcedQueryGuard } from '../src/gate/ForcedQueryGuard.js';
 
 function collectEvents(bus: EventBus, type: string): unknown[] {
   const events: unknown[] = [];

@@ -2,9 +2,9 @@
  * v13 Planner 模块测试 — HierarchicalPlanner + DeliveryPlanner 集成
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
-import { HierarchicalPlanner } from '../src/planner/HierarchicalPlanner.js';
-import { DeliveryPlanner } from '../src/planner/DeliveryPlanner.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import { HierarchicalPlanner } from '../src/cognition/planning/HierarchicalPlanner.js';
+import { DeliveryPlanner } from '../src/cognition/planning/DeliveryPlanner.js';
 
 describe('HierarchicalPlanner', () => {
   let eventBus: EventBus;

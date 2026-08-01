@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { CostEstimator } from '../cost-estimator.js';
-import type { MissionPlan } from '../../../../core/src/runtime/mission/types.js';
+import type { MissionPlan } from '../../../../core/src/execution/runtime/mission/types.js';
 
 describe('CostEstimator', () => {
   const estimator = new CostEstimator();

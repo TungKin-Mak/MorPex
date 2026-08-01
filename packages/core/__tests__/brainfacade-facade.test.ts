@@ -5,7 +5,7 @@
  * 未注入时优雅降级、getStats.systems 聚合状态。
  */
 import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { BrainFacade, type MemoryActivationEngineLike, type DeliveryPlannerLike } from '../src/cognition/BrainFacade.js';
 
 function makeBrain(): BrainFacade {

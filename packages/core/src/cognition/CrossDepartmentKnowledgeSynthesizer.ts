@@ -21,10 +21,10 @@
  * @packageDocumentation
  */
 
-import { EventBus } from '../common/EventBus.js';
-import type { MorPexEvent } from '../common/types.js';
-import { DepartmentContext } from '../department/DepartmentContext.js';
-import type { DepartmentId } from '../department/types.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
+import type { MorPexEvent } from '../infrastructure/common/types.js';
+import { DepartmentContext } from '../governance/control-plane/DepartmentContext.js';
+import type { DepartmentId } from '../governance/control-plane/department-types.js';
 
 // ── Types ──
 

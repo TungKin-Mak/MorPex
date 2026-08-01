@@ -12,7 +12,7 @@
  *   - 为「稀疏知识可降级」提供可观测数据
  */
 
-import type { FeedbackInput } from '../ontology/FeedbackService.js';
+import type { FeedbackInput } from '../knowledge/ontology/FeedbackService.js';
 
 /** 松耦合 EventBus 接口（避免强依赖 common/EventBus） */
 export interface EventBusLike {

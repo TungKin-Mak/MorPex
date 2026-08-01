@@ -6,15 +6,15 @@
  *
  * 使用自执行模式，兼容 Node.js --test 运行。
  */
-import { ContextFragmentRegistry } from '../src/context/ContextFragmentRegistry.js';
-import type { FragmentProvider, ContextAssemblyInput } from '../src/context/ContextFragmentRegistry.js';
-import { ContextBuilder } from '../src/context/ContextBuilder.js';
-import type { ExecutionContext } from '../src/context/ContextBuilder.js';
-import { ContextVersioner } from '../src/context/ContextVersioner.js';
-import { ContextTemplateRepository } from '../src/context/ContextTemplateRepository.js';
-import { ContextEnricherPipeline } from '../src/context/ContextEnricher.js';
-import type { ContextEnricher } from '../src/context/ContextEnricher.js';
-import { ContextAssemblyEngine } from '../src/context/ContextAssemblyEngine.js';
+import { ContextFragmentRegistry } from '../src/knowledge/context/ContextFragmentRegistry.js';
+import type { FragmentProvider, ContextAssemblyInput } from '../src/knowledge/context/ContextFragmentRegistry.js';
+import { ContextBuilder } from '../src/knowledge/context/ContextBuilder.js';
+import type { ExecutionContext } from '../src/knowledge/context/ContextBuilder.js';
+import { ContextVersioner } from '../src/knowledge/context/ContextVersioner.js';
+import { ContextTemplateRepository } from '../src/knowledge/context/ContextTemplateRepository.js';
+import { ContextEnricherPipeline } from '../src/knowledge/context/ContextEnricher.js';
+import type { ContextEnricher } from '../src/knowledge/context/ContextEnricher.js';
+import { ContextAssemblyEngine } from '../src/knowledge/context/ContextAssemblyEngine.js';
 
 let passed = 0; let failed = 0;
 function assert(c: boolean, m: string) { if (!c) throw new Error(m); }

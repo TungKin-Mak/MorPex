@@ -5,14 +5,14 @@
  */
 import { describe, it, expect } from 'vitest';
 import { EvolutionSandbox } from '../src/evolution/EvolutionSandbox.js';
-import { OntologyService } from '../src/ontology/OntologyService.js';
-import { ForcedQueryGuard } from '../src/ontology/ForcedQueryGuard.js';
-import { ObjectTypeRegistry } from '../src/ontology/ObjectTypeRegistry.js';
-import { SystemMetadataGraph } from '../src/metadata/SystemMetadataGraph.js';
-import { PolicyController } from '../src/control-plane/PolicyController.js';
-import { ApprovalPolicyRegistry } from '../src/verification/ApprovalGate.js';
+import { OntologyService } from '../src/knowledge/ontology/OntologyService.js';
+import { ForcedQueryGuard } from '../src/gate/ForcedQueryGuard.js';
+import { ObjectTypeRegistry } from '../src/knowledge/ontology/ObjectTypeRegistry.js';
+import { SystemMetadataGraph } from '../src/knowledge/graph/SystemMetadataGraph.js';
+import { PolicyController } from '../src/governance/control-plane/PolicyController.js';
+import { ApprovalPolicyRegistry } from '../src/governance/ApprovalGate.js';
 import { GovernanceDashboard } from '../src/governance/GovernanceDashboard.js';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
 describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
   it('沙箱试跑通过 → pending_approval → 审批 → applied → 可回滚', async () => {

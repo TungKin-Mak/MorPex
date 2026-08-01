@@ -17,7 +17,7 @@
  *   const prediction = await predictor.predict(mission, plan, history);
  */
 
-import type { Mission, MissionPlan } from '../../../core/src/runtime/mission/types.js';
+import type { Mission, MissionPlan } from '../../../core/src/execution/runtime/mission/types.js';
 import { SimulationEngine } from './simulation-engine.js';
 import type { SimulationResult } from './types.js';
 

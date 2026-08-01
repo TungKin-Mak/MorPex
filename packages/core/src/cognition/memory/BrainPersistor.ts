@@ -6,7 +6,7 @@
  * - restore  → 从统一层 query 恢复（按层关键词），或 wiki 兼容
  */
 import { PersonalBrain } from './PersonalBrain.js';
-import type { MemoryApi } from '../../adapters/memory/index.js';
+import type { MemoryApi } from '../../infrastructure/adapters/memory/index.js';
 
 /** 兼容旧 MemoryWiki 参数（remember 签名宽松，兼容 MemoryWiki.remember(MemoryItem)） */
 type WikiLike = { ready: boolean; remember(p: any): Promise<unknown>; getAll?(): Promise<unknown[]> };

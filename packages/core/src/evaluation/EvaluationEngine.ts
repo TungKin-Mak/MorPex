@@ -3,7 +3,7 @@ import {
   scoreOntologyCompliance,
   type OntologyComplianceScore,
 } from './ontologyCompliance.js';
-import type { ForcedQueryGuard } from '../ontology/ForcedQueryGuard.js';
+import type { ForcedQueryGuard } from '../gate/ForcedQueryGuard.js';
 
 export interface EvaluationInput {
   plan?: { steps: number; capabilities: string[] };

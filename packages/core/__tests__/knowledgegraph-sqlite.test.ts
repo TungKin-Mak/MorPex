@@ -5,7 +5,7 @@ import { describe, it, expect, beforeEach, afterEach } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
-import { KnowledgeGraph } from '../src/metadata/knowledge/KnowledgeGraph.js';
+import { KnowledgeGraph } from '../src/knowledge/graph/knowledge/KnowledgeGraph.js';
 
 describe('KnowledgeGraph（SQLite 持久化）', () => {
   let dir: string;

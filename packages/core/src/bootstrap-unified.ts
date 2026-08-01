@@ -22,61 +22,56 @@
  *   - 所有旧 bootstrap（v12-v16）标记 @deprecated
  */
 
-import { ServiceContainer } from './runtime/ServiceContainer.js';
-import { EventType } from './protocol/events/EventType.js';
+import { ServiceContainer } from './execution/runtime/ServiceContainer.js';
+import { EventType } from './infrastructure/protocol/events/EventType.js';
 import { CompanyFacade } from './facade/CompanyFacade.js';
-import { DepartmentManager } from './department/DepartmentManager.js';
-import { RoleRegistry } from './role/RoleRegistry.js';
-import { CapabilityRegistry } from './capability/CapabilityRegistry.js';
-import { systemMetadataGraph } from './metadata/SystemMetadataGraph.js';
+import { DepartmentManager } from './governance/control-plane/DepartmentManager.js';
+import { RoleRegistry } from './governance/control-plane/RoleRegistry.js';
+import { CapabilityRegistry } from './governance/capability/CapabilityRegistry.js';
+import { systemMetadataGraph } from './knowledge/graph/SystemMetadataGraph.js';
 
 // ── Ontology 迭代4 ──
-import { OntologyService } from './ontology/OntologyService.js';
-import { ForcedQueryGuard } from './ontology/ForcedQueryGuard.js';
-import { ObjectTypeRegistry } from './ontology/ObjectTypeRegistry.js';
+import { OntologyService } from './knowledge/ontology/OntologyService.js';
+import { ForcedQueryGuard } from './gate/ForcedQueryGuard.js';
+import { ObjectTypeRegistry } from './knowledge/ontology/ObjectTypeRegistry.js';
 import {
   MissionProjector,
   ArtifactProjector,
-} from './ontology/projectors/index.js';
-import { createQueryPerformedEvent } from './events/ontologyEvents.js';
+} from './knowledge/ontology/projectors/index.js';
+import { createQueryPerformedEvent } from './gate/ontologyEvents.js';
 import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
-import { FeedbackService } from './ontology/FeedbackService.js';
+import { FeedbackService } from './knowledge/ontology/FeedbackService.js';
 import { FeedbackAwareLearner } from './cognition/FeedbackAwareLearner.js';
 
 // ── Ontology Gate for Primitives ──
-import { initializeOntologyGate, setPiBridge as setKqpBridge } from './tools/primitives/KnowledgeQueryPrimitive.js';
-import { initializeOntologyGateForArtifact, setPiBridge as setAgpBridge } from './tools/primitives/ArtifactGenerationPrimitive.js';
+import { initializeOntologyGate, setPiBridge as setKqpBridge } from './infrastructure/tools/primitives/KnowledgeQueryPrimitive.js';
+import { initializeOntologyGateForArtifact, setPiBridge as setAgpBridge } from './infrastructure/tools/primitives/ArtifactGenerationPrimitive.js';
 import { KnowledgeGapListener } from './evolution/KnowledgeGapListener.js';
-import { DomainPrimitiveRegistry } from './tools/DomainPrimitiveRegistry.js';
+import { DomainPrimitiveRegistry } from './infrastructure/tools/DomainPrimitiveRegistry.js';
 import {
   KnowledgeQueryPrimitive,
   FileOperationPrimitive,
   ArtifactGenerationPrimitive,
   ShellExecutionPrimitive,
   APICallPrimitive,
-} from './tools/primitives/index.js';
+} from './infrastructure/tools/primitives/index.js';
 
 // ── v16 模块 ──
 import { SelfImprovementLoop } from './cognition/SelfImprovementLoop.js';
 import { ReflectionEngine } from './cognition/index.js';
 import { MetaLearner } from './cognition/index.js';
-import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
-import { ApprovalGate } from './verification/ApprovalGate.js';
-import { MissionController } from './mission-control/MissionController.js';
+import { ExecutionSimulator } from './execution/runtime/simulation/ExecutionSimulator.js';
+import { ApprovalGate } from './governance/ApprovalGate.js';
+import { MissionController } from './execution/runtime/mission/MissionController.js';
 import { WorkflowRegistry as WorkflowPluginRegistry } from './workflow/WorkflowProvider.js';
 
-import type { IEventStore } from './protocol/events/store/IEventStore.js';
+import type { IEventStore } from './infrastructure/protocol/events/store/IEventStore.js';
 
 export interface UnifiedBootstrapResult {
   container: ServiceContainer;
   companyFacade: CompanyFacade;
   departmentManager: DepartmentManager;
-  controlPlane: import('./control-plane/ControlPlane.js').ControlPlane;
-
-  // ── v12 兼容字段（StudioServer 需要） ──
-  managementHub: import('./organization/ManagementHub.js').ManagementHub;
-  groupChatManager: import('./interaction/GroupChatManager.js').GroupChatManager;
-  leadAgentOrchestrator: import('./department/LeadAgentOrchestrator.js').LeadAgentOrchestrator;
+  controlPlane: import('./governance/control-plane/ControlPlane.js').ControlPlane;
 
   // ── Ontology ──
   ontology: OntologyService;
@@ -184,9 +179,9 @@ export async function bootstrapUnified(options?: {
 
   // ── 公司知识记忆（统一记忆层：cognee 引擎 + 确认队列 + 强制门禁）──
   try {
-    const { createMemoryApi, createEngine } = await import('./adapters/memory/index.js');
-    const { initializeCompanyMemory } = await import('./memory/CompanyKnowledge.js');
-    const { createMemoryApiBus, createMemoryActivationSource } = await import('./memory/MemoryApiBus.js');
+    const { createMemoryApi, createEngine } = await import('./infrastructure/adapters/memory/index.js');
+    const { initializeCompanyMemory } = await import('./knowledge/memory/CompanyKnowledge.js');
+    const { createMemoryApiBus, createMemoryActivationSource } = await import('./knowledge/memory/MemoryApiBus.js');
     const memoryEngine = createEngine();
     const memoryApi = createMemoryApi({ engine: memoryEngine });
     initializeCompanyMemory(memoryApi);
@@ -195,8 +190,8 @@ export async function bootstrapUnified(options?: {
     // 记忆收敛：学习闭环（BrainFacade.learn）落库走统一层
     (container as any).brainFacade?.setMemoryApi?.(memoryApi);
     // ── L7 深水区：MemoryActivationEngine working 数据源统一到 MemoryAPI（装配层注入）──
-    const { MemoryActivationEngine } = await import('./memory/MemoryActivationEngine.js');
-    const { setGlobalActivationEngine } = await import('./memory/activationRegistry.js');
+    const { MemoryActivationEngine } = await import('./knowledge/memory/MemoryActivationEngine.js');
+    const { setGlobalActivationEngine } = await import('./knowledge/memory/activationRegistry.js');
     const activationEngine = new MemoryActivationEngine();
     activationEngine.setSource(createMemoryActivationSource(memoryApi, memoryEngine));
     void activationEngine.refresh().then((r) => {
@@ -214,7 +209,7 @@ export async function bootstrapUnified(options?: {
   const piBridgeWrapper = {
     generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
       if (!piBridgeInstance) {
-        const { PiBridge, DEFAULT_MODEL } = await import('./adapters/pi-bridge/PiBridge.js');
+        const { PiBridge, DEFAULT_MODEL } = await import('./infrastructure/adapters/pi-bridge/PiBridge.js');
         piBridgeInstance = new PiBridge(DEFAULT_MODEL);
         await piBridgeInstance.init();
       }
@@ -434,10 +429,11 @@ export async function bootstrapUnified(options?: {
     brainFacade.setReflectionEngine(reflectionEngine);
     brainFacade.setMetaLearner(metaLearner);
     // ═══ S22 审计补全：真实 LearningLoop 实现（此前 learningEngine 容器从未赋值）═══
-    const { LearningLoop } = await import('./learning/LearningLoop.js');
+    const { LearningLoop } = await import('./cognition/learning/LearningLoop.js');
     const learningLoop = new LearningLoop();
     brainFacade.setLearningLoop(learningLoop);
-    (container as any).learningEngine = learningLoop;
+    // P1 收敛：learningEngine 键归 CrossAgentLearningEngine（ServiceContainer L208），
+    // LearningLoop 仅挂 BrainFacade 专用键 brainLearningLoop，避免覆盖冲突
     (container as any).brainLearningLoop = learningLoop;
     // S20 完整重包：聚合记忆激活引擎（S18 装配产物）
     brainFacade.setMemoryActivationEngine?.((container as any).memoryActivationEngine);
@@ -452,16 +448,9 @@ export async function bootstrapUnified(options?: {
   }
 
   // ── 架构全功能实现：接通 L7 Memory / L8 Evolution / L10 Observability ──
-  // L7: MemoryWiki（SQLite 统一后端）
-  try {
-    const { MemoryWiki } = await import('@morpex/memory');
-    const memoryWiki = new MemoryWiki({ dbPath: 'data/memory/wiki.db' });
-    await memoryWiki.initialize();
-    (container as any).memoryWiki = memoryWiki;
-    console.log('[bootstrapUnified] ✅ L7 MemoryWiki 已初始化（SQLite-only）');
-  } catch (err) {
-    console.warn('[bootstrapUnified] ⚠️ L7 MemoryWiki 初始化失败（不阻断）:', (err as Error).message);
-  }
+  // L7: MemoryWiki（SQLite 统一后端）—— P1 收敛：container.memoryWiki 死赋值已移除
+  // 记忆统一走 MemoryAPI（bootstrap L185-207 已装配：cognee + 确认队列 + ForceRetrieve），
+  // MemoryWiki 由 @morpex/memory 内部承载；需要直连 wiki 的消费点经 adapters/memory 桥。
 
   // L8: Evolution（ActiveEvolutionTrigger 构造即订阅 mission.completed/evaluation.scored；FailureAnalyzer 供批分析）
   const { ActiveEvolutionTrigger, FailureAnalyzer, EvolutionSandbox } = await import('./evolution/index.js');
@@ -492,9 +481,9 @@ export async function bootstrapUnified(options?: {
 
   // ── 架构全功能实现：接通 L3 Planning（DeliveryPlanner → MissionRuntime 规划阶段）──
   try {
-    const { DeliveryPlanner, DeliveryPlannerAdapter } = await import('./planner/index.js');
-    const { HierarchicalPlanner } = await import('./planner/HierarchicalPlanner.js');
-    const { CrossDepartmentArbitrationEngine } = await import('./planner/CrossDepartmentArbitrationEngine.js');
+    const { DeliveryPlanner, DeliveryPlannerAdapter } = await import('./cognition/planning/index.js');
+    const { HierarchicalPlanner } = await import('./cognition/planning/HierarchicalPlanner.js');
+    const { CrossDepartmentArbitrationEngine } = await import('./cognition/planning/CrossDepartmentArbitrationEngine.js');
     const deliveryPlanner = new DeliveryPlanner(eventBus);
     deliveryPlanner.setPiBridge(piBridgeWrapper);
     deliveryPlanner.setOntology(ontology);
@@ -551,23 +540,11 @@ export async function bootstrapUnified(options?: {
   console.log(`  ├─ 🏁 Ontology: OntologyService + ForcedQueryGuard + Projectors`);
   console.log(`  └─ companyFacade.executeGoal(): 必经 ControlPlane → Runtime 完整管线`);
 
-  // ── v12 兼容字段（全功能实现修复：先构造依赖再装配 ManagementHub，避免 null orchestrator 崩溃）──
-  const { ManagementHub } = await import('./organization/ManagementHub.js');
-  const { GroupChatManager } = await import('./interaction/GroupChatManager.js');
-  const { LeadAgentOrchestrator } = await import('./department/LeadAgentOrchestrator.js');
-  const groupChatManager = new GroupChatManager(eventBus);
-  const leadAgentOrchestrator = new LeadAgentOrchestrator(eventBus, departmentManager, roleRegistry);
-  const managementHub = new ManagementHub(eventBus, departmentManager, leadAgentOrchestrator, groupChatManager, ceoId);
-
   return {
     container,
     companyFacade,
     departmentManager,
     controlPlane: container.controlPlane,
-    // ── v12 兼容字段 ──
-    managementHub,
-    groupChatManager,
-    leadAgentOrchestrator,
     // ── Ontology ──
     ontology,
     forcedQueryGuard,

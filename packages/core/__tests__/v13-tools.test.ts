@@ -2,9 +2,9 @@
  * v13 Tools 模块测试 — ToolRegistry + ToolFactory
  */
 import { describe, it, expect, beforeEach } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
-import { ToolRegistry } from '../src/tools/ToolRegistry.js';
-import { ToolFactory } from '../src/tools/ToolFactory.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import { ToolRegistry } from '../src/infrastructure/tools/ToolRegistry.js';
+import { ToolFactory } from '../src/infrastructure/tools/ToolFactory.js';
 
 describe('ToolRegistry', () => {
   beforeEach(() => {

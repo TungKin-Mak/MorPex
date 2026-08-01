@@ -8,8 +8,8 @@
  * - Agent behavior tracking and risk scoring
  * - Execution stats
  */
-import { SandboxManager } from '../src/runtime/sandbox/SandboxManager.js';
-import type { SandboxContext } from '../src/runtime/sandbox/SandboxManager.js';
+import { SandboxManager } from '../src/execution/runtime/sandbox/SandboxManager.js';
+import type { SandboxContext } from '../src/execution/runtime/sandbox/SandboxManager.js';
 
 let pass = 0, fail = 0;
 function ok(c: boolean, m: string) { if (c) pass++; else { console.error('  ❌ ' + m); fail++; } }

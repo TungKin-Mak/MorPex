@@ -22,7 +22,7 @@ async function main() {
 
   let EncryptionService: any
   try {
-    const mod = await import('../src/common/EncryptionService.js')
+    const mod = await import('../src/infrastructure/common/EncryptionService.js')
     EncryptionService = mod.EncryptionService
     ok(true, 'EncryptionService module loaded')
   } catch (e: any) {
@@ -92,7 +92,7 @@ async function main() {
 
   let SandboxManager: any
   try {
-    const mod = await import('../src/runtime/sandbox/SandboxManager.js')
+    const mod = await import('../src/execution/runtime/sandbox/SandboxManager.js')
     SandboxManager = mod.SandboxManager
     ok(true, 'SandboxManager module loaded')
   } catch (e: any) {
@@ -144,7 +144,7 @@ async function main() {
 
   let PermissionModel: any
   try {
-    const mod = await import('../src/control/PermissionModel.js')
+    const mod = await import('../src/governance/PermissionModel.js')
     PermissionModel = mod.PermissionModel
     ok(true, 'PermissionModel module loaded')
   } catch (e: any) {

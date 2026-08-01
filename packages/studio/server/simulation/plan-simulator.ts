@@ -5,7 +5,7 @@
  * 分析步骤依赖关系、时序、潜在瓶颈，输出仿真结果供决策。
  */
 
-import type { MissionPlan, PlanStep } from '../../../core/src/runtime/mission/types.js';
+import type { MissionPlan, PlanStep } from '../../../core/src/execution/runtime/mission/types.js';
 import type { SimulationTwinProfile } from './types.js';
 
 // ── PlanSimulator ──

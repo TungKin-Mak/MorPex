@@ -3,8 +3,8 @@
  * + L7 深水区：working 数据源统一到 MemoryAPI（source 注入 + refresh）
  */
 import { describe, test, expect } from 'vitest';
-import { MemoryActivationEngine, type ActivationContext } from '../src/memory/MemoryActivationEngine.js';
-import { createMemoryActivationSource, hitToMemoryRecord } from '../src/memory/MemoryApiBus.js';
+import { MemoryActivationEngine, type ActivationContext } from '../src/knowledge/memory/MemoryActivationEngine.js';
+import { createMemoryActivationSource, hitToMemoryRecord } from '../src/knowledge/memory/MemoryApiBus.js';
 
 function makeCtx(over: Partial<ActivationContext> = {}): ActivationContext {
   return {

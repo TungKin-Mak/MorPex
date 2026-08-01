@@ -9,7 +9,7 @@
  *      失败可重试，不产生悬挂态；无 revert() 时仅标记 rolled_back 兼容旧行为）
  */
 
-import type { IEventStore } from '../protocol/events/store/IEventStore.js';
+import type { IEventStore } from '../infrastructure/protocol/events/store/IEventStore.js';
 
 export interface EvolutionChangeRecord {
   id: string;

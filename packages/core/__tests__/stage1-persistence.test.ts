@@ -10,13 +10,13 @@
 
 // @ts-ignore - better-sqlite3 is CJS native module
 import Database from 'better-sqlite3';
-import { SqliteEventStore, createSqliteEventStore } from '../src/protocol/events/store/SqliteEventStore.js';
-import { ContextPersistence } from '../src/context/ContextPersistence.js';
-import type { ExecutionContext } from '../src/context/ContextBuilder.js';
-import { ContextVersioner } from '../src/context/ContextVersioner.js';
-import { ArtifactSqliteRepository } from '../src/artifact/plane/ArtifactSqliteRepository.js';
-import { ArtifactManager } from '../src/artifact/plane/ArtifactManager.js';
-import type { ArtifactRecord } from '../src/artifact/plane/types.js';
+import { SqliteEventStore, createSqliteEventStore } from '../src/infrastructure/protocol/events/store/SqliteEventStore.js';
+import { ContextPersistence } from '../src/knowledge/context/ContextPersistence.js';
+import type { ExecutionContext } from '../src/knowledge/context/ContextBuilder.js';
+import { ContextVersioner } from '../src/knowledge/context/ContextVersioner.js';
+import { ArtifactSqliteRepository } from '../src/knowledge/artifact/plane/ArtifactSqliteRepository.js';
+import { ArtifactManager } from '../src/knowledge/artifact/plane/ArtifactManager.js';
+import type { ArtifactRecord } from '../src/knowledge/artifact/plane/types.js';
 
 let passed = 0;
 let failed = 0;

@@ -7,13 +7,13 @@
  * - sendTask: 委托 executeGoal（不跳过门禁）
  */
 
-import { DepartmentManager } from '../department/DepartmentManager.js';
-import { RoleRegistry } from '../role/RoleRegistry.js';
-import type { Department, DepartmentStats } from '../department/types.js';
-import type { CreateDepartmentParams } from '../department/types.js';
-import type { GoalContext } from '../contracts/goal.js';
-import type { MorPexRuntime, RunOptions } from '../runtime/MorPexRuntime.js';
-import type { ControlPlane } from '../control-plane/ControlPlane.js';
+import { DepartmentManager } from '../governance/control-plane/DepartmentManager.js';
+import { RoleRegistry } from '../governance/control-plane/RoleRegistry.js';
+import type { Department, DepartmentStats } from '../governance/control-plane/department-types.js';
+import type { CreateDepartmentParams } from '../governance/control-plane/department-types.js';
+import type { GoalContext } from '../infrastructure/protocol/contracts/goal.js';
+import type { MorPexRuntime, RunOptions } from '../execution/runtime/MorPexRuntime.js';
+import type { ControlPlane } from '../governance/control-plane/ControlPlane.js';
 
 export interface ExecuteGoalOptions {
   simulationHardFail?: boolean;
@@ -87,7 +87,7 @@ export class CompanyFacade {
     if (this._bootstrapped) return;
     this._bootstrapped = true;
     if (!this.runtime) {
-      const { ServiceContainer } = await import('../runtime/ServiceContainer.js');
+      const { ServiceContainer } = await import('../execution/runtime/ServiceContainer.js');
       const c = new ServiceContainer();
       await c.ready; // ⬅️ 关键修复：等待 EventStore 就绪
       this.runtime = c.runtime;

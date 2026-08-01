@@ -10,13 +10,13 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { SystemMetadataGraph } from '../src/metadata/SystemMetadataGraph.js';
-import { OntologyService } from '../src/ontology/OntologyService.js';
-import { ObjectTypeRegistry } from '../src/ontology/ObjectTypeRegistry.js';
-import { ForcedQueryGuard } from '../src/ontology/ForcedQueryGuard.js';
-import { runOntologyGroundedReasoning } from '../src/ontology/runOntologyGroundedReasoning.js';
-import type { GroundedReasoningResult } from '../src/ontology/runOntologyGroundedReasoning.js';
-import type { RiskTier } from '../src/ontology/types.js';
+import { SystemMetadataGraph } from '../src/knowledge/graph/SystemMetadataGraph.js';
+import { OntologyService } from '../src/knowledge/ontology/OntologyService.js';
+import { ObjectTypeRegistry } from '../src/knowledge/ontology/ObjectTypeRegistry.js';
+import { ForcedQueryGuard } from '../src/gate/ForcedQueryGuard.js';
+import { runOntologyGroundedReasoning } from '../src/gate/runOntologyGroundedReasoning.js';
+import type { GroundedReasoningResult } from '../src/gate/runOntologyGroundedReasoning.js';
+import type { RiskTier } from '../src/gate/types.js';
 
 // mock piBridge：
 //   - Phase 1 查询计划：返回无 queries 的 JSON → 触发默认安全查询（空图谱 → 无结果 → QueryMiss）

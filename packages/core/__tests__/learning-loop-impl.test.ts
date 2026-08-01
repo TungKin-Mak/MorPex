@@ -5,9 +5,9 @@
  * 满足 BrainFacade.LearningLoopLike；并验证装配到 BrainFacade 后字段非 null。
  */
 import { describe, it, expect } from 'vitest';
-import { LearningLoop } from '../src/learning/LearningLoop.js';
+import { LearningLoop } from '../src/cognition/learning/LearningLoop.js';
 import { BrainFacade } from '../src/cognition/BrainFacade.js';
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
 const record = {
   executionId: 'exec_1',

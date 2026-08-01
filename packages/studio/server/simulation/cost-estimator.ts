@@ -6,7 +6,7 @@
  */
 
 import type { CostEstimate, CostBreakdownItem, SimulationTwinProfile } from './types.js';
-import type { MissionPlan } from '../../../core/src/runtime/mission/types.js';
+import type { MissionPlan } from '../../../core/src/execution/runtime/mission/types.js';
 
 // ── 默认成本系数 ──
 

@@ -8,7 +8,7 @@ console.log('\n' + '='.repeat(60));
 console.log('  Production: Pipeline Execution Tests');
 console.log('='.repeat(60) + '\n');
 
-import { EventBus } from '../src/common/EventBus.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
 let pass = 0, fail = 0;
 function ok(cond: boolean, msg: string) { if (cond) { pass++; console.log('  [PASS] ' + msg); } else { fail++; console.log('  [FAIL] ' + msg); } }
@@ -135,8 +135,8 @@ console.log('\n-- 6. DAG Scale --\n');
 // ─────────────────────────────────────────────────────
 
 import { UnifiedExecutionEngine } from '../src/execution/UnifiedExecutionEngine.js';
-import { ApprovalGate } from '../src/verification/ApprovalGate.js';
-import { EventBus } from '../src/common/EventBus.js';
+import { ApprovalGate } from '../src/governance/ApprovalGate.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
 // --- Test 8: Engine executeViaMission 轮询等待完成 ---
 (async () => {

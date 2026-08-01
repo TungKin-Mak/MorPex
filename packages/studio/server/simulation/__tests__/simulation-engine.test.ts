@@ -3,7 +3,7 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { SimulationEngine } from '../simulation-engine.js';
-import type { Mission, MissionPlan } from '../../../../core/src/runtime/mission/types.js';
+import type { Mission, MissionPlan } from '../../../../core/src/execution/runtime/mission/types.js';
 
 const mockBus = {
   emit: (event: any) => { /* silent */ },

@@ -6,7 +6,7 @@
  */
 
 import type { SuccessPrediction, SimulationTwinProfile } from './types.js';
-import type { MissionPlan } from '../../../core/src/runtime/mission/types.js';
+import type { MissionPlan } from '../../../core/src/execution/runtime/mission/types.js';
 
 // ── SuccessPredictor ──
 

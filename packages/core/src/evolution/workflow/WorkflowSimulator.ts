@@ -16,7 +16,7 @@
  *   ⚠️ 已由 PolicyEngine.evaluateWorkflow() 接管，WorkflowSimulator 不再硬编码阈值
  */
 
-import type { Mission } from '../../runtime/mission/types.js'
+import type { Mission } from '../../execution/runtime/mission/types.js'
 import type {
   WorkflowCandidate,
   WorkflowStepDef,

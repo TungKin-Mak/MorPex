@@ -20,9 +20,9 @@
  * @packageDocumentation
  */
 
-import { EventBus } from '../common/EventBus.js';
-import type { MorPexEvent } from '../common/types.js';
-import type { DepartmentId } from '../department/types.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
+import type { MorPexEvent } from '../infrastructure/common/types.js';
+import type { DepartmentId } from '../governance/control-plane/department-types.js';
 import type { CrossDepartmentKnowledgeSynthesizer, MigrationResult } from '../cognition/index.js';
 
 // ── Types ──

@@ -2,7 +2,7 @@
  * SafetyMonitor — 安全监控器
  * Phase 2: 持续观察系统状态，检测异常模式
  */
-import { EventBus } from '../common/EventBus.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export interface Observation {
   id: string;

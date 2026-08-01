@@ -1,17 +1,16 @@
 /**
  * Phase 0: 组织层冒烟测试
  *
- * 验证 DepartmentManager + RoleRegistry + CompanyFacade + OrganizationContextLite
+ * 验证 DepartmentManager + RoleRegistry + CompanyFacade
  * 能正常创建、查询、执行基本操作。
  */
 import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
-import { DepartmentManager } from '../src/department/DepartmentManager.js';
-import { DepartmentContext } from '../src/department/DepartmentContext.js';
-import { RoleRegistry } from '../src/role/RoleRegistry.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import { DepartmentManager } from '../src/governance/control-plane/DepartmentManager.js';
+import { DepartmentContext } from '../src/governance/control-plane/DepartmentContext.js';
+import { RoleRegistry } from '../src/governance/control-plane/RoleRegistry.js';
 import { CompanyFacade } from '../src/facade/CompanyFacade.js';
-import { ControlPlane } from '../src/control-plane/ControlPlane.js';
-import { OrganizationContextLite } from '../src/organization/OrganizationContextLite.js';
+import { ControlPlane } from '../src/governance/control-plane/ControlPlane.js';
 
 function setup() {
   const bus = new EventBus();
@@ -36,9 +35,7 @@ function setup() {
   } as any;
   // 真实 ControlPlane（execute_goal/MEDIUM 已策略化自动批准，见 S20 修复）
   const facade = new CompanyFacade(deptMgr, roleReg, stubRuntime, new ControlPlane());
-  const orgCtx = OrganizationContextLite.getInstance();
-  orgCtx.reset(); // 确保测试间状态隔离
-  return { bus, deptMgr, roleReg, facade, orgCtx };
+  return { bus, deptMgr, roleReg, facade };
 }
 
 describe('Phase 0: 组织层', () => {
@@ -192,32 +189,6 @@ describe('Phase 0: 组织层', () => {
       const result = await facade.sendTask('不存在的部', '任务');
       expect(result.ok).toBe(false);
       expect(result.message).toContain('不存在');
-    });
-  });
-
-  describe('OrganizationContextLite', () => {
-    it('应切换部门上下文', () => {
-      const { orgCtx } = setup();
-      orgCtx.enterDepartment('dept_123', 'lead-agent-1');
-      expect(orgCtx.isWithinDepartment()).toBe(true);
-      expect(orgCtx.getDepartmentPartitionKey()).toBe('dept:dept_123');
-      expect(orgCtx.getCurrent().departmentId).toBe('dept_123');
-    });
-
-    it('应切换全局上下文', () => {
-      const { orgCtx } = setup();
-      orgCtx.enterDepartment('dept_123', 'agent');
-      orgCtx.enterGlobal('ceo');
-      expect(orgCtx.isWithinDepartment()).toBe(false);
-      expect(orgCtx.getDepartmentPartitionKey()).toBe('global');
-    });
-
-    it('应重置上下文', () => {
-      const { orgCtx } = setup();
-      orgCtx.enterDepartment('dept_123', 'agent');
-      orgCtx.reset();
-      expect(orgCtx.isWithinDepartment()).toBe(false);
-      expect(orgCtx.getCurrent().departmentId).toBeUndefined();
     });
   });
 });

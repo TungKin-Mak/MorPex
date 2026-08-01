@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { RiskPredictor } from '../risk-predictor.js';
-import type { MissionPlan } from '../../../../core/src/runtime/mission/types.js';
+import type { MissionPlan } from '../../../../core/src/execution/runtime/mission/types.js';
 
 describe('RiskPredictor', () => {
   const predictor = new RiskPredictor();

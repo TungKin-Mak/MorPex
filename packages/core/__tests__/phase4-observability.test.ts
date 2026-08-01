@@ -6,10 +6,10 @@
 
 import { describe, it } from 'node:test'
 import assert from 'node:assert/strict'
-import { MetricsCollector } from '../src/observability/MetricsCollector.js'
-import { PrometheusExporter } from '../src/observability/PrometheusExporter.js'
-import { HealthCheckService } from '../src/observability/HealthCheckService.js'
-import { CircuitBreaker } from '../src/common/resilience/CircuitBreaker.js'
+import { MetricsCollector } from '../src/infrastructure/observability/MetricsCollector.js'
+import { PrometheusExporter } from '../src/infrastructure/observability/PrometheusExporter.js'
+import { HealthCheckService } from '../src/infrastructure/observability/HealthCheckService.js'
+import { CircuitBreaker } from '../src/infrastructure/common/resilience/CircuitBreaker.js'
 
 // ── PrometheusExporter ──
 

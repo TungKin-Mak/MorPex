@@ -1,10 +1,10 @@
 /**
  * Learning Loop Tests — Experience extraction, evaluation, evolution
  */
-import { ExperienceExtractor } from '../src/learning/ExperienceExtractor.js';
-import { PlanEvaluator } from '../src/learning/PlanEvaluator.js';
-import { StrategyOptimizer } from '../src/learning/StrategyOptimizer.js';
-import { TemplateEvolutionEngine } from '../src/learning/TemplateEvolutionEngine.js';
+import { ExperienceExtractor } from '../src/cognition/learning/ExperienceExtractor.js';
+import { PlanEvaluator } from '../src/cognition/learning/PlanEvaluator.js';
+import { StrategyOptimizer } from '../src/cognition/learning/StrategyOptimizer.js';
+import { TemplateEvolutionEngine } from '../src/cognition/learning/TemplateEvolutionEngine.js';
 
 const assert = (c: boolean, m: string) => { if (!c) throw new Error('FAIL: ' + m); };
 

@@ -1,4 +1,4 @@
-import { EventBus } from '../common/EventBus.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export class CostController {
   private static instance: CostController;

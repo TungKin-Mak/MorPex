@@ -11,7 +11,7 @@
  * 所有数据通过 EventBus 事件驱动采集，无需主动轮询。
  */
 
-import { EventBus } from '../common/EventBus.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
 
 // ── Types ──
 

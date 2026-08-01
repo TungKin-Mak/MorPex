@@ -4,13 +4,13 @@
  * 覆盖: FSM → DAG → Recovery → Harness → Memory → Learning
  * 不追求覆盖率，优先保证核心链路。
  */
-import { ExecutionFSM, ExecutionState } from '../src/runtime/state-machine/ExecutionFSM.js';
-import { DAGRuntime } from '../src/runtime/dag/DAGRuntime.js';
-import { CheckpointManager } from '../src/runtime/checkpoint/CheckpointManager.js';
-import { RecoveryManager } from '../src/runtime/checkpoint/RecoveryManager.js';
-import { ReplayEngine } from '../src/runtime/checkpoint/ReplayEngine.js';
-import { AgentHarness } from '../src/agent/harness/AgentHarness.js';
-import { ContextBuilder } from '../src/agent/harness/ContextBuilder.js';
+import { ExecutionFSM, ExecutionState } from '../src/execution/runtime/state-machine/ExecutionFSM.js';
+import { DAGRuntime } from '../src/execution/runtime/dag/DAGRuntime.js';
+import { CheckpointManager } from '../src/execution/runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../src/execution/runtime/checkpoint/RecoveryManager.js';
+import { ReplayEngine } from '../src/execution/runtime/checkpoint/ReplayEngine.js';
+import { AgentHarness } from '../src/execution/harness/AgentHarness.js';
+import { ContextBuilder } from '../src/execution/harness/ContextBuilder.js';
 
 let passed = 0; let failed = 0;
 function test(name: string, fn: () => void | Promise<void>) {

@@ -1,4 +1,4 @@
-import { EventBus } from '../common/EventBus.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export type AlertLevel = 'INFO' | 'WARNING' | 'CRITICAL';
 export interface Alert { id: string; level: AlertLevel; source: string; title: string; message: string; timestamp: number; }

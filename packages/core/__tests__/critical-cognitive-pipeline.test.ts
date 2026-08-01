@@ -11,11 +11,11 @@
  *   被 vitest4 拒绝，worker 挂起。）
  */
 import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
-import { CognitivePipeline } from '../src/runtime/cognitive-loop/CognitivePipeline.js';
-import type { CognitiveStage } from '../src/runtime/cognitive-loop/CognitivePipeline.js';
-import type { CognitiveContext } from '../src/runtime/cognitive-loop/types.js';
-import type { IncomingMessage } from '../src/interaction/types.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import { CognitivePipeline } from '../src/execution/runtime/cognitive-loop/CognitivePipeline.js';
+import type { CognitiveStage } from '../src/execution/runtime/cognitive-loop/CognitivePipeline.js';
+import type { CognitiveContext } from '../src/execution/runtime/cognitive-loop/types.js';
+import type { IncomingMessage } from '../src/infrastructure/protocol/message-types.js';
 
 function makeMockStage(name: string, shouldFail = false, sideEffect?: (ctx: CognitiveContext) => void): CognitiveStage {
   return {
@@ -131,7 +131,7 @@ describe('Critical: Cognitive Pipeline', () => {
   it('8. ContextStage 可实例化', async () => {
     const bus = new EventBus(100);
     try {
-      const { ContextStage } = await import('../src/runtime/cognitive-loop/stages/ContextStage.js');
+      const { ContextStage } = await import('../src/execution/runtime/cognitive-loop/stages/ContextStage.js');
       const stage = new ContextStage(bus);
       expect(stage.name.length).toBeGreaterThan(0);
     } catch (e: any) {

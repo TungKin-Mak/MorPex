@@ -119,44 +119,11 @@ export function registerRuntimeRoutes(app: ExpressRouter): void {
   });
 
   // ═════════════════════════════════════════════
-  // Architecture: Auditor v3 Health Report
-  // ═════════════════════════════════════════════
 
-  // GET /api/architecture/health — 运行 Auditor 返回健康报告
-  app.get('/api/architecture/health', async (_req, res) => {
-    try {
-      const { ArchitectureAuditor } = await import('../../core/src/auditor/ArchitectureAuditor.js');
-      const auditor = new ArchitectureAuditor();
-      const report = await auditor.runFullAudit();
-      return res.json({
-        ok: true,
-        score: report.architectureScore,
-        breakdown: report.scoreBreakdown,
-        runtimeCoverage: report.runtimeCoverage,
-        events: report.eventFlows?.filter((e: any) => !e.gap).length || 0,
-        totalEvents: report.eventFlows?.length || 0,
-        deadModules: report.unusedModules?.length || 0,
-        criticalIssues: report.criticalIssues?.length || 0,
-        classification: report.modules ? {
-          total: report.modules.length,
-          // Approximate from unusedModules inverse
-          connected: report.modules.length - (report.unusedModules?.length || 0),
-        } : null,
-      });
-    } catch (err: any) {
-      return res.status(500).json({ ok: false, error: err.message });
-    }
-  });
-
-  // ═════════════════════════════════════════════
-  // Memory: Activation Engine
-  // ═════════════════════════════════════════════
-
-  // POST /api/memory/activate — 上下文感知记忆激活
   app.post('/api/memory/activate', async (req, res) => {
     try {
-      const { MemoryActivationEngine } = await import('../../core/src/memory/MemoryActivationEngine.js');
-      const { getGlobalActivationEngine } = await import('../../core/src/memory/activationRegistry.js');
+      const { MemoryActivationEngine } = await import('../../core/src/knowledge/memory/MemoryActivationEngine.js');
+      const { getGlobalActivationEngine } = await import('../../core/src/knowledge/memory/activationRegistry.js');
       // L7 深水区：复用装配层注入统一记忆层数据源的引擎（未装配时兜底空引擎）
       const engine = getGlobalActivationEngine() ?? new MemoryActivationEngine();
       // 尚无快照时尝试从统一层拉取（cognee 离线 → refresh 返回 available=false，保留空）
@@ -189,9 +156,9 @@ export function registerRuntimeRoutes(app: ExpressRouter): void {
   // GET /api/learning/stats — 学习循环统计
   app.get('/api/learning/stats', async (_req, res) => {
     try {
-      const { ExperienceExtractor } = await import('../../core/src/learning/ExperienceExtractor.js');
-      const { PlanEvaluator } = await import('../../core/src/learning/PlanEvaluator.js');
-      const { TemplateEvolutionEngine } = await import('../../core/src/learning/TemplateEvolutionEngine.js');
+      const { ExperienceExtractor } = await import('../../core/src/cognition/learning/ExperienceExtractor.js');
+      const { PlanEvaluator } = await import('../../core/src/cognition/learning/PlanEvaluator.js');
+      const { TemplateEvolutionEngine } = await import('../../core/src/cognition/learning/TemplateEvolutionEngine.js');
 
       const extractor = new ExperienceExtractor();
       const evaluator = new PlanEvaluator();
@@ -238,30 +205,8 @@ export function registerRuntimeRoutes(app: ExpressRouter): void {
     }
   });
 
-  // GET /api/system/validate — 运行验证套件（异步）
-  app.post('/api/system/validate', async (_req, res) => {
-    try {
-      const { RuntimeValidator } = await import('../../core/src/validation/RuntimeValidator.js');
-      const validator = new RuntimeValidator();
-      const result = await validator.runAll();
-      return res.json({
-        ok: true,
-        passed: result.summary?.passed === result.summary?.total,
-        total: result.results?.length || 0,
-        passedCount: result.results?.filter((r: any) => r.status === 'passed').length || 0,
-        healthScore: result.healthScore,
-        details: result.results?.map((r: any) => ({ name: r.name, status: r.status, assertions: `${r.assertionsPassed}/${r.assertionsTotal}` })),
-      });
-    } catch (err: any) {
-      return res.status(500).json({ ok: false, error: err.message });
-    }
-  });
 
-  // ═══════════════════════════════════════════════════
-  // Event: real-time SSE stream for EventBus events
-  // ═══════════════════════════════════════════════════
 
-  // GET /api/events/stream — SSE 事件流
   app.get('/api/events/stream', (req, res) => {
     res.writeHead(200, {
       'Content-Type': 'text/event-stream',

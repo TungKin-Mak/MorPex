@@ -8,7 +8,7 @@
  * 输出: ExpectedTrace（含步骤列表、时序约束、质量阈值）
  */
 
-import type { MissionPlan, PlanStep } from '../../../core/src/runtime/mission/types.js';
+import type { MissionPlan, PlanStep } from '../../../core/src/execution/runtime/mission/types.js';
 import type { ExpectedTrace, ExpectedStep, TimingConstraints, QualityThresholds } from './types.js';
 
 // ── 默认常量 ──

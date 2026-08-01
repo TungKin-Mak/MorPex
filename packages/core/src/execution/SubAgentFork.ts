@@ -21,11 +21,11 @@
  *   const results = await subAgent.waitForFleet(fleet.id);
  */
 
-import { EventBus } from '../common/EventBus.js';
-import { DepartmentContext } from '../department/DepartmentContext.js';
-import { makeProgressEvent } from '../common/ProgressCallback.js';
-import type { DepartmentId } from '../department/types.js';
-import type { ProgressCallback, ProgressEvent } from '../common/ProgressCallback.js';
+import { EventBus } from '../infrastructure/common/EventBus.js';
+import { DepartmentContext } from '../governance/control-plane/DepartmentContext.js';
+import { makeProgressEvent } from '../infrastructure/common/ProgressCallback.js';
+import type { DepartmentId } from '../governance/control-plane/department-types.js';
+import type { ProgressCallback, ProgressEvent } from '../infrastructure/common/ProgressCallback.js';
 
 // ── Types ──
 

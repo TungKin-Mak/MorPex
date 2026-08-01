@@ -18,11 +18,11 @@
  *  12. UnifiedEventStore: getDecisionStream()
  */
 
-import { SqliteEventStore } from '../src/protocol/events/store/SqliteEventStore.js';
-import { UnifiedEventStore } from '../src/protocol/events/store/UnifiedEventStore.js';
-import type { BaseEvent } from '../src/protocol/events/BaseEvent.js';
-import type { DecisionEvent } from '../src/protocol/events/DecisionEvent.js';
-import { EventType } from '../src/protocol/events/EventType.js';
+import { SqliteEventStore } from '../src/infrastructure/protocol/events/store/SqliteEventStore.js';
+import { UnifiedEventStore } from '../src/infrastructure/protocol/events/store/UnifiedEventStore.js';
+import type { BaseEvent } from '../src/infrastructure/protocol/events/BaseEvent.js';
+import type { DecisionEvent } from '../src/infrastructure/protocol/events/DecisionEvent.js';
+import { EventType } from '../src/infrastructure/protocol/events/EventType.js';
 
 let pass = 0;
 let fail = 0;

@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ExecutionPredictor } from '../execution-predictor.js';
 import { SimulationEngine } from '../simulation-engine.js';
-import type { Mission, MissionPlan, PlanStep } from '../../../../core/src/runtime/mission/types.js';
+import type { Mission, MissionPlan, PlanStep } from '../../../../core/src/execution/runtime/mission/types.js';
 
 describe('ExecutionPredictor', () => {
   let engine: SimulationEngine;

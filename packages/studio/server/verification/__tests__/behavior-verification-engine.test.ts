@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import Database from 'better-sqlite3';
 import { BehaviorVerificationEngine } from '../behavior-verification-engine.js';
-import type { Mission, MissionResult, MissionPlan, PlanStep } from '../../../../core/src/runtime/mission/types.js';
+import type { Mission, MissionResult, MissionPlan, PlanStep } from '../../../../core/src/execution/runtime/mission/types.js';
 
 // ── Mock EventBus ──
 const mockBus = {

@@ -5,11 +5,11 @@
  * 且规划失败不阻断执行（增强而非硬依赖）；mission 模式跳过（由 MissionRuntime 承担）。
  */
 import { describe, it, expect } from 'vitest';
-import { EventBus } from '../src/common/EventBus.js';
-import { DepartmentManager } from '../src/department/DepartmentManager.js';
-import { RoleRegistry } from '../src/role/RoleRegistry.js';
+import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import { DepartmentManager } from '../src/governance/control-plane/DepartmentManager.js';
+import { RoleRegistry } from '../src/governance/control-plane/RoleRegistry.js';
 import { CompanyFacade, type DeliveryPlannerLike } from '../src/facade/CompanyFacade.js';
-import { ControlPlane } from '../src/control-plane/ControlPlane.js';
+import { ControlPlane } from '../src/governance/control-plane/ControlPlane.js';
 
 function makeFacade(planner: DeliveryPlannerLike | null): CompanyFacade {
   const bus = new EventBus();

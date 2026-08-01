@@ -3,7 +3,7 @@
  */
 import { describe, it, expect } from 'vitest';
 import { ExpectedTraceBuilder } from '../expected-trace-builder.js';
-import type { MissionPlan, PlanStep } from '../../../../core/src/runtime/mission/types.js';
+import type { MissionPlan, PlanStep } from '../../../../core/src/execution/runtime/mission/types.js';
 
 describe('ExpectedTraceBuilder', () => {
   const builder = new ExpectedTraceBuilder();
