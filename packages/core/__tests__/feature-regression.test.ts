@@ -110,6 +110,42 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
     await sb.rollback(rec.id);
     expect(sb.getChange(rec.id)?.status).toBe('pending_approval');
   });
+
+  it('L8 非 pending 重复 approve 不重复执行 apply（幂等守卫）', async () => {
+    const sb = new EvolutionSandbox();
+    let applyCalls = 0;
+    const rec = await sb.proposeChange({
+      summary: '改权重',
+      apply: async () => { applyCalls++; },
+    });
+    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id); // 已 applied，守卫拒绝
+    expect(applyCalls).toBe(1);
+    expect(sb.getChange(rec.id)?.status).toBe('applied');
+  });
+
+  it('L8 rejected 后 rollback 安全返回（不翻转状态）', async () => {
+    const sb = new EvolutionSandbox({ goldenTasks: [{ id: 'bad', run: () => false }] });
+    const rec = await sb.proposeChange({ summary: '坏变更' });
+    expect(rec.status).toBe('rejected');
+    await sb.rollback(rec.id);
+    expect(sb.getChange(rec.id)?.status).toBe('rejected');
+  });
+
+  it('L8 verify 返回 false → verifyOutcome=failed 且状态仍 rolled_back', async () => {
+    const sb = new EvolutionSandbox();
+    const rec = await sb.proposeChange({
+      summary: '切换模板',
+      apply: async () => undefined,
+      revert: async () => undefined,
+      verify: async () => false,
+    });
+    await sb.approveAndApply(rec.id);
+    await sb.rollback(rec.id);
+    const after = sb.getChange(rec.id)!;
+    expect(after.status).toBe('rolled_back');
+    expect(after.verifyOutcome).toBe('failed');
+  });
 });
 
 describe('Ontology 事实元数据 + 冲突策略（P2）', () => {

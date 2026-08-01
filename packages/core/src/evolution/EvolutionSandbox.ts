@@ -72,6 +72,8 @@ export class EvolutionSandbox {
     revert?: EvolutionChangeInput['revert'];
     verify?: EvolutionChangeInput['verify'];
   }> = new Map();
+  /** L8 并发守卫：apply/revert 执行中的 change id（防 TOCTOU 双执行） */
+  private inflight: Set<string> = new Set();
   private versionCounter = 0;
   private eventStore?: IEventStore;
   private goldenTasks: Array<{ id: string; run: () => Promise<boolean> | boolean }>;
@@ -155,34 +157,43 @@ export class EvolutionSandbox {
     const rec = this.changes.get(id);
     if (!rec) return undefined;
     if (rec.status !== 'pending_approval') return rec;
-    const action = this.actions.get(id);
-    if (action?.apply) {
-      try {
-        await action.apply();
+    if (this.inflight.has(id)) return rec; // 并发守卫：已有 apply 在执行
+    this.inflight.add(id);
+    try {
+      const action = this.actions.get(id);
+      if (action?.apply) {
+        try {
+          await action.apply();
+          rec.status = 'applied';
+          rec.appliedAt = Date.now();
+          rec.applyOutcome = 'ok';
+          rec.applyError = undefined; // 重试成功清残留错误
+          await this.recordEvent(rec, 'applied');
+        } catch (err) {
+          rec.status = 'failed';
+          rec.applyOutcome = 'failed';
+          rec.applyError = (err as Error).message;
+          await this.recordEvent(rec, 'apply_failed');
+        }
+      } else {
         rec.status = 'applied';
         rec.appliedAt = Date.now();
-        rec.applyOutcome = 'ok';
         await this.recordEvent(rec, 'applied');
-      } catch (err) {
-        rec.status = 'failed';
-        rec.applyOutcome = 'failed';
-        rec.applyError = (err as Error).message;
-        await this.recordEvent(rec, 'apply_failed');
       }
-    } else {
-      rec.status = 'applied';
-      rec.appliedAt = Date.now();
-      await this.recordEvent(rec, 'applied');
+    } finally {
+      this.inflight.delete(id);
     }
     return rec;
   }
 
   /**
    * reject — 拒绝变更
+   * 守卫：仅 pending_approval（或已 rejected）可被拒绝，防止已落地/已回滚变更被翻成 rejected。
    */
   async reject(id: string, reason?: string): Promise<EvolutionChangeRecord | undefined> {
     const rec = this.changes.get(id);
     if (!rec) return undefined;
+    if (rec.status !== 'pending_approval' && rec.status !== 'rejected') return rec;
     rec.status = 'rejected';
     rec.sandboxFailures = [...rec.sandboxFailures, reason ? `rejected: ${reason}` : 'rejected by human'];
     await this.recordEvent(rec, 'rejected');
@@ -202,33 +213,40 @@ export class EvolutionSandbox {
     const rec = this.changes.get(id);
     if (!rec) return undefined;
     if (rec.status !== 'applied' && rec.status !== 'failed') return rec;
-    const action = this.actions.get(id);
-    if (action?.revert) {
-      try {
-        await action.revert();
+    if (this.inflight.has(id)) return rec; // 并发守卫：已有 revert 在执行
+    this.inflight.add(id);
+    try {
+      const action = this.actions.get(id);
+      if (action?.revert) {
+        try {
+          await action.revert();
+          rec.status = 'rolled_back';
+          rec.rolledBackAt = Date.now();
+          rec.revertOutcome = 'ok';
+          rec.revertError = undefined; // 重试成功清残留错误
+        } catch (err) {
+          rec.revertOutcome = 'failed';
+          rec.revertError = (err as Error).message;
+          await this.recordEvent(rec, 'revert_failed');
+          return rec;
+        }
+        // 回滚后验证是否恢复原状
+        if (action.verify) {
+          try {
+            rec.verifyOutcome = (await action.verify()) ? 'ok' : 'failed';
+          } catch {
+            rec.verifyOutcome = 'failed';
+          }
+        }
+        await this.recordEvent(rec, 'rolled_back');
+      } else {
         rec.status = 'rolled_back';
         rec.rolledBackAt = Date.now();
         rec.revertOutcome = 'ok';
-      } catch (err) {
-        rec.revertOutcome = 'failed';
-        rec.revertError = (err as Error).message;
-        await this.recordEvent(rec, 'revert_failed');
-        return rec;
+        await this.recordEvent(rec, 'rolled_back');
       }
-      // 回滚后验证是否恢复原状
-      if (action.verify) {
-        try {
-          rec.verifyOutcome = (await action.verify()) ? 'ok' : 'failed';
-        } catch {
-          rec.verifyOutcome = 'failed';
-        }
-      }
-      await this.recordEvent(rec, 'rolled_back');
-    } else {
-      rec.status = 'rolled_back';
-      rec.rolledBackAt = Date.now();
-      rec.revertOutcome = 'ok';
-      await this.recordEvent(rec, 'rolled_back');
+    } finally {
+      this.inflight.delete(id);
     }
     return rec;
   }
