@@ -430,11 +430,18 @@ export async function bootstrapUnified(options?: {
   try {
     const { BrainFacade } = await import('./cognition/BrainFacade.js');
     const brainFacade = new BrainFacade(eventBus);
+    // ═══ S22 审计修复：注入 reflectionEngine/metaLearner（此前字段 null，聚合门面空转）═══
+    brainFacade.setReflectionEngine(reflectionEngine);
+    brainFacade.setMetaLearner(metaLearner);
+    // learningLoop：无真实实现类（learningEngine 容器从未赋值）——审计标注，不伪造注入
     brainFacade.setLearningLoop((container as any).learningEngine ?? undefined);
     // S20 完整重包：聚合记忆激活引擎（S18 装配产物）
     brainFacade.setMemoryActivationEngine?.((container as any).memoryActivationEngine);
     companyFacade.setBrainFacade(brainFacade);
     (container as any).brainFacade = brainFacade;
+    // ═══ S22 审计修复：装配 CrossDepartmentKnowledgeSynthesizer（此前完全未接线）═══
+    const { CrossDepartmentKnowledgeSynthesizer } = await import('./brain/CrossDepartmentKnowledgeSynthesizer.js');
+    (container as any).crossDeptSynthesizer = new CrossDepartmentKnowledgeSynthesizer(eventBus);
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ BrainFacade 接入失败（不阻断）:', (err as Error).message);
@@ -455,6 +462,12 @@ export async function bootstrapUnified(options?: {
   // L8: Evolution（ActiveEvolutionTrigger 构造即订阅 mission.completed/evaluation.scored；FailureAnalyzer 供批分析）
   const { ActiveEvolutionTrigger, FailureAnalyzer, EvolutionSandbox } = await import('./evolution/index.js');
   const activeEvolutionTrigger = new ActiveEvolutionTrigger(eventBus);
+  // ═══ S22 审计修复：注入 SelfImprovementLoop → 激活 autoEvolve（此前永不触发）═══
+  const { SelfImprovementLoop } = await import('./brain/SelfImprovementLoop.js');
+  const selfImprovementLoop = new SelfImprovementLoop();
+  activeEvolutionTrigger.setSelfImprovementLoop(selfImprovementLoop);
+  (container as any).selfImprovementLoop = selfImprovementLoop;
+  console.log('[bootstrapUnified] ✅ SelfImprovementLoop 已注入 ActiveEvolutionTrigger（autoEvolve 激活）');
   const failureAnalyzer = new FailureAnalyzer();
   // vNext+ L8：演化安全沙箱（沙箱试跑 + 版本化 + 人工审批 + 回滚入口）
   const evolutionSandbox = new EvolutionSandbox({ eventStore: (container as any)._eventStore ?? undefined });

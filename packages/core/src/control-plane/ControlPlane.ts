@@ -87,6 +87,20 @@ export class ControlPlane {
       };
     }
 
+    // 2.5 ═══ S22 审计修复：Agent 能力门禁（可选接线，显式传 capability 才检查）═══
+    // AgentController 此前构造但 checkAll 从不调用（死组件）；此处接通：
+    // 仅当调用方显式声明所需 capability 时，检查其是否可用，默认不改变既有行为。
+    const requiredCapability = options?.capability as string | undefined;
+    if (requiredCapability && !this.agent.checkCapabilityAvailable(requiredCapability)) {
+      return {
+        approved: false,
+        goal: goalCheck,
+        policy: policyCheck,
+        details,
+        rejection: `能力不可用: ${requiredCapability}`,
+      };
+    }
+
     // 3. 资源检查
     const resourceCheck = await this.resource.check?.({
       goal,
