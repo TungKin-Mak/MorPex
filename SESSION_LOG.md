@@ -59,13 +59,14 @@
 | S16 | 08-01 | 全栈跑起来（pi-ai 兼容修复） | **根因**：pi-ai 升 0.81.1 后 `getModel/streamSimple/completeSimple` 移至 `/compat`，StudioServer/LLMFactory 动态导入根包 → 启动即抛 `getModel is not a function`（tsc 漏检，动态 import）。**修复**：两处改 `@earendil-works/pi-ai/compat`（对齐已有约定 model-resolver/model-registry/SessionManager/pi-utils）。**新增 `scripts/run-all.sh`**（一键 cognee:8001 + embed:3100 + backend:8080，自动探测 venv/复用 spike venv，支持 --bg/--status/stop）；`scripts/start.ts` 默认注入 `COGNEE_URL=:8001`（createEngine 默认 8000 是陷阱）。**实测**：cognee 1.4.0 就绪 + embed BGE-M3 就绪 + backend 健康（14 原语/4 插件/记忆已接线）+ e2e-cognee 全过（upsert written → 图检索命中 → 空检索 need_human） | 待推 |
 | S17 | 08-01 | 去除 bge-m3 + zvec（废弃组件） | **移除**：`@zvec/zvec` 依赖（根+memory包+lock）、`ZVecStorage.ts`/`EmbeddingClient.ts`/`ZVecLockRecovery.ts`（vector/ 目录）、core 死代码 `knowledge/VectorStore.ts`、`tools-python/embedding-server.py`、`data/models/bge-m3`（7MB 模型）+ 全部 zvec 数据目录、`configs/Dockerfile.embedding`、pm2 `morpex-embed`、run-all.sh embed 段、docker-compose embedding 服务、`memory-bus-v2-audit.spec.ts`（引用不存在的 MemoryBus，陈旧）、StudioServer.ts 编辑器残留备份(.bak/.new/.part*)。**改造**：`MemoryWiki` 剥成 SQLite-only（去 zvecColl/embedder/L2 缓存/向量召回/zvecReady 统计，query 签名保留 vectors 恒空）；`MetaPlanner`/`pipeline/stages/types` 的 ZVecStorage 类型 → 结构接口 `VectorStoreLike`；StudioServer/observability 移除 zvec-storage 心跳与契约；adapters/memory 与 memory index 导出清理；bootstrap L7 无 zvecPath。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 16 + memory 12 + metaplanner 26 + e2e-cognee 全过 + 后端干净重启（ExerciseAll 72 模块无 zvec）；跟进打磨（8905da8）：query() 移除不可达图遍历死代码、清理 L1/L2 缓存、修复 dbPath 未生效 bug | 待推 |
 | S18 | 08-01 | L7 深水区收官：MemoryActivationEngine 数据源统一 | **改造**：`MemoryActivationEngine` 新增 `MemoryActivationSource` 接口（load/available）+ `setSource` + 异步 `refresh()`（拉快照替换内存存储；离线保留旧快照不误清空）+ `isSourceAvailable`/`lastRefreshedAt`；`MemoryApiBus` 新增 `createMemoryActivationSource(memoryApi, engine)` + `hitToMemoryRecord`（type 从 metadata 推断；过滤 cognee 内部工件 TextSummary_/DocumentChunk_ 噪音；need_human→空防幻觉）；新增 `memory/activationRegistry.ts` 全局注册表（set/get，对齐 ExerciseContext 模式）；bootstrap 装配：engine.setSource(统一层) + 异步首拉 + 注册；RuntimeAPI `/api/memory/activate` 复用装配引擎（不再 new 空引擎）。**实测**：后端重启装配日志「首拉 7 条，可用=true」；activate 端点返回真实记忆（'899 元/月' 命中）；噪音过滤 9→7。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 27（16+11 新）+ memory 12 + metaplanner 26。**废弃尝试**：SessionManager 接线核心 AgentHarness 失败（生产 harness 是 pi-bridge AgentHarnessClass，无 attachMemoryEngine，已撤销）；memory-activation.test.ts 原为无 test() 脚本（vitest 4 拒绝）已重写为规范 vitest 文件 | 待推 |
+| S19 | 08-01 | L8 自动回滚具体变更（EvolutionSandbox） | **改造**：`EvolutionChangeInput` 携带 apply/revert/verify 可执行动作（动作存侧表，记录保持可序列化）；`approveAndApply` 真正执行 apply（成功→applied，失败→failed 可补偿回滚）；`rollback` 真正执行 revert（仅限 applied/failed；成功→rolled_back + verify 校验，失败→保留状态可重试）；新增 applyOutcome/applyError/revertOutcome/revertError/verifyOutcome 审计字段 + apply_failed/revert_failed 事件；兼容旧行为（无 apply/revert 时维持标记式）。**reviewer 建议落地**：inflight Set 防 TOCTOU 双执行 + 重试成功清残留错误 + reject 守卫（仅 pending/rejected 可拒）。**测试**：8 个 L8 用例（含幂等/补偿/verify=false 边界）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 6 文件 73 测试全过 | `18bb397` `1b19853` |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 8 提交（`982a9b9` S16 修复 + `96668bf` S16 日志 + `c5d8e6a` S16 基线修正 + S17 `63f1787`/`ee4f44d`/`8905da8`/`f7c49cc`/`a77536d`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 **14** 提交（S16 `982a9b9`/`96668bf` + S16基线 `c5d8e6a` + S17 `63f1787`/`ee4f44d`/`8905da8`/`f7c49cc`/`a77536d` + S17清理 `da091a7` + S18 `298b2e6`/`8e8f265` + S18基线 `4146966` + S19 `18bb397`/`1b19853`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -78,7 +79,7 @@
 ### 🟡 已知遗留（外部依赖，非紧急）
 - [ ] L9 真实领域插件：ecommerce(Amazon SP-API)/software(云部署) 需外部凭证，骨架已就绪（`packages/workflows/<domain>/src/actions/`）
 - [ ] hardware/xjmcu 工具链：需本机 python + buildcli（真实逻辑已实现，环境就绪自动生效）
-- [ ] L8 自动回滚具体变更：当前为版本化回滚入口（`EvolutionSandbox` 半自动）
+- [x] ~~L8 自动回滚具体变更~~ ✅（S19 完成：EvolutionSandbox apply/revert/verify + 失败补偿 + 并发守卫，8 用例）
 - [ ] phase0-smoke 2 个部门路由测试：**预存失败**（ControlPlane 审批策略行为，HEAD 上同样失败，非回归）
 
 ### ⚪ 潜在优化（无排期）
@@ -107,6 +108,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`8e8f265 docs(session-log): S18 基线更新`（S18，本地领先远端 11，未推送）
+- 当前 HEAD：`1b19853 refactor(evolution): L8 打磨——并发守卫 + 重试清残留 + reject 守卫 + 边界测试`（S19，本地领先远端 14，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
