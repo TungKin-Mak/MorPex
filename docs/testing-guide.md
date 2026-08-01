@@ -1,6 +1,10 @@
 # MorPex E2E 全自动测试指南
 
-## 概述
+> ⚠️ **DEPRECATED (2026-08-02)**：本文档引用的前端 UI（`packages/studio/ui`）与 Playwright 套件已于 S23 移除，当前项目为纯后端（API + 系统层）。
+> **请改用 [`docs/TESTING_PLAN.md`](./TESTING_PLAN.md)**（全功能测试方案 + 一条命令 `npm run test:full`）。
+> 以下内容仅保留作历史参考，命令可能无法执行。
+
+---
 
 MorPex 使用 **Playwright** 进行端到端（E2E）UI 自动化测试。测试覆盖：
 

@@ -24,31 +24,34 @@ async function run() {
 
   try {
     // ── 1. EventStore: Basic append and query ──
+    // NOTE: S23 重构后统一事件存储为 SqliteEventStore（`../src/event/EventStore.js` 已删除）。
+    // 构造器接收 better-sqlite3 Database 实例（非路径字符串）——见 unified-eventstore.test.ts。
     console.log('📋 1. EventStore: Basic append and query\n');
     let EventStore: any;
+    let Database1: any;
     try {
-      const mod = await import('../src/event/EventStore.js');
-      EventStore = mod.EventStore || mod.default;
+      const mod = await import('../src/infrastructure/protocol/events/store/SqliteEventStore.js');
+      EventStore = mod.SqliteEventStore;
+      const dbMod = await import('better-sqlite3');
+      Database1 = dbMod.default || dbMod;
     } catch {
-      // Try alternative import paths
-      try {
-        const mod = await import('../src/infrastructure/protocol/events/store/SqliteEventStore.js');
-        EventStore = mod.SqliteEventStore;
-      } catch {
-        console.log('  ⚠️ EventStore not found, using inline test');
-        EventStore = null;
-      }
+      EventStore = null;
+      console.log('  ⚠️ SqliteEventStore/better-sqlite3 not found, using inline test');
     }
 
-    if (EventStore) {
-      const storePath = path.join(tmpDir, 'event-store-test.jsonl');
-      const store = new EventStore(storePath);
-      // Basic operations
-      ok(true, 'EventStore can be instantiated');
+    if (EventStore && Database1) {
+      const db = new Database1(':memory:');
+      try {
+        const store = new EventStore(db);
+        const evt = { id: 'evt_1', type: 'test.event', timestamp: Date.now(), executionId: 'exe_1', source: 'test', payload: { msg: 'a' } };
+        await store.append(evt);
+        const results = await store.query({ executionId: 'exe_1' });
+        ok(results.length >= 1, 'EventStore append + query by executionId');
+      } finally {
+        db.close();
+      }
     } else {
-      console.log('  ⚠️ EventStore module not found — verifying via existing test results');
-      // The existing tests (unified-eventstore.test.ts, stage1-persistence.test.ts)
-      // already pass. We verify by testing JSONL storage directly.
+      console.log('  ⚠️ EventStore 模块不可用 — 由 unified-eventstore.test.ts / stage1-persistence.test.ts 覆盖');
     }
 
     // ── 2. JSONL persistence ──

@@ -6,26 +6,16 @@ on:
   pull_request:
     branches: [main]
   workflow_dispatch:
-    inputs:
-      headed:
-        description: 'Run with headed browser'
-        required: false
-        default: false
-        type: boolean
 
 jobs:
-  e2e-tests:
-    name: E2E Playwright Tests
+  # ═══════════════════════════════════════════════════════
+  # 后端系统级 E2E（前端 UI 已于 S23 移除，纯 API/系统层测试）
+  # 依据 docs/TESTING_PLAN.md T0-T3 编排
+  # ═══════════════════════════════════════════════════════
+  system-e2e:
+    name: Backend System E2E
     runs-on: ubuntu-latest
-    timeout-minutes: 30
-
-    env:
-      PORT: 8080
-      VITE_PORT: 3000
-      BACKEND_URL: http://127.0.0.1:8080
-      FRONTEND_URL: http://127.0.0.1:3000
-      HEADLESS: 'true'
-      DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY || 'sk-test-key' }}
+    timeout-minutes: 20
 
     steps:
       - name: Checkout repository
@@ -40,37 +30,30 @@ jobs:
       - name: Install dependencies
         run: npm ci
 
-      - name: Install Playwright browsers
-        run: npx playwright install chromium
+      - name: TypeScript Compilation Check
+        run: npx tsc --noEmit
 
-      - name: Build frontend
-        run: npm run studio:build
+      - name: Architecture Alignment Check
+        run: node scripts/validate-architecture.js
 
-      - name: Run E2E tests (quick mode)
-        run: npx tsx scripts/run-e2e-tests.ts --quick --ci
-        env:
-          NODE_ENV: test
+      - name: Unit + System Test Suite (T1-T2)
+        run: npx vitest run && npx tsx tests/run-all.ts
+
+      - name: Production Critical Tests (T3)
+        run: npx tsx scripts/run-all-production-tests.ts --skip-tsc
 
       - name: Upload test report
         if: always()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-report
-          path: packages/studio/ui/e2e/report/
+          name: test-report
+          path: data/test-report/
           retention-days: 7
 
-      - name: Upload screenshots on failure
+      - name: Upload logs on failure
         if: failure()
         uses: actions/upload-artifact@v4
         with:
-          name: playwright-screenshots
-          path: packages/studio/ui/e2e/screenshots/
-          retention-days: 7
-
-      - name: Upload test logs
-        if: always()
-        uses: actions/upload-artifact@v4
-        with:
-          name: e2e-logs
+          name: test-logs
           path: logs/
           retention-days: 7

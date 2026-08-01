@@ -19,6 +19,8 @@ export default defineConfig({
       'packages/core/**/__tests__/**/*.test.ts',
       'packages/studio/server/**/__tests__/**/*.test.ts',
       'packages/memory/**/*.spec.ts',
+      'packages/connectors/**/__tests__/**/*.test.ts',
+      'packages/workflows/**/__tests__/**/*.test.ts',
       'tests/**/*.test.ts',
     ],
     // ═══ S20 清理 ═══

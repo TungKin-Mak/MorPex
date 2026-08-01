@@ -38,22 +38,6 @@ jobs:
         # Only new errors in packages/adapters/ or packages/contracts/ are regressions.
 
   # ═══════════════════════════════════════════════════════
-  # Adapter Contract Tests
-  # ═══════════════════════════════════════════════════════
-  contract-tests:
-    name: Adapter Contract Tests
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-node@v4
-        with:
-          node-version: '20'
-          cache: 'npm'
-      - run: npm ci
-      - run: npx tsx packages/adapters/__tests__/contract-tests.ts
-
-  # ═══════════════════════════════════════════════════════
   # Dependency Boundary Check
   # ═══════════════════════════════════════════════════════
   boundary-check:
@@ -67,7 +51,7 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - run: npx dependency-cruiser packages/contracts packages/adapters --config .dependency-cruiser.js
+      - run: npx dependency-cruiser packages/contracts packages/connectors --config .dependency-cruiser.js
 
   # ═══════════════════════════════════════════════════════
   # Pi Version Audit (no floating versions)
@@ -103,24 +87,24 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: Check no new PiBridge in planner/facade/execution
+      - name: Check no new PiBridge in planning/facade/execution
         run: |
-          VIO=$(grep -rn "new PiBridge" packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | grep -v "PiBridge.ts" | wc -l)
+          VIO=$(grep -rn "new PiBridge" packages/core/src/cognition/planning/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | grep -v "PiBridge.ts" | wc -l)
           if [ "$VIO" -gt 0 ]; then
-            echo "❌ FAIL: planner/facade/execution 中有 new PiBridge (绕过 ontology)"
-            grep -rn "new PiBridge" packages/core/src/planner/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" | grep -v "__tests__" | grep -v "PiBridge.ts"
+            echo "❌ FAIL: planning/facade/execution 中有 new PiBridge (绕过 ontology)"
+            grep -rn "new PiBridge" packages/core/src/cognition/planning/ packages/core/src/facade/ packages/core/src/execution/ --include="*.ts" | grep -v "__tests__" | grep -v "PiBridge.ts"
             exit 1
           fi
-          echo "✅ planner/facade/execution 无 new PiBridge 绕过"
+          echo "✅ planning/facade/execution 无 new PiBridge 绕过"
       - name: Check planner does not import SystemMetadataGraph directly
         run: |
-          VIO=$(grep -rn "SystemMetadataGraph" packages/core/src/planner/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | wc -l)
+          VIO=$(grep -rn "SystemMetadataGraph" packages/core/src/cognition/planning/ --include="*.ts" 2>/dev/null | grep -v "__tests__" | wc -l)
           if [ "$VIO" -gt 0 ]; then
-            echo "❌ FAIL: planner 直接 import SystemMetadataGraph (应通过 OntologyService)"
-            grep -rn "SystemMetadataGraph" packages/core/src/planner/ --include="*.ts" | grep -v "__tests__"
+            echo "❌ FAIL: planning 直接 import SystemMetadataGraph (应通过 OntologyService)"
+            grep -rn "SystemMetadataGraph" packages/core/src/cognition/planning/ --include="*.ts" | grep -v "__tests__"
             exit 1
           fi
-          echo "✅ planner 通过 OntologyService 访问图数据"
+          echo "✅ planning 通过 OntologyService 访问图数据"
 
   # ═══════════════════════════════════════════════════════
   # Ontology E2E (需要真实 LLM API key, 标记为 continue-on-error)
@@ -138,8 +122,8 @@ jobs:
           node-version: '20'
           cache: 'npm'
       - run: npm ci
-      - name: Run ontology e2e verification
-        run: npx tsx scripts/verify-ontology-e2e.ts
+      - name: Run ontology gate tiering tests
+        run: npx vitest run packages/core/__tests__/ontology-gate-tiering.test.ts
         env:
           # 需要真实 LLM API key 才能完整运行
           OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
