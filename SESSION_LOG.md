@@ -107,6 +107,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`a77536d docs(test): 清理 S17 移除后的过时注释`（S18 记忆激活统一待提交，本地领先远端 8+1，未推送）
+- 当前 HEAD：`298b2e6 feat(memory): MemoryActivationEngine working 数据源统一到 MemoryAPI`（S18，本地领先远端 10，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
