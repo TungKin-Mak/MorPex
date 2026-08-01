@@ -43,10 +43,25 @@ export interface ActivationResult {
   };
 }
 
+/**
+ * MemoryActivationSource — working memory 数据源（L7 深水区统一）
+ *
+ * 由装配层从统一记忆层（MemoryAPI/cognee）注入，替代手动 addMemory 填充。
+ * 引擎保持同步 activate()，数据新鲜度由 refresh() 异步拉快照保证。
+ */
+export interface MemoryActivationSource {
+  /** 从统一层拉取 working memories 快照（离线/无证据 → 空数组，不抛） */
+  load(): Promise<MemoryRecord[]>;
+  /** 数据源可用性（MemoryAPI/cognee 在线） */
+  available(): Promise<boolean>;
+}
+
 export class MemoryActivationEngine {
   private memoryStore: MemoryRecord[] = [];
+  private source: MemoryActivationSource | null = null;
+  private _lastRefreshedAt: number | null = null;
 
-  /** 注册记忆存储 */
+  /** 注册记忆存储（直接注入数组，测试/兼容用） */
   setMemoryStore(store: MemoryRecord[]): void { this.memoryStore = store; }
 
   /** 添加记忆到存储 */
@@ -54,6 +69,38 @@ export class MemoryActivationEngine {
 
   /** 添加批量记忆 */
   addMemories(memories: MemoryRecord[]): void { this.memoryStore.push(...memories); }
+
+  /** 装配层注入数据源（统一记忆层 MemoryAPI-backed） */
+  setSource(source: MemoryActivationSource): void { this.source = source; }
+
+  /**
+   * 从数据源拉取 working memory 快照（L7 统一：数据源由装配层注入）
+   * - 数据源离线 → 保留现有快照，返回 available=false（不抛、不清空）
+   * - 在线 → 以最新快照替换内存存储
+   */
+  async refresh(): Promise<{ loaded: number; available: boolean }> {
+    if (!this.source) return { loaded: 0, available: false };
+    let available = false;
+    try { available = await this.source.available(); } catch { /* 探测失败视为离线 */ }
+    if (!available) return { loaded: 0, available: false };
+    try {
+      const records = await this.source.load();
+      this.memoryStore = records;
+      this._lastRefreshedAt = Date.now();
+      return { loaded: records.length, available: true };
+    } catch {
+      return { loaded: 0, available: false };
+    }
+  }
+
+  /** 数据源可用性探测（离线时 false） */
+  async isSourceAvailable(): Promise<boolean> {
+    if (!this.source) return false;
+    try { return await this.source.available(); } catch { return false; }
+  }
+
+  /** 最近一次 refresh 成功时间（未 refresh 过为 null） */
+  get lastRefreshedAt(): number | null { return this._lastRefreshedAt; }
 
   /** 根据上下文激活记忆 */
   activate(context: ActivationContext, topK: number = 5): ActivationResult {

@@ -174,7 +174,8 @@ export type {
 
 // ── Memory Activation Engine (Phase 4) ──
 export { MemoryActivationEngine } from './memory/MemoryActivationEngine.js';
-export type { ActivationContext, ActivationResult } from './memory/MemoryActivationEngine.js';
+export type { ActivationContext, ActivationResult, MemoryActivationSource } from './memory/MemoryActivationEngine.js';
+export { setGlobalActivationEngine, getGlobalActivationEngine } from './memory/activationRegistry.js';
 
 // ── Intent Intelligence Layer (Phase 5) ──
 export { GoalExtractor, ConstraintAnalyzer, PriorityEngine, RiskDetector, ExecutionPolicyGenerator, IntentResolver } from './goal-intelligence/intent/index.js';

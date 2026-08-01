@@ -156,7 +156,11 @@ export function registerRuntimeRoutes(app: ExpressRouter): void {
   app.post('/api/memory/activate', async (req, res) => {
     try {
       const { MemoryActivationEngine } = await import('../../core/src/memory/MemoryActivationEngine.js');
-      const engine = new MemoryActivationEngine();
+      const { getGlobalActivationEngine } = await import('../../core/src/memory/activationRegistry.js');
+      // L7 深水区：复用装配层注入统一记忆层数据源的引擎（未装配时兜底空引擎）
+      const engine = getGlobalActivationEngine() ?? new MemoryActivationEngine();
+      // 尚无快照时尝试从统一层拉取（cognee 离线 → refresh 返回 available=false，保留空）
+      if (engine.memoryCount === 0) await engine.refresh();
       const { executionStatus, goal, currentStep, totalSteps, completedSteps, errors, tags } = req.body || {};
       const result = engine.activate({
         executionStatus: executionStatus || 'idle',
