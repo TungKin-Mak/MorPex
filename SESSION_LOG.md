@@ -62,14 +62,14 @@
 | S19 | 08-01 | L8 自动回滚具体变更（EvolutionSandbox） | **改造**：`EvolutionChangeInput` 携带 apply/revert/verify 可执行动作（动作存侧表，记录保持可序列化）；`approveAndApply` 真正执行 apply（成功→applied，失败→failed 可补偿回滚）；`rollback` 真正执行 revert（仅限 applied/failed；成功→rolled_back + verify 校验，失败→保留状态可重试）；新增 applyOutcome/applyError/revertOutcome/revertError/verifyOutcome 审计字段 + apply_failed/revert_failed 事件；兼容旧行为（无 apply/revert 时维持标记式）。**reviewer 建议落地**：inflight Set 防 TOCTOU 双执行 + 重试成功清残留错误 + reject 守卫（仅 pending/rejected 可拒）。**测试**：8 个 L8 用例（含幂等/补偿/verify=false 边界）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 6 文件 73 测试全过 | `18bb397` `1b19853` |
 | S20 | 08-01 | 完成全部候选（L9 插件/phase0-smoke/BrainFacade 重包/Planner 接入） | **B. phase0-smoke 修复（真 bug）**：`ApprovalAction` 无 `execute_goal` → `!policy→true` 兜底 → 所有 goal 永远需人工审批（主入口被卡死）；补 execute_goal 默认策略（LOW/MEDIUM 自动批准、HIGH/CRITICAL 人工）+ CompanyFacade 部门校验前置（先于审批门禁）+ sendTask 消息含路由部门 + 测试注入 stub runtime/真实 ControlPlane（19/19）。**A. L9 插件**：`.env.example` 加凭证占位（AMAZON_SP_API_KEY/AWS_*/GITHUB_TOKEN 等，缺省 mock 降级、凭证就绪即生效）+ workflow-plugins 测试（4 provider 加载 + mock 降级，3/3）。**D. Planner 非 Mission 接入**：CompanyFacade.setDeliveryPlanner + executeGoal 非 mission 模式先规划（planId 注入 runOpts + 返回 plan 字段，失败非阻断）；bootstrap 装配（4/4）。**C. BrainFacade 完整重包**：聚合 MemoryActivationEngine（activateMemory）+ DeliveryPlanner（planGoal），getStats.systems 扩展（6/6）。**附带**：critical-cognitive-pipeline 脚本式→规范 vitest（9/9，修复 worker 挂起）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 精选 11 文件 114 测试全过 + 后端重启装配验证 | `780868d` `12fee5b` `769ad86` `6c62aaa` `3b4866e` |
 | S21 | 08-01 | 测试专项清理（全量 vitest 全绿） | **根因**：`vitest run` 全目录 32 文件失败——①30+ 脚本式测试（v11 遗留，main()/process.exit 直跑）混入 include 致 No test suite/worker 挂起；②vitest alias 只配根、缺 `@morpex/contracts/*` 等子路径（tsconfig 已配）；③S17 移除 zvec 后残留死引用。**修复**：vitest.config exclude 32 个脚本式（保留 tsx 手动运行）+ alias 补全 contracts/connectors/core/memory/workflow-sdk 子路径；清理 morpex-knowledge 的 VectorStore 块、morpex-crossdomain 的 VectorStoreAdapter/MemoryBusListener 条目。**效果**：`npx vitest run` **35 文件 254 测试全过**（原 32 failed）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 全量 vitest 254 全过 | `da63678` |
-| S22 | 08-01 | 架构严格审计（揭露“100% 对齐”虚标）+ 接线修复 + LearningLoop 补全 | **审计结论**：`validate-architecture.js` 的 100% 是**负向合规**（检测无违规），不验证组件存在/实现/装配。正向核验 53 组件：L2/L3/L5/L6/L7/L9/L10 真实；**L8 autoEvolve 永不触发**（selfImprovementLoop 未注入）、**L4 BrainFacade reflectionEngine/metaLearner 字段 null + Synthesizer 未装配**、**L1 Agent/Evolution Controller 死组件**（checkAll 不调用）、**BrainFacade.learningLoop 无实现类**（learningEngine 容器从未赋值）、文档称“Brain 已并入 cognition/”但实际仍在 brain/。**修复**：bootstrap 注入 SelfImprovementLoop + setReflectionEngine/setMetaLearner + Synthesizer 装配；checkAll 可选 capability 门禁。**文档**：morpex_ARCHITECTURE.md 100% 降级为诚实表述 + §6 审计记录表。**门禁**：tsc 0 + 架构无违规 + production 8/8 + 全量 vitest 36 文件 258 全过（含 audit-fixes 4/4） | `deb84eb` |
+| S22 | 08-01 | 架构严格审计（揭露“100% 对齐”虚标）+ 接线修复 + LearningLoop 补全 + brain 迁移 + capability 推断 | **审计结论**：`validate-architecture.js` 的 100% 是**负向合规**（检测无违规），不验证组件存在/实现/装配。正向核验 53 组件：L2/L3/L5/L6/L7/L9/L10 真实；**L8 autoEvolve 永不触发**、**L4 BrainFacade reflectionEngine/metaLearner 字段 null + Synthesizer 未装配**、**L1 Agent/Evolution Controller 死组件**、**BrainFacade.learningLoop 无实现类**、文档称“Brain 已并入 cognition/”但实际未迁。**修复**：① bootstrap 注入 SelfImprovementLoop + setReflectionEngine/setMetaLearner + Synthesizer 装配；② checkAll 可选 capability 门禁 + **goal→capability 自动推断**（enableCapabilityInference 默认关）；③ **LearningLoop 实现**（聚合 learning/ 三件套，注入 BrainFacade）；④ **brain/ 8 文件真实迁移 cognition/**（目录删除）；⑤ 修复 `checkCapabilityAvailable` 存在性≠可用性（改 findForCapability）+ `CapabilityRegistry.init()` 从未被调用（改惰性 seed）。**文档**：morpex_ARCHITECTURE.md 100% 降级 + §6 审计记录表 + 10/10 层真实落地。**门禁**：tsc 0 + 架构无违规 + production 8/8 + 全量 vitest 37 文件 265 全过 | `deb84eb` `8fa3729` `0e2c1af` |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [x] ~~**推送提交**~~ ✅（S21 收尾：网络恢复，`git push origin master` 成功，`dcb045b..0c34c28`，本地与远端同步 ahead=0）
+- [ ] **推送提交**：本地 `master` 领先远端 **4** 提交（S22 后续：`8fa3729` LearningLoop + `f96b611` 补全标记 + `0e2c1af` brain 迁移/capability 推断 + `0f471fa` 文档）。网络恢复后执行 `git push origin master`（github.com:443 多次超时）
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -113,6 +113,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`deb84eb fix(architecture): S22 审计修复`（S22，已推送或待推，见 git）
+- 当前 HEAD：`0f471fa docs: S22 收官——brain 迁移 + capability 推断记录`（S22，本地领先远端 **4**，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
