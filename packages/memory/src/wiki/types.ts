@@ -73,10 +73,6 @@ export interface GraphNode {
 export interface MemoryWikiConfig {
   /** SQLite 数据库路径 */
   dbPath?: string;
-  /** L1 查询缓存大小 */
-  queryCacheMax?: number;
-  /** L1 查询缓存 TTL（毫秒） */
-  queryCacheTTL?: number;
 }
 
 // ═══════════════════════════════════════════════════════════════

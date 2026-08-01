@@ -18,10 +18,9 @@
 
 import * as path from 'node:path';
 import * as fs from 'node:fs';
-import { LRUCache } from 'lru-cache';
 import type {
   MemoryItem, MemoryRelation, QueryOptions, QueryResult,
-  VectorHit, GraphNode, MemoryWikiConfig,
+  MemoryWikiConfig,
 } from './types.js';
 import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
 
@@ -29,10 +28,8 @@ import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
 // 默认配置
 // ═══════════════════════════════════════════════════════════════
 
-const DEFAULT_CONFIG: Required<MemoryWikiConfig> = {
+const DEFAULT_CONFIG: Required<Pick<MemoryWikiConfig, 'dbPath'>> = {
   dbPath: './data/memory.db',
-  queryCacheMax: 1000,
-  queryCacheTTL: 1000 * 60 * 5,
 };
 
 // ═══════════════════════════════════════════════════════════════
@@ -42,22 +39,13 @@ const DEFAULT_CONFIG: Required<MemoryWikiConfig> = {
 export class MemoryWiki {
   // ── 持久层 ──
   private db: ReturnType<typeof import('better-sqlite3')> | null = null;
-
-  // ── 缓存 ──
-  private queryCache: LRUCache<string, QueryResult>;
+  private readonly dbPath: string;
 
   // ── 状态 ──
   private _ready = false;
 
   constructor(config: MemoryWikiConfig = {}) {
-    const cfg = { ...DEFAULT_CONFIG, ...config };
-
-    // L1 查询缓存
-    this.queryCache = new LRUCache({
-      max: cfg.queryCacheMax,
-      ttl: cfg.queryCacheTTL,
-      updateAgeOnGet: true,
-    });
+    this.dbPath = path.resolve(config.dbPath ?? DEFAULT_CONFIG.dbPath);
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -71,16 +59,11 @@ export class MemoryWiki {
   async initialize(): Promise<void> {
     // 1. SQLite
     const Database = (await import('better-sqlite3')).default;
-    const dbPath = path.resolve(
-      (this as unknown as { _config: MemoryWikiConfig })._config?.dbPath ?? DEFAULT_CONFIG.dbPath,
-    );
-    // 实际使用 constructor 传入的路径
-    const resolvedDbPath = path.resolve(DEFAULT_CONFIG.dbPath);
-    const dbDir = path.dirname(resolvedDbPath);
+    const dbDir = path.dirname(this.dbPath);
     if (!fs.existsSync(dbDir)) {
       fs.mkdirSync(dbDir, { recursive: true });
     }
-    this.db = new Database(resolvedDbPath);
+    this.db = new Database(this.dbPath);
     this.db.pragma('journal_mode = WAL');
     this.db.pragma('synchronous = NORMAL');
     this.db.pragma('cache_size = -64000');
@@ -154,9 +137,6 @@ export class MemoryWiki {
     });
 
     transaction();
-
-    // 写后清 L1 查询缓存
-    this.queryCache.clear();
   }
 
   /**
@@ -387,71 +367,14 @@ export class MemoryWiki {
   // ═════════════════════════════════════════════════════════════
 
   /**
-   * query — Wiki 混合查询（向量 + 图遍历 + 缓存）
+   * query — 查询（语义召回已移除）
+   *
+   * zvec/BGE-M3 已废弃移除（S17），语义检索由 cognee 统一记忆层（MemoryAPI）接管。
+   * 本方法保留签名以兼容旧调用方，恒返回空结果；新代码请改用 MemoryAPI.query。
    */
-  async query(queryEmbedding: number[], options: QueryOptions = {}): Promise<QueryResult> {
+  async query(_queryEmbedding: number[], _options: QueryOptions = {}): Promise<QueryResult> {
     if (!this.db) throw new Error('MemoryWiki not initialized');
-
-    const { topK = 10, hops = 2, cacheTTL = 300 } = options;
-
-    // 缓存 key：取 embedding 前 8 维做哈希
-    const cacheKey = `q:${Buffer.from(new Float32Array(queryEmbedding.slice(0, 8)).buffer).toString('base64')}`;
-
-    // L1 缓存
-    const cached = this.queryCache.get(cacheKey);
-    if (cached) return cached;
-
-    // 向量召回已移除（zvec/BGE-M3 废弃，语义检索由 cognee 统一记忆层接管）
-    // vectors 恒为空数组，图遍历的种子 id 为空 → 返回空结果（保留签名兼容）
-    const vectorHits: VectorHit[] = [];
-
-    // SQLite 图遍历
-    const ids = vectorHits.map(v => v.id);
-    let graphNodes: GraphNode[] = [];
-
-    if (ids.length > 0) {
-      const placeholders = ids.map(() => '?').join(',');
-      try {
-        const rows = this.db.prepare(`
-          WITH RECURSIVE graph AS (
-            SELECT id, type, name, data_json, 0 as hop
-            FROM kg_entities
-            WHERE id IN (${placeholders})
-            UNION ALL
-            SELECT e.id, e.type, e.name, e.data_json, g.hop + 1
-            FROM graph g
-            JOIN kg_relations r ON g.id = r.from_id
-            JOIN kg_entities e ON r.to_id = e.id
-            WHERE g.hop < ?
-          )
-          SELECT DISTINCT id, type, name, data_json, hop
-          FROM graph
-          ORDER BY hop
-          LIMIT ?
-        `).all(...ids, hops, topK * 2) as Array<{
-          id: string; type: string; name: string; data_json: string | null; hop: number;
-        }>;
-
-        graphNodes = rows.map(row => ({
-          id: row.id,
-          type: row.type,
-          name: row.name,
-          data: row.data_json ? JSON.parse(row.data_json) : null,
-          hop: row.hop,
-        }));
-      } catch { /* 图遍历失败 */ }
-    }
-
-    const result: QueryResult = {
-      vectors: vectorHits,
-      graph: graphNodes,
-      timestamp: Date.now(),
-    };
-
-    // 存 L1 缓存（使用传入的 TTL）
-    this.queryCache.set(cacheKey, result, { ttl: cacheTTL * 1000 });
-
-    return result;
+    return { vectors: [], graph: [], timestamp: Date.now() };
   }
 
   // ═════════════════════════════════════════════════════════════
@@ -707,16 +630,7 @@ export class MemoryWiki {
       kgEntities: (this.db.prepare('SELECT COUNT(*) as cnt FROM kg_entities').get() as { cnt: number }).cnt,
       kgRelations: (this.db.prepare('SELECT COUNT(*) as cnt FROM kg_relations').get() as { cnt: number }).cnt,
       memoryEntries: (this.db.prepare('SELECT COUNT(*) as cnt FROM memory_entries').get() as { cnt: number }).cnt,
-      queryCacheSize: this.queryCache.size,
     };
-  }
-
-  // ═════════════════════════════════════════════════════════════
-  // 缓存管理
-  // ═════════════════════════════════════════════════════════════
-
-  invalidateQueryCache(): void {
-    this.queryCache.clear();
   }
 
   // ═════════════════════════════════════════════════════════════
