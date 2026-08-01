@@ -431,6 +431,8 @@ export async function bootstrapUnified(options?: {
     const { BrainFacade } = await import('./cognition/BrainFacade.js');
     const brainFacade = new BrainFacade(eventBus);
     brainFacade.setLearningLoop((container as any).learningEngine ?? undefined);
+    // S20 完整重包：聚合记忆激活引擎（S18 装配产物）
+    brainFacade.setMemoryActivationEngine?.((container as any).memoryActivationEngine);
     companyFacade.setBrainFacade(brainFacade);
     (container as any).brainFacade = brainFacade;
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
@@ -486,6 +488,8 @@ export async function bootstrapUnified(options?: {
     container.missionRuntime.setPlanner(new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration }));
     // L3 非 Mission 路径接入：CompanyFacade 的 auto/dag/fabric 模式先规划再执行（失败不阻断）
     companyFacade.setDeliveryPlanner?.(deliveryPlanner);
+    // S20 完整重包：BrainFacade 也聚合规划能力
+    (container as any).brainFacade?.setDeliveryPlanner?.(deliveryPlanner);
     (container as any).deliveryPlanner = deliveryPlanner;
     (container as any).hierarchicalPlanner = hierarchicalPlanner;
     (container as any).arbitrationEngine = arbitration;

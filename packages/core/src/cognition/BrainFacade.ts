@@ -74,6 +74,8 @@ export interface BrainStats {
     memoryWiki: boolean;
     learningLoop: boolean;
     evolutionEngine: boolean;
+    memoryActivation: boolean;
+    deliveryPlanner: boolean;
   };
 }
 
@@ -140,6 +142,16 @@ export interface EvolutionEngineLike {
 
 // ── BrainFacade ──
 
+/** S20 完整重包：MemoryActivationEngine 弱耦合接口（working 记忆激活，S18） */
+export interface MemoryActivationEngineLike {
+  activate(ctx: Record<string, unknown>, topK?: number): { memories: unknown[]; contextBias: string; activationScore: number };
+}
+
+/** S20 完整重包：DeliveryPlanner 弱耦合接口（非 Mission 路径规划） */
+export interface DeliveryPlannerLike {
+  createPlan(req: { goal: string; mode?: string; departmentId?: string }): Promise<{ id: string; tasks?: unknown[]; ontologyRefs?: string[] }>;
+}
+
 export class BrainFacade {
   name = 'BrainFacade';
   version = '1.0.0';
@@ -162,6 +174,12 @@ export class BrainFacade {
 
   /** v13: MetaLearner — 元学习（从任务中学习偏好） */
   private metaLearner: MetaLearnerLike | null = null;
+
+  // ── S20 完整重包：聚合已直连运行时事件的能力 ──
+  /** MemoryActivationEngine（S18：working 记忆激活，数据源统一到 MemoryAPI） */
+  private memoryActivationEngine: MemoryActivationEngineLike | null = null;
+  /** DeliveryPlanner（S20：L3 非 Mission 路径规划） */
+  private deliveryPlanner: DeliveryPlannerLike | null = null;
 
   // 内部统计
   private totalMemories = 0;
@@ -269,6 +287,16 @@ export class BrainFacade {
   /** v13: setMetaLearner — 注入 MetaLearner */
   setMetaLearner(learner: MetaLearnerLike): void {
     this.metaLearner = learner;
+  }
+
+  /** S20 完整重包：注入 MemoryActivationEngine（working 记忆激活） */
+  setMemoryActivationEngine(engine: MemoryActivationEngineLike): void {
+    this.memoryActivationEngine = engine;
+  }
+
+  /** S20 完整重包：注入 DeliveryPlanner（非 Mission 路径规划） */
+  setDeliveryPlanner(planner: DeliveryPlannerLike): void {
+    this.deliveryPlanner = planner;
   }
 
   /**
@@ -1140,6 +1168,32 @@ export class BrainFacade {
   /**
    * getStats — 获取大脑统计
    */
+  /**
+   * S20 完整重包：activateMemory — 上下文感知记忆激活门面
+   * 转发到 MemoryActivationEngine（数据源由统一层注入，S18）。未注入时返回空结果。
+   */
+  activateMemory(ctx: Record<string, unknown>, topK: number = 5): { memories: unknown[]; contextBias: string; activationScore: number } {
+    if (!this.memoryActivationEngine) {
+      return { memories: [], contextBias: 'No activation engine injected.', activationScore: 0 };
+    }
+    return this.memoryActivationEngine.activate(ctx, topK);
+  }
+
+  /**
+   * S20 完整重包：planGoal — 非 Mission 路径规划门面
+   * 转发到 DeliveryPlanner.createPlan（增强；失败返回 null，不阻断）。
+   */
+  async planGoal(goal: string, opts: { mode?: string; departmentId?: string } = {}): Promise<{ planId?: string; taskCount?: number; ontologyRefs?: string[] } | null> {
+    if (!this.deliveryPlanner) return null;
+    try {
+      const plan = await this.deliveryPlanner.createPlan({ goal, mode: opts.mode, departmentId: opts.departmentId });
+      return { planId: plan.id, taskCount: plan.tasks?.length ?? 0, ontologyRefs: plan.ontologyRefs };
+    } catch (err) {
+      console.warn(`[BrainFacade] ⚠️ planGoal 失败（非阻断）: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   getStats(): BrainStats {
     return {
       totalMemories: this.totalMemories,
@@ -1152,6 +1206,8 @@ export class BrainFacade {
         memoryWiki: !!this.memoryWiki,
         learningLoop: !!this.learningLoop,
         evolutionEngine: !!this.evolutionEngine,
+        memoryActivation: !!this.memoryActivationEngine,
+        deliveryPlanner: !!this.deliveryPlanner,
       },
     };
   }
