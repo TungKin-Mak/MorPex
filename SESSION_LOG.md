@@ -63,7 +63,7 @@
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 1 提交（`982a9b9`，S16 修复）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 2 提交（`982a9b9` S16 修复 + `96668bf` S16 日志）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -104,6 +104,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`dcb045b docs(session-log): 记录 S15…`（S16 修复待提交）
-- 上游基线：`origin/master`（已同步，0 ahead）
+- 当前 HEAD：`96668bf docs(session-log): 记录 S16 推送待办`（本地领先远端 2，未推送）
+- 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
