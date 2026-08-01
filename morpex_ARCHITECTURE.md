@@ -235,6 +235,25 @@ npx tsc --noEmit
 
 ---
 
+## 6. S22 Architecture Audit Record（严格审计）
+
+> 审计方法：负向合规（validate-architecture.js 8 项）+ 正向核验（文件存在 → 实现度 → 装配点 bootstrap 调用）。
+
+| 层 | 判定 | 审计证据 | 处置 |
+|----|------|---------|------|
+| L1 Entry & Governance | ⚠️ 部分接线 | 5 Controllers 存在且实现；但 checkAll 只调 goal/policy/resource，Agent/Evolution Controller 构造未用（死组件） | S22：checkAll 增加可选 capability 门禁（显式传才检查） |
+| L2 Ontology Gate | ✅ 真实 | Graded Gate 真实：tier-0 禁缓存（getCacheKey 返回 ''）、tier-2 ControlledExploration、QueryMiss 事件真实 append | — |
+| L3 Planning | ✅ 真实 | DeliveryPlanner 926 行 / HierarchicalPlanner / Arbitration 环检测 / ontologyRefs 传递；装配 Mission+非 Mission | — |
+| L4 Cognition & Brain | ❌→✅ 已修复 | BrainFacade reflectionEngine/metaLearner 字段 null（bootstrap 未调 setter）；Synthesizer 未装配；**learningLoop 无实现类** | S22：注入 reflectionEngine/metaLearner + Synthesizer 装配；learningLoop 标注待补 |
+| L5 Execution | ✅ 真实 | maxIterations(默认300)/maxCostTokens 真实上限 + budget.exceeded 事件；SubAgentFork 重试/超时 | — |
+| L6 Tools & Primitives | ✅ 真实 | 5 通用原语 + 19 原语注册 + Ontology Gate 绑定（bootstrap 282-311） | — |
+| L7 Knowledge & Memory | ✅ 真实 | 8 实体 × 10 关系真实（SystemMetadataGraph.ts:9-10）；MemoryAPI(cognee)/MemoryWiki/PersonalBrain/ArtifactRegistry/UnifiedEventStore 全真实 | — |
+| L8 Evolution | ⚠️→✅ 已修复 | autoEvolve 因 selfImprovementLoop 未注入永不触发（ActiveEvolutionTrigger.ts:307） | S22：bootstrap 注入 SelfImprovementLoop |
+| L9 Workflow Plugin | ✅ 真实 | 4 插件注册 + S20 workflow-plugins 测试 | — |
+| L10 Infrastructure | ✅ 真实 | EventBus / ConnectorRegistry(FS+Shell) / Observability | — |
+
+**结论**：负向合规 100%；正向核验 7/10 层原本真实 + L4/L8 两处接线缺陷（S22 已修）+ L1 部分接通 + L4 learningLoop 无实现（待补）。
+
 ## 5. Future Development Rules
 
 **任何新功能必须**：
