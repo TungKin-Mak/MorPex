@@ -2,6 +2,8 @@
 node_modules/
 dist/
 *.tsbuildinfo
+# 覆盖率临时产物（已配置写入 data/test-report/coverage/，此处防默认目录残留）
+coverage/
 
 # ── Runtime Data (自动生成) ──
 data/

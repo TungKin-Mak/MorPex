@@ -71,6 +71,34 @@ export default defineConfig({
     // TypeScript configuration — Vitest 4: poolOptions moved to top-level
     pool: 'forks',
     singleFork: true,
+    // ═══ P2: 覆盖率采集（@vitest/coverage-v8）═══
+    coverage: {
+      provider: 'v8',
+      // 只统计业务源码，排除测试/装配/桶文件
+      include: [
+        'packages/core/src/**/*.ts',
+        'packages/studio/server/**/*.ts',
+      ],
+      exclude: [
+        '**/__tests__/**',
+        '**/*.test.ts',
+        '**/*.spec.ts',
+        '**/index.ts',
+        '**/bootstrap*.ts',
+        'packages/core/src/infrastructure/common/types.ts',
+        'packages/studio/server/data/**',
+        'packages/studio/server/event-mesh/**',
+      ],
+      reporter: ['text', 'json', 'html'],
+      reportsDirectory: 'data/test-report/coverage',
+      // 阈值略低于全量基线（语句 26.72 / 分支 21.6 / 函数 25.32 / 行 28.15），防止轻微波动误红，重大回退仍会被拦
+      thresholds: {
+        statements: 25,
+        branches: 20,
+        functions: 24,
+        lines: 27,
+      },
+    },
   },
   // Resolve aliases matching tsconfig paths
   // ═══ S20 修复：补全子路径 alias（原只配根，@morpex/contracts/* 等解析失败）═══

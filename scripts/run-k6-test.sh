@@ -27,8 +27,9 @@ RESULTS_DIR="$PROJECT_DIR/data/k6-results"
 MODE="default"
 VUS=""
 DURATION=""
-BASE_URL="${BASE_URL:-http://localhost:3100}"
-API_URL="${API_URL:-http://localhost:3001}"
+# StudioServer 真实端点（:8080 /api/*）；全量负载套件仍可覆盖旧端点的扩展场景
+BASE_URL="${BASE_URL:-http://localhost:8080}"
+API_URL="${API_URL:-http://localhost:8080}"
 
 # Parse args
 case "${1:-default}" in
@@ -36,24 +37,29 @@ case "${1:-default}" in
     MODE="smoke"
     VUS=5
     DURATION="30s"
+    K6_SCRIPT="$SCRIPT_DIR/k6-smoke.js"
     ;;
   --stress)
     MODE="stress"
     VUS=200
     DURATION="300s"
+    K6_SCRIPT="$SCRIPT_DIR/k6-load-test.js"
     ;;
   --soak)
     MODE="soak"
     VUS=100
     DURATION="1800s"
+    K6_SCRIPT="$SCRIPT_DIR/k6-load-test.js"
     ;;
   --custom)
     MODE="custom"
     VUS="${2:-50}"
     DURATION="${3:-120s}"
+    K6_SCRIPT="$SCRIPT_DIR/k6-load-test.js"
     ;;
   default|--default)
     MODE="default"
+    K6_SCRIPT="$SCRIPT_DIR/k6-load-test.js"
     ;;
   *)
     echo -e "${RED}Unknown mode: $1${NC}"
@@ -82,7 +88,7 @@ if ! command -v k6 &> /dev/null; then
     grafana/k6 run \
     ${VUS:+--vus $VUS} \
     ${DURATION:+--duration $DURATION} \
-    /scripts/k6-load-test.js \
+    /scripts/$(basename "$K6_SCRIPT") \
     2>&1 | tee "$RESULTS_DIR/k6-$(date +%Y%m%d_%H%M%S).log"
   
   exit $?
@@ -102,11 +108,11 @@ echo ""
 
 # Check endpoints are reachable
 echo -e "${CYAN}Pre-flight health check...${NC}"
-if curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 "${BASE_URL}/health" 2>/dev/null | grep -q "200"; then
+if curl -s -o /dev/null -w "%{http_code}" --connect-timeout 3 "${BASE_URL}/api/health" 2>/dev/null | grep -q "200"; then
   echo -e "  ${GREEN}✅ Health endpoint OK${NC}"
 else
-  echo -e "  ${YELLOW}⚠️  Health endpoint not reachable at $BASE_URL/health${NC}"
-  echo -e "  ${YELLOW}   Make sure the server is running: npm run dev${NC}"
+  echo -e "  ${YELLOW}⚠️  Health endpoint not reachable at $BASE_URL/api/health${NC}"
+  echo -e "  ${YELLOW}   Make sure the server is running: npx tsx scripts/start.ts${NC}"
 fi
 
 # Create results directory

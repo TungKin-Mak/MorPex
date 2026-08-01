@@ -241,8 +241,9 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 |------|----------|------|------|
 | 层覆盖（10 层有测试归属） | 矩阵人工核对（§3） | L6 ❌、L1 部分 ❌ | 10/10 层 ✅ |
 | 组件级引用覆盖 | grep 测试文件引用核心模块 | 32 核心组件 7 个 ❌ / 8 个 ⚠️ | ❌→0，⚠️→≤3 |
-| 测试数 | vitest | 430 | ≥450 |
+| 测试数 | vitest | 447 | ≥450 |
 | 用例通过率 | 统一入口报告 | 100% | ≥98% |
+| 行覆盖 | `npx vitest run --coverage` | 28.15% | ≥30%（随补测提升） |
 | 架构违规 | validate-architecture | 0 | 0 |
 | 静态错误 | tsc | 0 | 0 |
 
@@ -269,9 +270,10 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 - [x] ~~**补 ⚠️ 组件**~~ ✅（`synthesizer-fabric.test.ts`：CrossDepartmentKnowledgeSynthesizer 融合+迁移 10 用例 + ExecutionFabric 能力/重试 8 用例；PatternMigrationEngine/ActiveEvolutionTrigger 已由 evolution-closed-loop 覆盖）
 
 ### 🟢 P2（增强与自动化）
-11. k6 负载测试纳入 --full 档 + CI 可选 job
+- [x] ~~**k6 负载测试纳入 --full 档 + CI 可选 job**~~ ✅（`scripts/k6-smoke.js` 针对真实端点 :8080 只读冒烟 + `run-k6-test.sh --smoke` 校准端口/脚本选择 + CI k6-smoke job（Docker））
+- [x] ~~**覆盖率报告接入（c8/v8 provider），CI 产物展示**~~ ✅（`@vitest/coverage-v8` + vitest.config coverage 配置（阈值 25/20/24/27 防回退）+ `npm run test:coverage` + runner `--with-coverage` 阶段 + CI coverage job 上传报告）
+- [x] ~~**security-middleware 认证用例**~~ ✅（`packages/studio/server/__tests__/security-middleware.test.ts`：API Key 认证/安全头/CORS/速率限制/输入校验/应用注册，17 用例）
 12. cognee 真实链路测试纳入 --full 档
-13. 覆盖率报告接入（c8/v8 provider），CI 产物展示
 14. 领域插件真实工具链测试（环境探测驱动）
 15. 混沌注入扩展：EventBus 消费者崩溃、存储写满、并发 TOCTOU
 

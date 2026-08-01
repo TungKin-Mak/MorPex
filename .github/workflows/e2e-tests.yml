@@ -57,3 +57,58 @@ jobs:
           name: test-logs
           path: logs/
           retention-days: 7
+
+  # ═══════════════════════════════════════════════════════
+  # 覆盖率报告（P2：@vitest/coverage-v8，阈值防回退）
+  # ═══════════════════════════════════════════════════════
+  coverage:
+    name: Coverage Report
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Run tests with coverage
+        run: npx vitest run --coverage
+      - name: Upload coverage report
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: coverage-report
+          path: data/test-report/coverage/
+          retention-days: 7
+
+  # ═══════════════════════════════════════════════════════
+  # k6 负载冒烟（P2：可选 job——需 Docker；后端在线则验证 P95/错误率阈值）
+  # ═══════════════════════════════════════════════════════
+  k6-smoke:
+    name: k6 Load Smoke
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+      - run: npm ci
+      - name: Start backend
+        run: |
+          npx tsx scripts/start.ts &
+          for i in $(seq 1 30); do
+            if curl -sf http://localhost:8080/api/health > /dev/null; then break; fi
+            sleep 2
+          done
+          curl -sf http://localhost:8080/api/health
+      - name: Run k6 smoke via Docker
+        run: |
+          docker run --rm --network host \
+            -e BASE_URL=http://localhost:8080 \
+            -e API_URL=http://localhost:8080 \
+            -v "$PWD/scripts:/scripts" \
+            grafana/k6 run --vus 5 --duration 30s /scripts/k6-smoke.js
