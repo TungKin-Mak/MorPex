@@ -23,6 +23,16 @@
   node scripts/production-check.cjs          # 生产就绪（8/8）
   npx vitest run packages/core/__tests__/ontology-gate-tiering.test.ts packages/core/__tests__/bounded-autonomy.test.ts packages/core/__tests__/feature-regression.test.ts   # 核心测试（16 用例）
   ```
+- **一键运行（全栈 3 服务）**：
+  ```bash
+  ./scripts/run-all.sh            # cognee :8001 + embedding :3100 + backend :8080（后端前台）
+  ./scripts/run-all.sh --bg       # 全部后台运行
+  ./scripts/run-all.sh --status   # 健康检查
+  ./scripts/run-all.sh stop       # 停止
+  npm run dev                     # 仅后端（自动接 COGNEE_URL=:8001）
+  npx tsx scripts/e2e-cognee.ts   # 记忆系统端到端验证
+  ```
+- **⚠️ pi-ai 0.81.1 兼容**：`getModel/completeSimple/streamSimple` 已移至 `@earendil-works/pi-ai/compat`（根导出不再提供），StudioServer/LLMFactory 已改走 compat（S16）
 - **门禁状态**：✅ tsc 0 错误 · ✅ 架构 100% · ✅ production-check 8/8 · ✅ 测试 16/16 · ✅ 工作树干净
 
 ---
@@ -46,19 +56,21 @@
 | S13 | 08-01 | 记忆系统统一改造（TS + cognee 引擎） | **选型收敛**：MemoryJS(npm包损坏+4★)/supermemory(Win CLI不支持+版本早)/mem0(图弱+服务重)/agentmemory(coding专用) → **cognee**（29.6k★,TS SDK,本地文件存储 SQLite+LanceDB+KuzuDB,图核心+本体生成+TEMPORAL双时间,无Docker）；cognee P0 spike 全过；**统一记忆层 @morpex/memory 落地**（P0，8测试）：MemoryAPI契约/本体白名单/确认队列/强制门禁/L2隔离/cognee HTTP适配器(手动multipart)/MockEngine；**Gate接线**：ontologyTools第5工具 ontology_queryCompanyKnowledge + CompanyKnowledge注册表 + bootstrap装配；**废弃重复的 Python company_memory/**（被 cognee 取代）；**真实联调通**：TS→cognee 写入/图证据检索/空检索→need_human；门禁：tsc 0 + 28测试 + validate-architecture 100% + production-check 8/8 | `cdc6aba` `eb80acb` `a18fee9` |
 | S14 | 08-01 | 记忆读写入口统一收敛（碎片） | **碎片审查**：发现读写入口不统一（6读/5写）+ 独立存储并存（PersonalBrain自带SQLite死代码 / KnowledgeGraph JSONL / MemoryWiki）；**收敛执行**：MemoryAPI新增 `rememberEpisode`（情景统一入口）；`MemoryApiBus`（MemoryHooks→统一层）；`memory-search-tool` 走统一检索 + 空/低置信→need_human（防幻觉，不再鼓励模型自答）；**PersonalBrain 纯内存化**（删 SQLite memory_entries 死代码，持久化统一经 BrainPersistor→MemoryAPI）；BrainPersistor 优先 memoryApi 回退 wiki；bootstrap 装配 MemoryApiBus；门禁：tsc 0 + 38测试 + validate-architecture 100% + production-check 8/8 | `69bb33f` `7c535e2` |
 | S15 | 08-01 | 记忆碎片深水收敛（SQLite 统一） | **KnowledgeGraph 存储 JSONL→SQLite**（better-sqlite3 实时持久化，接口不变，消费方零感知；兼容旧 JSONL 自动迁移；4 测试）；**BrainFacade 学习闭环接统一层**（setMemoryApi：remember→rememberEpisode、recall→query 合并；bootstrap 装配）；**MemoryActivationEngine** 数据源统一留待装配层（engine 本身职责=激活评分，存储由装配方从统一层注入）；门禁：tsc 0 + 43测试 + validate-architecture 100% + production-check 8/8 | `21288e0` `0b401dc` |
+| S16 | 08-01 | 全栈跑起来（pi-ai 兼容修复） | **根因**：pi-ai 升 0.81.1 后 `getModel/streamSimple/completeSimple` 移至 `/compat`，StudioServer/LLMFactory 动态导入根包 → 启动即抛 `getModel is not a function`（tsc 漏检，动态 import）。**修复**：两处改 `@earendil-works/pi-ai/compat`（对齐已有约定 model-resolver/model-registry/SessionManager/pi-utils）。**新增 `scripts/run-all.sh`**（一键 cognee:8001 + embed:3100 + backend:8080，自动探测 venv/复用 spike venv，支持 --bg/--status/stop）；`scripts/start.ts` 默认注入 `COGNEE_URL=:8001`（createEngine 默认 8000 是陷阱）。**实测**：cognee 1.4.0 就绪 + embed BGE-M3 就绪 + backend 健康（14 原语/4 插件/记忆已接线）+ e2e-cognee 全过（upsert written → 图检索命中 → 空检索 need_human） | 待推 |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 15 提交（ahead 15）→ `git push origin master`
+- [ ] **推送提交**：本地新增 S16 修复（pi-ai compat + run-all.sh + start.ts）→ `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
   · ✅ 已交付：统一记忆层 @morpex/memory（MemoryAPI+白名单+确认队列+强制门禁+cognee引擎）+ Gate 第5工具 + 读写入口统一（rememberEpisode/MemoryApiBus/search-tool/PersonalBrain纯内存化/BrainPersistor走统一层）+ 废弃 Python company_memory
   · ⏳ 剩余碎片（需收敛到 SQLite/统一层）：① ~~KnowledgeGraph(JSONL)→SQLite~~ ✅（S15 完成）；② ~~BrainFacade 学习闭环→MemoryAPI~~ ✅（S15 完成）；③ **MemoryActivationEngine** working 数据源统一到 MemoryAPI（装配层：memoryStore 由统一层注入）；④ SystemMetadataGraph（运行时对象图，内存+EventStore）保留非记忆
-  · ⚠️ 环境：cognee server 需本地 Python 环境（spike venv 在 /tmp/cognee_spike :8001）；Docker Desktop 曾误杀已重启恢复
+  · ✅ 全栈已可运行（S16）：`./scripts/run-all.sh`；cognee 数据目录 `~/.morpex/cognee`；venv 复用 `/tmp/cognee_spike/.venv`（无则 start-cognee.sh 建 `.venv-cognee`）
+  · ⚠️ 环境：cognee 需 Python（venv 就绪）；Docker 不需要；前端 `packages/studio/ui` 尚不存在（后端仅 API 模式）
 
 ### 🟡 已知遗留（外部依赖，非紧急）
 - [ ] L9 真实领域插件：ecommerce(Amazon SP-API)/software(云部署) 需外部凭证，骨架已就绪（`packages/workflows/<domain>/src/actions/`）
@@ -92,6 +104,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`c891fb0 docs: 文档职责分工`（15 提交均未推送）
-- 上游基线：`54db194 状态源 Step2+4`（origin/master）
+- 当前 HEAD：`dcb045b docs(session-log): 记录 S15…`（S16 修复待提交）
+- 上游基线：`origin/master`（已同步，0 ahead）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`

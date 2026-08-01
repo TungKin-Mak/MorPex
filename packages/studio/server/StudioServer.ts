@@ -990,7 +990,8 @@ export class StudioServer {
   }
 
   private async initControlPlane(bus: import('../../core/src/common/EventBus.js').EventBus, identity: import('../../core/src/common/ExecutionIdentity.js').ExecutionIdentity): Promise<void> {
-    const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai');
+    // pi-ai 0.81.1: getModel/completeSimple/streamSimple 已移至 /compat（根导出不再提供）
+    const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai/compat');
     this.controlModel = getModel('deepseek', 'deepseek-v4-flash');
     const rawCallLLM = async (prompt: string, systemPrompt?: string): Promise<string> => {
       try {

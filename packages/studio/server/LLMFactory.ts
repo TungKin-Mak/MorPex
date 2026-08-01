@@ -30,11 +30,13 @@ export async function createLLMAndPlugins(params: {
   kernel: { registerPlugin: (plugin: MorPexPlugin) => void };
   getDagExecId: () => string;
   getSessionId: () => string;
-}): Promise<{ controlModel: Record<string, unknown> }> {
+}): Promise<{ controlModel: import('@earendil-works/pi-ai/compat').Model<'openai-completions'> }> {
   const { eventBus, createEventId, kernel, getDagExecId, getSessionId } = params;
 
-  const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai');
-  const model = getModel('deepseek', 'deepseek-v4-flash') as import('@earendil-works/pi-ai').Model<import('@earendil-works/pi-ai').Api>;
+  // pi-ai 0.81.1: getModel/completeSimple/streamSimple 已移至 /compat（根导出不再提供）
+  const { getModel, completeSimple, streamSimple } = await import('@earendil-works/pi-ai/compat');
+  // getBuiltinModel 泛型推断返回 Model<'openai-completions'>，无需也不应强转 Model<Api>
+  const model = getModel('deepseek', 'deepseek-v4-flash');
 
   // ── 1. 创建带流式支持的 LLM 调用函数 ──
   const callLLM = async (prompt: string, systemPrompt?: string): Promise<string> => {
@@ -84,9 +86,10 @@ export async function createLLMAndPlugins(params: {
       systemPrompt: systemPrompt ?? '你是一个有用的助手。',
       messages: [{ role: 'user', content: prompt, timestamp: Date.now() }],
     }, { maxTokens: 2000, temperature: 0.3 });
-    const textParts = (msg.content || [])
-      .filter((c: { type?: string }) => c.type === 'text')
-      .map((c: { text?: string }) => c.text ?? '');
+    const textParts = (msg.content ?? [])
+      // ThinkingContent 无 text 字段，需先窄化（TextContent.type==='text'）
+      .filter((c) => c.type === 'text' && 'text' in c)
+      .map((c) => (c as { text: string }).text);
     return textParts.join('').trim();
   };
 

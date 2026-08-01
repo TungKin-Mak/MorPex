@@ -19,6 +19,10 @@
 
 import { execSync } from 'node:child_process';
 
+// pi-ai 0.81.1: getModel/streamSimple/completeSimple 已移至 @earendil-works/pi-ai/compat（根导出不再提供）
+// 统一记忆层 createEngine() 默认端口是 8000，此处默认接本地 cognee :8001
+process.env.COGNEE_URL ??= process.env.COGNEE_URL ?? 'http://localhost:8001';
+
 const args = process.argv.slice(2);
 const isStop = args.includes('stop');
 const isStatus = args.includes('--status');
