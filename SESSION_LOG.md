@@ -63,7 +63,7 @@
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地新增 S16 修复（pi-ai compat + run-all.sh + start.ts）→ `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 1 提交（`982a9b9`，S16 修复）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
