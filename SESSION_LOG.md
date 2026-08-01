@@ -57,14 +57,14 @@
 | S14 | 08-01 | 记忆读写入口统一收敛（碎片） | **碎片审查**：发现读写入口不统一（6读/5写）+ 独立存储并存（PersonalBrain自带SQLite死代码 / KnowledgeGraph JSONL / MemoryWiki）；**收敛执行**：MemoryAPI新增 `rememberEpisode`（情景统一入口）；`MemoryApiBus`（MemoryHooks→统一层）；`memory-search-tool` 走统一检索 + 空/低置信→need_human（防幻觉，不再鼓励模型自答）；**PersonalBrain 纯内存化**（删 SQLite memory_entries 死代码，持久化统一经 BrainPersistor→MemoryAPI）；BrainPersistor 优先 memoryApi 回退 wiki；bootstrap 装配 MemoryApiBus；门禁：tsc 0 + 38测试 + validate-architecture 100% + production-check 8/8 | `69bb33f` `7c535e2` |
 | S15 | 08-01 | 记忆碎片深水收敛（SQLite 统一） | **KnowledgeGraph 存储 JSONL→SQLite**（better-sqlite3 实时持久化，接口不变，消费方零感知；兼容旧 JSONL 自动迁移；4 测试）；**BrainFacade 学习闭环接统一层**（setMemoryApi：remember→rememberEpisode、recall→query 合并；bootstrap 装配）；**MemoryActivationEngine** 数据源统一留待装配层（engine 本身职责=激活评分，存储由装配方从统一层注入）；门禁：tsc 0 + 43测试 + validate-architecture 100% + production-check 8/8 | `21288e0` `0b401dc` |
 | S16 | 08-01 | 全栈跑起来（pi-ai 兼容修复） | **根因**：pi-ai 升 0.81.1 后 `getModel/streamSimple/completeSimple` 移至 `/compat`，StudioServer/LLMFactory 动态导入根包 → 启动即抛 `getModel is not a function`（tsc 漏检，动态 import）。**修复**：两处改 `@earendil-works/pi-ai/compat`（对齐已有约定 model-resolver/model-registry/SessionManager/pi-utils）。**新增 `scripts/run-all.sh`**（一键 cognee:8001 + embed:3100 + backend:8080，自动探测 venv/复用 spike venv，支持 --bg/--status/stop）；`scripts/start.ts` 默认注入 `COGNEE_URL=:8001`（createEngine 默认 8000 是陷阱）。**实测**：cognee 1.4.0 就绪 + embed BGE-M3 就绪 + backend 健康（14 原语/4 插件/记忆已接线）+ e2e-cognee 全过（upsert written → 图检索命中 → 空检索 need_human） | 待推 |
-| S17 | 08-01 | 去除 bge-m3 + zvec（废弃组件） | **移除**：`@zvec/zvec` 依赖（根+memory包+lock）、`ZVecStorage.ts`/`EmbeddingClient.ts`/`ZVecLockRecovery.ts`（vector/ 目录）、core 死代码 `knowledge/VectorStore.ts`、`tools-python/embedding-server.py`、`data/models/bge-m3`（7MB 模型）+ 全部 zvec 数据目录、`configs/Dockerfile.embedding`、pm2 `morpex-embed`、run-all.sh embed 段、docker-compose embedding 服务、`memory-bus-v2-audit.spec.ts`（引用不存在的 MemoryBus，陈旧）、StudioServer.ts 编辑器残留备份(.bak/.new/.part*)。**改造**：`MemoryWiki` 剥成 SQLite-only（去 zvecColl/embedder/L2 缓存/向量召回/zvecReady 统计，query 签名保留 vectors 恒空）；`MetaPlanner`/`pipeline/stages/types` 的 ZVecStorage 类型 → 结构接口 `VectorStoreLike`；StudioServer/observability 移除 zvec-storage 心跳与契约；adapters/memory 与 memory index 导出清理；bootstrap L7 无 zvecPath。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 16 + memory 12 + metaplanner 26 + e2e-cognee 全过 + 后端干净重启（ExerciseAll 72 模块无 zvec） | 待推 |
+| S17 | 08-01 | 去除 bge-m3 + zvec（废弃组件） | **移除**：`@zvec/zvec` 依赖（根+memory包+lock）、`ZVecStorage.ts`/`EmbeddingClient.ts`/`ZVecLockRecovery.ts`（vector/ 目录）、core 死代码 `knowledge/VectorStore.ts`、`tools-python/embedding-server.py`、`data/models/bge-m3`（7MB 模型）+ 全部 zvec 数据目录、`configs/Dockerfile.embedding`、pm2 `morpex-embed`、run-all.sh embed 段、docker-compose embedding 服务、`memory-bus-v2-audit.spec.ts`（引用不存在的 MemoryBus，陈旧）、StudioServer.ts 编辑器残留备份(.bak/.new/.part*)。**改造**：`MemoryWiki` 剥成 SQLite-only（去 zvecColl/embedder/L2 缓存/向量召回/zvecReady 统计，query 签名保留 vectors 恒空）；`MetaPlanner`/`pipeline/stages/types` 的 ZVecStorage 类型 → 结构接口 `VectorStoreLike`；StudioServer/observability 移除 zvec-storage 心跳与契约；adapters/memory 与 memory index 导出清理；bootstrap L7 无 zvecPath。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 16 + memory 12 + metaplanner 26 + e2e-cognee 全过 + 后端干净重启（ExerciseAll 72 模块无 zvec）；跟进打磨（8905da8）：query() 移除不可达图遍历死代码、清理 L1/L2 缓存、修复 dbPath 未生效 bug | 待推 |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 5 提交（`982a9b9` S16 修复 + `96668bf` S16 日志 + `c5d8e6a` S16 基线修正 + S17 两提交）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 6 提交（`982a9b9` S16 修复 + `96668bf` S16 日志 + `c5d8e6a` S16 基线修正 + S17 `63f1787`/`ee4f44d`/`8905da8`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -106,6 +106,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`63f1787 feat(memory): 移除已废弃的 bge-m3 embedding 与 zvec 向量库`（S17，本地领先远端 4，未推送）
+- 当前 HEAD：`8905da8 refactor(memory): MemoryWiki SQLite-only 打磨（清死代码 + 修复 dbPath 未生效）`（S17，本地领先远端 6，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
