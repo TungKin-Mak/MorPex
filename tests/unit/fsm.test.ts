@@ -1,4 +1,4 @@
-import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
+import { ExecutionFSM, ExecutionState } from '../../packages/core/src/execution/runtime/state-machine/ExecutionFSM.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

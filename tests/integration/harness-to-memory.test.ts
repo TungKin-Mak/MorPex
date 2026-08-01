@@ -1,7 +1,7 @@
 /**
  * Integration: Harness → Memory — MemoryActivationEngine context-aware recall
  */
-import { MemoryActivationEngine } from '../../packages/core/src/memory/MemoryActivationEngine.js';
+import { MemoryActivationEngine } from '../../packages/core/src/knowledge/memory/MemoryActivationEngine.js';
 import { AssertionContext, TraceBuilder, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

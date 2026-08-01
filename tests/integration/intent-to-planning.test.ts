@@ -1,11 +1,11 @@
 /**
  * Integration: Intent → Planning
  */
-import { GoalExtractor } from '../../packages/core/src/goal-intelligence/intent/GoalExtractor.js';
-import { ConstraintAnalyzer } from '../../packages/core/src/goal-intelligence/intent/ConstraintAnalyzer.js';
-import { PriorityEngine } from '../../packages/core/src/goal-intelligence/intent/PriorityEngine.js';
-import { RiskDetector } from '../../packages/core/src/goal-intelligence/intent/RiskDetector.js';
-import { ExecutionPolicyGenerator } from '../../packages/core/src/goal-intelligence/intent/ExecutionPolicyGenerator.js';
+import { GoalExtractor } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/GoalExtractor.js';
+import { ConstraintAnalyzer } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/ConstraintAnalyzer.js';
+import { PriorityEngine } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/PriorityEngine.js';
+import { RiskDetector } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/RiskDetector.js';
+import { ExecutionPolicyGenerator } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/ExecutionPolicyGenerator.js';
 import { AssertionContext, TraceBuilder, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

@@ -1,6 +1,6 @@
-import { RecoveryManager } from '../../packages/core/src/runtime/checkpoint/RecoveryManager.js';
-import { ReplayEngine } from '../../packages/core/src/runtime/checkpoint/ReplayEngine.js';
-import { CheckpointManager } from '../../packages/core/src/runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../../packages/core/src/execution/runtime/checkpoint/RecoveryManager.js';
+import { ReplayEngine } from '../../packages/core/src/execution/runtime/checkpoint/ReplayEngine.js';
+import { CheckpointManager } from '../../packages/core/src/execution/runtime/checkpoint/CheckpointManager.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

@@ -1,12 +1,12 @@
 /**
  * Scenario 1: Simple Task — "Build a simple REST endpoint"
  */
-import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
-import { DAGRuntime } from '../../packages/core/src/runtime/dag/DAGRuntime.js';
-import { AgentHarness } from '../../packages/core/src/agent/harness/AgentHarness.js';
-import { GoalExtractor } from '../../packages/core/src/goal-intelligence/intent/GoalExtractor.js';
-import { ConstraintAnalyzer } from '../../packages/core/src/goal-intelligence/intent/ConstraintAnalyzer.js';
-import { ExperienceExtractor } from '../../packages/core/src/learning/ExperienceExtractor.js';
+import { ExecutionFSM, ExecutionState } from '../../packages/core/src/execution/runtime/state-machine/ExecutionFSM.js';
+import { DAGRuntime } from '../../packages/core/src/execution/runtime/dag/DAGRuntime.js';
+import { AgentHarness } from '../../packages/core/src/execution/harness/AgentHarness.js';
+import { GoalExtractor } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/GoalExtractor.js';
+import { ConstraintAnalyzer } from '../../packages/core/src/cognition/planning/goal-intelligence/intent/ConstraintAnalyzer.js';
+import { ExperienceExtractor } from '../../packages/core/src/cognition/learning/ExperienceExtractor.js';
 import { TraceBuilder, AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

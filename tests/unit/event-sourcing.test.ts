@@ -5,11 +5,11 @@ import { describe, it, before, after } from 'node:test';
 import assert from 'node:assert';
 import * as fs from 'node:fs';
 
-const { EventStore } = await import('../../packages/core/src/protocol/events/store/EventStore.js');
-const { EventProjection } = await import('../../packages/core/src/protocol/events/store/EventProjection.js');
-const { EventRepository } = await import('../../packages/core/src/protocol/events/store/EventRepository.js');
-const { EventType } = await import('../../packages/core/src/protocol/events/EventType.js');
-import type { BaseEvent } from '../../packages/core/src/protocol/events/BaseEvent.js';
+const { EventStore } = await import('../../packages/core/src/infrastructure/protocol/events/store/EventStore.js');
+const { EventProjection } = await import('../../packages/core/src/infrastructure/protocol/events/store/EventProjection.js');
+const { EventRepository } = await import('../../packages/core/src/infrastructure/protocol/events/store/EventRepository.js');
+const { EventType } = await import('../../packages/core/src/infrastructure/protocol/events/EventType.js');
+import type { BaseEvent } from '../../packages/core/src/infrastructure/protocol/events/BaseEvent.js';
 
 function makeEvent(overrides: Partial<BaseEvent> = {}): BaseEvent {
   return {

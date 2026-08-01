@@ -1,8 +1,8 @@
 /**
  * Integration: Planning → Runtime — Plan Blueprint → Execution
  */
-import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
-import { DAGRuntime } from '../../packages/core/src/runtime/dag/DAGRuntime.js';
+import { ExecutionFSM, ExecutionState } from '../../packages/core/src/execution/runtime/state-machine/ExecutionFSM.js';
+import { DAGRuntime } from '../../packages/core/src/execution/runtime/dag/DAGRuntime.js';
 import { AssertionContext, TraceBuilder, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

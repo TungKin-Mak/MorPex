@@ -1,4 +1,4 @@
-import { CheckpointManager } from '../../packages/core/src/runtime/checkpoint/CheckpointManager.js';
+import { CheckpointManager } from '../../packages/core/src/execution/runtime/checkpoint/CheckpointManager.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

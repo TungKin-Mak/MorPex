@@ -1,4 +1,4 @@
-import { RecoveryManager } from '../../packages/core/src/runtime/checkpoint/RecoveryManager.js';
+import { RecoveryManager } from '../../packages/core/src/execution/runtime/checkpoint/RecoveryManager.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

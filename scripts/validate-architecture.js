@@ -110,7 +110,7 @@ if (brainReferences.length > 0) {
 // ═══════════════════════════════════════════════════════════════
 // 3. 检查 Ontology Gate 是否被正确使用（强制原语绑定）
 // ═══════════════════════════════════════════════════════════════
-const primitiveFiles = coreFiles.filter((f) => f.includes('/tools/primitives/') && f.endsWith('.ts'));
+const primitiveFiles = coreFiles.filter((f) => f.includes('/infrastructure/tools/primitives/') && f.endsWith('.ts'));
 
 primitiveFiles.forEach((file) => {
   const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
@@ -127,7 +127,7 @@ primitiveFiles.forEach((file) => {
 const piDirectImports = coreFiles
   .filter((file) => !file.includes('pi-bridge') && !file.includes('pi-types'))
   // adapters/ 是 PiBridge 隔离实现层（model-registry / pi-utils / pi-ai-types 等），豁免
-  .filter((file) => !file.includes('/adapters/'))
+  .filter((file) => !file.includes('/infrastructure/adapters/'))
   .filter((file) => {
     const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
     // 只匹配真实 import 语句（排除 GovernanceDashboard 等字符串字面量提示）
@@ -190,23 +190,22 @@ const domainViolations = coreFiles
     if (file.includes('bootstrap') || file.includes('/facade/') || file.includes('DomainPrimitiveRegistry')) return false;
     // 排除“领域概念”通用子系统（domains/ industry/ 是领域无关的抽象概念层）
     if (file.includes('/domains/') || file.includes('/industry/')) return false;
-    // 排除能力目录数据（capability/ agent-capability/ 存能力名称与 provider 映射，属能力识别/路由，非领域实现）
-    if (file.includes('/capability/') || file.includes('/agent-capability/')) return false;
-    // 排除意图/领域识别层（planes/control-plane/intent/ 与 goal-intelligence/ 同类：只做识别路由）
-    if (file.includes('/planes/control-plane/intent/')) return false;
+    // 排除能力目录数据（governance/capability/ 存能力名称与 provider 映射，属能力识别/路由，非领域实现）
+    if (file.includes('/capability/')) return false;
+    // 排除跨领域模式分类器（evolution/PatternExtractor：用领域词做分类信号，非领域实现）
+    if (file.includes('/evolution/PatternExtractor.ts')) return false;
     // 注：verification/ 不再整体豁免 —— 领域质检/合规规则必须位于对应 Workflow 插件
     //（core 仅保留通用注册机制 QualityRule / PolicyRuleRegistry；
     //   amazon_listing / e-commerce / hardware 规则已在 packages/workflows/*/src/rules/ 注册）
     // 排除 adapters/（PiBridge 实现层，仅类型/适配，不承载领域逻辑）
-    if (file.includes('/adapters/')) return false;
+    if (file.includes('/infrastructure/adapters/')) return false;
     // 排除 benchmark/（Golden Tasks 测试数据会包含领域名词，属数据非逻辑）
     if (file.includes('/benchmark/')) return false;
     // 排除扩展规划引擎（规划层内部，非领域实现）
     if (file.includes('/extensions/planning/')) return false;
     // 排除意图解析/路由/蓝图层（goal-intelligence / artifact / experience / department：
     // 它们仅用领域词做识别路由与能力映射，属通用基础设施而非领域实现）
-    if (file.includes('/goal-intelligence/') || file.includes('/artifact/') ||
-        file.includes('/experience/') || file.includes('/department/')) return false;
+    if (file.includes('/cognition/planning/goal-intelligence/') || file.includes('/knowledge/artifact/')) return false;
     const content = readFileSync(join(ROOT, file), 'utf8');
     return DOMAIN_KEYWORDS.some((kw) => content.toLowerCase().includes(kw.toLowerCase()));
   });
@@ -221,18 +220,20 @@ if (domainViolations.length > 0) {
 //    (理想架构约束 1/2：所有生成必须先过 Ontology Gate)
 // ═══════════════════════════════════════════════════════════════
 // 允许直接调用 generateText 的“生产生成点”白名单（这些点内部都经过 Gate / Brain 统一入口）
+// AICOS-Core 8 层：允许直接调用 generateText 的"生产生成点"白名单
+// （这些点内部都经过 L3 Gate / Brain 统一入口，或本身即是 Gate 实现）
 const GENERATION_ALLOWLIST = [
-  '/ontology/runOntologyGroundedReasoning.ts', // 唯一的两阶段 Gate 生成点
-  '/pi-bridge',                                // PiBridge 封装
-  '/cognition/',                               // Brain 统一入口
-  '/brain/',                                   // 旧 Brain（deprecated 但兼容）
-  '/planner/',                                 // 规划（内部走 Gate）
-  '/extensions/planning/',                     // 规划管线内部引擎（MetaPlanner 等，属规划层）
-  '/evolution/',                               // 演化层基础设施（SOPEngine 分类等，有降级路径）
-  '/runtime/',                                 // 运行时基础设施（ServiceContainer piBridge 包装）
-  '/tools/ToolFactory.ts',                     // 通用工具工厂（动态工具 schema 生成，非领域生成）
-  '/department/LeadAgentOrchestrator.ts',      // OrganizationTwin 部门模拟路径（遗留；TODO: 绑定 Ontology Gate）
-  '/prompts/',                                 // prompt 构建（非生成）
+  '/gate/runOntologyGroundedReasoning.ts',     // L3 唯一的两阶段 Gate 生成点
+  '/infrastructure/adapters/pi-bridge',                       // PiBridge 封装（L8 基础设施适配）
+  '/cognition/',                               // L4 认知统一入口（Brain + planning）
+  '/execution/harness',                        // L5 AgentHarness 执行原语
+  '/evaluation/',                              // L6 评价（评分 LLM）
+  '/evolution/',                               // L7 演化（SOP 分类等，有降级路径）
+  '/infrastructure/',                          // L8 运行时（piBridge 包装）
+  '/execution/runtime/',                        // L5 运行时（ServiceContainer piBridge 包装）
+  '/facade/gateway',                           // L1 入口适配（PiAdapterBridge）
+  '/infrastructure/tools/ToolFactory.ts',                     // 通用工具工厂（动态 schema 生成，非领域生成）
+  '/knowledge/ontology/prompts/',                        // L2 prompt 构建（非生成）
   '/bootstrap',                                // bootstrap 注入 piBridge
 ];
 

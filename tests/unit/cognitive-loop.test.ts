@@ -61,7 +61,7 @@ class MockWorkflowExecutor { async executeScheduled() { return 0; } }
 
 describe('CognitiveLoop: Intent Detection', () => {
   it('should detect intent and complete successfully', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime());
     const ctx = await cl.process({ channel: 'web', userId: 'u1', sessionId: 's1', content: '分析三个竞争产品', metadata: {} });
     assert.ok(ctx.intent);
@@ -71,7 +71,7 @@ describe('CognitiveLoop: Intent Detection', () => {
   });
 
   it('should handle empty content gracefully', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime());
     const ctx = await cl.process({ channel: 'web', userId: 'u1', sessionId: 's1', content: '', metadata: {} });
     assert.ok(ctx.phase === 'completed' || ctx.phase === 'failed');
@@ -80,7 +80,7 @@ describe('CognitiveLoop: Intent Detection', () => {
 
 describe('CognitiveLoop: Twin Injection', () => {
   it('should inject plannerConstraint into mission.metadata', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime(), {
       behaviorTwin: new MockBehaviorTwin(), decisionTwin: new MockDecisionTwin(), preferenceModel: new MockPreferenceModel(),
     });
@@ -94,7 +94,7 @@ describe('CognitiveLoop: Twin Injection', () => {
 
 describe('CognitiveLoop: Workflow Mining', () => {
   it('should run 3 missions without mining errors', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime(), {
       workflowMiner: new MockWorkflowMiner(), workflowRegistry: new MockWorkflowRegistry(), workflowExecutor: new MockWorkflowExecutor(),
     });
@@ -107,7 +107,7 @@ describe('CognitiveLoop: Workflow Mining', () => {
 
 describe('CognitiveLoop: asMessageHandler', () => {
   it('should return valid shape', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime());
     const handler = cl.asMessageHandler();
     const result = await handler({ channel: 'web', userId: 'u1', sessionId: 's1', content: 'test', metadata: {} });
@@ -120,7 +120,7 @@ describe('CognitiveLoop: asMessageHandler', () => {
 
 describe('CognitiveLoop: Stats', () => {
   it('should track loop statistics', async () => {
-    const { CognitiveLoop } = await import('../../packages/core/src/runtime/cognitive-loop/CognitiveLoop.js');
+    const { CognitiveLoop } = await import('../../packages/core/src/execution/runtime/cognitive-loop/CognitiveLoop.js');
     const cl = new CognitiveLoop(new MockEventBus(), new MockMissionRuntime());
     assert.equal(cl.getStats().totalLoops, 0);
     await cl.process({ channel: 'web', userId: 'u1', sessionId: 's1', content: '统计测试', metadata: {} });

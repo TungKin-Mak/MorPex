@@ -66,12 +66,10 @@ async function main(): Promise<void> {
 
   const PORT = parseInt(process.env.PORT || '8080', 10);
   const MIRROR_PATH = process.env.MIRROR_PATH || './data/mirror';
-  const FRONTEND_DIST = process.env.FRONTEND_DIST || './packages/studio/ui/dist';
 
   const studio = new StudioServer({
     port: PORT,
     mirrorBasePath: MIRROR_PATH,
-    frontendDist: FRONTEND_DIST,
   });
 
   process.on('SIGINT', async () => {

@@ -38,14 +38,14 @@ function makeExecutor(succeed = true) {
 
 describe('MissionRuntime: State Lifecycle', () => {
   it('creates mission in CREATED state', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     const m = await mr.createMission({ channel: 'web', userId: 'u1', sessionId: 's1', content: 'test', metadata: {} });
     assert.strictEqual(m.state, MissionState.CREATED);
   });
 
   it('transitions CREATED→PLANNING→EXECUTING→COMPLETED', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('low') as any);
     mr.setExecutor(makeExecutor(true) as any);
@@ -56,7 +56,7 @@ describe('MissionRuntime: State Lifecycle', () => {
   });
 
   it('enters WAIT_APPROVAL for high risk', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('high') as any);
     mr.setExecutor(makeExecutor(true) as any);
@@ -66,7 +66,7 @@ describe('MissionRuntime: State Lifecycle', () => {
   });
 
   it('approveMission transitions WAIT_APPROVAL→EXECUTING', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('high') as any);
     mr.setExecutor(makeExecutor(true) as any);
@@ -78,7 +78,7 @@ describe('MissionRuntime: State Lifecycle', () => {
   });
 
   it('denyMission transitions WAIT_APPROVAL→CANCELLED', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('high') as any);
     mr.setExecutor(makeExecutor(true) as any);
@@ -90,7 +90,7 @@ describe('MissionRuntime: State Lifecycle', () => {
   });
 
   it('transitions to MISSION_FAILED on executor error (terminal)', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('low') as any);
     mr.setExecutor(makeExecutor(false) as any);
@@ -100,7 +100,7 @@ describe('MissionRuntime: State Lifecycle', () => {
   });
 
   it('tracks stats correctly', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
     const mr = new MissionRuntime(new FakeBus() as any);
     mr.setPlanner(makePlanner('low') as any);
     mr.setExecutor(makeExecutor(true) as any);
@@ -113,8 +113,8 @@ describe('MissionRuntime: State Lifecycle', () => {
 
 describe('MissionRuntime: Event Sourcing', () => {
   it('stores events when EventStore is attached', async () => {
-    const { MissionRuntime, MissionState } = await import('../../packages/core/src/runtime/mission/index.js');
-    const { EventStore } = await import('../../packages/core/src/protocol/events/store/EventStore.js');
+    const { MissionRuntime, MissionState } = await import('../../packages/core/src/execution/runtime/mission/index.js');
+    const { EventStore } = await import('../../packages/core/src/infrastructure/protocol/events/store/EventStore.js');
     const dir = './data/test-es-' + Date.now();
     const store = new EventStore({ dataDir: dir });
     await store.load();

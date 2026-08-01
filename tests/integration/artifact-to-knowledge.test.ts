@@ -1,5 +1,5 @@
-import { ArtifactGraph } from '../../packages/core/src/artifact/registry/ArtifactGraph.js';
-import { ArtifactLineage } from '../../packages/core/src/artifact/registry/ArtifactLineage.js';
+import { ArtifactGraph } from '../../packages/core/src/knowledge/artifact/registry/ArtifactGraph.js';
+import { ArtifactLineage } from '../../packages/core/src/knowledge/artifact/registry/ArtifactLineage.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

@@ -1,4 +1,4 @@
-import { DAGRuntime } from '../../packages/core/src/runtime/dag/DAGRuntime.js';
+import { DAGRuntime } from '../../packages/core/src/execution/runtime/dag/DAGRuntime.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

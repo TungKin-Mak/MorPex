@@ -1,10 +1,10 @@
 /**
  * Scenario 4: Learning Improvement — same task twice, behavior changes
  */
-import { ExperienceExtractor } from '../../packages/core/src/learning/ExperienceExtractor.js';
-import { PlanEvaluator } from '../../packages/core/src/learning/PlanEvaluator.js';
-import { StrategyOptimizer } from '../../packages/core/src/learning/StrategyOptimizer.js';
-import { TemplateEvolutionEngine } from '../../packages/core/src/learning/TemplateEvolutionEngine.js';
+import { ExperienceExtractor } from '../../packages/core/src/cognition/learning/ExperienceExtractor.js';
+import { PlanEvaluator } from '../../packages/core/src/cognition/learning/PlanEvaluator.js';
+import { StrategyOptimizer } from '../../packages/core/src/cognition/learning/StrategyOptimizer.js';
+import { TemplateEvolutionEngine } from '../../packages/core/src/cognition/learning/TemplateEvolutionEngine.js';
 import { TraceBuilder, AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

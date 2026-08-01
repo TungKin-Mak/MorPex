@@ -1,11 +1,11 @@
 /**
  * Architecture: Runtime Graph — RuntimeKernelIntegrator accesses
  */
-import { DAGRuntime } from '../../packages/core/src/runtime/dag/DAGRuntime.js';
-import { CheckpointManager } from '../../packages/core/src/runtime/checkpoint/CheckpointManager.js';
-import { RecoveryManager } from '../../packages/core/src/runtime/checkpoint/RecoveryManager.js';
-import { ReplayEngine } from '../../packages/core/src/runtime/checkpoint/ReplayEngine.js';
-import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
+import { DAGRuntime } from '../../packages/core/src/execution/runtime/dag/DAGRuntime.js';
+import { CheckpointManager } from '../../packages/core/src/execution/runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../../packages/core/src/execution/runtime/checkpoint/RecoveryManager.js';
+import { ReplayEngine } from '../../packages/core/src/execution/runtime/checkpoint/ReplayEngine.js';
+import { ExecutionFSM, ExecutionState } from '../../packages/core/src/execution/runtime/state-machine/ExecutionFSM.js';
 import { AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {

@@ -4,10 +4,10 @@
  * Simulates a tool failure on node 2. FSM enters RECOVERING → RecoveryManager
  * generates plan → execution continues from checkpoint. Validates no data loss.
  */
-import { ExecutionFSM, ExecutionState } from '../../packages/core/src/runtime/state-machine/ExecutionFSM.js';
-import { CheckpointManager } from '../../packages/core/src/runtime/checkpoint/CheckpointManager.js';
-import { RecoveryManager } from '../../packages/core/src/runtime/checkpoint/RecoveryManager.js';
-import { ReplayEngine } from '../../packages/core/src/runtime/checkpoint/ReplayEngine.js';
+import { ExecutionFSM, ExecutionState } from '../../packages/core/src/execution/runtime/state-machine/ExecutionFSM.js';
+import { CheckpointManager } from '../../packages/core/src/execution/runtime/checkpoint/CheckpointManager.js';
+import { RecoveryManager } from '../../packages/core/src/execution/runtime/checkpoint/RecoveryManager.js';
+import { ReplayEngine } from '../../packages/core/src/execution/runtime/checkpoint/ReplayEngine.js';
 import { TraceBuilder, AssertionContext, type TestResult } from '../framework.js';
 
 export async function run(): Promise<TestResult> {
