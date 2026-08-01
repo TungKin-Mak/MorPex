@@ -29,6 +29,20 @@ export interface ExecuteGoalOptions {
   [key: string]: unknown;
 }
 
+/**
+ * DeliveryPlannerLike — 非 Mission 路径接入的规划层弱耦合接口（L3 更广接入）
+ *
+ * 仅消费 DeliveryPlanner.createPlan 的最小形状，避免 CompanyFacade 强依赖 planner 包。
+ */
+export interface DeliveryPlannerLike {
+  createPlan(req: {
+    goal: string;
+    mode?: string;
+    departmentId?: string;
+    context?: Record<string, unknown>;
+  }): Promise<{ id: string; tasks?: unknown[]; ontologyRefs?: string[] }>;
+}
+
 export class CompanyFacade {
   private departmentManager: DepartmentManager;
   private roleRegistry: RoleRegistry;
@@ -91,6 +105,14 @@ export class CompanyFacade {
 
   private brainFacade: any = null;
 
+  /** L3 非 Mission 路径：DeliveryPlanner（auto/dag/fabric 模式先规划再执行，失败不阻断） */
+  private deliveryPlanner: DeliveryPlannerLike | null = null;
+
+  /** 注入规划层（bootstrap 装配调用；Mission 路径走 MissionRuntime.setPlanner，此处覆盖非 Mission 路径） */
+  setDeliveryPlanner(planner: DeliveryPlannerLike): void {
+    this.deliveryPlanner = planner;
+  }
+
   /**
    * sendTask — 委托 executeGoal（不跳过 ControlPlane 门禁）
    */
@@ -110,6 +132,8 @@ export class CompanyFacade {
   async executeGoal(goal: string, options: ExecuteGoalOptions = {}): Promise<{
     ok: boolean; goalContext?: GoalContext; executionId?: string; result?: unknown;
     report: string; error?: string; missionId?: string; teamId?: string;
+    /** L3 非 Mission 路径：规划层生成的计划信息（未介入/失败时 undefined） */
+    plan?: { planId?: string; taskCount?: number; ontologyRefs?: string[] };
   }> {
     await this.ensureBootstrapped();
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
@@ -144,6 +168,24 @@ export class CompanyFacade {
       approvalTimeoutMs: options.approvalTimeoutMs,
       departmentId: options.departmentId ?? deptId,
     };
+
+    // ── 2.5 L3 非 Mission 路径：DeliveryPlanner 规划（增强；失败不阻断执行） ──
+    // Mission 路径的规划由 MissionRuntime(DeliveryPlannerAdapter) 承担；此处覆盖 auto/dag/fabric。
+    let planInfo: { planId?: string; taskCount?: number; ontologyRefs?: string[] } | undefined;
+    if (this.deliveryPlanner && runOpts.mode !== 'mission') {
+      try {
+        const plan = await this.deliveryPlanner.createPlan({
+          goal,
+          mode: runOpts.mode,
+          departmentId: runOpts.departmentId,
+        });
+        planInfo = { planId: plan.id, taskCount: plan.tasks?.length ?? 0, ontologyRefs: plan.ontologyRefs };
+        (runOpts as { planId?: string }).planId = plan.id;
+        console.log(`[CompanyFacade] 📋 规划层介入（${runOpts.mode ?? 'auto'}）: plan=${plan.id} tasks=${planInfo.taskCount}`);
+      } catch (err) {
+        console.warn(`[CompanyFacade] ⚠️ 规划层未介入（非阻断）: ${(err as Error).message}`);
+      }
+    }
 
     // ── 3. 执行 Runtime 管线 ──
     try {
@@ -182,7 +224,7 @@ export class CompanyFacade {
           // Brain 学习失败不阻断主流程
         }
       }
-      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id };
+      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: planInfo };
     } catch (err) {
       return { ok: false, report: `❌ Runtime 执行失败: ${(err as Error).message}`, error: (err as Error).message };
     }

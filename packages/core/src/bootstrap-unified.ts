@@ -484,6 +484,8 @@ export async function bootstrapUnified(options?: {
     (hierarchicalPlanner as any).setPiBridge?.(piBridgeWrapper);
     const arbitration = new CrossDepartmentArbitrationEngine(eventBus);
     container.missionRuntime.setPlanner(new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration }));
+    // L3 非 Mission 路径接入：CompanyFacade 的 auto/dag/fabric 模式先规划再执行（失败不阻断）
+    companyFacade.setDeliveryPlanner?.(deliveryPlanner);
     (container as any).deliveryPlanner = deliveryPlanner;
     (container as any).hierarchicalPlanner = hierarchicalPlanner;
     (container as any).arbitrationEngine = arbitration;
