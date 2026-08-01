@@ -254,19 +254,22 @@ export class EventBus {
    * 例如：监听 "runtime.*" 可以收到 "runtime.tool.called"
    */
   private triggerWildcard(event: MorPexEvent, _exactHandlers?: Set<EventHandler>): void {
-    const dotIndex = event.type.lastIndexOf('.');
-    if (dotIndex === -1) return;
+    // 修复：匹配所有祖先命名空间通配符（如 runtime.task.completed → runtime.* 与 runtime.task.*）
+    // 原实现用 lastIndexOf 只匹配最深层父命名空间，与文档「runtime.* 可收到 runtime.tool.called」不符。
+    const parts = event.type.split('.');
+    if (parts.length < 2) return;
 
-    const namespace = event.type.substring(0, dotIndex);
-    const wildcardType = `${namespace}.*`;
-
-    const wildcardHandlers = this.listeners.get(wildcardType);
-    if (wildcardHandlers) {
-      for (const handler of wildcardHandlers) {
-        try {
-          handler(event);
-        } catch (err) {
-          console.error(`[EventBus] 通配符 handler 错误 (事件 "${event.type}"):`, err);
+    for (let i = 1; i < parts.length; i++) {
+      const namespace = parts.slice(0, i).join('.');
+      const wildcardType = `${namespace}.*`;
+      const wildcardHandlers = this.listeners.get(wildcardType);
+      if (wildcardHandlers) {
+        for (const handler of wildcardHandlers) {
+          try {
+            handler(event);
+          } catch (err) {
+            console.error(`[EventBus] 通配符 handler 错误 (事件 "${event.type}"):`, err);
+          }
         }
       }
     }

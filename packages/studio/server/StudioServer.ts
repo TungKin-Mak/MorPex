@@ -25,6 +25,7 @@ import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
+import { registerRuntimeRoutes } from './RuntimeAPI.js';
 
 export interface StudioServerConfig {
   port?: number;
@@ -71,6 +72,10 @@ export class StudioServer {
     // L10 观测面
     this.app.use('/api/observability', createObservabilityRouter());
 
+    // 运行时 API（RuntimeAPI：FSM/DAG/ArtifactGraph/Learning/SSE）
+    // ⚠️ S24 修复：此前 registerRuntimeRoutes 从未被挂载 → 11 个路由全部不可达（死代码面）
+    registerRuntimeRoutes(this.app);
+
     // 路由注册
     this.registerIdealRoutes();
 
@@ -81,6 +86,15 @@ export class StudioServer {
     this.httpServer = this.app.listen(port, () => {
       console.log(`[Studio] 🚀 理想架构 Studio Server 运行在 http://localhost:${port}`);
     });
+  }
+
+  /**
+   * getPort — 返回实际监听端口（配置为 0 时由 OS 分配，测试用）
+   */
+  getPort(): number {
+    const addr = this.httpServer?.address();
+    if (addr && typeof addr === 'object') return addr.port;
+    return this.config.port ?? 8080;
   }
 
   // ── 理想层路由 ──
