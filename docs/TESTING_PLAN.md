@@ -11,7 +11,7 @@
 |----|------|------|------|
 | TypeScript 编译 | `npx tsc --noEmit` | ✅ | 0 错误 |
 | 架构对齐校验 | `node scripts/validate-architecture.js` | ✅ | 100%（无违规） |
-| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **35 文件 / 264 测试**（2 skip） |
+| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **38 文件 / 350 测试**（2 skip） |
 | 系统套件（脚本式） | `npx tsx tests/run-all.ts` | ✅ | 11/11（arch/unit/integration/scenarios/chaos） |
 | API 契约 | vitest 内 `packages/studio/server/__tests__/api-contract.test.ts` | ✅ | 26 测试 / 24+ 端点 |
 | Workflow CLI | `npx tsx tests/cli/run-workflow-cli.ts` | ✅ | 11 测试（~45s） |
@@ -119,8 +119,11 @@
 ### L6 评价层
 | 功能点 | 状态 | 归属测试 |
 |--------|------|----------|
-| **EvaluationEngine（5 维评分）** | ❌ | 无直接测试 |
-| QualityScorer / ontologyCompliance 维度 | ❌ | 无直接测试 |
+| **EvaluationEngine（5 维评分）** | ✅ | `evaluation-matrix.test.ts`（聚合/决策/硬门禁） |
+| QualityScorer / ontologyCompliance 维度 | ✅ | `evaluation-matrix.test.ts`（加权/边界/合规评分） |
+| SafetyMonitor（安全阈值监控） | ✅ | `evaluation-matrix.test.ts`（默认/自定义阈值+EventBus 广播） |
+| **OrganizationTwin（4 角色孪生）** | ✅ | `organization-twin.test.ts`（角色装配/审批逻辑/上市投票） |
+| **DomainPrimitiveRegistry + 5 原语** | ✅ | `primitives-registry.test.ts`（热注册/匹配/执行注入/白名单/部门隔离） |
 | ComplianceChecker | ⚠️ | 无直接测试 |
 
 ### L7 知识与记忆层
@@ -238,7 +241,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 |------|----------|------|------|
 | 层覆盖（10 层有测试归属） | 矩阵人工核对（§3） | L6 ❌、L1 部分 ❌ | 10/10 层 ✅ |
 | 组件级引用覆盖 | grep 测试文件引用核心模块 | 32 核心组件 7 个 ❌ / 8 个 ⚠️ | ❌→0，⚠️→≤3 |
-| 测试数 | vitest | 264 | ≥400 |
+| 测试数 | vitest | 350 | ≥400 |
 | 用例通过率 | 统一入口报告 | 100% | ≥98% |
 | 架构违规 | validate-architecture | 0 | 0 |
 | 静态错误 | tsc | 0 | 0 |
@@ -256,7 +259,9 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 4. 测试数据目录 `data/test-output/` 加入 .gitignore
 
 ### 🟡 P1（补齐缺口，达到"所有功能可测"）
-5. **EvaluationEngine 5 维评分测试**（L6 唯一全空层，最高优先）
+- [x] ~~**EvaluationEngine 5 维评分测试**~~ ✅（`evaluation-matrix.test.ts`：QualityScorer 加权/decide 边界/EvaluationEngine 聚合/Ontology 硬门禁/SafetyMonitor 阈值，34 用例）
+- [x] ~~**primitives 原语注册表**~~ ✅（`primitives-registry.test.ts`：DomainPrimitiveRegistry 热注册/匹配/统计 + 5 原语执行注入/白名单/部门隔离，45 用例）
+- [x] ~~**OrganizationTwin 4 角色**~~ ✅（`organization-twin.test.ts`：角色装配/simulateDecision 审批/上市投票，17 用例）
 6. **EvolutionController + PolicyEngine 测试**（L1 两个 ❌ 组件）
 7. **ArtifactFacade / MorPexRuntime FSM 状态机直接测试**（转正脚本式测试或补 vitest）
 8. **SSE 流真实推送测试**（事件流断言，补 api-contract 只验端点的空洞）
