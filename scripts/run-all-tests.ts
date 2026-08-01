@@ -11,7 +11,7 @@
  * 用法:
  *   npx tsx scripts/run-all-tests.ts
  *   npx tsx scripts/run-all-tests.ts --keep  保留测试数据
- *   npx tsx scripts/run-all-tests.ts --quick 只运行快速测试 (跳过 embedding)
+ *   npx tsx scripts/run-all-tests.ts --quick 只运行快速测试
  */
 
 import { execSync, spawn } from 'node:child_process';

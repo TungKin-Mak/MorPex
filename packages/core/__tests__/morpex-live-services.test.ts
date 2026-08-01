@@ -1,7 +1,7 @@
 /**
  * MorPex Live Services — REAL Deep Integration Test v3
  *
- * Uses REAL external services (Embedding Server, DeepSeek API, zvec, SQLite).
+ * Uses REAL external services (DeepSeek API, SQLite). 注：Embedding Server / zvec 已于 S17 移除（语义检索由 cognee 接管）。
  * Reads source files to determine actual APIs before calling methods.
  *
  * Run: cd E:/Morpex && npx tsx packages/core/__tests__/morpex-live-services.test.ts
