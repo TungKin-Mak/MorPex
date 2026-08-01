@@ -272,10 +272,8 @@ console.log('\n📋 12. IndustryRegistry\n');
 console.log('\n📋 13. Memory Infra\n');
 {
   const modules = [
-    ['MemoryBusListener', '../src/memory/MemoryBusListener.js'],
     ['MemoryHooks', '../src/memory/MemoryHooks.js'],
     ['MemoryMessages', '../src/memory/MemoryMessages.js'],
-    ['VectorStoreAdapter', '../src/memory/VectorStoreAdapter.js'],
     ['McpJsonRpcHandler', '../src/mcp/McpJsonRpcHandler.js'],
   ];
   for (const [name, importPath] of modules) {

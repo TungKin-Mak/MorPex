@@ -21,11 +21,60 @@ export default defineConfig({
       'packages/memory/**/*.spec.ts',
       'tests/**/*.test.ts',
     ],
-    // Exclude UI tests and node_modules
+    // ═══ S20 清理 ═══
+    // 排除脚本式测试（v11 遗留：无 vitest 结构，main()/process.exit 直跑）。
+    // 这类文件用 `npx tsx <file>` 手动运行；vitest 不收集，避免
+    // 「No test suite found」/ worker 挂起（S18/S20 已重写 memory-activation、
+    // critical-cognitive-pipeline 为规范 vitest，其余脚本式在此排除）。
     exclude: [
       'packages/studio/ui/**',
       'node_modules/**',
       '**/dist/**',
+      // ── packages/core/__tests__ 脚本式（精确清单）──
+      'packages/core/__tests__/artifact-lifecycle.test.ts',
+      'packages/core/__tests__/artifact-plane.test.ts',
+      'packages/core/__tests__/architecture-integration.test.ts',
+      'packages/core/__tests__/config-validation.test.ts',
+      'packages/core/__tests__/context-assembly.test.ts',
+      'packages/core/__tests__/critical-llm-mock.test.ts',
+      'packages/core/__tests__/critical-memory-knowledge.test.ts',
+      'packages/core/__tests__/critical-sandbox-security.test.ts',
+      'packages/core/__tests__/cross-agent-learning.test.ts',
+      'packages/core/__tests__/fsm-lifecycle.test.ts',
+      'packages/core/__tests__/learning-loop.test.ts',
+      'packages/core/__tests__/morpex-agent-other.test.ts',
+      'packages/core/__tests__/morpex-common.test.ts',
+      'packages/core/__tests__/morpex-core.test.ts',
+      'packages/core/__tests__/morpex-crossdomain.test.ts',
+      'packages/core/__tests__/morpex-deep-integration.test.ts',
+      'packages/core/__tests__/morpex-extensions-crossdomain.test.ts',
+      'packages/core/__tests__/morpex-extensions.test.ts',
+      'packages/core/__tests__/morpex-knowledge.test.ts',
+      'packages/core/__tests__/morpex-live-services.test.ts',
+      'packages/core/__tests__/phase2-optimization.test.ts',
+      'packages/core/__tests__/phase3-security.test.ts',
+      'packages/core/__tests__/phase4-observability.test.ts',
+      'packages/core/__tests__/production-llm-mock.test.ts',
+      'packages/core/__tests__/production-memory.test.ts',
+      'packages/core/__tests__/production-pipeline.test.ts',
+      'packages/core/__tests__/production-sandbox.test.ts',
+      'packages/core/__tests__/recovery-lifecycle.test.ts',
+      'packages/core/__tests__/resilience.test.ts',
+      'packages/core/__tests__/security-prompt-injection.test.ts',
+      'packages/core/__tests__/stage1-persistence.test.ts',
+      'packages/core/__tests__/unified-eventstore.test.ts',
+      // ── tests/ 脚本式（子目录 + 顶层；CI 用 tsx 跑 tests/e2e/v15-full-cycle，保留）──
+      'tests/architecture/**/*.test.ts',
+      'tests/chaos/**/*.test.ts',
+      'tests/integration/**/*.test.ts',
+      'tests/scenarios/**/*.test.ts',
+      'tests/unit/**/*.test.ts',
+      'tests/scenario/**/*.test.ts',
+      'tests/failure/**/*.test.ts',
+      'tests/performance/**/*.test.ts',
+      'tests/e2e/v15-full-cycle.test.ts',
+      'tests/artifact-production-pipeline.test.ts',
+      'tests/real-data-full-system.test.ts',
     ],
     // Force exit after test completion
     forceExit: true,
@@ -34,11 +83,19 @@ export default defineConfig({
     singleFork: true,
   },
   // Resolve aliases matching tsconfig paths
+  // ═══ S20 修复：补全子路径 alias（原只配根，@morpex/contracts/* 等解析失败）═══
   resolve: {
-    alias: {
-      '@morpex/contracts': '/packages/contracts/index.ts',
-      '@morpex/core': '/packages/core/index.ts',
-      '@morpex/memory': '/packages/memory/src/index.ts',
-    },
+    alias: [
+      { find: /^@morpex\/connectors\/(.+)$/, replacement: '/packages/connectors/src/$1' },
+      { find: /^@morpex\/connectors$/, replacement: '/packages/connectors/src/index.ts' },
+      { find: /^@morpex\/contracts\/(.+)$/, replacement: '/packages/contracts/$1' },
+      { find: /^@morpex\/contracts$/, replacement: '/packages/contracts/index.ts' },
+      { find: /^@morpex\/core\/(.+)$/, replacement: '/packages/core/$1' },
+      { find: /^@morpex\/core$/, replacement: '/packages/core/index.ts' },
+      { find: /^@morpex\/memory\/(.+)$/, replacement: '/packages/memory/src/$1' },
+      { find: /^@morpex\/memory$/, replacement: '/packages/memory/src/index.ts' },
+      { find: /^@morpex\/workflow-sdk$/, replacement: '/packages/workflow-sdk/src/index.ts' },
+      { find: /^@morpex\/workflow-sdk\/(.+)$/, replacement: '/packages/workflow-sdk/src/$1' },
+    ],
   },
 });

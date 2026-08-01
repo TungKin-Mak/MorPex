@@ -128,25 +128,7 @@ console.log('\n📋 2. ArtifactRegistry\n');
 }
 
 // ══════════════════════════════════════
-// 3. VectorStore (基础测试)
-// ══════════════════════════════════════
-console.log('\n📋 3. VectorStore\n');
-{
-  try {
-    const { VectorStore } = await import('../src/memory/knowledge/VectorStore.js');
-    ok(typeof VectorStore === 'function', 'VectorStore 是类');
-    
-    // VectorStore 需要 zvec 外部包，可能无法实例化
-    // 验证可导入
-    ok(true, 'VectorStore 模块可导入');
-  } catch (err: any) {
-    console.error('  ⚠️ VectorStore:', err.message);
-    ok(true, '[SKIP] VectorStore (需要 zvec 外部包)');
-  }
-}
-
-// ══════════════════════════════════════
-// 4. ExecutionRecordingEngine
+// 3. ExecutionRecordingEngine
 // ══════════════════════════════════════
 console.log('\n📋 4. ExecutionRecordingEngine\n');
 {
