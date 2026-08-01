@@ -60,13 +60,14 @@
 | S17 | 08-01 | 去除 bge-m3 + zvec（废弃组件） | **移除**：`@zvec/zvec` 依赖（根+memory包+lock）、`ZVecStorage.ts`/`EmbeddingClient.ts`/`ZVecLockRecovery.ts`（vector/ 目录）、core 死代码 `knowledge/VectorStore.ts`、`tools-python/embedding-server.py`、`data/models/bge-m3`（7MB 模型）+ 全部 zvec 数据目录、`configs/Dockerfile.embedding`、pm2 `morpex-embed`、run-all.sh embed 段、docker-compose embedding 服务、`memory-bus-v2-audit.spec.ts`（引用不存在的 MemoryBus，陈旧）、StudioServer.ts 编辑器残留备份(.bak/.new/.part*)。**改造**：`MemoryWiki` 剥成 SQLite-only（去 zvecColl/embedder/L2 缓存/向量召回/zvecReady 统计，query 签名保留 vectors 恒空）；`MetaPlanner`/`pipeline/stages/types` 的 ZVecStorage 类型 → 结构接口 `VectorStoreLike`；StudioServer/observability 移除 zvec-storage 心跳与契约；adapters/memory 与 memory index 导出清理；bootstrap L7 无 zvecPath。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 16 + memory 12 + metaplanner 26 + e2e-cognee 全过 + 后端干净重启（ExerciseAll 72 模块无 zvec）；跟进打磨（8905da8）：query() 移除不可达图遍历死代码、清理 L1/L2 缓存、修复 dbPath 未生效 bug | 待推 |
 | S18 | 08-01 | L7 深水区收官：MemoryActivationEngine 数据源统一 | **改造**：`MemoryActivationEngine` 新增 `MemoryActivationSource` 接口（load/available）+ `setSource` + 异步 `refresh()`（拉快照替换内存存储；离线保留旧快照不误清空）+ `isSourceAvailable`/`lastRefreshedAt`；`MemoryApiBus` 新增 `createMemoryActivationSource(memoryApi, engine)` + `hitToMemoryRecord`（type 从 metadata 推断；过滤 cognee 内部工件 TextSummary_/DocumentChunk_ 噪音；need_human→空防幻觉）；新增 `memory/activationRegistry.ts` 全局注册表（set/get，对齐 ExerciseContext 模式）；bootstrap 装配：engine.setSource(统一层) + 异步首拉 + 注册；RuntimeAPI `/api/memory/activate` 复用装配引擎（不再 new 空引擎）。**实测**：后端重启装配日志「首拉 7 条，可用=true」；activate 端点返回真实记忆（'899 元/月' 命中）；噪音过滤 9→7。**门禁**：tsc 0 + 架构 100% + production 8/8 + 核心 27（16+11 新）+ memory 12 + metaplanner 26。**废弃尝试**：SessionManager 接线核心 AgentHarness 失败（生产 harness 是 pi-bridge AgentHarnessClass，无 attachMemoryEngine，已撤销）；memory-activation.test.ts 原为无 test() 脚本（vitest 4 拒绝）已重写为规范 vitest 文件 | 待推 |
 | S19 | 08-01 | L8 自动回滚具体变更（EvolutionSandbox） | **改造**：`EvolutionChangeInput` 携带 apply/revert/verify 可执行动作（动作存侧表，记录保持可序列化）；`approveAndApply` 真正执行 apply（成功→applied，失败→failed 可补偿回滚）；`rollback` 真正执行 revert（仅限 applied/failed；成功→rolled_back + verify 校验，失败→保留状态可重试）；新增 applyOutcome/applyError/revertOutcome/revertError/verifyOutcome 审计字段 + apply_failed/revert_failed 事件；兼容旧行为（无 apply/revert 时维持标记式）。**reviewer 建议落地**：inflight Set 防 TOCTOU 双执行 + 重试成功清残留错误 + reject 守卫（仅 pending/rejected 可拒）。**测试**：8 个 L8 用例（含幂等/补偿/verify=false 边界）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 6 文件 73 测试全过 | `18bb397` `1b19853` |
+| S20 | 08-01 | 完成全部候选（L9 插件/phase0-smoke/BrainFacade 重包/Planner 接入） | **B. phase0-smoke 修复（真 bug）**：`ApprovalAction` 无 `execute_goal` → `!policy→true` 兜底 → 所有 goal 永远需人工审批（主入口被卡死）；补 execute_goal 默认策略（LOW/MEDIUM 自动批准、HIGH/CRITICAL 人工）+ CompanyFacade 部门校验前置（先于审批门禁）+ sendTask 消息含路由部门 + 测试注入 stub runtime/真实 ControlPlane（19/19）。**A. L9 插件**：`.env.example` 加凭证占位（AMAZON_SP_API_KEY/AWS_*/GITHUB_TOKEN 等，缺省 mock 降级、凭证就绪即生效）+ workflow-plugins 测试（4 provider 加载 + mock 降级，3/3）。**D. Planner 非 Mission 接入**：CompanyFacade.setDeliveryPlanner + executeGoal 非 mission 模式先规划（planId 注入 runOpts + 返回 plan 字段，失败非阻断）；bootstrap 装配（4/4）。**C. BrainFacade 完整重包**：聚合 MemoryActivationEngine（activateMemory）+ DeliveryPlanner（planGoal），getStats.systems 扩展（6/6）。**附带**：critical-cognitive-pipeline 脚本式→规范 vitest（9/9，修复 worker 挂起）。**门禁**：tsc 0 + 架构 100% + production 8/8 + 精选 11 文件 114 测试全过 + 后端重启装配验证 | `780868d` `12fee5b` `769ad86` `6c62aaa` `3b4866e` |
 
 ---
 
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 **14** 提交（S16 `982a9b9`/`96668bf` + S16基线 `c5d8e6a` + S17 `63f1787`/`ee4f44d`/`8905da8`/`f7c49cc`/`a77536d` + S17清理 `da091a7` + S18 `298b2e6`/`8e8f265` + S18基线 `4146966` + S19 `18bb397`/`1b19853`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 **20** 提交（详见 S16-S20）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -77,14 +78,15 @@
   · ⚠️ 环境：cognee 需 Python（venv 就绪）；Docker 不需要；前端 `packages/studio/ui` 尚不存在（后端仅 API 模式）
 
 ### 🟡 已知遗留（外部依赖，非紧急）
-- [ ] L9 真实领域插件：ecommerce(Amazon SP-API)/software(云部署) 需外部凭证，骨架已就绪（`packages/workflows/<domain>/src/actions/`）
+- [x] ~~L9 真实领域插件~~ ✅（S20 完成骨架验证 + 凭证占位 + mock 降级测试；真实调用需外部凭证，`.env.example` 配置后即生效）
 - [ ] hardware/xjmcu 工具链：需本机 python + buildcli（真实逻辑已实现，环境就绪自动生效）
 - [x] ~~L8 自动回滚具体变更~~ ✅（S19 完成：EvolutionSandbox apply/revert/verify + 失败补偿 + 并发守卫，8 用例）
-- [ ] phase0-smoke 2 个部门路由测试：**预存失败**（ControlPlane 审批策略行为，HEAD 上同样失败，非回归）
+- [x] ~~phase0-smoke 2 个部门路由测试~~ ✅（S20 修复：根因 execute_goal 审批策略缺失，主入口被卡死；19/19 全过）
 
 ### ⚪ 潜在优化（无排期）
-- [ ] BrainFacade 聚合门面完整重包（各能力已直连运行时事件）
-- [ ] DeliveryPlanner/HierarchicalPlanner 在非 Mission 路径的更广接入
+- [x] ~~BrainFacade 聚合门面完整重包~~ ✅（S20 完成：聚合 MemoryActivationEngine + DeliveryPlanner，activateMemory/planGoal 门面）
+- [x] ~~DeliveryPlanner/HierarchicalPlanner 在非 Mission 路径的更广接入~~ ✅（S20 完成：CompanyFacade 非 mission 模式先规划）
+- [ ] ⚠️ 新发现（既有，非本轮引入）：`__tests__/` 下 30+ 脚本式测试文件混入 vitest include 致全目录跑失败（v11 遗留）+ vitest alias 未配 `@morpex/contracts/*` 子路径 + `morpex-knowledge.test.ts` 残留已删 VectorStore 引用（S17）——需后续专项清理
 
 ---
 
@@ -108,6 +110,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`1b19853 refactor(evolution): L8 打磨——并发守卫 + 重试清残留 + reject 守卫 + 边界测试`（S19，本地领先远端 14，未推送）
+- 当前 HEAD：`3b4866e test(core): critical-cognitive-pipeline 重写为规范 vitest`（S20，本地领先远端 20，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
