@@ -32,6 +32,84 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
     expect(rec.sandboxPassed).toBe(false);
     expect(rec.status).toBe('rejected');
   });
+
+  it('L8 自动回滚：approve 执行 apply、rollback 执行 revert（具体变更真实落地/撤销）', async () => {
+    const sb = new EvolutionSandbox();
+    const applied: string[] = [];
+    const reverted: string[] = [];
+    const rec = await sb.proposeChange({
+      summary: '把默认温度从 0.7 调到 0.2',
+      apply: async () => { applied.push('apply:0.2'); },
+      revert: async () => { reverted.push('revert:0.7'); },
+    });
+    expect(rec.status).toBe('pending_approval');
+
+    await sb.approveAndApply(rec.id);
+    expect(applied).toEqual(['apply:0.2']);
+    expect(sb.getChange(rec.id)?.status).toBe('applied');
+    expect(sb.getChange(rec.id)?.applyOutcome).toBe('ok');
+
+    await sb.rollback(rec.id);
+    expect(reverted).toEqual(['revert:0.7']);
+    expect(sb.getChange(rec.id)?.status).toBe('rolled_back');
+    expect(sb.getChange(rec.id)?.revertOutcome).toBe('ok');
+  });
+
+  it('L8 apply 失败 → failed，可补偿回滚（revert 仍执行）', async () => {
+    const sb = new EvolutionSandbox();
+    const reverted: string[] = [];
+    const rec = await sb.proposeChange({
+      summary: '写坏配置',
+      apply: async () => { throw new Error('apply 写入失败'); },
+      revert: async () => { reverted.push('revert:恢复旧配置'); },
+    });
+    await sb.approveAndApply(rec.id);
+    const after = sb.getChange(rec.id)!;
+    expect(after.status).toBe('failed');
+    expect(after.applyOutcome).toBe('failed');
+    expect(after.applyError).toContain('写入失败');
+
+    // failed 状态可补偿回滚，revert 真正执行
+    await sb.rollback(rec.id);
+    expect(reverted).toEqual(['revert:恢复旧配置']);
+    expect(sb.getChange(rec.id)?.status).toBe('rolled_back');
+  });
+
+  it('L8 revert 失败 → 保持原状态 + revertError（不产生悬挂态，可重试）', async () => {
+    const sb = new EvolutionSandbox();
+    const rec = await sb.proposeChange({
+      summary: '改阈值',
+      apply: async () => undefined,
+      revert: async () => { throw new Error('revert 网络超时'); },
+    });
+    await sb.approveAndApply(rec.id);
+    await sb.rollback(rec.id);
+    const after = sb.getChange(rec.id)!;
+    expect(after.status).toBe('applied');  // revert 失败保持原状态
+    expect(after.revertOutcome).toBe('failed');
+    expect(after.revertError).toContain('网络超时');
+  });
+
+  it('L8 回滚后 verify 校验恢复原状', async () => {
+    const sb = new EvolutionSandbox();
+    const rec = await sb.proposeChange({
+      summary: '切换模板',
+      apply: async () => undefined,
+      revert: async () => undefined,
+      verify: async () => true,
+    });
+    await sb.approveAndApply(rec.id);
+    await sb.rollback(rec.id);
+    expect(sb.getChange(rec.id)?.status).toBe('rolled_back');
+    expect(sb.getChange(rec.id)?.verifyOutcome).toBe('ok');
+  });
+
+  it('L8 未落地（pending_approval）不可回滚', async () => {
+    const sb = new EvolutionSandbox();
+    const rec = await sb.proposeChange({ summary: '未审批变更' });
+    await sb.rollback(rec.id);
+    expect(sb.getChange(rec.id)?.status).toBe('pending_approval');
+  });
 });
 
 describe('Ontology 事实元数据 + 冲突策略（P2）', () => {

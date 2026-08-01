@@ -85,4 +85,4 @@ export type {
 
 // ── vNext+ L8: 演化安全沙箱（Verifiable Evolution）──
 export { EvolutionSandbox } from './EvolutionSandbox.js';
-export type { EvolutionChangeRecord, EvolutionSandboxOptions } from './EvolutionSandbox.js';
+export type { EvolutionChangeRecord, EvolutionChangeInput, EvolutionSandboxOptions } from './EvolutionSandbox.js';
