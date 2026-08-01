@@ -4,7 +4,7 @@
 > - **会话开始时**：先读本文件（项目状态 + 待办 + 上轮摘要）
 > - **会话结束时**：更新「会话历史」表 + 「当前待办」，确保下个会话零上下文丢失
 > - **发现机制**：`AGENTS.md`（主流 Agent 工具自动发现 + pi 项目级 `.pi/SYSTEM.md` 系统入口）→ 指向本文件
-> - 架构详情见 `morpex_ARCHITECTURE.md`（唯一真相源）；实现度矩阵见 `docs/IMPLEMENTATION_AUDIT.md`
+> - 架构详情见 `docs/AICOS_CORE_ARCHITECTURE.md`（AICOS-Core 8 层唯一真相源）+ `docs/AICOS_CORE_FILE_REGISTRY.md`（逐文件职责边界）
 
 ---
 
@@ -12,8 +12,8 @@
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
 
-- **理想架构**：10 层 vNext+（README / morpex_ARCHITECTURE.md）——分级 Ontology Gate / Bounded Autonomy / QueryMiss is Signal / Verifiable Evolution
-- **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全 10 层装配）
+- **理想架构**：AICOS-Core 8 层（docs/AICOS_CORE_ARCHITECTURE.md）——L1 治理 / L2 知识 / L3 Ontology Gate / L4 认知规划 / L5 执行 / L6 评价 / L7 演化 / L8 基础设施
+- **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全 8 层装配）
 - **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → 管线编排 → 仿真 → Ontology Grounding(真实 LLM) → UnifiedExecutionEngine（auto：原语兜底 → fabric/dag/mission）
 - **原语注册中心**：`DomainPrimitiveRegistry`（19 个原语 = 5 通用 + 14 插件），`executeAuto` 消费 + NL→参数提取
 - **验证命令**：

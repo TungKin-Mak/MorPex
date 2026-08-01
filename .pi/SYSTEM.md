@@ -8,14 +8,14 @@
 ## 0. 会话第一步（强制）
 
 **先读 `SESSION_LOG.md`**（项目状态 / 上轮摘要 / 当前待办 / 关键路径）。不读 = 对项目一无所知。
-紧随读 `AGENTS.md`（项目规则，跨工具入口）→ `morpex_ARCHITECTURE.md`（架构唯一真相源）。
+紧随读 `AGENTS.md`（项目规则，跨工具入口）→ `docs/AICOS_CORE_ARCHITECTURE.md`（AICOS-Core 8 层架构唯一真相源）+ `docs/AICOS_CORE_FILE_REGISTRY.md`（逐文件注册表）。
 
 会话结束必须更新 `SESSION_LOG.md` 的「会话历史」与「当前待办」。
 
 ## 1. 项目速览
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
-- 10 层 vNext+ 理想架构；统一运行时 `packages/core/src/bootstrap-unified.ts`
+- **AICOS-Core 8 层架构**（L1 治理/L2 知识/L3 Gate/L4 认知规划/L5 执行/L6 评价/L7 演化/L8 基础设施）；统一运行时 `packages/core/src/bootstrap-unified.ts`
 - 执行链：`CompanyFacade.executeGoal` → ControlPlane → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine
 - 原语注册中心 `DomainPrimitiveRegistry`（19 原语）+ `executeAuto` 兜底 + NL→参数提取
 - 分层：Entry/Governance · Ontology Gate · Planning · Cognition · Execution · Tools/Primitives · Knowledge/Memory · Evolution · Workflow Plugin · Infrastructure

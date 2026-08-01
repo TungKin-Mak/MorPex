@@ -17,7 +17,7 @@
 ```
 0. 读 SESSION_LOG.md → 项目状态 / 上轮摘要 / 待办（会话记忆入口）
 1. 读本文件 → 项目规则
-2. 读 morpex_ARCHITECTURE.md → 架构唯一真相源（10 层 + 约束）
+2. 读 docs/AICOS_CORE_ARCHITECTURE.md → AICOS-Core 8 层架构唯一真相源 + docs/AICOS_CORE_FILE_REGISTRY.md（逐文件职责边界）
 3. grep 搜索相关代码 → 确认影响范围
 4. 再动手改
 ```
@@ -25,7 +25,7 @@
 ## 2. 项目速览
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
-- **10 层 vNext+ 理想架构**（详见 morpex_ARCHITECTURE.md）：
+- **AICOS-Core 8 层架构**（详见 docs/AICOS_CORE_ARCHITECTURE.md）：
   Entry/Governance · Ontology Gate ★ · Planning · Cognition/Brain · Execution · Tools/Primitives · Knowledge/Memory · Evolution · Workflow Plugin · Infrastructure
 - **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全 10 层装配）
 - **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine（auto：原语兜底 → fabric/dag/mission）
@@ -33,13 +33,13 @@
 
 ## 3. 架构铁律
 
-### 3.1 理想架构对齐（10 层 vNext+）
-所有迭代、升级、重构必须严格对齐 `morpex_ARCHITECTURE.md` 的 10 层模型。
+### 3.1 理想架构对齐（AICOS-Core 8 层）
+所有迭代、升级、重构必须严格对齐 `docs/AICOS_CORE_ARCHITECTURE.md` 的 8 层模型，并同步更新 `docs/AICOS_CORE_FILE_REGISTRY.md`（新增/修改文件必须登记）。
 
 **禁止**：
 - 在 `planes/` 下新增任何代码（已废弃，仅剩 DEPRECATED.md）
 - 在 `brain/` 下新增新模块（已合并到 `cognition/`，brain/index 仅兼容）
-- 在 `control-plane/` 之外创建重复 Controller 层
+- 在 `governance/control-plane/` 之外创建重复 Controller 层
 - 领域逻辑进入 core（必须放 `packages/workflows/<domain>/`）
 
 **必须**：

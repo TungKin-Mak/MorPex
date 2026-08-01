@@ -6,7 +6,7 @@
 
 ---
 
-## Ideal Target Architecture (vNext+ — Final Model)
+## AICOS-Core 8 层架构（v2 — Final Model）
 
 **All future iterations, upgrades, and refactoring will strictly follow this model.**
 
@@ -72,7 +72,7 @@
 - **QueryMiss is Signal**: 知识缺失不能静默失败，必须产生 `ontology.query.miss` 事件进入反馈/演化回路（`events/ontologyEvents.ts` + `runOntologyGroundedReasoning`）。
 - **Verifiable Evolution**: 演化必须沙箱试跑 + 人工审批 + 版本化可回滚（依赖 Event Sourcing）。
 
-See `morpex_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
+See `docs/AICOS_CORE_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
 
 ---
 
@@ -124,7 +124,7 @@ ontology/
 **核心原则**：LLM 必须先查 Ontology 再推理，
 所有规划级决策经过 `runOntologyGroundedReasoning` 闸门。
 
-## Ideal Target Architecture (vNext+ — Final Model)
+## AICOS-Core 8 层架构（v2 — Final Model）
 
 **All future iterations, upgrades, and refactoring will strictly follow this model.**
 
@@ -190,7 +190,7 @@ ontology/
 - **QueryMiss is Signal**: 知识缺失不能静默失败，必须产生 `ontology.query.miss` 事件进入反馈/演化回路（`events/ontologyEvents.ts` + `runOntologyGroundedReasoning`）。
 - **Verifiable Evolution**: 演化必须沙箱试跑 + 人工审批 + 版本化可回滚（依赖 Event Sourcing）。
 
-See `morpex_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
+See `docs/AICOS_CORE_ARCHITECTURE.md` for the detailed module inventory + layer status aligned to this model.
 
 ---
 
