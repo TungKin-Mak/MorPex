@@ -13,7 +13,7 @@
  *   - "未初始化门禁抛错" 用例必须在本文件任何 initialize* 调用之前执行
  *   - DomainPrimitiveRegistry 每次用例前后 clear()
  */
-import { describe, it, expect, beforeEach, afterEach, beforeAll } from 'vitest';
+import { describe, it, expect, beforeEach, afterEach, beforeAll, vi } from 'vitest';
 import { DomainPrimitiveRegistry } from '../src/infrastructure/tools/DomainPrimitiveRegistry.js';
 import { KnowledgeQueryPrimitive } from '../src/infrastructure/tools/primitives/KnowledgeQueryPrimitive.js';
 import { FileOperationPrimitive } from '../src/infrastructure/tools/primitives/FileOperationPrimitive.js';
@@ -225,9 +225,16 @@ describe('KnowledgeQueryPrimitive — 参数校验与门禁', () => {
     expect(r.error).toContain('query 参数不能为空');
   });
 
-  it('Ontology Gate 未初始化 → reject（本文件首个触达 Gate 的用例）', async () => {
+  it('Ontology Gate 未初始化 → reject（隔离模块验证，避免共享进程顺序依赖）', async () => {
+    // resetModules + 动态 import：拿一份全新模块副本（Gate 必然未初始化），
+    // 不依赖「本文件首个触达 Gate」这一顺序假设（防止未来其他文件先初始化模块级状态）。
+    vi.resetModules();
+    const { KnowledgeQueryPrimitive: FreshKQP } = await import(
+      '../src/infrastructure/tools/primitives/KnowledgeQueryPrimitive.js',
+    );
+    const fp = new FreshKQP();
     await expect(
-      p.execute({ query: '产品知识' }, { departmentId: 'eng' }),
+      fp.execute({ query: '产品知识' }, { departmentId: 'eng' }),
     ).rejects.toThrow(/Ontology Gate 未初始化/);
   });
 });
@@ -381,9 +388,14 @@ describe('ArtifactGenerationPrimitive — 参数校验与门禁', () => {
     expect(r.error).toContain('specification 参数不能为空');
   });
 
-  it('Ontology Gate 未初始化 → reject（本文件首个触达 Artifact Gate 的用例）', async () => {
+  it('Ontology Gate 未初始化 → reject（隔离模块验证，避免共享进程顺序依赖）', async () => {
+    vi.resetModules();
+    const { ArtifactGenerationPrimitive: FreshAGP } = await import(
+      '../src/infrastructure/tools/primitives/ArtifactGenerationPrimitive.js',
+    );
+    const fp = new FreshAGP();
     await expect(
-      p.execute({ type: 'doc', specification: '产品说明', knowledgeContext: ['事实1'] }, { departmentId: 'eng' }),
+      fp.execute({ type: 'doc', specification: '产品说明', knowledgeContext: ['事实1'] }, { departmentId: 'eng' }),
     ).rejects.toThrow(/Ontology Gate 未初始化/);
   });
 });

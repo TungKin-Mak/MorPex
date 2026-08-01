@@ -259,9 +259,9 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 4. 测试数据目录 `data/test-output/` 加入 .gitignore
 
 ### 🟡 P1（补齐缺口，达到"所有功能可测"）
-- [x] ~~**EvaluationEngine 5 维评分测试**~~ ✅（`evaluation-matrix.test.ts`：QualityScorer 加权/decide 边界/EvaluationEngine 聚合/Ontology 硬门禁/SafetyMonitor 阈值，34 用例）
-- [x] ~~**primitives 原语注册表**~~ ✅（`primitives-registry.test.ts`：DomainPrimitiveRegistry 热注册/匹配/统计 + 5 原语执行注入/白名单/部门隔离，45 用例）
-- [x] ~~**OrganizationTwin 4 角色**~~ ✅（`organization-twin.test.ts`：角色装配/simulateDecision 审批/上市投票，17 用例）
+- [x] ~~**EvaluationEngine 5 维评分测试**~~ ✅（`evaluation-matrix.test.ts`：QualityScorer 加权/decide 边界/EvaluationEngine 聚合/Ontology 硬门禁/SafetyMonitor 阈值，26 用例）
+- [x] ~~**primitives 原语注册表**~~ ✅（`primitives-registry.test.ts`：DomainPrimitiveRegistry 热注册/匹配/统计 + 5 原语执行注入/白名单/部门隔离，40 用例）
+- [x] ~~**OrganizationTwin 4 角色**~~ ✅（`organization-twin.test.ts`：角色装配/simulateDecision 审批/上市投票，20 用例）
 6. **EvolutionController + PolicyEngine 测试**（L1 两个 ❌ 组件）
 7. **ArtifactFacade / MorPexRuntime FSM 状态机直接测试**（转正脚本式测试或补 vitest）
 8. **SSE 流真实推送测试**（事件流断言，补 api-contract 只验端点的空洞）
