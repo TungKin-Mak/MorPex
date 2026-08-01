@@ -86,7 +86,7 @@
 - [x] ~~phase0-smoke 2 个部门路由测试~~ ✅（S20 修复：根因 execute_goal 审批策略缺失，主入口被卡死；19/19 全过）
 
 ### ⚪ 潜在优化（无排期）
-- [ ] **S22 审计遗留**：① BrainFacade.learningLoop 无实现类（LearningLoopLike 接口存在，需真实实现或移除）；② L1 Agent/Evolution Controller 仅构造未进完整门禁（capability 门禁已加，如需 goal→capability 自动推断可扩展）；③ ReflectionEngine/MetaLearner 仍在 brain/（文档称并入 cognition/ 未真实迁移，可迁移或改文档）
+- [ ] **S22 审计遗留**：① ~~BrainFacade.learningLoop 无实现类~~ ✅（S22 补全：LearningLoop 聚合 learning/ 三件套并注入）；② L1 Agent/Evolution Controller 仅构造未进完整门禁（capability 门禁已加，如需 goal→capability 自动推断可扩展）；③ ReflectionEngine/MetaLearner 仍在 brain/（文档称并入 cognition/ 未真实迁移，可迁移或改文档）
 - [x] ~~BrainFacade 聚合门面完整重包~~ ✅（S20 完成：聚合 MemoryActivationEngine + DeliveryPlanner，activateMemory/planGoal 门面）
 - [x] ~~DeliveryPlanner/HierarchicalPlanner 在非 Mission 路径的更广接入~~ ✅（S20 完成：CompanyFacade 非 mission 模式先规划）
 - [x] ~~⚠️ 新发现（既有，非本轮引入）：`__tests__/` 下 30+ 脚本式测试文件混入 vitest include 致全目录跑失败（v11 遗留）+ vitest alias 未配 `@morpex/contracts/*` 子路径 + `morpex-knowledge.test.ts` 残留已删 VectorStore 引用（S17）~~ ✅（S21 完成：exclude 脚本式 + alias 子路径 + 死引用清理，`npx vitest run` 35 文件 254 测试全绿）

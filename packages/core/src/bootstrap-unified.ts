@@ -433,8 +433,12 @@ export async function bootstrapUnified(options?: {
     // ═══ S22 审计修复：注入 reflectionEngine/metaLearner（此前字段 null，聚合门面空转）═══
     brainFacade.setReflectionEngine(reflectionEngine);
     brainFacade.setMetaLearner(metaLearner);
-    // learningLoop：无真实实现类（learningEngine 容器从未赋值）——审计标注，不伪造注入
-    brainFacade.setLearningLoop((container as any).learningEngine ?? undefined);
+    // ═══ S22 审计补全：真实 LearningLoop 实现（此前 learningEngine 容器从未赋值）═══
+    const { LearningLoop } = await import('./learning/LearningLoop.js');
+    const learningLoop = new LearningLoop();
+    brainFacade.setLearningLoop(learningLoop);
+    (container as any).learningEngine = learningLoop;
+    (container as any).brainLearningLoop = learningLoop;
     // S20 完整重包：聚合记忆激活引擎（S18 装配产物）
     brainFacade.setMemoryActivationEngine?.((container as any).memoryActivationEngine);
     companyFacade.setBrainFacade(brainFacade);
