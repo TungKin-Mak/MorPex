@@ -5,7 +5,7 @@
  *
  * 将 4 套重叠的大脑系统统一为一个入口：
  *   - PersonalBrain   (cognition/memory/) — 五层记忆，内存级
- *   - MemoryWiki       (packages/memory/)   — SQLite+ZVec 持久层
+ *   - MemoryWiki       (packages/memory/)   — SQLite 持久层（zvec 已废弃移除 S17）
  *   - LearningLoop     (learning/)          — 经验提取 + 策略优化
  *   - EvolutionEngine  (evolution/)         — 模式挖掘 + 失败分析
  *

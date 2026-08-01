@@ -64,7 +64,7 @@
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 6 提交（`982a9b9` S16 修复 + `96668bf` S16 日志 + `c5d8e6a` S16 基线修正 + S17 `63f1787`/`ee4f44d`/`8905da8`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [ ] **推送提交**：本地 `master` 领先远端 8 提交（`982a9b9` S16 修复 + `96668bf` S16 日志 + `c5d8e6a` S16 基线修正 + S17 `63f1787`/`ee4f44d`/`8905da8`/`f7c49cc`/`a77536d`）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -106,6 +106,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`8905da8 refactor(memory): MemoryWiki SQLite-only 打磨（清死代码 + 修复 dbPath 未生效）`（S17，本地领先远端 6，未推送）
+- 当前 HEAD：`a77536d docs(test): 清理 S17 移除后的过时注释`（S17，本地领先远端 8，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
