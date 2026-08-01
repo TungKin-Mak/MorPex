@@ -98,7 +98,7 @@ export class CompanyFacade {
     const result = await this.executeGoal(task, { departmentName });
     return {
       ok: result.ok,
-      message: result.ok ? `✅ 任务完成` : `❌ 失败: ${result.error || '未知错误'}`,
+      message: result.ok ? `✅ 任务已路由到部门「${departmentName}」` : `❌ 失败: ${result.error || '未知错误'}`,
       departmentId: result.executionId ?? result.goalContext?.goalId,
     };
   }
@@ -114,6 +114,14 @@ export class CompanyFacade {
     await this.ensureBootstrapped();
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
+
+    // ── 0. 部门存在性校验（先于审批门禁：不存在则不进入审批） ──
+    if (options.departmentName) {
+      const dept = this.departmentManager.findByName(options.departmentName);
+      if (!dept) {
+        return { ok: false, report: `❌ 部门 "${options.departmentName}" 不存在`, error: `部门 "${options.departmentName}" 不存在` };
+      }
+    }
 
     // ── 1. ControlPlane 全量门禁（含 options 透传） ──
     const gate = await this.controlPlane.checkAll(goal, {

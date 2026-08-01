@@ -10,13 +10,32 @@ import { DepartmentManager } from '../src/department/DepartmentManager.js';
 import { DepartmentContext } from '../src/department/DepartmentContext.js';
 import { RoleRegistry } from '../src/role/RoleRegistry.js';
 import { CompanyFacade } from '../src/facade/CompanyFacade.js';
+import { ControlPlane } from '../src/control-plane/ControlPlane.js';
 import { OrganizationContextLite } from '../src/organization/OrganizationContextLite.js';
 
 function setup() {
   const bus = new EventBus();
   const deptMgr = new DepartmentManager(bus);
   const roleReg = new RoleRegistry(bus);
-  const facade = new CompanyFacade(deptMgr, roleReg);
+  // stub runtime：冒烟测试只验证「任务路由到部门」，不执行完整生产管线（避免 LLM/ontologie 超时）
+  // executeGoal 仅消费 run() 的 RunResult 形状；路由断言由 executeGoal 的部门校验 + runOpts.departmentId 保证
+  const stubRuntime = {
+    run: async (goal: string) => ({
+      ok: true,
+      context: {
+        executionId: 'exec_smoke',
+        goal: { raw: goal },
+        mission: { missionId: 'mission_smoke' },
+        team: { id: 'team_smoke', name: '冒烟团队' },
+        capabilities: [] as { name?: string }[],
+      },
+      artifacts: [],
+      errors: [],
+      executionResult: { output: 'ok' },
+    }),
+  } as any;
+  // 真实 ControlPlane（execute_goal/MEDIUM 已策略化自动批准，见 S20 修复）
+  const facade = new CompanyFacade(deptMgr, roleReg, stubRuntime, new ControlPlane());
   const orgCtx = OrganizationContextLite.getInstance();
   orgCtx.reset(); // 确保测试间状态隔离
   return { bus, deptMgr, roleReg, facade, orgCtx };

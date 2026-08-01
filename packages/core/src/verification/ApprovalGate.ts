@@ -9,7 +9,7 @@ import type { ComplianceResult } from './ComplianceChecker.js';
 
 export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'WAIT_HUMAN';
 export type RiskLevel = 'LOW' | 'MEDIUM' | 'HIGH' | 'CRITICAL';
-export type ApprovalAction = 'spend_money' | 'publish_content' | 'delete_data' | 'send_message' | 'modify_system' | 'execute_code';
+export type ApprovalAction = 'spend_money' | 'publish_content' | 'delete_data' | 'send_message' | 'modify_system' | 'execute_code' | 'execute_goal';
 
 export interface ApprovalRequest {
   id: string;
@@ -53,6 +53,12 @@ export class ApprovalPolicyRegistry {
     { action: 'send_message', riskLevel: 'MEDIUM', autoApprove: true, requireHuman: false },
     { action: 'send_message', riskLevel: 'HIGH', autoApprove: false, requireHuman: true },
     { action: 'send_message', riskLevel: 'CRITICAL', autoApprove: false, requireHuman: true },
+    // execute_goal：系统主入口（ControlPlane 对每个 goal 调用）。普通业务目标自动执行；
+    // 高风险/关键目标（部署/对外/破坏性）由各自动作策略另行拦截，此处仅作兜底分级。
+    { action: 'execute_goal', riskLevel: 'LOW', autoApprove: true, requireHuman: false },
+    { action: 'execute_goal', riskLevel: 'MEDIUM', autoApprove: true, requireHuman: false, maxAmount: 5000 },
+    { action: 'execute_goal', riskLevel: 'HIGH', autoApprove: false, requireHuman: true },
+    { action: 'execute_goal', riskLevel: 'CRITICAL', autoApprove: false, requireHuman: true },
   ];
 
   /** vNext+ P2：策略修订号（热更新边界 — 策略变更时递增） */
