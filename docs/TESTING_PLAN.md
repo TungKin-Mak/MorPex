@@ -112,7 +112,7 @@
 |--------|------|----------|
 | UnifiedExecutionEngine（迭代/成本上限） | ✅ | `bounded-autonomy.test.ts` |
 | SubAgentFork（maxIterations/maxCostTokens） | ✅ | `bounded-autonomy.test.ts` |
-| MorPexRuntime（9 Phase FSM） | ⚠️ | 间接（`critical-cognitive-pipeline` 覆盖 pipeline）；无直接 FSM 状态机测试（tests/unit/fsm 是通用 FSM） |
+| MorPexRuntime（9 Phase FSM） | ✅ | `morpex-runtime.test.ts`（stub engine 闭环：Pipeline→Simulation→Engine→Artifact→Verification→Mission COMPLETED）+ `execution-fsm.test.ts`（ExecutionFSM 状态机直接测试） |
 | ExecutionFabric / DependencyCoordinator | ⚠️ | 无直接测试 |
 | PersistentMissionStore / ArtifactStore | ✅ | `stage1-persistence`（脚本式）/ `recovery-lifecycle` |
 
@@ -135,7 +135,7 @@
 | MemoryAPI（统一记忆层，白名单/确认队列） | ✅ | `unified-memory.spec.ts`（8 用例） |
 | MemoryApiBus / MemoryActivationEngine | ✅ | `memory-activation.test.ts` |
 | Cognee 引擎（HTTP 适配器） | ⚠️ | mock 覆盖；真实联调需外部服务（降级跳过） |
-| ArtifactFacade / ArtifactBlueprint | ⚠️ | `artifact-lifecycle`（脚本式）存在但未纳入 vitest |
+| ArtifactFacade / ArtifactBlueprint | ✅ | `artifact-facade.test.ts`（产物状态机 VALID_TRANSITIONS + Blueprint 依赖编排，15 用例） |
 | UnifiedEventStore（追加写/回放） | ✅ | `unified-eventstore`（脚本式）+ `eventbus-idempotency` |
 
 ### L8 演化层
@@ -170,8 +170,8 @@
 |------|------|----------|
 | StudioServer REST API（24+ 端点） | ✅ | `api-contract.test.ts`（26 测试：可达性+结构） |
 | RuntimeAPI（runtime/artifacts/memory/learning） | ✅ | 同上 |
-| SSE 流（/api/stream/global、/api/events/stream） | ⚠️ | 契约测试仅验证端点存在；**无真实 SSE 推送/事件流断言** |
-| /api/execute 真实执行链 | ⚠️ | 契约测试为轻量调用；无"执行→artifact→评估"闭环断言 |
+| SSE 流（/api/stream/global、/api/events/stream） | ✅ | `sse-execute-e2e.test.ts`（真实建连 + connected 首帧 + 执行事件实时推送断言） |
+| /api/execute 真实执行链 | ✅ | `sse-execute-e2e.test.ts`（execute→SSE 事件流闭环）+ `morpex-runtime.test.ts`（execute→artifact→评估） |
 | Workflow CLI（10 子命令） | ✅ | `tests/cli/run-workflow-cli.ts`（11 测试） |
 | 记忆引擎 cognee（真实 HTTP） | ⚠️ | 需 `scripts/run-all.sh` 起服务；降级时跳过 |
 
@@ -241,7 +241,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 |------|----------|------|------|
 | 层覆盖（10 层有测试归属） | 矩阵人工核对（§3） | L6 ❌、L1 部分 ❌ | 10/10 层 ✅ |
 | 组件级引用覆盖 | grep 测试文件引用核心模块 | 32 核心组件 7 个 ❌ / 8 个 ⚠️ | ❌→0，⚠️→≤3 |
-| 测试数 | vitest | 350 | ≥400 |
+| 测试数 | vitest | 388 | ≥400 |
 | 用例通过率 | 统一入口报告 | 100% | ≥98% |
 | 架构违规 | validate-architecture | 0 | 0 |
 | 静态错误 | tsc | 0 | 0 |
@@ -262,10 +262,9 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 - [x] ~~**EvaluationEngine 5 维评分测试**~~ ✅（`evaluation-matrix.test.ts`：QualityScorer 加权/decide 边界/EvaluationEngine 聚合/Ontology 硬门禁/SafetyMonitor 阈值，26 用例）
 - [x] ~~**primitives 原语注册表**~~ ✅（`primitives-registry.test.ts`：DomainPrimitiveRegistry 热注册/匹配/统计 + 5 原语执行注入/白名单/部门隔离，40 用例）
 - [x] ~~**OrganizationTwin 4 角色**~~ ✅（`organization-twin.test.ts`：角色装配/simulateDecision 审批/上市投票，20 用例）
-6. **EvolutionController + PolicyEngine 测试**（L1 两个 ❌ 组件）
-7. **ArtifactFacade / MorPexRuntime FSM 状态机直接测试**（转正脚本式测试或补 vitest）
-8. **SSE 流真实推送测试**（事件流断言，补 api-contract 只验端点的空洞）
-9. **/api/execute 闭环测试**（execute→artifact→评估 断言）
+- [x] ~~**ArtifactFacade / MorPexRuntime FSM 状态机直接测试**~~ ✅（`artifact-facade.test.ts`：产物生命周期状态机 VALID_TRANSITIONS + Blueprint 依赖编排 + 事件广播，15 用例；`execution-fsm.test.ts`：ExecutionFSM 合法/非法转换 + 回调审计 + 持久化恢复，15 用例；`morpex-runtime.test.ts`：run() 9 阶段闭环 execute→artifact→verification→mission COMPLETED，5 用例）
+- [x] ~~**SSE 流真实推送测试**~~ ✅（`sse-execute-e2e.test.ts`：建连收 connected 首帧 + POST /api/execute 触发后 SSE 实时收到 execution.engine.started，含竞态防护——先等订阅就绪再触发）
+- [x] ~~**/api/execute 闭环测试**~~ ✅（`sse-execute-e2e.test.ts` HTTP 执行→事件流透传 + `morpex-runtime.test.ts` execute→artifact→评估 全链路）
 10. 补 ⚠️ 组件：CrossDepartmentKnowledgeSynthesizer / ExecutionFabric / PatternMigrationEngine / ActiveEvolutionTrigger
 
 ### 🟢 P2（增强与自动化）
