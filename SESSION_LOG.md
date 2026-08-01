@@ -68,7 +68,7 @@
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 **22** 提交（详见 S16-S21）。当前推送失败：`git push` 报连不上 github.com:443（Recv failure: Connection was reset）。网络恢复后执行 `git push origin master`
+- [x] ~~**推送提交**~~ ✅（S21 收尾：网络恢复，`git push origin master` 成功，`dcb045b..0c34c28`，本地与远端同步 ahead=0）
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
@@ -111,6 +111,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`da63678 fix(tests): 全量 vitest 全绿——脚本式测试排除 + @morpex/* 子路径 alias + 死引用清理`（S21，本地领先远端 22，未推送）
+- 当前 HEAD：`0c34c28 docs(session-log): 记录 S21 测试专项清理（全量 vitest 全绿）`（S21，**已推送，本地=远端 ahead 0**）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
