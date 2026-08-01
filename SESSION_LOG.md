@@ -106,6 +106,6 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`96668bf docs(session-log): 记录 S16 推送待办`（本地领先远端 2，未推送）
+- 当前 HEAD：`63f1787 feat(memory): 移除已废弃的 bge-m3 embedding 与 zvec 向量库`（S17，本地领先远端 4，未推送）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 架构唯一真相源：`morpex_ARCHITECTURE.md`
