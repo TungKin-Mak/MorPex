@@ -150,3 +150,74 @@ describe('scoreLineageHealth — 血缘健康评分', () => {
     expect(r.violations.some((v) => v.includes('ghost') && v.includes('不在血缘图'))).toBe(true);
   });
 });
+
+describe('EvaluationEngine — lineage 折入（Wave 6b L6 单一权威）', () => {
+  /** base = 62：plan 0.5*25 + agent 0.8*20 + tool 0.8*20 + output 0.5*25 + memory 0.5*10 */
+  function midInput(): EvaluationInput {
+    return {
+      missionId: 'msn_mid',
+      departmentId: 'dept_dev',
+      plan: { steps: 5, capabilities: [] },
+      agents: [{ name: 'dev', successRate: 0.8 }],
+      tools: [{ name: 't', successCount: 8, failureCount: 2 }],
+      artifacts: [
+        { type: 'code', status: 'APPROVED' },
+        { type: 'code', status: 'draft' },
+      ],
+      memory: { recallCount: 1, avgRelevance: 0.5 },
+    };
+  }
+
+  it('提供血缘子图 → lineageHealth 折入 missionQuality（20%），report 携带 lineageHealth', () => {
+    const g = new ArtifactGraph();
+    g.addNode(makeNode('a', 'approved'));
+    g.addNode(makeNode('b', 'approved'));
+    g.addEdge('a', 'b', 'dependency');
+
+    const engine = new EvaluationEngine();
+    const report = engine.evaluate({ ...midInput(), lineage: { graph: g, artifactIds: ['a', 'b'] } });
+
+    expect(report.lineageHealth).toBeDefined();
+    expect(report.lineageHealth!.score).toBe(1);
+    // base=62 → 62*0.8 + 100*0.2 = 69.6 → 70
+    expect(report.missionQuality).toBe(70);
+    expect(
+      report.systemScore.dimensions.some((d) => d.name === 'Lineage Health'),
+    ).toBe(true);
+  });
+
+  it('无 lineage → missionQuality 保持原分（中性，不惩罚，不触发 low_score）', () => {
+    const bus = new EventBus();
+    const lows: MorPexEvent[] = [];
+    bus.on('evaluation.low_score', (e) => lows.push(e));
+
+    const engine = new EvaluationEngine(bus);
+    const report = engine.evaluate(midInput());
+
+    expect(report.lineageHealth).toBeUndefined();
+    expect(report.missionQuality).toBe(62);
+    expect(lows).toHaveLength(0);
+  });
+
+  it('低血缘（全部 draft 孤立）→ 总分被拉低 + low_score 携带 lineageScore=0', () => {
+    const g = new ArtifactGraph();
+    g.addNode(makeNode('x', 'draft'));
+    g.addNode(makeNode('y', 'draft')); // 无边 → 双双孤立
+
+    const bus = new EventBus();
+    const lows: MorPexEvent[] = [];
+    const scoreds: MorPexEvent[] = [];
+    bus.on('evaluation.low_score', (e) => lows.push(e));
+    bus.on('evaluation.scored', (e) => scoreds.push(e));
+
+    const engine = new EvaluationEngine(bus);
+    const report = engine.evaluate({ ...midInput(), lineage: { graph: g, artifactIds: ['x', 'y'] } });
+
+    // lineage.score = 0（committedRatio=0, orphanRatio=1）→ 62*0.8 + 0 = 49.6 → 50 → 0.50 < 0.6
+    expect(report.lineageHealth!.score).toBe(0);
+    expect(report.missionQuality).toBe(50);
+    expect(lows).toHaveLength(1);
+    expect(lows[0].payload.lineageScore).toBe(0);
+    expect(scoreds[0].payload.lineageScore).toBe(0);
+  });
+});

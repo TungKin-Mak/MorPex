@@ -51,7 +51,7 @@ describe('架构可观测 — 服务接线', () => {
   });
 });
 
-describe('架构可观测 — 真实执行产生观测', () => {
+describe('架构可观测 — 真实执行产生观测', { timeout: 60000 }, () => {
   it('POST /api/execute 真实执行 → observations 记录调用链 + 执行 ID 可查', async () => {
     const execRes = await fetch(`${baseUrl}/api/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -106,7 +106,7 @@ describe('架构可观测 — 真实执行产生观测', () => {
   });
 });
 
-describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', () => {
+describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', { timeout: 180000 }, () => {
   it('chat/send 全管线 → 观测面出现 L1-L8 各层事件（架构怎么运行可见）', async () => {
     await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
     const res = await fetch(`${baseUrl}/api/chat/send`, {

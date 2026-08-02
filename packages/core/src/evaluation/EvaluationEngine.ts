@@ -1,8 +1,20 @@
+/**
+ * EvaluationEngine — L6 评价单一权威（Wave 6b 做实）
+ *
+ * 三合一：质量（QualityScorer）+ 本体合规（ontologyCompliance）+ 血缘健康（lineageCompliance）。
+ * 只评分与发事件（evaluation.scored / evaluation.low_score），不触发任何生产变更；
+ * 低分由 L7 演化层通过事件消费（ActiveEvolutionTrigger）。
+ */
 import { QualityScorer, type SystemScore } from './QualityScorer.js';
 import {
   scoreOntologyCompliance,
   type OntologyComplianceScore,
 } from './ontologyCompliance.js';
+import {
+  scoreLineageHealth,
+  type LineageHealthScore,
+} from './lineageCompliance.js';
+import type { ArtifactGraph } from '../knowledge/artifact/registry/ArtifactGraph.js';
 import type { ForcedQueryGuard } from '../gate/ForcedQueryGuard.js';
 import type { EventBus } from '../infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../infrastructure/common/types.js';
@@ -26,6 +38,13 @@ export interface EvaluationInput {
     executionId: string;
     referencedIds: string[];
   };
+
+  // ── Lineage 迭代（Wave 6b）──
+  /** 血缘健康子图：缺省 = 中性（不惩罚，保持原分） */
+  lineage?: {
+    graph: ArtifactGraph;
+    artifactIds: string[];
+  };
 }
 
 export interface EvaluationReport {
@@ -35,6 +54,8 @@ export interface EvaluationReport {
 
   // ── Ontology 迭代2 ──
   ontologyCompliance?: OntologyComplianceScore;
+  /** Wave 6b：血缘健康评分（仅当输入提供 lineage 子图时存在） */
+  lineageHealth?: LineageHealthScore;
   needsHumanReview?: boolean;
 }
 
@@ -57,6 +78,8 @@ export interface EvaluationScoredPayload {
   reason?: 'below_threshold';
   /** 仅 evaluation.low_score：触发阈值 */
   threshold?: number;
+  /** Wave 6b：血缘健康分（0-1，仅当报告含 lineageHealth 时携带） */
+  lineageScore?: number;
 }
 
 export class EvaluationEngine {
@@ -177,7 +200,31 @@ export class EvaluationEngine {
       });
     }
 
-    const missionQuality = systemScore.overall;
+    // ── Lineage 迭代（Wave 6b）：血缘健康折入总分 ──
+    let lineageHealth: LineageHealthScore | undefined;
+    if (input.lineage) {
+      const { graph, artifactIds } = input.lineage;
+      lineageHealth = scoreLineageHealth(graph, artifactIds);
+
+      // 信息维度（weight 0，不改变 QualityScorer 内部权重模型）
+      systemScore.dimensions.push({
+        name: 'Lineage Health',
+        score: Math.round(lineageHealth.score * 100),
+        weight: 0,
+        details: `批准占比 ${(lineageHealth.committedRatio * 100).toFixed(0)}%, 孤立节点 ${lineageHealth.orphanCount}/${lineageHealth.totalNodes}`,
+      });
+      if (lineageHealth.score < 0.7) {
+        systemScore.suggestions.push(
+          `⚠️ 血缘健康偏低 (${lineageHealth.score.toFixed(2)})：${lineageHealth.violations.slice(0, 2).join('; ') || '无描述'}`,
+        );
+      }
+    }
+
+    // 血缘折入总分（20% 权重）；缺省时保持原分（中性，不惩罚）
+    const baseQuality = systemScore.overall;
+    const missionQuality = lineageHealth
+      ? Math.round(baseQuality * 0.8 + lineageHealth.score * 100 * 0.2)
+      : baseQuality;
     const decision = this.scorer.decide(missionQuality);
 
     return {
@@ -185,6 +232,7 @@ export class EvaluationEngine {
       systemScore,
       decision,
       ontologyCompliance,
+      lineageHealth,
       needsHumanReview,
     };
   }
@@ -211,6 +259,7 @@ export class EvaluationEngine {
       qualityScore: report.missionQuality / 100,
       decision: report.decision,
       needsHumanReview: report.needsHumanReview ?? false,
+      lineageScore: report.lineageHealth?.score,
     };
 
     this.eventBus.emit({ ...base, payload });

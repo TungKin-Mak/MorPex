@@ -43,8 +43,8 @@
    (5 维评分 + 血缘健康；低分只发 evaluation.low_score 事件，不直接触发生产变更)
 
 7. L7 Evolution 可验证演化层
-   ActiveEvolutionTrigger + EvolutionSandbox + KnowledgeGapListener + PatternMigrationEngine
-   SelfImprovementLoop + EvolutionProposal + ImprovementAnalyzer + FeedbackAwareLearner（自 L4 迁入）
+   ActiveEvolutionTrigger + EvolutionSandbox + KnowledgeGapListener
+   SelfImprovementLoop + EvolutionProposal + ImprovementAnalyzer（自 L4 迁入）
    ExperienceMiner + FailureAnalyzer + PatternExtractor
    (QueryMiss → Feedback → Evolution 闭环；只消费 L6 evaluation.* 事件，禁止被 L4 直接触发；
     演化须沙箱试跑 + 人工审批 + 版本化回滚；晋升写前再过 Gate + 完整 Trace)
@@ -100,7 +100,6 @@ See `docs/AICOS_CORE_ARCHITECTURE.md` for the detailed module inventory + layer 
           │
          Event Sourcing (全域事件持久化)
          Evolution (L7 沙箱+审批+版本化回滚)
-         FeedbackAwareLearner (消费查询/反馈信号 → L7)
 ```
 
 ### Ontology 层（迭代1-3）
@@ -192,30 +191,21 @@ npx vitest run           # 仅单元/集成
 
 ## 核心模块
 
-| 层 | 模块 | 职责 |
-|----|------|------|
-| 🎮 **Control** | `control-plane/` | AI System Controller (4 Controllers) |
-| 📋 **Policy** | `policy/` | 统一策略引擎 (13 条默认策略) |
-| 📊 **Evaluation** | `evaluation/` | 5 维度系统级评分 (Plan/Agent/Tool/Output/Memory) |
-| 🧠 **Brain** | `cognition/`（`brain/` 已废弃 deprecated） | ReflectionEngine, MetaLearner, Twins 统一入口 `cognition/BrainFacade` |
-| 📐 **Planning** | `planner/` | DeliveryPlanner + HierarchicalPlanner (HTN) + `planWithOntology` |
-| ⚡ **Execution** | `execution/` + `runtime/` | UnifiedExecutionEngine + MorPexRuntime (9 Phase) |
-| 📦 **Artifact** | `artifact/` | ArtifactBlueprint 先于执行 + 全生命周期 |
-| ✅ **Verification** | `verification/` | VerificationEngine + ComplianceChecker + ApprovalGate |
-| 🎯 **Mission** | `mission-control/` | MissionController + PersistentMissionStore |
-| 🔍 **Goal** | `goal-intelligence/` | GoalIntelligenceFacade (parse/extract/analyze) |
-| 🗺️ **Capability** | `capability/` + `agent-capability/` | CapabilityRegistry + 层级能力图 |
-| 👥 **Organization** | `organization/` | DynamicTeamOrchestrator + AgentPoolProvider |
-| 🔌 **Workflow** | `workflow/`（插件目录 `packages/workflows/<domain>/`：xjmcu, ecommerce, hardware, software） | WorkflowProvider 接口 (插件化)，领域逻辑完全隔离 |
-| 🏛️ **Governance** | `governance/` | RuntimeManager + CostController + AlertEngine |
-| 🔗 **Metadata** | `metadata/` | SystemMetadataGraph (8 实体 × 10 关系) |
-| 🔍 **Trace** | `trace/` | TraceCollector (goal→artifact span) |
-| 🏁 **Ontology** | `ontology/` | OntologyService + ForcedQueryGuard + FeedbackService (迭代1-3) |
-| 🏆 **Benchmark** | `benchmark/` | 52 Golden Tasks (5 domains) |
-| 👥 **Twin** | `cognition/twin/` | OrganizationTwin (CEO/CTO/CMO/CFO 模拟) |
-| 📜 **Events** | `protocol/events/` | Event Sourcing (28 事件类型 + SQLite) |
+> 本 README 只维护 8 层摘要；**逐文件清单见 `docs/AICOS_CORE_FILE_REGISTRY.md`，层职责边界与模块清单见 `docs/AICOS_CORE_ARCHITECTURE.md`**（唯一权威，不在此维护第二套层定义）。
+> 当前代码实际目录映射：
 
----
+| 层 | 实际目录 | 主要模块 |
+|----|----------|----------|
+| L1 Governance | `governance/`（含 `control-plane/`） | ControlPlane（Goal/Policy/Resource/Agent 4 Controller）+ PolicyEngine + ApprovalGate + RiskAnalyzer |
+| L2 Knowledge | `knowledge/` | SystemMetadataGraph + OntologyService + ArtifactRegistry + MemoryWiki/PersonalBrain + UnifiedEventStore |
+| L3 Gate | `gate/` | ForcedQueryGuard + runOntologyGroundedReasoning + context（KnowledgeContextPackage / TierWriteGuard） |
+| L4 Cognition & Planning | `cognition/` | BrainFacade + ReflectionEngine + MetaLearner + DeliveryPlanner/HierarchicalPlanner + Twins |
+| L5 Execution | `execution/` | UnifiedExecutionEngine + MorPexRuntime + ExecutionFabric + harness + budget |
+| L6 Evaluation | `evaluation/` | EvaluationEngine（质量+本体合规+血缘健康三合一）+ QualityScorer |
+| L7 Evolution | `evolution/` | ActiveEvolutionTrigger + EvolutionSandbox + SelfImprovementLoop + KnowledgeGapListener |
+| L8 Infrastructure | `infrastructure/` | EventBus + ConnectorRegistry + Observability + Primitives（KnowledgeQuery/ArtifactGeneration/FileOperation/Shell/APICall） |
+| 领域插件（非层） | `packages/workflows/<domain>/` | xjmcu, ecommerce, hardware, software |
+
 
 ## Key Metrics
 

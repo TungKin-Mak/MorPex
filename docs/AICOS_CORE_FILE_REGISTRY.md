@@ -94,7 +94,7 @@
 | `knowledge/graph/SystemMetadataGraph.ts` | SystemMetadataGraph — 系统元数据图 Phase 2: 记录所有实体关系 + EventStore 事件写入 + 事件重建 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/KnowledgeGraph.ts` | KnowledgeGraph — 轻量级知识图谱（实体 + 关系） ★ 记忆统一：存储由 JSONL 文件改为 SQLite（better-sqlite3，实时持久化）。 接口完全不变（addEntity/searchEntities/getNeighborhood/findPath/…）， 消费方（AgentHarness/MetaPlanner/StrategicDeconstructor 等）零感知。 兼容：loadFromDisk 时若 SQLite 为空且存在旧 JSONL，自动迁移一次。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/graph/knowledge/plugin.ts` | 【— 描述待补，非废弃判定】 | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/graph/knowledge/plugin.ts` | KnowledgeGraphPlugin — L2 知识图谱插件（MorPexPlugin 实现，挂载知识图到运行面） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/types.ts` | Knowledge Graph — 类型定义 统一知识图谱：整合 Agent / Task / Artifact / Decision / Memory 为上层提供跨数据源的查询接口。 扩展了 Cognee 风格的实体/关系类型，支持认知图谱（Cognitive Graph）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/CompanyKnowledge.ts` | memory/CompanyKnowledge — 公司知识记忆（Gate 接线注册表） 低耦合：模块级注册表 + 可选注入。 - bootstrap 装配时注入 memoryApi（cognee 引擎）；未注入时工具调用返回 QueryMiss，不硬崩。 - ontologyTools 的第 5 个工具 ontology_queryCompanyKnowledge 经此查询。 - QueryMiss → 复用现有事件链（ontology.query.miss / needs_human）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/MemoryActivationEngine.ts` | MemoryActivationEngine — 记忆激活引擎 根据当前状态、任务和执行上下文， 主动从 Memory Store 检索最相关的记忆并注入 Agent 上下文。 支持： - state-aware recall  — 根据执行状态检索 - task-aware recall   — 根据任务目标检索 - execution-aware recall — 根据执行历史和模式检索 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -175,14 +175,14 @@
 | `cognition/planning/CrossDepartmentArbitrationEngine.ts` | CrossDepartmentArbitrationEngine — 跨部门冲突仲裁引擎 v16: 检测并仲裁跨部门计划冲突（资源竞争、循环依赖、时间窗口冲突）。 在 HierarchicalPlanner.createPlan() 之后自动调用。 仲裁策略: - 'priority': 按部门优先级（CEO 设定） - 'cost': 按预估成本最小化 - 'risk': 按风险最低优先 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/DeliveryPlanner.ts` | DeliveryPlanner — 统一规划引擎（Facade） Phase 2 / 交付层 对外提供统一的规划入口，对内委托给: - MetaPlanner（完整 7 引擎规划管线） - SimulationEngine（执行前仿真预测） 设计原则： - Facade 模式：不修改现有模块 - 根据任务复杂度自动选择规划路径 - 支持 "快速规划"（简单任务跳过仿真） - 支持 "完整规划"（复杂任务走全管线） 规划模式： - 'quick': 快速 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/DeliveryPlannerAdapter.ts` | DeliveryPlannerAdapter — 将 DeliveryPlanner 适配为 MissionPlanner 接口 L3 全功能实现：把理想架构第 3 层（DeliveryPlanner，真实 piBridge + Ontology Gate） 接入 MissionRuntime 的任务 FSM 规划阶段（此前规划层不可达）。 深度接入（vNext+ L3）： - 主规划：DeliveryPlanner.createPlan（Ontology Grounded） - 重规划（replan）：Hiera | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/HierarchicalPlanner.ts` | 【— 描述待补，非废弃判定】 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/HierarchicalPlanner.ts` | HierarchicalPlanner — 分层规划器（支持 Ontology grounded reasoning，产出计划供 L5 执行） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/ConstraintAnalyzer.ts` | ConstraintAnalyzer — 约束分析器 从目标文本中提取预算/期限/平台等约束 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalParser.ts` | GoalParser — 目标解析器 将用户原始语句解析为目标+领域+子目标 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalValidator.ts` | GoalValidator — 目标验证器 检查目标上下文的完整性和可行性 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/RequirementExtractor.ts` | RequirementExtractor — 从目标中提取能力需求 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/types.ts` | 【— 描述待补，非废弃判定】 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/types.ts` | 目标智能解析类型定义（GoalParseResult / 子目标 / 置信度） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/index.ts` | planner — 统一规划层 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/twin/BehaviorTwin.ts` | BehaviorTwin v2 — 用户行为模式学习引擎（含版本化） MorPex v8.6: 从交互历史中学习用户行为模式， 输出 BehaviorProfile 供 Planner 约束生成风格匹配的方案。 ★ v8.6 新增：版本化支持。每次 buildProfile 调用都会创建一个 版本快照，可通过 getVersion/getVersionHistory/diffVersions 回溯。 学习维度: - planningStyle:       规划风格（自上而下/架构优先/原型优先） - riskTo | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/twin/OrganizationTwin.ts` | OrganizationTwin — 组织孪生 Phase 2: 模拟虚拟公司的组织结构、角色决策、协作策略 复用 BehaviorTwin/DecisionTwin/PreferenceModel 作为个体基础 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -197,36 +197,36 @@
 | `cognition/workflow/types.ts` | Workflow Intelligence — 类型定义 Phase 7 / MorPex v8: 工作流智能引擎数据类型。 四大能力： 1. Pattern Detection — 重复行为模式检测 2. Workflow Extraction — 从 Mission 历史提取流程 3. Workflow Optimization — 流程优化建议 4. Automation Assessment — 自动化成熟度评估 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 
 
-## `execution/`（80 文件）
+## `execution/`（66 文件）
 
 > 层边界规则：有界执行+硬边界；不重规划/不评分/不演化
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
-| `execution/AgentAllocator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/DependencyCoordinator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/AgentAllocator.ts` | AgentAllocator — 按 TeamSpec 从可用 Agent 池静态分配执行团队 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/DependencyCoordinator.ts` | DependencyCoordinator — 动态团队依赖图构建与跨团队依赖协调 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/DynamicTeamOrchestrator.ts` | DynamicTeamOrchestrator — 动态团队编排器 (v16) 能力驱动: Goal → CapabilityDiscovery → WorkflowSelection → TeamFormation → Execution / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/SubAgentFork.ts` | SubAgentFork — 无状态子 Agent 执行肢（Fleet） Phase 2 / 交付层 增强 Phase 0 的 ForkExecuteTool（单次 bash/JS 执行）为完整的 "子 Agent 舰队"管理： 1. 创建临时子 Agent 执行任务（通过 fork） 2. 子 Agent 有独立的 DepartmentContext 分区 3. 执行完成后记忆快照自动写入部门 Memory 4. 通过 EventBus 广播生命周期事件 5. 支持超时、重试、并发控制 对比 ForkExecut | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/TeamBuilder.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/TeamBuilder.ts` | TeamBuilder — 按目标/所需能力构建执行团队（TeamSpec） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/UnifiedExecutionEngine.ts` | UnifiedExecutionEngine — 统一执行引擎（Facade） Phase 2 / 交付层 对外提供统一的执行入口，对内委托给三个现有执行模块: - MissionRuntime (24 状态 FSM) - DAGRuntime (DAG 调度) - ExecutionFabric (v11 Agent 能力解析 + Connector 调用) 设计原则： - Facade 模式：不修改现有模块，只在外部包裹统一 API - 根据执行模式（mode）自动路由到正确的引擎 - 聚合状态查询：统一从三个 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/ExecutionFabric.ts` | ExecutionFabric — v11 Unified Execution Fabric Merges AgentRuntime, Scheduler, and Connector Runtime into a single execution plane. Coordinates the flow: Workflow Node → Capability Resolver → Agent Selection → Action Request → Execution @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/index.ts` | Execution Fabric — v11 Unified Execution Plane @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/AgentHarness.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/ContextBuilder.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/HarnessContext.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/AgentHarness.ts` | AgentHarness — Agent 执行封装（记忆读写/产物引用/事件回调） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/ContextBuilder.ts` | ContextBuilder — 从记忆/产物/经验构建 Harness 执行上下文（意图/计划/记忆） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/HarnessContext.ts` | Harness 上下文类型定义（IntentContext / PlanContext / MemoryContext 结构化） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/orchestrator/AgentOrchestrator.ts` | AgentOrchestrator — Agent 编排器 管理 Agent 的创建、分配、生命周期。 支持 CEO/Manager 层级结构。 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/orchestrator/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/orchestrator/plugin.ts` | createOrchestratorPlugin — 编排器插件工厂（name/version） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/swarm/SwarmEngine.ts` | SwarmEngine — 群组智能引擎 管理 Agent 群组（Swarm），支持多种协作策略： - consensus: 共识决策（多数表决） - round_robin: 轮流执行 - voting: 加权投票 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/swarm/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/swarm/plugin.ts` | createSwarmPlugin — Swarm 群体执行插件工厂（name/version） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/types.ts` | Memory record retrieved from memory store */ | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/index.ts` | Execution — v11 Execution Plane + Phase 2 统一引擎 @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/ExecutionContext.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/MorPexRuntime.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/PersistentArtifactStore.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/ExecutionContext.ts` | ExecutionContext — 执行上下文（GoalContext + MissionState + 运行时快照） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/MorPexRuntime.ts` | MorPexRuntime — L5 主驱动器（FSM/DAG 执行编排；失败路径只读演化分析；发 runtime.* 事件） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/PersistentArtifactStore.ts` | PersistentArtifactStore — 基于 UnifiedEventStore 的产物持久化（事件溯源） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/PersistentMissionStore.ts` | PersistentMissionStore — Event Sourcing 架构 所有 Mission 状态变化通过事件记录，启动时从事件重放重建状态 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/PipelineOrchestrator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/ServiceContainer.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/PipelineOrchestrator.ts` | PipelineOrchestrator — 执行管线编排（GoalIntelligence 解析 → 执行阶段串联） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/ServiceContainer.ts` | ServiceContainer — 服务容器（构造并注入全部运行时依赖：引擎/治理/知识/演化） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/approval/ApprovalEngine.ts` | ApprovalEngine — 审批引擎 Phase 4 / MorPex v8: 标准化人工审批流程管理。 职责： 1. 创建审批请求（高风险操作需要人工确认） 2. 发射 APPROVAL_REQUIRED 事件让前端展示 3. 支持 approve / deny / 超时自动拒绝 4. 低风险操作可配置自动批准 与 MissionRuntime 的集成： MissionRuntime 在 WAIT_APPROVAL 状态下调用 ApprovalEngine： const request = await ap | ApprovalEngine — 审批引擎 Phase 4 / MorPex v8: 标准化人工审批流程管理。 职责： 1. 创建审批请求（高风险操作需要人工确认） 2. 发射 APPROVAL_REQUIRED 事件让前端展示 3. 支持 approve / deny / 超时自动拒绝 4. 低风险操作可配置自动批准 与 MissionRuntime 的集成： MissionRuntime 在 WAIT_APPROVAL 状态下调用 ApprovalEngine： const request = await ap |
 | `execution/runtime/approval/index.ts` | approval — Approval Engine Barrel Phase 4 / MorPex v8: 人工审批流程管理。 导出： - ApprovalEngine   审批引擎（核心类） - ApprovalRequest  审批请求类型 - ApprovalStatus   审批状态类型 - ApprovalEngineConfig  审批引擎配置 - ApprovalEventPayload  审批事件负载 - ApprovalStats    审批统计类型 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/approval/types.ts` | Approval Engine — 类型定义 Phase 4 / MorPex v8: 人工审批流程的标准数据结构。 设计原则： - 每个审批请求独立追踪（id, status, context） - 审批请求可过期自动拒绝（timeoutMs） - 低风险操作可选自动审批（autoApproveLowRisk） / | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -247,9 +247,9 @@
 | `execution/runtime/dag/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/types.ts` | DAG Plugin — 类型定义 DAG 节点、边、验证、状态相关类型。 从 src/core/types.ts 中的 AdaptiveDAGNode 等类型迁移。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/index.ts` | ── Runtime Kernel (Phase 1 / MorPex v8) ── | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/mission/MissionController.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/mission/MissionController.ts` | MissionController — Mission 生命周期控制（状态机推进 + 事件广播） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/MissionRuntime.ts` | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 |
-| `execution/runtime/mission/MissionTypes.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/mission/MissionTypes.ts` | Mission 状态/阶段类型定义（MissionStatus / MissionPhase） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/DAGExecutorAdapter.ts` | DAGExecutorAdapter — 将 DAGRuntime 适配为 MissionExecutor 接口 P0 架构完善: 连接 MissionRuntime → DAGRuntime MissionRuntime 通过 MissionExecutor 接口委托执行工作。 此适配器将现有的 DAGRuntime（TaskGraph/Scheduler/ParallelExecutor）包装为 MissionExecutor。 使用方式： const adapter = new DAGExecutorAdap | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/GatewayHandler.ts` | GatewayMissionHandler — 将 MessageGateway 连接到 MissionRuntime P0 架构完善: 连接 Interaction Gateway → Mission Runtime MessageGateway 通过 MessageHandler 接口委托消息处理。 此处理器将用户消息转换为 Mission，触发 Mission 的完整生命周期。 使用方式： const handler = new GatewayMissionHandler(missionRuntime); m | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/MetaPlannerAdapter.ts` | MetaPlannerAdapter — 将 MetaPlanner 适配为 MissionPlanner 接口 P0 架构完善: 连接 MissionRuntime → MetaPlanner ★ v8.5 升级: 读取 Twin 约束 (PlannerConstraint) 并注入 MetaPlanner MissionRuntime 通过 MissionPlanner 接口委托规划工作。 此适配器将现有的 MetaPlanner（7-Stage Pipeline）包装为 MissionPlanner。 使用方 | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -260,7 +260,7 @@
 | `execution/runtime/sandbox/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/sandbox/types.ts` | Sandbox — 类型定义 MorPex v8.8: 沙箱隔离执行上下文。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/scheduler/SchedulerEngine.ts` | SchedulerEngine — STUB (replaced by DAG Runtime's Scheduler) @deprecated Use Scheduler from runtime/dag/ / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/scheduler/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/scheduler/plugin.ts` | SchedulerPlugin — 调度器插件（v0.1.0 占位） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/simulation/ExecutionSimulator.ts` | ExecutionSimulator — 执行计划模拟器 v16: 在规划后执行前模拟，发现潜在问题 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/simulation/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/state-machine/ExecutionFSM.ts` | ExecutionFSM — 执行状态机 MorPex Runtime 执行状态管理。 管理 Agent 执行的生命周期状态转换。 States: CREATED → PLANNING → READY → EXECUTING ⇄ WAITING ↓ REVIEWING → COMPLETED ↓ FAILED / CANCELLED Features: - 状态转换验证 - 状态持久化 (JSONL) - 状态恢复 - 事件发射 - 审计日志 / | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -284,7 +284,7 @@
 | `evaluation/lineageCompliance.ts` | lineageCompliance — L6 血缘健康评分（Wave 3a 新增）：复用 L2 ArtifactLineage 计算批准占比/孤立节点/违规清单 → LineageHealthScore（0-1），不直接触发生产变更 | 评分+血缘+低分信号；不修改行为/不执行业务 |
 
 
-## `evolution/`（28 文件）
+## `evolution/`（20 文件）
 
 > 层边界规则：提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2
 
@@ -312,7 +312,7 @@
 | `evolution/workflow/types.ts` | Workflow Evolution Engine — 类型定义 Phase 5 / MorPex v8.5: 工作流持续演化系统的数据模型。 与 cognition/workflow/ 的区别: cognition/workflow/ — 工作流智能: 模式检测、提取、优化建议 (一次性分析) evolution/workflow/ — 工作流演化: 持续挖掘、注册管理、版本化、自动执行 (生命周期) 生命周期: candidate (系统发现) → confirmed (用户确认) → active (自动执行 | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 
 
-## `infrastructure/`（84 文件）
+## `infrastructure/`（86 文件）
 
 > 层边界规则：底座服务；无领域逻辑/不推理/不规划/不评价/不演化
 
@@ -356,13 +356,13 @@
 | `infrastructure/observability/TraceManager.ts` | TraceManager — 追踪管理器 MorPex v8.8: 记录每个 Mission 的完整执行追踪。 每个 Span 代表一个阶段（Intent/Plan/Task/Verification）， 形成树形追踪结构。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/WorkflowMetrics.ts` | WorkflowMetrics — 工作流运行指标 MorPex v8.8: 聚合工作流运行的关键业务指标。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/contracts/artifact-lifecycle.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/protocol/contracts/artifact-lifecycle.ts` | Artifact 生命周期契约（CREATED→…→RETIRED 状态机 + LineageEntry） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/artifact.ts` | Artifact — 可交付物共享类型 @deprecated 使用 contracts/artifact-lifecycle.ts 代替。 v16 Phase 2: 统一 Artifact 模型已迁移到 ArtifactNode (contracts/artifact-lifecycle.ts)。 此文件保留只为向后兼容，新代码应使用 artifact-lifecycle.ts。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/goal.ts` | Goal Intelligence — 共享类型 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/BaseEvent.ts` | MorPex Event Protocol — Base Event Interface Phase 1 / MorPex v8: 系统中所有事件的基础接口。 BaseEvent 定义了事件的最小通用结构： - id:         唯一标识（evt_{YYYYMMDD}_{shortUUID}） - type:       标准事件类型（EventType 枚举或扩展字符串） - timestamp:   时间戳（Date.now()） - executionId: 关联执行 ID（始终必填） - source | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/DecisionEvent.ts` | DecisionEvent — 认知决策事件（Cognitive Event Stream） v8.6: 记录 Agent 做出每个决策时的完整上下文。 与 Execution History（MissionRuntime 状态转换）互补，形成完整的认知审计线索。 设计原则: - 只追加（append-only）：决策记录不可篡改 - 完整上下文：记录决策时的输入、推理、证据 - 版本关联：记录决策时使用的 Twin 版本 与 EventStore 的关系: - DecisionEvent 通过 EventStor | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/EventType.ts` | MorPex Event Protocol — Standard Event Types Phase 1 / MorPex v8: 标准化事件类型枚举。 所有事件按架构层分组： Interaction → Cognitive → Mission → Planning → Execution → Agent → Tool → Workflow → Control → System → Artifact → Cross-Domain 使用方式： import { EventType } from './EventTyp | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/events/EventTypes.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/protocol/events/EventTypes.ts` | SYSTEM_EVENT_TYPES — 全系统事件类型常量（goal/execution/evaluation/evolution 事件名） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/index.ts` | protocol/events — MorPex Event Protocol Barrel Phase 1 / MorPex v8: 事件协议层统一导出入口。 导出： - EventType:         标准事件类型枚举 - EVENT_LAYERS:      事件类型按层分组 - getAllEventTypes:  获取所有标准事件类型 - BaseEvent:         基础事件接口 - isStandardEvent:   判断是否为标准事件类型 - isEventInLayer:    判 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/EventProjection.ts` | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p |
 | `infrastructure/protocol/events/store/EventRepository.ts` | EventRepository — 事件查询层 Phase 4 / MorPex v8.5: 在 EventStore 基础上提供过滤、聚合、时序查询。 使用方式: const repo = new EventRepository(eventStore); const errors = repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 }); const timeline = repo.getTimeline('mis | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -382,15 +382,15 @@
 | `infrastructure/tools/TeamSayTool.ts` | TeamSayTool — 领域间通信工具 向指定 Agent 发送消息（UDP 语义，非阻塞）。 目标 Agent 当前 turn 完成后自动消费消息。 使用 pi-agent-core harness.steer() 实现。 steer() 注入 steering 消息，异步非阻塞。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 0.4 (删除优先法则): 使用 pi 原生 steer() 而非自定义通信 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolCallTracker.ts` | ToolCallTracker — 工具调用生命周期状态追踪（合并版） 基于 AgentScope ToolCallState 设计，提供双重追踪方式： 1. EventBus 驱动（自动）：订阅 runtime.tool.* 事件自动追踪 2. 手动 API（精确）：供 PermissionEngine 等模块直接调用 状态机（与 AgentScope 兼容）: ``` PENDING ──(deny/beforeToolCall)──► FINISHED (blocked) ├──(ask)──────► AS | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolExecutionProxy.ts` | ToolExecutionProxy — Worker 隔离执行器（含僵尸防御 + 反向熔断） 每个工具调用在独立 worker_threads 中执行。 内核不关心执行细节，只监听三种信号： - progress   → 透传给 harness 的 tool_execution_update - completed  → 返回 ToolResult - timeout/oom → 执行 worker.terminate()，向 FSMEngine 抛出 TOOL_EXECUTION_TIMEOUT / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolFactory.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolRegistry.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ToolFactory.ts` | ToolFactory — 工具工厂（EventBus 注入，创建并注册 LLM 工具） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ToolRegistry.ts` | ToolRegistry — LLM 工具注册中心（ToolSchema 登记/查找） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/artifact-registry-skill.ts` | artifact-registry-skill — 产物注册 AgentTool (Phase 11: Harness-aware) 将 ArtifactRegistry 封装为 AgentTool。 优先通过 AgentHarness 注册（权限+上下文），回退到直接 registry 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ask-user-tool.ts` | ask-user-tool — 向用户提问的 AgentTool options 必填，前端渲染为可点击按钮。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/builtin-tools.ts` | builtin-tools — MorPex 内置 AgentTool 定义 v3.x 重构：所有 pi 包直接依赖已隔离到适配层。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/index.ts` | tools — 动态工具层 ToolFactory → 动态生成工具 ToolRegistry → 工具注册与统计 DomainPrimitiveRegistry → 通用原语注册与匹配 primitives/ → 5 个领域无关的基础原语 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/knowledge-graph-skill.ts` | knowledge-graph-skill — 知识图谱查询 AgentTool (Phase 11: Harness-aware) 优先通过 AgentHarness 查询（上下文+权限），回退到直接 KnowledgeGraph 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/memory-search-tool.ts` | memory-search-tool.ts — 记忆搜索工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 搜索（上下文+记忆激活），回退到直接 MemoryRetriever 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ontologyTools.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ontologyTools.ts` | ontologyTools — Ontology LLM 工具定义（查询/检索，供 Gate 两阶段推理使用） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/APICallPrimitive.ts` | APICallPrimitive — API 调用原语 通用的 HTTP API 调用操作，通过 ConnectorRegistry 执行。 不包含任何领域逻辑——纯粹的基础设施能力。 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/ArtifactGenerationPrimitive.ts` | ArtifactGenerationPrimitive — 产物生成原语 通用的产物生成操作，始终以知识查询结果为前提： 1. 先查询 KnowledgeQueryPrimitive 获取已有知识 2. 将知识作为上下文注入 LLM 生成 3. 通过 FileOperationPrimitive 写入文件 4. 通过 ArtifactFacade 注册产物生命周期 支持的产物类型： - code: 源代码文件 - doc: 文档（Markdown, HTML 等） - config: 配置文件（JSON, YAML | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/FileOperationPrimitive.ts` | FileOperationPrimitive — 文件操作原语 通用的文件系统操作，通过 ConnectorRegistry 执行。 不包含任何领域逻辑——纯粹的基础能力。 支持的操���： - read: 读取文件内容 - write: 写入文件内容 - delete: 删除文件 - list: 列出目录文件 - exists: 检查文件/目录是否存在 - mkdir: 创建目录 - copy: 复制文件 - move: 移动文件 - stat: 文件状态信息 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -402,6 +402,9 @@
 | `infrastructure/utils/extractJson.ts` | extractJson — 从 LLM 响应中提取 JSON 字符串（三级修复） 处理 LLM 可能返回的各种格式： - 纯 JSON - Markdown 代码块中的 JSON（```json ... ```） - 包含额外解释的 JSON - 截断不完整的 JSON（Level 2 补齐） - 格式错误无法修复时（Level 3 LLM 重试） Level 1: 逐字符括号匹配（已有） Level 2: 截断补齐 — 找最后一个合法 key，补齐缺失的 } Level 3: 带错误反馈的 1 次 LLM 重试  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/utils/jsonl.ts` | readJSONLLines — 流式 JSONL 解析 统一的 JSONL 行解析，内置容错跳过损坏行。 @param content - JSONL 文件内容 @returns 解析后的对象数组 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/utils/toposort.ts` | topologicalSort — 通用拓扑排序（Kahn 算法） 统一的依赖拓扑排序，用于： - PluginSystem 插件依赖解析 - CrossDomainRouter DAG 节点排序 - DAGEngine 任务排序 @param nodes   - 待排序节点 @param getDeps - 获取节点依赖 ID 列表的函数 @param getId   - 获取节点唯一 ID 的函数 @returns 拓扑排序后的节点列表；存在环时返回原序 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+
+| `infrastructure/adapters/pi-agent-core.d.ts` | pi-agent-core 类型声明（d.ts，适配层编译契约） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/primitives/gateBinding.ts` | PrimitiveGate — 副作用原语运行时 Gate 绑定（Wave 4：只读缺凭证 WARN 计数放行；破坏性缺凭证抛 GateContextRequiredError 硬拦截） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 
 
 ## `workflow/`（2 文件）
