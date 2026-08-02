@@ -91,13 +91,13 @@ export default defineConfig({
       ],
       reporter: ['text', 'json', 'html'],
       reportsDirectory: 'data/test-report/coverage',
-      // 阈值锁定已达成基线（语句 32.85 / 分支 26.25 / 函数 30.7 / 行 34.54，S31 再推一档后），
+      // 阈值锁定已达成基线（语句 34.7 / 分支 28.13 / 函数 31.99 / 行 36.42，S32 再推一档后），
       // 略低防轻微波动误红，重大回退仍会被拦
       thresholds: {
-        statements: 31,
-        branches: 25,
-        functions: 29,
-        lines: 33,
+        statements: 33,
+        branches: 27,
+        functions: 31,
+        lines: 35,
       },
     },
   },
