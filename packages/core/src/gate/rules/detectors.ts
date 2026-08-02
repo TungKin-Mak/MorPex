@@ -10,6 +10,8 @@
  * 内置检测器：
  *   - RegexDetector（'regex'）     ：规范化+正则+别名匹配（Phase 1 逻辑迁移）
  *   - ApiWhitelistDetector（'whitelist'）：API 白名单前缀校验（Phase 2，MCU 平台错配场景）
+ *   - KeywordDetector（'keyword'）  ：通用两级模型第一级——关键词扫名（确定性，零成本；
+ *     第二级 LLM 语义复核在 runOntologyGroundedReasoning 管道层，全行业通用）
  *   - 'semantic'（LLM 语义复核）暂缺 → Phase 3
  */
 
@@ -196,9 +198,48 @@ export const ApiWhitelistDetector: RuleDetector = {
   },
 };
 
+/**
+ * KeywordDetector — 通用两级模型·第一级：关键词扫名（全行业通用，不绑领域语法）
+ *
+ * 匹配语义：目标文本与关键词均经规范化（NFKC+小写+去空白），输出包含任一关键词
+ * → 命中（violation.keyword 记录该词）。
+ *
+ * ⚠️ 纯确定性第一级：命中只标记“关键词出现”，是否违规由管道层第二级 LLM 语义
+ * 判断（按 rule.description 判定“触及该词的内容是否满足要求”）；triggered=false 时
+ * 该规则不算违规。此检测器本身不调 LLM（guard 纯函数约束）。
+ */
+export const KeywordDetector: RuleDetector = {
+  type: 'keyword',
+  check(proposal, rule) {
+    const keywords = rule.keywords;
+    if (!keywords || keywords.length === 0) return null;
+
+    const text = extractTargetText(proposal, rule.target);
+    if (!text) return null;
+
+    const normText = normalizeText(text);
+    for (const kw of keywords) {
+      const normKw = normalizeText(kw);
+      if (normKw && normText.includes(normKw)) {
+        return {
+          ruleId: rule.id,
+          severity: rule.severity,
+          matchedText: normKw,
+          target: rule.target,
+          description: rule.description,
+          keyword: kw,
+        };
+      }
+    }
+
+    return null;
+  },
+};
+
 /** detectorRegistry — 内置检测器注册表（按 ruleType 分派） */
 export const detectorRegistry: Partial<Record<RuleType, RuleDetector>> = {
   regex: RegexDetector,
   whitelist: ApiWhitelistDetector,
+  keyword: KeywordDetector,
   // semantic: Phase 3 —— LLM 语义复核检测器（届时经接口注入）
 };

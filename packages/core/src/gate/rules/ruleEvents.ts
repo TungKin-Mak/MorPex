@@ -32,6 +32,12 @@ export interface RuleViolationEvent extends BaseEvent {
     description: string;
     /** 重试是否已用尽（true=转人工） */
     retriesExhausted: boolean;
+    /** 命中的关键词（keyword 规则，可选） */
+    keyword?: string;
+    /** 语义判断理由（keyword 规则触发时，可选） */
+    semanticReason?: string;
+    /** 语义判断修正建议（keyword 规则触发时，可选） */
+    semanticSuggestion?: string;
     timestamp: number;
   };
 }
@@ -66,6 +72,9 @@ export function createRuleViolationEvent(
     target: string;
     description: string;
     retriesExhausted: boolean;
+    keyword?: string;
+    semanticReason?: string;
+    semanticSuggestion?: string;
   },
 ): RuleViolationEvent {
   return {
@@ -85,6 +94,9 @@ export function createRuleViolationEvent(
       target: input.target,
       description: input.description,
       retriesExhausted: input.retriesExhausted,
+      keyword: input.keyword,
+      semanticReason: input.semanticReason,
+      semanticSuggestion: input.semanticSuggestion,
       timestamp: Date.now(),
     },
   };

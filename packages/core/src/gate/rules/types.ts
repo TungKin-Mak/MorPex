@@ -10,8 +10,8 @@
 /** 规则严重度：ERROR=硬中断（进入修正重试）；WARNING=记录+继续 */
 export type RuleSeverity = 'ERROR' | 'WARNING';
 
-/** 检测方式：regex=确定性正则（Phase 1）；whitelist=API 白名单前缀（Phase 2）；semantic=LLM 语义复核（Phase 3）；领域可经 DetectorRegistry 注册自定义类型（如 'custom:no-eval'） */
-export type RuleType = 'regex' | 'whitelist' | 'semantic' | (string & {});
+/** 检测方式：regex=确定性正则；whitelist=API 白名单前缀；keyword=通用两级模型（关键词扫名+LLM 语义复核，全行业通用）；semantic=LLM 语义复核（Phase 3）；领域可经 DetectorRegistry 注册自定义类型（如 'custom:no-eval'） */
+export type RuleType = 'regex' | 'whitelist' | 'keyword' | 'semantic' | (string & {});
 
 /** 规则状态：pending=提炼待人工确认（不参与匹配）；active=生效；disabled=人工关闭 */
 export type RuleStatus = 'pending' | 'active' | 'disabled';
@@ -53,6 +53,15 @@ export interface RuleEntity {
   /** 别名/代称展开（规范化后精确包含匹配） */
   aliases?: string[];
   /**
+   * 关注点关键词（ruleType='keyword' 时使用；任意行业任意词，如 isr_interrupt / 价格 / 利率）
+   *
+   * 通用两级模型（不绑定任何领域语法）：
+   *   第一级（确定性扫名）：输出文本包含任一关键词 → 标记待确认
+   *   第二级（LLM 语义复核）：管道层按 description 判断“触及该词的内容是否满足要求”
+   *     → 触发（triggered=true）才进入修正重生成；未触发 → 该规则不算违规
+   */
+  keywords?: string[];
+  /**
    * API 白名单前缀（ruleType='whitelist' 时使用，Phase 2）
    * 检测：目标文本中出现的"厂商风格 API token"（含下划线且首字母大写，如 IOCP_W / LL_GPIO_WritePin）
    * 其前缀（第一个 _ 前片段）不在白名单内 → 违规。
@@ -81,6 +90,14 @@ export interface RuleViolation {
   matchedText: string;
   target: RuleTarget;
   description: string;
+  /** 命中的关键词（ruleType='keyword' 时填充；第二级语义判断依据） */
+  keyword?: string;
+  /** 第二级语义判断确认触发（keyword 规则；true=需修正，进入重生成） */
+  semanticTriggered?: boolean;
+  /** 语义判断理由（注入修正重生成的约束用） */
+  semanticReason?: string;
+  /** 语义判断修正建议 */
+  semanticSuggestion?: string;
 }
 
 /** 规则中断结果（check 返回） */

@@ -30,13 +30,14 @@ import {
 // 功能② Phase 1：规则中断更正（RuleEnforcementGuard）
 import { RuleRegistry } from './rules/RuleRegistry.js';
 import { check as ruleEnforcementCheck } from './rules/RuleEnforcementGuard.js';
+import { extractTargetText } from './rules/detectors.js';
 import { lexicalCorrect } from './rules/lexicalCorrection.js';
 import {
   createRuleViolationEvent,
   createRuleDowngradedEvent,
 } from './rules/ruleEvents.js';
 import type { RuleDowngradedEvent } from './rules/ruleEvents.js';
-import type { RuleViolation } from './rules/types.js';
+import type { RuleEntity, RuleViolation } from './rules/types.js';
 
 export interface GroundedReasoningOptions {
   goal: string;
@@ -376,7 +377,11 @@ export async function runOntologyGroundedReasoning(
         ? ''
         : `\n\n【修正要求】你的上一版输出违反以下规则，必须修改输出使其完全合规（不得再出现违规内容）：\n${ruleViolations
             .filter((v) => v.severity === 'ERROR')
-            .map((v) => `- [${v.ruleId}] ${v.description}（命中内容：${v.matchedText}）`)
+            .map((v) =>
+              v.semanticTriggered
+                ? `- [${v.ruleId}] ${v.description}（关键词「${v.keyword}」；判定：${v.semanticReason ?? ''}${v.semanticSuggestion ? `；建议：${v.semanticSuggestion}` : ''}）`
+                : `- [${v.ruleId}] ${v.description}（命中内容：${v.matchedText}）`,
+            )
             .join('\n')}`;
 
     const reasoningResponse = await piBridge.generateText({
@@ -400,6 +405,29 @@ export async function runOntologyGroundedReasoning(
     const applicable = activeRules.filter((r) => !downgradedRules.has(r.id));
     const checkResult = ruleEnforcementCheck(proposal, applicable);
     ruleViolations = checkResult.violations;
+
+    // ═══════════════════════════════════════════════════════════
+    // ⭐ keyword 第二级语义判断（通用两级模型，全行业通用）：
+    //   仅对"关键词命中"的规则调 LLM，确认"触及该词的内容是否满足 description 要求"
+    //   - triggered=true  → 计入违规（semanticTriggered=true，进入修正重生成）
+    //   - triggered=false → 该规则不算违规，移除放行
+    //   成本控制：regex/whitelist 命中不调语义 LLM（仅 keyword 命中才调）
+    // ═══════════════════════════════════════════════════════════
+    for (const v of [...ruleViolations]) {
+      if (!v.keyword) continue;
+      const rule = applicable.find((r) => r.id === v.ruleId);
+      if (!rule) continue;
+      const judgement = await semanticJudgement(piBridge, rule, v, proposal);
+      if (judgement.triggered) {
+        v.semanticTriggered = true;
+        v.semanticReason = judgement.reason;
+        v.semanticSuggestion = judgement.suggestion;
+      } else {
+        // 未触发 → 该规则不算违规，移除（放行）
+        ruleViolations = ruleViolations.filter((x) => x !== v);
+      }
+    }
+
     let errorViolations = ruleViolations.filter((v) => v.severity === 'ERROR');
 
     // WARNING 违规：不中断，仅记录事件（eventStore 存在时）
@@ -416,6 +444,9 @@ export async function runOntologyGroundedReasoning(
             target: v.target,
             description: v.description,
             retriesExhausted: false,
+            keyword: v.keyword,
+            semanticReason: v.semanticReason,
+            semanticSuggestion: v.semanticSuggestion,
           }));
         } catch (err) {
           console.warn(`[GroundedReasoning] ⚠️ 写入规则 WARNING 事件失败:`, (err as Error).message);
@@ -480,6 +511,9 @@ export async function runOntologyGroundedReasoning(
               target: v.target,
               description: v.description,
               retriesExhausted: true,
+              keyword: v.keyword,
+              semanticReason: v.semanticReason,
+              semanticSuggestion: v.semanticSuggestion,
             }));
           } catch (err) {
             console.warn(`[GroundedReasoning] ⚠️ 写入规则违规事件失败:`, (err as Error).message);
@@ -760,4 +794,57 @@ function normalizeProposal(raw: string): OntologyProposal {
     missing_info: ['无法解析为 JSON'],
     raw,
   };
+}
+
+/**
+ * semanticJudgement — 通用两级模型·第二级：LLM 语义复核（仅关键词命中时调用）
+ *
+ * 输入：规则 description（自然语言要求）+ 输出中涉及关键词的片段（±80 字符上下文）
+ * 输出：{ triggered, reason, suggestion }
+ *   - triggered=true  → 触及违规，需修正重生成（reason/suggestion 注入约束）
+ *   - triggered=false → 该规则不算违规，放行
+ *
+ * 保守策略：JSON 解析失败/异常 → triggered=true（防漏检，转人工兑底）
+ * 成本控制：仅在 KeywordDetector 第一级命中后调用（管道层持有 piBridge）。
+ */
+async function semanticJudgement(
+  piBridge: GroundedReasoningOptions['piBridge'],
+  rule: RuleEntity,
+  violation: RuleViolation,
+  proposal: OntologyProposal,
+): Promise<{ triggered: boolean; reason: string; suggestion: string }> {
+  const fullText = extractTargetText(proposal, violation.target) || '';
+  const kw = violation.keyword ?? '';
+  const idx = fullText.toLowerCase().indexOf(kw.toLowerCase());
+  const start = Math.max(0, idx - 80);
+  const end = Math.min(fullText.length, idx + kw.length + 80);
+  const snippet = (idx >= 0 ? fullText.slice(start, end) : fullText.slice(0, 160)) || '（无法定位片段）';
+
+  const system = '你是规则合规审查员。根据规则要求判断内容是否合规。';
+  const prompt = [
+    `规则要求：${rule.description}`,
+    '',
+    `以下输出涉及关键词「${kw}」：`,
+    snippet,
+    '',
+    '请判断这段输出对该关键词相关内容的处理是否满足规则要求。',
+    '若可能违规/需修正 → triggered=true，并给出理由与修正建议；否则 triggered=false。',
+    '只输出 JSON：{"triggered":boolean,"reason":"...","suggestion":"..."}',
+  ].join('\n');
+
+  try {
+    const resp = await piBridge.generateText({ system, prompt, temperature: 0.2 });
+    const block = extractBalancedJSON(resp.text);
+    if (block) {
+      const parsed = JSON.parse(block) as Record<string, unknown>;
+      return {
+        triggered: parsed.triggered !== false, // 缺省/非 boolean → 保守 true
+        reason: typeof parsed.reason === 'string' ? parsed.reason : '',
+        suggestion: typeof parsed.suggestion === 'string' ? parsed.suggestion : '',
+      };
+    }
+  } catch {
+    // 解析失败 → 保守 triggered=true（防漏检）
+  }
+  return { triggered: true, reason: '语义判断解析失败，保守视为需修正', suggestion: '' };
 }
