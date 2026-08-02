@@ -20,6 +20,7 @@
 import type { ActionPrimitive, ActionResult, ArtifactGenerationRequest, ArtifactGenerationResult } from './types.js';
 import type { ForcedQueryGuard } from '../../../gate/ForcedQueryGuard.js';
 import { runOntologyGroundedReasoning } from '../../../gate/runOntologyGroundedReasoning.js';
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
 import { OntologyService } from '../../../knowledge/ontology/OntologyService.js';
 import { systemMetadataGraph } from '../../../knowledge/graph/SystemMetadataGraph.js';
 import { ObjectTypeRegistry } from '../../../knowledge/ontology/ObjectTypeRegistry.js';
@@ -129,7 +130,11 @@ export class ArtifactGenerationPrimitive implements ActionPrimitive {
   private static llmCaller: ((prompt: string) => Promise<string>) | null = null;
 
   /** 文件操作执行器 */
-  private static fileWriter: ((path: string, content: string, deptId: string) => Promise<ActionResult>) | null = null;
+  /**
+   * 文件写入器（Wave 4）：第四参 gateContext 为 ArtifactGeneration 自身 Ontology Gate 凭证，
+   * 供下游副作用原语（如 FileOperationPrimitive 落盘）做运行时硬校验——避免双重门禁语义。
+   */
+  private static fileWriter: ((path: string, content: string, deptId: string, gateContext?: KnowledgeContextPackage) => Promise<ActionResult>) | null = null;
 
   /** 副作用前校验钩子（写文件前必须通过；未注入则跳过校验） */
   private static verificationHook: PreSideEffectVerifier | null = null;
@@ -160,7 +165,7 @@ export class ArtifactGenerationPrimitive implements ActionPrimitive {
   /**
    * setFileWriter — 注入文件写入器
    */
-  static setFileWriter(writer: (path: string, content: string, deptId: string) => Promise<ActionResult>): void {
+  static setFileWriter(writer: (path: string, content: string, deptId: string, gateContext?: KnowledgeContextPackage) => Promise<ActionResult>): void {
     ArtifactGenerationPrimitive.fileWriter = writer;
   }
 
@@ -184,6 +189,8 @@ export class ArtifactGenerationPrimitive implements ActionPrimitive {
     const specification = params.specification as string;
     let knowledgeContext = params.knowledgeContext as string[] | undefined;
     const outputPath = params.outputPath as string | undefined;
+    // Wave 4：自身 Ontology Gate 凭证（供落盘副作用原语硬校验）
+    let gatePackage: KnowledgeContextPackage | undefined;
     // vNext+: Graded Ontology Gate — 产物生成默认 Standard（tier-1）
     const riskTier = (params.riskTier as 'tier-0' | 'tier-1' | 'tier-2' | undefined) ?? 'tier-1';
     const executionId = context?.executionId || `art_${Date.now()}`;
@@ -242,6 +249,8 @@ export class ArtifactGenerationPrimitive implements ActionPrimitive {
           // 将 Ontology 返回的事实转为 knowledgeContext
           knowledgeContext = ontologyResult.proposal.referenced_object_ids.map((f: any) => JSON.stringify(f)) || [];
         }
+        // Wave 4：携带自身 Ontology Gate 凭证下传（供 FileOperationPrimitive 落盘硬校验）
+        gatePackage = ontologyResult.knowledgeContextPackage;
       } catch (err) {
         return {
           success: false,
@@ -357,7 +366,7 @@ ${knowledgeBlock}
         const targetPath = outputPath
           ? `${outputPath}/${file.path}`
           : file.path;
-        const writeResult = await ArtifactGenerationPrimitive.fileWriter(targetPath, file.content, deptId);
+        const writeResult = await ArtifactGenerationPrimitive.fileWriter(targetPath, file.content, deptId, gatePackage);
         if (!writeResult.success) {
           warnings.push(`文件写入失败: ${targetPath} — ${writeResult.error}`);
         }

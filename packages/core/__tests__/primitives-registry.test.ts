@@ -24,7 +24,21 @@ import {
   initializeOntologyGateForArtifact,
 } from '../src/infrastructure/tools/primitives/ArtifactGenerationPrimitive.js';
 import { ForcedQueryGuard } from '../src/gate/ForcedQueryGuard.js';
+import { GateContextRequiredError, type KnowledgeContextPackage } from '../src/gate/context.js';
+import { PrimitiveGate } from '../src/infrastructure/tools/primitives/gateBinding.js';
 import type { ActionPrimitive } from '../src/infrastructure/tools/primitives/types.js';
+
+/** Wave 4：有效的 KnowledgeContextPackage 夹具（供副作用原语 Gate 用例使用） */
+function validGate(): KnowledgeContextPackage {
+  return {
+    executionId: 'exec_gate',
+    riskTier: 'tier-1',
+    queryCallCount: 2,
+    retrievedIds: ['obj_1'],
+    referenceCheck: { valid: true, missing: [], knownCount: 1 },
+    issuedAt: Date.now(),
+  };
+}
 
 // ═══════════════════════════════════════════════
 // DomainPrimitiveRegistry — 注册/匹配/统计
@@ -264,7 +278,7 @@ describe('FileOperationPrimitive — 执行注入', () => {
       return { success: true, data: { path: params.path } };
     });
 
-    const r = await p.execute({ operation: 'write', path: 'data/x.md', content: 'hi' }, { departmentId: 'marketing' });
+    const r = await p.execute({ operation: 'write', path: 'data/x.md', content: 'hi' }, { departmentId: 'marketing', gateContext: validGate() });
     expect(r.success).toBe(true);
     expect(calls).toHaveLength(1);
     expect(calls[0].action).toBe('fs.write');
@@ -274,7 +288,7 @@ describe('FileOperationPrimitive — 执行注入', () => {
 
   it('执行器抛错 → 捕获为 {success:false}', async () => {
     FileOperationPrimitive.setConnectorExecutor(async () => { throw new Error('disk full'); });
-    const r = await p.execute({ operation: 'write', path: 'data/x.md', content: 'hi' }, {});
+    const r = await p.execute({ operation: 'write', path: 'data/x.md', content: 'hi' }, { gateContext: validGate() });
     expect(r.success).toBe(false);
     expect(r.error).toContain('disk full');
   });
@@ -361,12 +375,70 @@ describe('APICallPrimitive — 执行注入', () => {
     });
     const r = await p.execute(
       { url: 'https://api.example.com/v1', method: 'post', headers: { 'X-Key': 'k' }, body: { a: 1 } },
-      { departmentId: 'finance' },
+      { departmentId: 'finance', gateContext: validGate() },
     );
     expect(r.success).toBe(true);
     expect(got.method).toBe('POST'); // 大写归一
     expect(got.url).toBe('https://api.example.com/v1');
     expect(got.deptId).toBe('finance');
+  });
+});
+
+// ═══════════════════════════════════════════════
+// Wave 4 — 副作用原语运行时 Gate 硬拦截
+// ═══════════════════════════════════════════════
+describe('副作用原语 — 运行时 Gate 硬拦截（Wave 4）', () => {
+  const pFile = new FileOperationPrimitive();
+  const pShell = new ShellExecutionPrimitive();
+  const pApi = new APICallPrimitive();
+
+  it('FileOperation write 无 Gate 凭证 → 直接抛 GateContextRequiredError（禁止继续）', async () => {
+    FileOperationPrimitive.setConnectorExecutor(async () => ({ success: true }));
+    await expect(
+      pFile.execute({ operation: 'write', path: 'data/x.md', content: 'hi' }, { departmentId: 'eng' }),
+    ).rejects.toThrow(GateContextRequiredError);
+  });
+
+  it('FileOperation read 无凭证 → 放行（只读 WARN 计数，可观测不静默）', async () => {
+    const before = PrimitiveGate.ungatedReadonlyCalls;
+    const r = await pFile.execute({ operation: 'read', path: 'data/x.md' }, { departmentId: 'eng' });
+    expect(r.success).toBe(true);
+    expect(PrimitiveGate.ungatedReadonlyCalls).toBe(before + 1);
+  });
+
+  it('APICall POST 无凭证 → 抛错；GET 无凭证 → 放行', async () => {
+    APICallPrimitive.setHttpExecutor(async () => ({ success: true }));
+    await expect(
+      pApi.execute({ url: 'https://x', method: 'POST' }, {}),
+    ).rejects.toThrow(GateContextRequiredError);
+    const r = await pApi.execute({ url: 'https://x', method: 'GET' }, {});
+    expect(r.success).toBe(true);
+  });
+
+  it('Shell 非只读命令（git）无凭证 → 抛错；只读命令（echo）→ 放行', async () => {
+    // 恢复完整白名单（此前用例 setAllowedCommands(['echo']) 污染了模块级状态）
+    ShellExecutionPrimitive.setAllowedCommands(['ls', 'cat', 'head', 'tail', 'echo', 'pwd', 'which', 'git', 'node', 'npm']);
+    ShellExecutionPrimitive.setShellExecutor(async () => ({ success: true }));
+    await expect(
+      pShell.execute({ command: 'git status' }, {}),
+    ).rejects.toThrow(GateContextRequiredError);
+    const r = await pShell.execute({ command: 'echo hi' }, {});
+    expect(r.success).toBe(true);
+  });
+
+  it('持有有效 Gate 凭证 → 破坏性操作放行', async () => {
+    const r = await pFile.execute(
+      { operation: 'write', path: 'data/x.md', content: 'hi' },
+      { departmentId: 'eng', gateContext: validGate() },
+    );
+    expect(r.success).toBe(true);
+  });
+
+  it('持有无效 Gate 凭证（查询次数 0）→ 抛错', async () => {
+    const badGate: KnowledgeContextPackage = { ...validGate(), queryCallCount: 0 };
+    await expect(
+      pFile.execute({ operation: 'read', path: 'data/x.md' }, { gateContext: badGate }),
+    ).rejects.toThrow(GateContextRequiredError);
   });
 });
 

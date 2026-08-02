@@ -190,6 +190,29 @@ describe('ExecutionFabric — 能力解析与执行', () => {
     expect(calls).toBe(2); // 初始 + 1 次重试
   }, 15000);
 
+  it('maxAttempts 用尽 → onAttemptsExhausted 回调（失败事件闭环，Wave 4）', async () => {
+    let calls = 0;
+    const exhausted: Array<{ action: string; maxAttempts: number; error: string }> = [];
+    const fabric = new ExecutionFabric(
+      makeRegistry(async () => { calls++; return { success: false, error: 'boom', duration: 0 }; }),
+      {
+        cacheEnabled: false,
+        maxRetries: 1,
+        defaultTimeoutMs: 50,
+        onAttemptsExhausted: (info) => exhausted.push(info),
+      },
+    );
+    fabric.registerAgentCapabilities('a1', 'agent1', ['code']);
+    const r = await fabric.execute('code', 'fs.write', {}, { executionId: 'exec_1' });
+    expect(r.success).toBe(false);
+    expect(calls).toBe(2);
+    expect(exhausted).toHaveLength(1);
+    expect(exhausted[0].action).toBe('fs.write');
+    expect(exhausted[0].maxAttempts).toBe(2);
+    expect(exhausted[0].executionId).toBe('exec_1');
+    expect(exhausted[0].error).toBe('boom');
+  }, 15000);
+
   it('agentId 直连执行（跳过能力解析）', async () => {
     const calls: string[] = [];
     const fabric = new ExecutionFabric(

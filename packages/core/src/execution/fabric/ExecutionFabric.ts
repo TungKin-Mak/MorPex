@@ -45,6 +45,17 @@ export interface ExecutionFabricConfig {
   defaultTimeoutMs: number;
   /** Maximum retries for failed actions */
   maxRetries: number;
+  /**
+   * Wave 4: maxAttempts 用尽回调（运行时强制闭环）
+   * 重试全部失败时调用，用于发 execution.budget.exceeded 类失败事件；
+   * 业务代码无法自行吞掉后继续循环。默认 undefined 时保持原行为（仅返回失败）。
+   */
+  onAttemptsExhausted?: (info: {
+    executionId?: string;
+    action: string;
+    maxAttempts: number;
+    error: string;
+  }) => void;
 }
 
 const DEFAULT_CONFIG: ExecutionFabricConfig = {
@@ -349,6 +360,14 @@ export class ExecutionFabric {
         }
       }
     }
+
+    // Wave 4：maxAttempts 用尽 → 发失败事件（硬拦截闭环；未配置回调时保持原行为）
+    this.config.onAttemptsExhausted?.({
+      executionId: options?.executionId,
+      action: connectorAction,
+      maxAttempts,
+      error: lastError ?? 'unknown',
+    });
 
     return {
       success: false,

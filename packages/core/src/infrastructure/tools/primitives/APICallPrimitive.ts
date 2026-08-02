@@ -8,6 +8,8 @@
  */
 
 import type { ActionPrimitive, ActionResult, APICallRequest } from './types.js';
+import { PrimitiveGate } from './gateBinding.js';
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
 
 // ── APICallPrimitive ──
 
@@ -73,7 +75,7 @@ export class APICallPrimitive implements ActionPrimitive {
 
   async execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
     const url = params.url as string;
@@ -88,6 +90,14 @@ export class APICallPrimitive implements ActionPrimitive {
 
     if (!['GET', 'POST', 'PUT', 'DELETE', 'PATCH'].includes(method)) {
       return { success: false, error: `APICallPrimitive: 不支持的 HTTP 方法 "${method}"` };
+    }
+
+    // Wave 4：Gate 绑定 — 副作用方法（非 GET/HEAD）必须持有 KnowledgeContextPackage，缺失直接抛错
+    const readonlyMethod = method === 'GET' || method === 'HEAD';
+    if (readonlyMethod) {
+      PrimitiveGate.gateReadonly(`APICallPrimitive ${method} ${url}`, context?.gateContext);
+    } else {
+      PrimitiveGate.gateDestructive(`APICallPrimitive ${method} ${url}`, context?.gateContext);
     }
 
     if (!APICallPrimitive.httpExecutor) {

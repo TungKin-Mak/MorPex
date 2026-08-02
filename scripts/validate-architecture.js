@@ -10,10 +10,10 @@
  * 覆盖（含 P1 增强）：
  *   1. 已废弃 planes/ 目录引用（ERROR）
  *   2. 已废弃 brain/ 目录引用（WARNING）
- *   3. Ontology Gate 是否正确绑定到两个强制原语（ERROR）
+ *   3. Ontology Gate 是否正确绑定到全部 5 个原语（强制原语 ForcedQueryGuard；副作用原语 PrimitiveGate，ERROR）
  *   4. 是否直接 import pi 包（违反 PiBridge 隔离，ERROR）
  *   5. Workflow 插件 manifest 是否符合标准（WARNING）
- *   6. [P1] No Domain Logic in Core：core 中出现领域关键词/领域目录依赖（WARNING）
+ *   6. [P1] No Domain Logic in Core：core 中出现领域关键词/领域目录依赖（ERROR，Wave 4 升级）
  *   7. [P1] Ontology Bypass：绕过 KnowledgeQueryPrimitive 直接调用 LLM 生成（ERROR）
  *   8. [P1] Workflow 插件标准接口：实现 ActionPrimitive + bootstrap 注册（WARNING）
  *   9. [P1] L4 禁止副作用：cognition/ 不得 import evolution/execution/primitives（ERROR）
@@ -123,6 +123,11 @@ primitiveFiles.forEach((file) => {
     if (!content.includes('ForcedQueryGuard') || !content.includes('runOntologyGroundedReasoning')) {
       ERRORS.push(`❌ ${file} 未正确集成 Ontology Gate`);
     }
+  } else if (file.endsWith('Primitive.ts')) {
+    // Wave 4：所有副作用原语必须绑定运行时 Gate（缺包硬拦截 / 只读 WARN）
+    if (!content.includes('PrimitiveGate') && !content.includes('requireKnowledgeContext')) {
+      ERRORS.push(`❌ ${file} 未绑定运行时 Gate（须引用 gate/context.js 的 requireKnowledgeContext / PrimitiveGate）`);
+    }
   }
 });
 
@@ -216,7 +221,8 @@ const domainViolations = coreFiles
   });
 
 if (domainViolations.length > 0) {
-  WARNINGS.push(`⚠️  [No Domain Logic] core 中出现领域关键词 (${domainViolations.length} 处) — 领域逻辑应只在 packages/workflows/`);
+  // Wave 4：领域隔离从 WARNING 升级为 ERROR（core 内禁止业务领域硬编码）
+  ERRORS.push(`❌ [No Domain Logic] core 中出现领域关键词 (${domainViolations.length} 处) — 领域逻辑应只在 packages/workflows/`);
   domainViolations.slice(0, 10).forEach((f) => console.log(`   - ${f}`));
 }
 

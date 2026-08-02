@@ -530,12 +530,16 @@ export class UnifiedExecutionEngine {
         waited += pollInterval;
       }
 
-      // 超时
-      return {
-        ok: false, executionId: missionId, mode: 'mission', status: 'running',
-        error: `Mission ${missionId} 执行超时 (${maxWait}ms)`,
-        duration: Date.now() - startTime,
-      };
+      // 超时（Wave 4：硬拦截 — 发 budget.exceeded 事件 + status failed，禁止静默返回 running）
+      const duration = Date.now() - startTime;
+      this.executionCosts.set(missionId, costTokens);
+      return this.emitBudgetExceeded(
+        missionId,
+        request.goal,
+        'mission',
+        `执行超时 (${maxWait}ms)`,
+        duration,
+      );
     } catch (err) {
       return {
         ok: false, executionId, mode: 'mission', status: 'failed',
@@ -610,11 +614,16 @@ export class UnifiedExecutionEngine {
         waited += pollInterval;
       }
 
-      return {
-        ok: false, executionId: dagExecutionId, mode: 'dag', status: 'running',
-        error: `DAG ${dagExecutionId} 执行超时 (${maxWait}ms)`,
-        duration: Date.now() - startTime,
-      };
+      // 超时（Wave 4：硬拦截 — 发 budget.exceeded 事件 + status failed，与 mission 路径同口径）
+      const duration = Date.now() - startTime;
+      this.executionCosts.set(dagExecutionId, costTokens);
+      return this.emitBudgetExceeded(
+        dagExecutionId,
+        request.goal,
+        'dag',
+        `执行超时 (${maxWait}ms)`,
+        duration,
+      );
     } catch (err) {
       return {
         ok: false, executionId, mode: 'dag', status: 'failed',

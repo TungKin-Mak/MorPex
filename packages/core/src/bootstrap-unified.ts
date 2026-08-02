@@ -278,8 +278,8 @@ export async function bootstrapUnified(options?: {
   ArtifactGenerationPrimitive.setLLMCaller((prompt: string) =>
     piBridgeWrapper.generateText({ prompt, maxTokens: 2000 }).then((r) => r.text),
   );
-  ArtifactGenerationPrimitive.setFileWriter(async (path: string, content: string, deptId: string) =>
-    fileOpPrimitive.execute({ operation: 'write', path, content }, { departmentId: deptId }),
+  ArtifactGenerationPrimitive.setFileWriter(async (path: string, content: string, deptId: string, gateContext?) =>
+    fileOpPrimitive.execute({ operation: 'write', path, content }, { departmentId: deptId, gateContext }),
   );
 
   // 7) 注册 5 个通用基础原语到 DomainPrimitiveRegistry（第 6 层注册中心）

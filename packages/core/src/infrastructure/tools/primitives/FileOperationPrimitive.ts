@@ -19,6 +19,11 @@
  */
 
 import type { ActionPrimitive, ActionResult, FileOperationRequest } from './types.js';
+import { PrimitiveGate } from './gateBinding.js';
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
+
+/** 只读文件操作（无需 Gate 凭证，缺凭证仅 WARN；其余为破坏性操作，必须持有凭证） */
+const READONLY_FILE_OPS = new Set(['read', 'list', 'exists', 'stat']);
 
 // ── FileOperationPrimitive ──
 
@@ -66,7 +71,7 @@ export class FileOperationPrimitive implements ActionPrimitive {
 
   async execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
     const operation = params.operation as FileOperationRequest['operation'];
@@ -76,6 +81,13 @@ export class FileOperationPrimitive implements ActionPrimitive {
 
     if (!path) {
       return { success: false, error: 'FileOperationPrimitive: path 参数不能为空' };
+    }
+
+    // Wave 4：Gate 绑定 — 破坏性操作（write/delete/move/copy/mkdir）必须持有 KnowledgeContextPackage
+    if (READONLY_FILE_OPS.has(operation)) {
+      PrimitiveGate.gateReadonly(`FileOperationPrimitive ${operation} ${path}`, context?.gateContext);
+    } else {
+      PrimitiveGate.gateDestructive(`FileOperationPrimitive ${operation} ${path}`, context?.gateContext);
     }
 
     if (!FileOperationPrimitive.connectorExec) {

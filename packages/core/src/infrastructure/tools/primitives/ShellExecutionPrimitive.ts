@@ -13,6 +13,11 @@
  */
 
 import type { ActionPrimitive, ActionResult, ShellExecutionRequest } from './types.js';
+import { PrimitiveGate } from './gateBinding.js';
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
+
+/** 只读 shell 命令（无需 Gate 凭证，缺凭证仅 WARN；其余命令视为副作用操作，必须持有凭证） */
+const READONLY_SHELL_COMMANDS = new Set(['ls', 'cat', 'head', 'tail', 'echo', 'pwd', 'which']);
 
 // ── ShellExecutionPrimitive ──
 
@@ -81,7 +86,7 @@ export class ShellExecutionPrimitive implements ActionPrimitive {
 
   async execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
     const command = params.command as string;
@@ -100,6 +105,13 @@ export class ShellExecutionPrimitive implements ActionPrimitive {
         success: false,
         error: `ShellExecutionPrimitive: 命令 "${baseCmd}" 不在允许列表中。允许的命令: ${ShellExecutionPrimitive.allowedCommands.join(', ')}`,
       };
+    }
+
+    // Wave 4：Gate 绑定 — 只读命令放行（WARN），构建/部署/写类命令必须持有 KnowledgeContextPackage
+    if (READONLY_SHELL_COMMANDS.has(baseCmd)) {
+      PrimitiveGate.gateReadonly(`ShellExecutionPrimitive ${baseCmd}`, context?.gateContext);
+    } else {
+      PrimitiveGate.gateDestructive(`ShellExecutionPrimitive ${baseCmd}`, context?.gateContext);
     }
 
     if (!ShellExecutionPrimitive.shellExec) {

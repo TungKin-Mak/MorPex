@@ -3,6 +3,11 @@
  *
  * MorPex v8.8: 防止 Agent 无限消耗 Token/步骤/费用。
  * 每个 Mission 有独立的预算上限，超限时触发告警或阻止执行。
+ *
+ * ⚠️ Wave 4 职责裁定：运行时强制由 UnifiedExecutionEngine 的内联预算检查承担
+ * （maxIterations / maxCostTokens / timeout → 发 execution.budget.exceeded 事件 + 返回 failed），
+ * 本管理器保留为可观测统计工具（check/consume/trackStep/getStatus），
+ * 不引入双重强制，避免两套上限语义漂移。
  */
 
 export interface BudgetConfig {

@@ -10,6 +10,8 @@
  * - 部门隔离：所有 execute() 调用必须携带 departmentId
  */
 
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
+
 // ── ActionPrimitive ──
 
 export interface ActionPrimitive {
@@ -24,7 +26,7 @@ export interface ActionPrimitive {
   /** 执行原语操作 */
   execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
   ): Promise<ActionResult>;
 }
 

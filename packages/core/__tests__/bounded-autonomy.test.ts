@@ -118,6 +118,59 @@ describe('UnifiedExecutionEngine — maxIterations（有界执行）', () => {
   });
 });
 
+describe('UnifiedExecutionEngine — 超时硬拦截（Wave 4）', () => {
+  it('mission 超时 → status failed（不再是 running）+ execution.budget.exceeded 事件', async () => {
+    const bus = new EventBus();
+    const engine = new UnifiedExecutionEngine(bus);
+    const budgetEvents = collectEvents(bus, 'execution.budget.exceeded');
+
+    // 假 MissionRuntime：永不完成 → 必然触发 timeout
+    engine.setMissionRuntime({
+      name: 'stuck-runtime',
+      start: async () => ({ executionId: 'mission_stuck' }),
+      getStatus: () => ({ state: 'running' }),
+      cancel: async () => {},
+    });
+
+    const result = await engine.execute({
+      goal: '永不完成的任务',
+      mode: 'mission',
+      timeoutMs: 1000,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('[Bounded Autonomy]');
+    expect(result.error).toContain('执行超时');
+    expect(budgetEvents.length).toBe(1);
+  });
+
+  it('DAG 超时 → status failed（不再是 running）+ execution.budget.exceeded 事件', async () => {
+    const bus = new EventBus();
+    const engine = new UnifiedExecutionEngine(bus);
+    const budgetEvents = collectEvents(bus, 'execution.budget.exceeded');
+
+    engine.setDAGRuntime({
+      name: 'stuck-dag',
+      execute: async () => ({ executionId: 'dag_stuck' }),
+      getStatus: () => ({ state: 'running' }),
+      cancel: async () => {},
+    });
+
+    const result = await engine.execute({
+      goal: '永不完成的 DAG',
+      mode: 'dag',
+      timeoutMs: 1000,
+    });
+
+    expect(result.ok).toBe(false);
+    expect(result.status).toBe('failed');
+    expect(result.error).toContain('[Bounded Autonomy]');
+    expect(result.error).toContain('执行超时');
+    expect(budgetEvents.length).toBe(1);
+  });
+});
+
 describe('Evaluation — Ontology 引用覆盖率 / QueryMiss 感知', () => {
   it('查询执行但未检索到事实 → queryMissDetected=true, referenceScore 降为 0.2', () => {
     const guard = new ForcedQueryGuard();
