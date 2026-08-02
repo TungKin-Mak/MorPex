@@ -50,6 +50,7 @@
 
 **Phase 1 落点**（7 新文件+4 改文件+测试+1 插件示例）：`gate/rules/{types,RuleRegistry,normalize,RuleEnforcementGuard,ruleEvents,RuleExtractor,rulePersistence}.ts`；改 `runOntologyGroundedReasoning`（Phase 2 后挂载+带约束重试）/`gate/index`/`objectTypes`(Rule 类型)/`bootstrap-unified`；测试 normalize 管道/guard 匹配/重试循环/连续降级；ecommerce 插件示例（**默认 pending 待确认**）。
 - 已实现（commit 2d69672 及后续）：门禁 tsc 0 / validate 100% / vitest 全绿；domain 路由接口已留（`options.domain` + `getActiveRules(domain)`），但 **4 个调用方无 domain 信号 → 全局匹配，domain 沿调用链传递为 Phase 2 项**；示例规则 pending 消除跨域误伤。验收：tsc 0 / validate 100% / 新测试全绿 / 集成验证中断-重试-降级链路。
+- **✅ Phase 2 已完成（2026-08-03）**：B1 白名单剥注释/字符串（stripCommentsAndStrings，零依赖状态机）+ B2 DetectorRegistry 领域注入机制（custom:no-eval 示例）+ E 预算接线（onTokenUsage 估算回调 + try/catch 防御，emit execution.gate.token_usage）+ F domain 传递（MorPexRuntime context.goal.domain 按域路由）+ 缓存指纹（第一批）。门禁 67 文件 647 通过 + 5 skipped。剩余：②结构层 AST/tsc-eslint 适配器（依赖解析待验证）、schema/AST 规则、精确计费。
 
 **✅ Phase 1 已实现并验证（2026-08-03）**：全部落点落地（含 ecommerce 插件 `rule-register.ts`、validate-architecture 白名单加 `/gate/rules/`）；tsc 0 / validate 100% / vitest 64 文件 614 通过（新增 4 测试文件 25 用例，原 589 零回归）；集成测试证明中断-重试-降级-转人工链路 + eventStore undefined 兼容（4 调用方）。实现中修复 2 个设计缺口：① 降级后违规内容会静默放行 → 补"降级后转人工"；② 重试温度统一 0.3 → 重试轮 0.2。剩余建议项（WARNING 事件冗余、缓存规则版本并入 key）归 Phase 2。
 
