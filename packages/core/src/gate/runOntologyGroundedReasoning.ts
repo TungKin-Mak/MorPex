@@ -68,6 +68,12 @@ export interface GroundedReasoningOptions {
   /** 执行场景标签（用于日志和事件） */
   scenario?: string;
   /**
+   * 领域路由（功能② Phase 1）：传入则规则只匹配该 domain 的 active 规则；
+   * 不传则按全局匹配（Phase 1 默认）。当前 4 个调用方尚无可靠 domain 信号，
+   * domain 上下文沿调用链传递 + 按域路由为 Phase 2 项（见 docs/FEATURE_RULE_ENFORCEMENT.md §7）。
+   */
+  domain?: string;
+  /**
    * 风险分级（vNext+ Graded Ontology Gate）
    *   tier-0 Critical：强制两阶段 + 引用校验 + 同步 Verification，禁止缓存
    *   tier-1 Standard（默认）：两阶段；允许短 TTL 缓存
@@ -333,7 +339,9 @@ export async function runOntologyGroundedReasoning(
   //   连续命中 2 次 → 临时降级该规则（仅本次执行，防误报卡死）
   //   WARNING 违规 → 不中断，仅记录事件
   // ═══════════════════════════════════════════════════════════
-  const activeRules = RuleRegistry.getActiveRules();
+  // 领域路由：options.domain 传入 → 按域匹配；未传 → 全局（Phase 1 默认，
+  // 跨域影响已靠"领域示例规则默认 pending 待确认"消除，见 rule-register.ts）
+  const activeRules = RuleRegistry.getActiveRules(options.domain);
   const RULE_MAX_ATTEMPTS = 3;
   /** 连续命中降级阈值：同一规则连续命中 N 次仍不过 → 临时降级（疑似误报）+ 转人工 */
   const CONSECUTIVE_HIT_LIMIT = 2;
