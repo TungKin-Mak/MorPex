@@ -5,6 +5,7 @@
  */
 import { DomainPrimitiveRegistry } from '@morpex/core';
 import { GithubCreateRepoAction, DockerBuildImageAction, CloudDeployAction } from './actions/software-actions.js';
+import { registerSoftwareDetectors } from './rules/custom-detectors.js';
 
 export async function bootstrapSoftwareWorkflow(_domain = 'software'): Promise<void> {
   DomainPrimitiveRegistry.registerMultiple([
@@ -12,6 +13,7 @@ export async function bootstrapSoftwareWorkflow(_domain = 'software'): Promise<v
     new DockerBuildImageAction(),
     new CloudDeployAction(),
   ]);
+  registerSoftwareDetectors();
   console.log('[Workflow:software] ✅ 插件已就绪（3 个 ActionPrimitive 已注册）');
 }
 
