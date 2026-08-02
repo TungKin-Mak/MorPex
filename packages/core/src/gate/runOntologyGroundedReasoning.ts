@@ -415,6 +415,8 @@ export async function runOntologyGroundedReasoning(
     // ═══════════════════════════════════════════════════════════
     for (const v of [...ruleViolations]) {
       if (!v.keyword) continue;
+      // WARNING 不中断：跳过语义 LLM（仅记录事件即可，成本控制）
+      if (v.severity !== 'ERROR') continue;
       const rule = applicable.find((r) => r.id === v.ruleId);
       if (!rule) continue;
       const judgement = await semanticJudgement(piBridge, rule, v, proposal, options.onTokenUsage);
