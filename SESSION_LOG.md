@@ -81,7 +81,7 @@
 ## 3. 当前待办（TO-DO）
 
 ### 🔴 立即可做
-- [ ] **推送提交**：本地 `master` 领先远端 **17** 提交（S22×4 + S23×3 + S24×5：`c3f228f`~`5a68f2e` + S25×2：`07085ed`/`528ba7d` + S26×2：`9e3e0a7`/`808edc5` + S27×1：`885e004` + S28×1：`962e05b` + S29×2：`91fba20`/`ddfba2f`）。**github.com 被网络层封锁**（curl/bing 可达、github:443 超时、git:// 超时、无代理），换可访问网络后 `git push origin master` 一次性推送
+- [x] ~~**推送提交**~~ ✅（**2026-08-02 网络恢复后已 push**：`892cd05..35597fc master -> master`，S22~S36 共 **32 个提交**全部推送到 github.com/TungKin-Mak/MorPex，本地与远端同步）
 
 ### 🟢 已排期（下一会话主任务）
 - [ ] **测试体系已全面建成（S24-S29，vitest 48 文件/469 用例，`npm run test:full` 一键 25/25）**：
@@ -131,14 +131,14 @@
 
 ## 5. 版本基线
 
-- 当前 HEAD：`ddfba2f chore(gitignore): 忽略 build/`（S29，本地领先远端 **17**，未推送）
+- 当前 HEAD：`35597fc docs(session-log): S36 记录提交哈希同步`（**已推送**：`892cd05..35597fc master -> master`，S22~S36 共 32 提交全部同步远端）
 - 上游基线：`origin/master`（`dcb045b`，已同步）
 - 测试体系：`docs/TESTING_PLAN.md`（方案+覆盖矩阵，❌ 清零）+ `scripts/run-everything.ts`（`npm run test:full` 一键 25/25，~150s）+ vitest 48 文件/469 用例 + 覆盖率 `data/test-report/coverage/`
 - 架构唯一真相源：`docs/AICOS_CORE_ARCHITECTURE.md`（AICOS-Core 8 层）+ `docs/AICOS_CORE_FILE_REGISTRY.md`（346 文件注册表）；旧 `morpex_ARCHITECTURE.md` 已归档
 | S33 | 08-02 | **覆盖四推：EventStore + WorkflowIntelligence（vitest 544→559，行覆盖 36.4%→37.2%）** | `a38a945`+本轮：`event-store.test.ts`（7：append/appendMany 索引（executionId/type/timeRange）+ 决策事件流与统计（totalDecisions/avgConfidence）+ replay/replayAll 投影 + persist/load 持久化往返 + maxInMemory 裁剪）；`workflow-intelligence.test.ts`（8：detectPatterns（≥2 计划 Mission / 不足空）+ extractWorkflow 提取入库 + optimizeWorkflow + assessAutomation + generateReport + toJSON/fromJSON）。**修正 2 处测试自身错误**：ev 辅助函数参数错位（ts 传成 n）→ timeRange/replay 断言修正；getDecisionStats 用 totalDecisions 非 total + 决策需 confidence 字段。**阈值四锁**：33/27/31/35 → 34/27/32/36（行覆盖 ≥36%）。门禁：tsc 0 + vitest 59/559 + test:full 25/25 + coverage 37.23% | 7879602 |
 | S34 | 08-02 | **架构可观测（落地要求：黑盒→可观测）** | `runtime-bridge.ts` 新模块 + StudioServer 接线：① 核心 EventBus → ObservationCollector 桥接（按 executionId 建父子 span 链 + 8 层标注）——此前观测面全空（/audit 503、observations/heartbeats/topology 全空、模块全部 status:unknown）；② 接线 ArchitectureAuditor/ReplayEngine/ExecutionTracer → /audit、/replay 可用。**实测**：POST /api/execute 真实执行 → observations 记录 unified-execution-engine|L5-execution|started→completed；/modules-v2 显示 online/ACTIVE/exercised；/audit 报 REQUIRED_MODULE_NEVER_CALLED（绕过检测真实工作——直连 execute 绕过治理层被审计揭露）。**验证**：`observability-bridge.test.ts`（7 用例：/audit 200 非 503 + 真实执行可观测 + span-tree 父子链 + 模块健康 + topology + 绕过检测）。门禁：tsc 0 + vitest 60/566 + test:full 25/25 | 8de3de6 |
 | S35 | 08-02 | **架构可观测·校准：8 层契约 + 完整链路可观测（L1-L8）** | `runtime-bridge` 补 `planner.`→L3 规则；核心加轻量事件使静默层可观测——`evaluation.completed`（MorPexRuntime，L6）、`evolution.completed`（L8）、`ontology.grounded`（gate 成功时，L2，并修复 MorPexRuntime 调用 grounding 时未传 eventBus）、`runtime.completed`（L5 主驱动器 success）。**ARCHITECTURE_CONTRACT 重写**为 8 层可观测模块（required=每次完整执行必须出现）。**实测全链**：chat/send（CompanyFacade.executeGoal 全管线）→ 观测面出现 **L1 L2 L3 L5 L6 L7 L8 七层**事件链；/audit 全链后 **0 error**（9 OK / 8 顺序链 WARN），直连 execute 仍报必需模块未调用（绕过检测有效）。**验证**：observability-bridge.test.ts 9 用例（+2 全链）。门禁：tsc 0 + vitest 60/568 + test:full 25/25 | 0bd8291 |
-| S36 | 08-02 | **可观测·校准完成（WARN 清零）+ 部署 bug 修复 + 可观测面板文档** | `observability-bridge.ts` **全局运行时锚**（核心事件 executionId 异构——mission/engine/approval 各用各 id，按 executionId 锚定失效 → 改 runtime.started 后所有组件挂 morpex-runtime 总编排者，含全局锚兜底 + 顺序链回退保拓扑边）；`runtime.started` 移到 orchestrate 之后（拿真实 executionId，锚定才生效）；`/reset` 端点同时清 ObservationCollector（此前只清 traceBus，残留观测致 /audit 误报）；`ARCHITECTURE_CONTRACT` expectedCallers/expectedCallees 校准为可观测现实（全部组件 caller=morpex-runtime；mission-runtime 无子 → expectedCallees 清空）。**实测**：chat/send 全链后 /audit **0 error + 0 warn**（17 模块全 OK）；直连 /api/execute 仍报必需模块未调用（绕过检测有效）。**部署修复**：docker-compose healthcheck `/health`→`/api/health`（原永远 unhealthy）。**落地遗留**：Dockerfile 过时（引用 S23 已删的 studio/ui + src/main.ts，需重写）；git push 30 提交仍待网络。**验证**：observability-bridge.test.ts 9 用例（全链 0 error + 0 warn 断言）。门禁：tsc 0 + vitest 60/568 + test:full 25/25 | ee6e891 |
+| S36 | 08-02 | **可观测·校准完成（WARN 清零）+ 部署 bug 修复 + 可观测面板文档** | `observability-bridge.ts` **全局运行时锚**（核心事件 executionId 异构——mission/engine/approval 各用各 id，按 executionId 锚定失效 → 改 runtime.started 后所有组件挂 morpex-runtime 总编排者，含全局锚兜底 + 顺序链回退保拓扑边）；`runtime.started` 移到 orchestrate 之后（拿真实 executionId，锚定才生效）；`/reset` 端点同时清 ObservationCollector（此前只清 traceBus，残留观测致 /audit 误报）；`ARCHITECTURE_CONTRACT` expectedCallers/expectedCallees 校准为可观测现实（全部组件 caller=morpex-runtime；mission-runtime 无子 → expectedCallees 清空）。**实测**：chat/send 全链后 /audit **0 error + 0 warn**（17 模块全 OK）；直连 /api/execute 仍报必需模块未调用（绕过检测有效）。**部署修复**：docker-compose healthcheck `/health`→`/api/health`（原永远 unhealthy）。**落地遗留**：Dockerfile 过时（引用 S23 已删的 studio/ui + src/main.ts，需重写）；git push 已恢复推送（见 S37）。**验证**：observability-bridge.test.ts 9 用例（全链 0 error + 0 warn 断言）。门禁：tsc 0 + vitest 60/568 + test:full 25/25 | ee6e891 |
 
 ---
 
@@ -185,3 +185,4 @@ L6-evaluation evaluation-engine evaluation.completed
 - 桥接是事件序近似（非真实调用栈）；并发多 execution 时全局锚可能串扰（MorPex 实际多为串行）
 - 单测不经 StudioServer → 观测覆盖真实运行时路径
 - 核心新增轻量事件（evaluation/evolution/ontology.grounded/runtime.*）为 S35 可观测而加，均为安全增量
+| S37 | 08-02 | **落地里程碑：32 提交全部推送到 GitHub** | 网络恢复（github:443 通 + ls-remote 成功）→ `git push origin master` 快进推送 **`892cd05..35597fc`**，S22~S36 共 32 个提交（含测试体系 199→568 用例、可观测面板、2 真实 bug 修复、cognee 真实链路、覆盖率 37%+）全部同步远端。本地与 origin/master 同步（落后 0）。**遗留**：Dockerfile 过时（已明确用户不用 Docker 部署，不重写）；真实凭证联调待 token | `35597fc` |
