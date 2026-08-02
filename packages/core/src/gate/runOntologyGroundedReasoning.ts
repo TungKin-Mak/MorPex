@@ -396,6 +396,24 @@ export async function runOntologyGroundedReasoning(
 
   console.log(`  └─ ✅ 推理完成, 引用 ${proposal.referenced_object_ids.length} 个 ID, 有效=${check.valid}`);
 
+  // S34 可观测：gate 成功时也发事件（否则观测面无法确认 L2 是否执行、是否有绕过）
+  eventBus?.emit({
+    id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+    type: 'ontology.grounded',
+    timestamp: Date.now(),
+    executionId,
+    source: 'ontology',
+    payload: {
+      missionId,
+      riskTier,
+      hasUsefulFacts,
+      callCount: trace?.toolCalls.length ?? 0,
+      referencedIds: proposal.referenced_object_ids?.length ?? 0,
+      valid: check.valid,
+      goal,
+    },
+  });
+
   // 刷出 Trace 事件
   await guard.flushTrace(executionId, missionId);
 

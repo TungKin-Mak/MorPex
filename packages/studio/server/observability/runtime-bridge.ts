@@ -32,6 +32,7 @@ interface LayerRule {
 const EVENT_LAYER_RULES: Array<[RegExp, LayerRule]> = [
   [/^mission\./, { module: 'mission-runtime', layer: 'L5-execution' }],
   [/^plan\./, { module: 'delivery-planner', layer: 'L3-planning' }],
+  [/^planner\./, { module: 'delivery-planner', layer: 'L3-planning' }],
   [/^execution\./, { module: 'unified-execution-engine', layer: 'L5-execution' }],
   [/^artifact\./, { module: 'artifact-facade', layer: 'L7-knowledge' }],
   [/^ontology\./, { module: 'ontology-service', layer: 'L2-gate' }],

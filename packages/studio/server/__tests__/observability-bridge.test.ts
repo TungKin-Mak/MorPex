@@ -105,3 +105,31 @@ describe('架构可观测 — 真实执行产生观测', () => {
     expect(neverCalled.length).toBeGreaterThan(0);
   });
 });
+
+describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', () => {
+  it('chat/send 全管线 → 观测面出现 L1-L8 各层事件（架构怎么运行可见）', async () => {
+    await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
+    const res = await fetch(`${baseUrl}/api/chat/send`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ message: '写一个 hello 程序' }),
+    });
+    expect(res.status).toBe(200);
+
+    const { body } = await getJson('/api/observability/observations?limit=300');
+    const layers = new Set(body.observations.map((o: any) => o.source.layer));
+    // 完整管线应覆盖至少 7 层：L1 治理 / L2 gate / L3 规划 / L5 执行 / L6 评价 / L7 知识 / L8 演化
+    expect(layers.has('L1-governance')).toBe(true);
+    expect(layers.has('L2-gate')).toBe(true);      // ontology.grounded（Ontology Gate 强制查询）
+    expect(layers.has('L3-planning')).toBe(true);  // planner.plan.started/completed
+    expect(layers.has('L5-execution')).toBe(true);
+    expect(layers.has('L6-evaluation')).toBe(true);
+    expect(layers.has('L7-knowledge')).toBe(true);
+    expect(layers.has('L8-evolution')).toBe(true);
+  }, 180000);
+
+  it('全链执行后 /audit 无必需模块未调用错误（有调用链依据）', async () => {
+    const { body } = await getJson('/api/observability/audit?strict=false');
+    const errors = body.report.findings.filter((f: any) => f.severity === 'error');
+    expect(errors).toHaveLength(0); // 完整管线覆盖全部必需模块 → 无绕过
+  }, 15000);
+});

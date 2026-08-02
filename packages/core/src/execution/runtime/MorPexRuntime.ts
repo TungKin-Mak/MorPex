@@ -119,6 +119,16 @@ export class MorPexRuntime {
     const ontoHardFail = options?.ontologyHardFail ?? false;
     const awaitApproval = options?.awaitApproval ?? false;
 
+    // S34 可观测：主执行管线启动事件（L5 驱动器，供 /audit 验证主链路是否运行）
+    this.eventBus.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'runtime.started',
+      timestamp: Date.now(),
+      executionId: context?.executionId ?? `run_${Date.now()}`,
+      source: 'morpex-runtime',
+      payload: { goal: goal.substring(0, 80), mode: options?.mode ?? 'auto' },
+    });
+
     try {
       // ── Phase 1: Pipeline Orchestration (Mission → Team → Workflow) ──
       const pipelineResult = await this.pipeline.orchestrate(goal);
@@ -171,6 +181,7 @@ export class MorPexRuntime {
             ontology: this.ontology,
             guard: this.forcedQueryGuard,
             piBridge: this.piBridge,
+            eventBus: this.eventBus, // S34 可观测：传 bus 使 ontology.grounded 事件可达观测面
             extraContext: `MorPexRuntime 主执行路径 grounded reasoning。`,
             scenario: 'runtime-exec',
           });
@@ -347,6 +358,15 @@ export class MorPexRuntime {
             artifactQuality: docArtifact ? 0.9 : 0.0,
           });
           console.log(`[MorPexRuntime] 🔄 进化分析: ${evolutionResult.proposals.length} 个提案`);
+          // S34 可观测：演化分析完成事件（L8 层此前静默）
+          this.eventBus.emit({
+            id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'evolution.completed',
+            timestamp: Date.now(),
+            executionId: context.executionId,
+            source: 'evolution-sandbox',
+            payload: { missionId: context.mission.missionId, proposals: evolutionResult.proposals?.length ?? 0 },
+          });
         } catch (_err) {
           console.warn('[MorPexRuntime] ⚠️ 进化分析失败:', (_err as Error).message);
         }
@@ -373,6 +393,22 @@ export class MorPexRuntime {
               `Ontology 合规检查不通过: 查询分=${ontologyEval.ontologyCompliance?.queryScore ?? '?'}, 引用分=${ontologyEval.ontologyCompliance?.referenceScore ?? '?'}`,
             );
           }
+          // S34 可观测：evaluation 完成事件（L6 层此前静默，观测面无法确认其是否运行）
+          this.eventBus.emit({
+            id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'evaluation.completed',
+            timestamp: Date.now(),
+            executionId: context.executionId,
+            source: 'evaluation-engine',
+            payload: {
+              missionId: context.mission.missionId,
+              decision: ontologyEval.decision,
+              missionQuality: ontologyEval.missionQuality,
+              needsHumanReview: ontologyEval.needsHumanReview,
+              queryScore: ontologyEval.ontologyCompliance?.queryScore,
+              referenceScore: ontologyEval.ontologyCompliance?.referenceScore,
+            },
+          });
         } catch (err) {
           console.warn('[MorPexRuntime] ⚠️ Ontology evaluation 失败:', (err as Error).message);
         }
@@ -380,6 +416,21 @@ export class MorPexRuntime {
 
       const returnedArtifacts = [docArtifact];
       if (hasCode && codeArtifact) returnedArtifacts.push(codeArtifact);
+
+      // S34 可观测：主管线完成事件（success → /audit 标记 morpex-runtime ACTIVE/exercised）
+      this.eventBus.emit({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'runtime.completed',
+        timestamp: Date.now(),
+        executionId: context.executionId,
+        source: 'morpex-runtime',
+        payload: {
+          ok: true,
+          missionId: context.mission.missionId,
+          artifacts: returnedArtifacts.length,
+          duration: execResult.duration,
+        },
+      });
 
       return {
         ok: true,
