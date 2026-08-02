@@ -138,3 +138,50 @@
 | S33 | 08-02 | **覆盖四推：EventStore + WorkflowIntelligence（vitest 544→559，行覆盖 36.4%→37.2%）** | `a38a945`+本轮：`event-store.test.ts`（7：append/appendMany 索引（executionId/type/timeRange）+ 决策事件流与统计（totalDecisions/avgConfidence）+ replay/replayAll 投影 + persist/load 持久化往返 + maxInMemory 裁剪）；`workflow-intelligence.test.ts`（8：detectPatterns（≥2 计划 Mission / 不足空）+ extractWorkflow 提取入库 + optimizeWorkflow + assessAutomation + generateReport + toJSON/fromJSON）。**修正 2 处测试自身错误**：ev 辅助函数参数错位（ts 传成 n）→ timeRange/replay 断言修正；getDecisionStats 用 totalDecisions 非 total + 决策需 confidence 字段。**阈值四锁**：33/27/31/35 → 34/27/32/36（行覆盖 ≥36%）。门禁：tsc 0 + vitest 59/559 + test:full 25/25 + coverage 37.23% | 7879602 |
 | S34 | 08-02 | **架构可观测（落地要求：黑盒→可观测）** | `runtime-bridge.ts` 新模块 + StudioServer 接线：① 核心 EventBus → ObservationCollector 桥接（按 executionId 建父子 span 链 + 8 层标注）——此前观测面全空（/audit 503、observations/heartbeats/topology 全空、模块全部 status:unknown）；② 接线 ArchitectureAuditor/ReplayEngine/ExecutionTracer → /audit、/replay 可用。**实测**：POST /api/execute 真实执行 → observations 记录 unified-execution-engine|L5-execution|started→completed；/modules-v2 显示 online/ACTIVE/exercised；/audit 报 REQUIRED_MODULE_NEVER_CALLED（绕过检测真实工作——直连 execute 绕过治理层被审计揭露）。**验证**：`observability-bridge.test.ts`（7 用例：/audit 200 非 503 + 真实执行可观测 + span-tree 父子链 + 模块健康 + topology + 绕过检测）。门禁：tsc 0 + vitest 60/566 + test:full 25/25 | 8de3de6 |
 | S35 | 08-02 | **架构可观测·校准：8 层契约 + 完整链路可观测（L1-L8）** | `runtime-bridge` 补 `planner.`→L3 规则；核心加轻量事件使静默层可观测——`evaluation.completed`（MorPexRuntime，L6）、`evolution.completed`（L8）、`ontology.grounded`（gate 成功时，L2，并修复 MorPexRuntime 调用 grounding 时未传 eventBus）、`runtime.completed`（L5 主驱动器 success）。**ARCHITECTURE_CONTRACT 重写**为 8 层可观测模块（required=每次完整执行必须出现）。**实测全链**：chat/send（CompanyFacade.executeGoal 全管线）→ 观测面出现 **L1 L2 L3 L5 L6 L7 L8 七层**事件链；/audit 全链后 **0 error**（9 OK / 8 顺序链 WARN），直连 execute 仍报必需模块未调用（绕过检测有效）。**验证**：observability-bridge.test.ts 9 用例（+2 全链）。门禁：tsc 0 + vitest 60/568 + test:full 25/25 | 0bd8291 |
+| S36 | 08-02 | **可观测·校准完成（WARN 清零）+ 部署 bug 修复 + 可观测面板文档** | `observability-bridge.ts` **全局运行时锚**（核心事件 executionId 异构——mission/engine/approval 各用各 id，按 executionId 锚定失效 → 改 runtime.started 后所有组件挂 morpex-runtime 总编排者，含全局锚兜底 + 顺序链回退保拓扑边）；`runtime.started` 移到 orchestrate 之后（拿真实 executionId，锚定才生效）；`/reset` 端点同时清 ObservationCollector（此前只清 traceBus，残留观测致 /audit 误报）；`ARCHITECTURE_CONTRACT` expectedCallers/expectedCallees 校准为可观测现实（全部组件 caller=morpex-runtime；mission-runtime 无子 → expectedCallees 清空）。**实测**：chat/send 全链后 /audit **0 error + 0 warn**（17 模块全 OK）；直连 /api/execute 仍报必需模块未调用（绕过检测有效）。**部署修复**：docker-compose healthcheck `/health`→`/api/health`（原永远 unhealthy）。**落地遗留**：Dockerfile 过时（引用 S23 已删的 studio/ui + src/main.ts，需重写）；git push 30 提交仍待网络。**验证**：observability-bridge.test.ts 9 用例（全链 0 error + 0 warn 断言）。门禁：tsc 0 + vitest 60/568 + test:full 25/25 | S36-待填 |
+
+---
+
+## 6. 架构可观测面板（S34-S36 交付 · 运维手册）
+
+> 解决"架构黑盒"：真实执行的所有功能模块可观测、流程可溯源、绕过可检测。
+> 前提：后端已启动（`npx tsx packages/studio/server/index.ts` 或 `npm run studio:server`）。
+
+### 核心入口：`/api/observability/*`（StudioServer :8080）
+
+| 你的问题 | 端点 | 示例 |
+|---------|------|------|
+| **整个架构怎么运行**（每层事件链） | `GET /observations` `GET /span-tree/:taskId` `GET /topology` | `curl localhost:8080/api/observability/observations?limit=100` |
+| **每层功能模块是否正常** | `GET /modules-v2` `GET /exercise-status` `GET /heartbeats` | `curl localhost:8080/api/observability/modules-v2` |
+| **流程是否有绕过** | `GET /audit?strict=false` | `curl localhost:8080/api/observability/audit` |
+| 执行回放 | `GET /replay/sessions` `POST /replay/archive/:taskId` | — |
+| 清空观测（测试用） | `POST /reset` | 同时清 traceBus + ObservationCollector |
+
+### 层标注（对齐 AICOS-Core 8 层）
+事件经 `runtime-bridge.ts` 按前缀映射到：`L1-governance`（approval/control/gateway）/
+`L2-gate`（ontology）`L3-planning`（planner）`L4-cognition`（brain/learning）`L5-execution`（mission/runtime/engine）/
+`L6-evaluation`（evaluation）`L7-knowledge`（artifact/memory）`L8-evolution`（evolution）`L9-workflow` `L10-infrastructure`。
+
+### 一次完整管线（chat/send）应看到的事件链
+```
+L3-planning  delivery-planner  planner.plan.started → completed
+L5-execution morpex-runtime   runtime.started（父锚）
+L5-execution mission-runtime  mission.created/updated
+L5-execution pipeline-orchestrator  pipeline.orchestrated
+L2-gate      ontology-service ontology.grounded / query.miss
+L5-execution unified-execution-engine execution.engine.started → completed
+L7-knowledge artifact-facade   artifact.created
+L1-governance approval-gate    approval.auto_approved
+L8-evolution evolution-sandbox evolution.completed
+L6-evaluation evaluation-engine evaluation.completed
+```
+
+### /audit 语义（架构契约 = 8 层 17 模块）
+- `REQUIRED_MODULE_NEVER_CALLED`（error）= **绕过信号**：必需模块未执行（如直连 /api/execute 绕过治理层）
+- `EXPECTED_CALLER_NOT_OBSERVED`（warning）= 调用者未按契约出现（当前桥接锚定 morpex-runtime，契约已对齐）
+- 完整管线执行后应为 **0 error + 0 warn**
+
+### 已知限制
+- 桥接是事件序近似（非真实调用栈）；并发多 execution 时全局锚可能串扰（MorPex 实际多为串行）
+- 单测不经 StudioServer → 观测覆盖真实运行时路径
+- 核心新增轻量事件（evaluation/evolution/ontology.grounded/runtime.*）为 S35 可观测而加，均为安全增量

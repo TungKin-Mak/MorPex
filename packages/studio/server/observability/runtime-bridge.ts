@@ -67,20 +67,41 @@ function resolveStatus(eventType: string): Observation['status'] {
 
 // ── 每 executionId 的 span 链（首个事件为根）──
 const lastSpanByExec = new Map<string, string>();
+/** S35：运行时锚定——runtime.started 后所有组件事件挂到 morpex-runtime（总编排者）。
+ *  核心事件 executionId 异构（mission/engine/approval 各用各的 id），故用全局锚兜底：
+ *  组件父 = 本 executionId 锚 ?? 全局最近运行时锚 ?? 顺序链 */
+const runtimeAnchorByExec = new Map<string, string>();
+let globalRuntimeAnchor: string | undefined;
 
 function bridgeEvent(event: MorPexEvent): void {
   if (!event?.type || !event?.executionId) return;
   const { module, layer } = resolve(event.type);
   const executionId = event.executionId;
-  const parentId = lastSpanByExec.get(executionId);
+  const isDriver = module === 'morpex-runtime';
   const obsId = `obs_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
 
+  if (isDriver) {
+    // 主驱动器事件：作为该 executionId + 全局运行时锚（根 span，无 parent）
+    runtimeAnchorByExec.set(executionId, obsId);
+    globalRuntimeAnchor = obsId;
+    lastSpanByExec.set(executionId, obsId);
+    collectSpan(obsId, event, module, layer, undefined);
+    return;
+  }
+
+  // 组件事件：父 = 本 executionId 锚 ?? 全局运行时锚 ?? 顺序链（保留拓扑边）
+  const parentId = runtimeAnchorByExec.get(executionId) ?? globalRuntimeAnchor ?? lastSpanByExec.get(executionId);
+  collectSpan(obsId, event, module, layer, parentId);
+  lastSpanByExec.set(executionId, obsId);
+}
+
+function collectSpan(obsId: string, event: MorPexEvent, module: string, layer: string, parentId: string | undefined): void {
   ObservationCollector.registerModule(module, layer);
   ObservationCollector.collect({
     id: obsId,
-    traceId: `trace_${executionId}`,
-    executionId,
-    taskId: executionId,
+    traceId: `trace_${event.executionId}`,
+    executionId: event.executionId,
+    taskId: event.executionId,
     parentId,
     type: 'SPAN',
     source: { module, layer, version: '1.0.0' },
@@ -90,7 +111,6 @@ function bridgeEvent(event: MorPexEvent): void {
     payload: event.payload,
     metadata: { eventType: event.type, source: event.source },
   });
-  lastSpanByExec.set(executionId, obsId);
 }
 
 /**
@@ -120,4 +140,6 @@ export function wireObservabilityServices(): void {
 /** 测试/重置用：清空 span 链状态 */
 export function resetBridgeState(): void {
   lastSpanByExec.clear();
+  runtimeAnchorByExec.clear();
+  globalRuntimeAnchor = undefined;
 }

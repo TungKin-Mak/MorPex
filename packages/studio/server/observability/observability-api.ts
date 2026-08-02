@@ -267,7 +267,9 @@ export function createObservabilityRouter(): Router {
   // POST /api/observability/reset — full reset: wipe everything + re-register defaults
   router.post('/reset', (_req: Request, res: Response) => {
     store.resetToDefaults(DEFAULT_MODULES);
-    res.json({ ok: true, message: `Full reset to ${DEFAULT_MODULES.length} default modules` });
+    // S35：同时清空 ObservationCollector（此前 /reset 只清 traceBus，观测数据残留导致 /audit 误报）
+    ObservationCollector.reset();
+    res.json({ ok: true, message: `Full reset to ${DEFAULT_MODULES.length} default modules + ObservationCollector cleared` });
   });
 
   // POST /api/observability/ingest — external process ingestion (auto-feed-runner etc.)

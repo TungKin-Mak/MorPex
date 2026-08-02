@@ -119,20 +119,22 @@ export class MorPexRuntime {
     const ontoHardFail = options?.ontologyHardFail ?? false;
     const awaitApproval = options?.awaitApproval ?? false;
 
-    // S34 可观测：主执行管线启动事件（L5 驱动器，供 /audit 验证主链路是否运行）
-    this.eventBus.emit({
-      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-      type: 'runtime.started',
-      timestamp: Date.now(),
-      executionId: context?.executionId ?? `run_${Date.now()}`,
-      source: 'morpex-runtime',
-      payload: { goal: goal.substring(0, 80), mode: options?.mode ?? 'auto' },
-    });
-
     try {
       // ── Phase 1: Pipeline Orchestration (Mission → Team → Workflow) ──
       const pipelineResult = await this.pipeline.orchestrate(goal);
       context = pipelineResult.context;
+
+      // S34 可观测：主执行管线启动事件（L5 驱动器，供 /audit 验证主链路是否运行）
+      // ⚠️ 必须在 orchestrate 之后（拿到 context.executionId，与组件事件同一 id，锚定才有效）
+      this.eventBus.emit({
+        id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+        type: 'runtime.started',
+        timestamp: Date.now(),
+        executionId: context.executionId,
+        source: 'morpex-runtime',
+        payload: { goal: goal.substring(0, 80), mode: options?.mode ?? 'auto' },
+      });
+
       this.missionController.updateMission({
         missionId: context.mission.missionId,
         phase: 'EXECUTING',

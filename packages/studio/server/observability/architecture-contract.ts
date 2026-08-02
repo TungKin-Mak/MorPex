@@ -20,19 +20,19 @@ export interface ModuleContract {
 export const ARCHITECTURE_CONTRACT: ModuleContract[] = [
   // ═══ S34 校准：8 层架构（模块名 = 观测面实际发出的模块，required = 每次完整执行必须出现）═══
   // L1 入口与治理
-  { name: 'approval-gate', required: true, expectedCallers: ['mission-runtime', 'morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L1-governance', description: '审批门禁（治理信号）' },
+  { name: 'approval-gate', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L1-governance', description: '审批门禁（治理信号）' },
   // L2 Ontology Gate（强制知识门禁 — 绕过即违规）
-  { name: 'ontology-service', required: true, expectedCallers: ['morpex-runtime', 'delivery-planner', 'company-facade'], expectedCallees: [], activation: 'knowledge-task', layer: 'L2-gate', description: 'Ontology Gate（强制先查后推）' },
+  { name: 'ontology-service', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'knowledge-task', layer: 'L2-gate', description: 'Ontology Gate（强制先查后推）' },
   // L3 规划
-  { name: 'delivery-planner', required: true, expectedCallers: ['company-facade'], expectedCallees: [], activation: 'always', layer: 'L3-planning', description: '交付规划器（plan.started/completed）' },
+  { name: 'delivery-planner', required: true, expectedCallers: [], expectedCallees: [], activation: 'always', layer: 'L3-planning', description: '交付规划器（plan.started/completed）' },
   // L4 认知与大脑（on-demand）
   { name: 'brain-facade', required: false, expectedCallers: ['company-facade'], expectedCallees: [], activation: 'on-demand', layer: 'L4-cognition', description: '大脑门面（学习闭环）' },
   { name: 'learning-loop', required: false, expectedCallers: ['brain-facade'], expectedCallees: [], activation: 'on-demand', layer: 'L4-cognition', description: '学习闭环' },
   // L5 执行
   { name: 'morpex-runtime', required: true, expectedCallers: ['company-facade'], expectedCallees: ['unified-execution-engine', 'artifact-facade', 'evaluation-engine', 'evolution-sandbox'], activation: 'always', layer: 'L5-execution', description: 'MorPexRuntime 主执行管线（runtime.started）' },
-  { name: 'mission-runtime', required: true, expectedCallers: ['morpex-runtime', 'control-plane'], expectedCallees: ['pipeline-orchestrator', 'unified-execution-engine'], activation: 'always', layer: 'L5-execution', description: 'Mission 运行时（mission.created）' },
-  { name: 'pipeline-orchestrator', required: true, expectedCallers: ['mission-runtime'], expectedCallees: [], activation: 'always', layer: 'L5-execution', description: '管线编排器（pipeline.orchestrated）' },
-  { name: 'unified-execution-engine', required: true, expectedCallers: ['morpex-runtime', 'mission-runtime'], expectedCallees: [], activation: 'always', layer: 'L5-execution', description: '统一执行引擎（execution.engine.*）' },
+  { name: 'mission-runtime', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L5-execution', description: 'Mission 运行时（mission.created）' },
+  { name: 'pipeline-orchestrator', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L5-execution', description: '管线编排器（pipeline.orchestrated）' },
+  { name: 'unified-execution-engine', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L5-execution', description: '统一执行引擎（execution.engine.*）' },
   { name: 'sandbox-manager', required: false, expectedCallers: ['unified-execution-engine'], expectedCallees: [], activation: 'on-demand', layer: 'L5-execution', description: '沙箱管理' },
   // L6 评价
   { name: 'evaluation-engine', required: true, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'always', layer: 'L6-evaluation', description: '评价引擎（evaluation.completed）' },

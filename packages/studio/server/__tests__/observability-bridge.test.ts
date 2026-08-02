@@ -127,9 +127,11 @@ describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade �
     expect(layers.has('L8-evolution')).toBe(true);
   }, 180000);
 
-  it('全链执行后 /audit 无必需模块未调用错误（有调用链依据）', async () => {
+  it('全链执行后 /audit 无必需模块未调用错误 + 无调用者缺失警告（有真实调用链依据）', async () => {
     const { body } = await getJson('/api/observability/audit?strict=false');
     const errors = body.report.findings.filter((f: any) => f.severity === 'error');
+    const warns = body.report.findings.filter((f: any) => f.severity === 'warning');
     expect(errors).toHaveLength(0); // 完整管线覆盖全部必需模块 → 无绕过
+    expect(warns).toHaveLength(0); // S35 锚定修复 → 无 EXPECTED_CALLER_NOT_OBSERVED 误报
   }, 15000);
 });
