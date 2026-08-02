@@ -34,14 +34,14 @@ export default defineConfig({
       '**/dist/**',
       // ── packages/core/__tests__ 脚本式（精确清单）──
       'packages/core/__tests__/artifact-lifecycle.test.ts',
-      'packages/core/__tests__/artifact-plane.test.ts',
+      // (已删: artifact-plane.test.ts)
       'packages/core/__tests__/architecture-integration.test.ts',
       'packages/core/__tests__/config-validation.test.ts',
       'packages/core/__tests__/context-assembly.test.ts',
-      'packages/core/__tests__/critical-llm-mock.test.ts',
+      // (已删: critical-llm-mock.test.ts)
       'packages/core/__tests__/critical-memory-knowledge.test.ts',
       'packages/core/__tests__/critical-sandbox-security.test.ts',
-      'packages/core/__tests__/cross-agent-learning.test.ts',
+      // (已删: cross-agent-learning.test.ts)
       'packages/core/__tests__/fsm-lifecycle.test.ts',
       'packages/core/__tests__/learning-loop.test.ts',
       'packages/core/__tests__/phase2-optimization.test.ts',
@@ -54,7 +54,7 @@ export default defineConfig({
       'packages/core/__tests__/recovery-lifecycle.test.ts',
       'packages/core/__tests__/resilience.test.ts',
       'packages/core/__tests__/security-prompt-injection.test.ts',
-      'packages/core/__tests__/stage1-persistence.test.ts',
+      // (已删: stage1-persistence.test.ts)
       'packages/core/__tests__/unified-eventstore.test.ts',
       // ── tests/ 脚本式（子目录 + 顶层；CI 用 tsx 跑 tests/e2e/v15-full-cycle，保留）──
       'tests/architecture/**/*.test.ts',
