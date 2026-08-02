@@ -8,6 +8,7 @@
 | 文档 | 内容 |
 |------|------|
 | [AICOS_CORE_ARCHITECTURE.md](AICOS_CORE_ARCHITECTURE.md) | **唯一架构真相源**：8 层模型（L1-L8 + 领域插件非层）、依赖方向、Gate/Tier 规则 |
+| [AICOS_DATA_FLOW.md](AICOS_DATA_FLOW.md) | **完整架构与数据流全链路**：端到端主链路、事件驱动演化闭环、Gate 强制链、时序 |
 | [AICOS_CORE_FILE_REGISTRY.md](AICOS_CORE_FILE_REGISTRY.md) | 逐文件清单 + 目录计数（与 `find` 实时对账） |
 | [PROJECT_TREE.md](PROJECT_TREE.md) | 项目目录树（8 层结构） |
 | [TESTING_PLAN.md](TESTING_PLAN.md) | 测试计划与覆盖矩阵 |
