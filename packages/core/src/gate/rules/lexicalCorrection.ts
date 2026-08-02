@@ -45,6 +45,8 @@ export function lexicalCorrect(
     for (const v of violations) {
       const rule = rulesById.get(v.ruleId);
       if (!rule || !rule.allowedAction) continue;
+      // 防御：空片段不参与 split/join（避免拆散 payload）
+      if (!v.matchedText) continue;
 
       // matchedText 为规范化片段（可能与原文本大小写/空白不同）；
       // 直接包含替换，定位不到则跳过该条（保守，不猜测修改）

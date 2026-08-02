@@ -53,6 +53,14 @@
 
 **✅ Phase 1 已实现并验证（2026-08-03）**：全部落点落地（含 ecommerce 插件 `rule-register.ts`、validate-architecture 白名单加 `/gate/rules/`）；tsc 0 / validate 100% / vitest 64 文件 614 通过（新增 4 测试文件 25 用例，原 589 零回归）；集成测试证明中断-重试-降级-转人工链路 + eventStore undefined 兼容（4 调用方）。实现中修复 2 个设计缺口：① 降级后违规内容会静默放行 → 补"降级后转人工"；② 重试温度统一 0.3 → 重试轮 0.2。剩余建议项（WARNING 事件冗余、缓存规则版本并入 key）归 Phase 2。
 
+**✅ Phase 2 第一批已实现并验证（2026-08-03，commit f09fb3c + 12b32a4）**：
+- ① **Detector 接口正式化**（`gate/rules/detectors.ts`）：RuleDetector 契约 + detectorRegistry 按 ruleType 分派；RegexDetector 迁移（零回归）+ **ApiWhitelistDetector**（厂商风格 API token 前缀白名单，MCU IOCP vs STM32 HAL/LL 场景）；RuleType 扩 'whitelist'、RuleEntity.allowedApiPrefixes、disallowedPattern 改可选
+- ② **词法修正**（`gate/rules/lexicalCorrection.ts`，修正管线①保守版）：allowedAction 机械替换，定位不到/异常兜底；runOntologyGroundedReasoning 在重试前先词法修正 → 重新 check → 合规放行
+- ③ **缓存一致性**：`RuleRegistry.fingerprint()` 并入 groundingCache key —— 规则变更 → 指纹变 → 旧缓存天然失效
+- 领域示例：xjmcu 平台 API 白名单规则（pending 待确认）+ bootstrap 接线
+- 门禁：tsc 0 / validate 100% / vitest 66 文件 634 通过 + 5 skipped（规则测试 6 文件 45 用例全绿）
+- 剩余：修正管线②结构层（tsc/eslint 适配器）、schema/AST 检测器、L5 预算接线、domain 上下文传递 → 第二批
+
 ### ③ 升级上下文管理 —— L2/L4 组装
 - `ContextAssemblyEngine` 已存在（Builder/Enricher/FragmentRegistry/Versioner），是"升级"非"新建"
 - **待决策**："优化"具体指体积/token 预算控制、相关性排序、风险分级组装、还是部门隔离强化？

@@ -171,10 +171,10 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 ## 7. Phase 2 / Phase 3
 
 **Phase 2（正确性+成本）**
-- **通用修正管线①词法层**：通用机械修正（删违规片段/规范化重比/去多余符号），引擎内置、无领域语义；`allowedAction` 降级为可选的词法微优化（非核心，领域无需为每条规则配置）
-- **通用修正管线②结构层**：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具；software 领域 tsc/eslint 适配器
-- **检测器类型扩展（规范驱动）**：从"黑名单正则"扩展出——API 白名单前缀（MCU 场景：`allowedApiPrefixes: ['IOCP_','NVIC_','SysTick_']`）/ schema / AST 规则，统一走 `Detector` 接口 + `RuleRegistry` 注册；领域只声明"合法规范"，不写"违规怎么改"
-- 缓存一致性：规则版本并入 `groundingCache` key（`runOntologyGroundedReasoning.ts` 5min LRU，命中会跳过检查——规则更新后旧缓存可能违规）；规则变更清缓存
+- ✅ **通用修正管线①词法层**（已实现 2026-08-03）：`lexicalCorrection.ts` 保守机械替换（allowedAction 定位不到不动/异常兜底），挂载于重试前；`allowedAction` 为可选微优化（非核心）
+- **通用修正管线②结构层**：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具；software 领域 tsc/eslint 适配器（待实现）
+- ✅ **检测器类型扩展（规范驱动）**（部分实现）：`Detector` 接口正式化（`gate/rules/detectors.ts`）+ `ApiWhitelistDetector`（API 白名单前缀，MCU `allowedApiPrefixes`，xjmcu 示例已注册 pending）；schema/AST 规则待实现
+- ✅ **缓存一致性**（已实现 2026-08-03）：`RuleRegistry.fingerprint()` 并入 `groundingCache` key——规则变更 → 指纹变 → 旧缓存天然失效
 - L5 预算接线：重试的 LLM 调用计入 costTokens（`runOntologyGroundedReasoning` 当前无预算感知，需从 ExecutionContext 注入或回调）
 - **domain 上下文沿调用链传递 + 按域路由**：当前 4 个调用方均无可靠 domain 信号（Planner 仅 goal 字符串 / Primitive 仅 deptId），需上游 goal→domain 映射后注入 `GroundedReasoningOptions.domain`，`getActiveRules(domain)` 按域过滤（Phase 1 已留接口：options.domain + 示例规则 pending 消除跨域影响）
 
