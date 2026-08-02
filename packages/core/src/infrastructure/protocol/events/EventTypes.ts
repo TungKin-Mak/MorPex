@@ -31,6 +31,10 @@ export const SYSTEM_EVENT_TYPES = {
   EVALUATION_DECIDED: 'evaluation.decided',
   /** L6 低分事件：missionQuality 低于阈值时发射，L7 演化只消费事件、禁止被 L4 直接触发 */
   EVALUATION_LOW_SCORE: 'evaluation.low_score',
+  /** L6 审计事件：产物验证完成（Wave 9.7） */
+  EVALUATION_VERIFICATION_COMPLETED: 'evaluation.verification.completed',
+  /** L4 审计事件：经验提取（Wave 9.7） */
+  BRAIN_LEARNING_EXPERIENCE_EXTRACTED: 'brain.learning.experience_extracted',
   EXPERIENCE_MINED: 'experience.mined',
   PATTERN_EXTRACTED: 'pattern.extracted',
   CAPABILITY_UPDATED: 'capability.updated',

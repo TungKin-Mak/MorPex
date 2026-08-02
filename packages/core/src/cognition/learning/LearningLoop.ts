@@ -118,7 +118,22 @@ export class LearningLoop implements LearningLoopLike {
   async extractExperience(record: Record<string, unknown>): Promise<Experience | null> {
     try {
       const exp = this.extractor.extract(toExecutionRecord(record));
-      if (exp) this.experiences.push(exp);
+      if (exp) {
+        this.experiences.push(exp);
+        // L4 审计事件：经验提取（Wave 9.7）
+        this.eventBus?.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'brain.learning.experience_extracted',
+          timestamp: Date.now(),
+          executionId: exp.id ?? `exp_${Date.now()}`,
+          source: 'learning-loop',
+          payload: {
+            goal: exp.goal,
+            successRate: exp.successRate,
+            patternCount: exp.patterns?.length ?? 0,
+          },
+        });
+      }
       return exp;
     } catch {
       return null;

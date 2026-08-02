@@ -185,7 +185,7 @@ export class ServiceContainer {
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     this.artifactFacade = new ArtifactFacade(this.eventBus);
     this.executionEngine.setArtifactFacade(this.artifactFacade);
-    this.verificationEngine = new VerificationEngine();
+    this.verificationEngine = new VerificationEngine(this.eventBus);
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
     this.experienceMiner = new ExperienceMiner();
