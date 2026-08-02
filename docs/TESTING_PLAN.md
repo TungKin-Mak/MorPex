@@ -102,7 +102,7 @@
 |--------|------|----------|
 | BrainFacade（聚合门面） | ✅ | `brainfacade-facade.test.ts`（6 用例） |
 | ReflectionEngine（反思） | ✅ | `v13-brain.test.ts` |
-| MetaLearner（元学习） | ✅ | `v13-brain.test.ts` |
+| LearningLoop（元学习/声明性学习，Wave 8c 合并） | ✅ | `v13-brain.test.ts` |
 | LearningLoop / SelfImprovementLoop | ✅ | `learning-loop-impl.test.ts` |
 | CrossDepartmentKnowledgeSynthesizer | ✅ | `synthesizer-fabric.test.ts`（依赖注入/跨部门融合/模式迁移/事件，10 用例） |
 | PersonalBrain / BrainPersistor（记忆化） | ✅ | `memory-activation` / `unified-memory.spec` |
@@ -144,7 +144,7 @@
 | EvolutionSandbox（沙箱试跑） | ✅ | `evolution-closed-loop.test.ts` |
 | apply/revert/verify 自动回滚 | ✅ | `evolution-closed-loop.test.ts`（8 用例：幂等/补偿） |
 | ExperienceMiner / FailureAnalyzer | ✅ | `evolution-closed-loop` |
-| PatternExtractor / PatternMigrationEngine | ✅ | `evolution-closed-loop`（接线）+ `synthesizer-fabric.test.ts`（migratePattern adapted/partial/failed） |
+| PatternExtractor / KnowledgeGapListener | ✅ | `evolution-closed-loop`（接线）+ `synthesizer-fabric.test.ts`（CDKS 融合） |
 | ActiveEvolutionTrigger / KnowledgeGapListener | ✅ | `evolution-closed-loop.test.ts`（连续失败触发 + 配置阈值） |
 
 ### L9 Workflow 插件层
@@ -267,7 +267,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 - [x] ~~**SSE 流真实推送测试**~~ ✅（`sse-execute-e2e.test.ts`：建连收 connected 首帧 + POST /api/execute 触发后 SSE 实时收到 execution.engine.started，含竞态防护——先等订阅就绪再触发）
 - [x] ~~**/api/execute 闭环测试**~~ ✅（`sse-execute-e2e.test.ts` HTTP 执行→事件流透传 + `morpex-runtime.test.ts` execute→artifact→评估 全链路）
 - [x] ~~**EvolutionController + PolicyEngine 测试**~~ ✅（Wave 3b 已移除 EvolutionController；`policy-engine.test.ts` 改测 L7 演化直连 + 4 Controller 防回潮，25 用例）
-- [x] ~~**补 ⚠️ 组件**~~ ✅（`synthesizer-fabric.test.ts`：CrossDepartmentKnowledgeSynthesizer 融合+迁移 10 用例 + ExecutionFabric 能力/重试 8 用例；PatternMigrationEngine/ActiveEvolutionTrigger 已由 evolution-closed-loop 覆盖）
+- [x] ~~**补 ⚠️ 组件**~~ ✅（`synthesizer-fabric.test.ts`：CrossDepartmentKnowledgeSynthesizer 融合 10 用例 + ExecutionFabric 能力/重试 8 用例；PatternExtractor/ActiveEvolutionTrigger 已由 evolution-closed-loop 覆盖；PatternMigrationEngine 已于 Wave 6a 删除）
 
 ### 🟢 P2（增强与自动化）
 - [x] ~~**k6 负载测试纳入 --full 档 + CI 可选 job**~~ ✅（`scripts/k6-smoke.js` 针对真实端点 :8080 只读冒烟 + `run-k6-test.sh --smoke` 校准端口/脚本选择 + CI k6-smoke job（Docker））

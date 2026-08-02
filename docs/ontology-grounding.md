@@ -71,13 +71,13 @@ await companyFacade.submitFeedback({
 1. 写入 Ontology（`Feedback` 类型）
 2. 建立 `corrects` 关系到目标对象
 3. 自动标记 `isTestCase`（rating=down 时）
-4. 被 L7 `FeedbackAwareLearner`（evolution/，Wave 3a 自 cognition/ 迁入）消费 → 生成改进提案，经 L7 提案管线（沙箱+审批）落地
+4. 被 L7 `KnowledgeGapListener`（evolution/）消费 → 经 L7 提案管线（沙箱+审批）落地
 
 ## 执行路径覆盖
 
 当前已接入 Grounded Reasoning 的执行路径：
 
-1. ✅ **DeliveryPlanner.planWithOntology()** — 主规划入口
+1. ✅ **runOntologyGroundedReasoning（DeliveryPlanner 统一调用）** — 主规划入口
 2. ✅ **HierarchicalPlanner.createPlan()** — HTN 分层规划（ontology 启用时）
 3. ✅ **SubAgentFork 执行引擎** — 子任务分发前
 

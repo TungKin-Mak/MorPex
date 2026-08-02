@@ -32,7 +32,7 @@ execution
     approval
     budget
     checkpoint
-    cognitive-loop
+    cognition
     compensation
     dag
     mission

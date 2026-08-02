@@ -274,7 +274,7 @@ v13 新增了 3 个测试文件覆盖 brain/planner/tools 新模块。
 
 | 文件 | 覆盖模块 | 用例数 |
 |------|----------|--------|
-| `packages/core/__tests__/v13-brain.test.ts` | ReflectionEngine + MetaLearner | ~12 |
+| `packages/core/__tests__/v13-brain.test.ts` | ReflectionEngine + LearningLoop（Wave 8c 合并） | ~12 |
 | `packages/core/__tests__/v13-planner.test.ts` | HierarchicalPlanner + DeliveryPlanner 集成 | ~8 |
 | `packages/core/__tests__/v13-tools.test.ts` | ToolFactory + ToolRegistry | ~12 |
 
