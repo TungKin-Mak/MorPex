@@ -517,13 +517,8 @@ export async function bootstrapUnified(options?: {
     const arbitration = new CrossDepartmentArbitrationEngine(eventBus);
     const missionPlanner = new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration });
     container.missionRuntime.setPlanner(missionPlanner);
-    // mode 收敛：统一规划前置到 MorPexRuntime orchestrate 后（同一实例，MissionRuntime FSM 复用已有 plan 防重复）
+    // 统一规划：规划前置到 MorPexRuntime orchestrate 后（同一实例，MissionRuntime FSM 复用已有 plan 防重复）
     container.runtime.setPlanner(missionPlanner);
-    // L3 非 Mission 路径接入：CompanyFacade 的 auto/dag/fabric 模式先规划再执行（失败不阻断）
-    companyFacade.setDeliveryPlanner?.(deliveryPlanner);
-    // S20 完整重包：BrainFacade 也聚合规划能力
-    (container as any).brainFacade?.setDeliveryPlanner?.(deliveryPlanner);
-    (container as any).deliveryPlanner = deliveryPlanner;
     (container as any).hierarchicalPlanner = hierarchicalPlanner;
     (container as any).arbitrationEngine = arbitration;
     console.log('[bootstrapUnified] ✅ L3 Planning 已接通：DeliveryPlanner + HierarchicalPlanner(HTN replan) + CrossDepartmentArbitration');

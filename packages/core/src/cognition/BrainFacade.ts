@@ -75,7 +75,6 @@ export interface BrainStats {
     learningLoop: boolean;
     evolutionEngine: boolean;
     memoryActivation: boolean;
-    deliveryPlanner: boolean;
   };
 }
 
@@ -150,11 +149,6 @@ export interface MemoryActivationEngineLike {
   activate(ctx: Record<string, unknown>, topK?: number): { memories: unknown[]; contextBias: string; activationScore: number };
 }
 
-/** S20 完整重包：DeliveryPlanner 弱耦合接口（非 Mission 路径规划） */
-export interface DeliveryPlannerLike {
-  createPlan(req: { goal: string; mode?: string; departmentId?: string }): Promise<{ id: string; tasks?: unknown[]; ontologyRefs?: string[] }>;
-}
-
 export class BrainFacade {
   name = 'BrainFacade';
   version = '1.0.0';
@@ -178,8 +172,6 @@ export class BrainFacade {
   // ── S20 完整重包：聚合已直连运行时事件的能力 ──
   /** MemoryActivationEngine（S18：working 记忆激活，数据源统一到 MemoryAPI） */
   private memoryActivationEngine: MemoryActivationEngineLike | null = null;
-  /** DeliveryPlanner（S20：L3 非 Mission 路径规划） */
-  private deliveryPlanner: DeliveryPlannerLike | null = null;
 
   // 内部统计
   private totalMemories = 0;
@@ -287,11 +279,6 @@ export class BrainFacade {
   /** S20 完整重包：注入 MemoryActivationEngine（working 记忆激活） */
   setMemoryActivationEngine(engine: MemoryActivationEngineLike): void {
     this.memoryActivationEngine = engine;
-  }
-
-  /** S20 完整重包：注入 DeliveryPlanner（非 Mission 路径规划） */
-  setDeliveryPlanner(planner: DeliveryPlannerLike): void {
-    this.deliveryPlanner = planner;
   }
 
   /**
@@ -1140,21 +1127,6 @@ export class BrainFacade {
     return this.memoryActivationEngine.activate(ctx, topK);
   }
 
-  /**
-   * S20 完整重包：planGoal — 非 Mission 路径规划门面
-   * 转发到 DeliveryPlanner.createPlan（增强；失败返回 null，不阻断）。
-   */
-  async planGoal(goal: string, opts: { mode?: string; departmentId?: string } = {}): Promise<{ planId?: string; taskCount?: number; ontologyRefs?: string[] } | null> {
-    if (!this.deliveryPlanner) return null;
-    try {
-      const plan = await this.deliveryPlanner.createPlan({ goal, mode: opts.mode, departmentId: opts.departmentId });
-      return { planId: plan.id, taskCount: plan.tasks?.length ?? 0, ontologyRefs: plan.ontologyRefs };
-    } catch (err) {
-      console.warn(`[BrainFacade] ⚠️ planGoal 失败（非阻断）: ${(err as Error).message}`);
-      return null;
-    }
-  }
-
   getStats(): BrainStats {
     return {
       totalMemories: this.totalMemories,
@@ -1168,7 +1140,6 @@ export class BrainFacade {
         learningLoop: !!this.learningLoop,
         evolutionEngine: !!this.evolutionEngine,
         memoryActivation: !!this.memoryActivationEngine,
-        deliveryPlanner: !!this.deliveryPlanner,
       },
     };
   }

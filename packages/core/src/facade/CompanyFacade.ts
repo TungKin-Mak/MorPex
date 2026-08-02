@@ -28,20 +28,6 @@ export interface ExecuteGoalOptions {
   [key: string]: unknown;
 }
 
-/**
- * DeliveryPlannerLike — 非 Mission 路径接入的规划层弱耦合接口（L3 更广接入）
- *
- * 仅消费 DeliveryPlanner.createPlan 的最小形状，避免 CompanyFacade 强依赖 planner 包。
- */
-export interface DeliveryPlannerLike {
-  createPlan(req: {
-    goal: string;
-    mode?: string;
-    departmentId?: string;
-    context?: Record<string, unknown>;
-  }): Promise<{ id: string; tasks?: unknown[]; ontologyRefs?: string[] }>;
-}
-
 export class CompanyFacade {
   private departmentManager: DepartmentManager;
   private roleRegistry: RoleRegistry;
@@ -110,14 +96,6 @@ export class CompanyFacade {
   /** 功能③：注入上下文组装引擎（bootstrap 装配调用） */
   setContextAssemblyEngine(engine: import('../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine): void {
     this.contextAssemblyEngine = engine;
-  }
-
-  /** L3 非 Mission 路径：DeliveryPlanner（auto/dag/fabric 模式先规划再执行，失败不阻断） */
-  private deliveryPlanner: DeliveryPlannerLike | null = null;
-
-  /** 注入规划层（bootstrap 装配调用；Mission 路径走 MissionRuntime.setPlanner，此处覆盖非 Mission 路径） */
-  setDeliveryPlanner(planner: DeliveryPlannerLike): void {
-    this.deliveryPlanner = planner;
   }
 
   /**

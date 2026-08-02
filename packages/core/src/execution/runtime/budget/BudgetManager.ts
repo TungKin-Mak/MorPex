@@ -8,6 +8,10 @@
  * （maxIterations / maxCostTokens / timeout → 发 execution.budget.exceeded 事件 + 返回 failed），
  * 本管理器保留为可观测统计工具（check/consume/trackStep/getStatus），
  * 不引入双重强制，避免两套上限语义漂移。
+ *
+ * 技术债标注（2026-08-03）：当前**零业务接线**——公开 API 导出保留，
+ * 但无调用方消费（真实预算强制在 UnifiedExecutionEngine 内联）。
+ * 处置选项：接线到真实观测（如 L6/Monitoring 统计）或后续删除。
  */
 
 export interface BudgetConfig {
