@@ -48,7 +48,7 @@ interface RuleEntity {
   target: 'proposal.payload' | 'proposal.action_type' | 'proposal.raw';
   disallowedPattern: string;               // 正则（文本维度主检）
   aliases?: string[];                      // 别名/代称展开（如 苹果耳机 → AirPods）
-  allowedAction?: string;                  // 确定性替换目标（Phase 2）
+  allowedAction?: string;                  // 可选词法层微优化（Phase 2 修正管线①，非核心；领域无需为每条规则配置）
   priority: number;                        // 误报降级用
   status: 'pending' | 'active' | 'disabled'; // 提炼后待确认闸
   source: 'manual' | 'review_extraction' | 'evolution'; // 来源
@@ -119,7 +119,14 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
              ③ 同一规则单次执行连续命中 2 次仍不过 → 临时禁用该规则 + emit rule.downgraded + 人工介入
 ```
 
-- **修正的本质**：重试携带明确修正方向（已命中规则作为约束注入），非盲目重跑 —— 这是与普通 retry 的本质区别
+- **修正策略分层（通用管线，不随领域变）**：
+  - ① 词法修正（Phase 2）：通用机械操作（删违规片段/规范化重比/去多余符号），引擎自带、无领域语义
+  - ② 结构修正（Phase 2）：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具
+  - ③ 语义修正（**Phase 1 已实现**）：把"领域规范 + 违规详情"注入 LLM 重写（带约束重试 maxAttempts=3）——万能兜底，任何领域适用
+  - ④ 人工介入（**Phase 1 已实现**）：needs_human_review
+  - 每层完成后都**重新检测验证**，通过才放行；失败则升级到下一层
+- **规范驱动（多领域通用）**：领域只声明"什么合法"（白名单/范围/示例），**不写"违规怎么改"**；替换规则从多领域核心手段降级为①词法层的可选微优化
+- **修正的本质**：重试携带明确修正方向（已命中规则/规范作为约束注入），非盲目重跑 —— 这是与普通 retry 的本质区别
 - **WARNING 规则**：只 emit 事件 + 提示，不中断（把误报杀伤面降为可观测噪音）
 - **降级三层防护**：ERROR/WARNING 分级 → 连续命中自动降级 → 人工事后 `disabled` 关闭误报规则
 
@@ -157,18 +164,19 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 - 重试循环：3 次内通过 vs 3 次超限转 needs_human_review
 - 连续命中降级：2 次命中 → 临时禁用 + 事件
 
-**Phase 1 明确不做**：确定性替换（allowedAction）、缓存规则版本、L5 预算接线、语义复核、代码层适配器、演化挖掘 —— 均入 Phase 2/3。
+**Phase 1 明确不做**：通用修正管线①词法层/②结构层（含 allowedAction 微优化、eslint --fix）、缓存规则版本、L5 预算接线、检测器类型扩展（白名单/AST/schema）、语义复核、演化挖掘 —— 均入 Phase 2/3。
 
 ---
 
 ## 7. Phase 2 / Phase 3
 
 **Phase 2（正确性+成本）**
-- 确定性替换：allowedAction 机械修正（eslint --fix / clamp 式），先于 LLM 重试
+- **通用修正管线①词法层**：通用机械修正（删违规片段/规范化重比/去多余符号），引擎内置、无领域语义；`allowedAction` 降级为可选的词法微优化（非核心，领域无需为每条规则配置）
+- **通用修正管线②结构层**：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具；software 领域 tsc/eslint 适配器
+- **检测器类型扩展（规范驱动）**：从"黑名单正则"扩展出——API 白名单前缀（MCU 场景：`allowedApiPrefixes: ['IOCP_','NVIC_','SysTick_']`）/ schema / AST 规则，统一走 `Detector` 接口 + `RuleRegistry` 注册；领域只声明"合法规范"，不写"违规怎么改"
 - 缓存一致性：规则版本并入 `groundingCache` key（`runOntologyGroundedReasoning.ts` 5min LRU，命中会跳过检查——规则更新后旧缓存可能违规）；规则变更清缓存
 - L5 预算接线：重试的 LLM 调用计入 costTokens（`runOntologyGroundedReasoning` 当前无预算感知，需从 ExecutionContext 注入或回调）
 - **domain 上下文沿调用链传递 + 按域路由**：当前 4 个调用方均无可靠 domain 信号（Planner 仅 goal 字符串 / Primitive 仅 deptId），需上游 goal→domain 映射后注入 `GroundedReasoningOptions.domain`，`getActiveRules(domain)` 按域过滤（Phase 1 已留接口：options.domain + 示例规则 pending 消除跨域影响）
-- 代码层检测器：Detector 接口正式化 + software 领域 tsc/eslint 适配器
 
 **Phase 3（可延后）**
 - L7 演化挖掘规则：failure/low_score → 规则提案 → 晋升 tier-2（TierWriteGuard 闸门已预留）

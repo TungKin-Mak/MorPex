@@ -43,9 +43,10 @@
 1. 规则来源：**人工反馈→LLM 提炼→人工确认生效**（pending/active，存 L2 tier-0/1 RuleEntity）；演化 tier-2 延后 Phase 3（TierWriteGuard 已预留闸门）
 2. 检测机制：**确定性优先**——规范化管道(NFKC+casefold+去空白)+正则为主力，别名表补充，模糊匹配可选，LLM 语义复核仅兜底
 3. 检测器架构：**core 管骨架/领域管内容**——5 维分类（文本/结构/代码/行为/合规）；正则引擎内置 core，AST/编译/Lint 走 `Detector` 接口由领域实现；复用现有 validateReferences/QualityRule/PolicyRuleRegistry/TierWriteGuard/L5 预算
-4. 修正策略：ERROR 命中→中断→带约束重试（maxAttempts=3 管道自控，guard 纯化）→仍违规 needs_human_review
+4. 修正策略：ERROR 命中→中断→**通用修正管线**（①词法 ②结构为 Phase 2 待实现；③语义=带约束重试 maxAttempts=3 已实现；④人工=needs_human_review 已实现）→每层重新检测验证，通过才放行，失败升级下一层
 5. 误报降级：ERROR/WARNING 分级 + 连续命中 2 次自动降级 + rule.violation/rule.downgraded 事件（字符串字面量 type，不走 EventType 枚举）
 6. 已识别的坑：groundingCache 缓存跳过校验（Phase 2 规则版本入 key）；Gate 无预算感知（重试管道自控）
+7. **规范驱动（2026-08-03 定，取代硬替换）**：领域只声明"什么合法"（白名单/范围/示例），不写"违规怎么改"；`allowedAction` 确定性替换**降级**为词法层可选微优化（非核心，多领域维护不起）；Phase 2 主线改为**通用修正管线 + 检测器类型扩展**（API 白名单前缀如 MCU `IOCP_`/AST/schema，统一走 Detector 接口）；**Phase 1 代码零改动**（检测/中断/重试/降级骨架本就通用，已同步方案文档 §2/§5/§6/§7）
 
 **Phase 1 落点**（7 新文件+4 改文件+测试+1 插件示例）：`gate/rules/{types,RuleRegistry,normalize,RuleEnforcementGuard,ruleEvents,RuleExtractor,rulePersistence}.ts`；改 `runOntologyGroundedReasoning`（Phase 2 后挂载+带约束重试）/`gate/index`/`objectTypes`(Rule 类型)/`bootstrap-unified`；测试 normalize 管道/guard 匹配/重试循环/连续降级；ecommerce 插件示例（**默认 pending 待确认**）。
 - 已实现（commit 2d69672 及后续）：门禁 tsc 0 / validate 100% / vitest 全绿；domain 路由接口已留（`options.domain` + `getActiveRules(domain)`），但 **4 个调用方无 domain 信号 → 全局匹配，domain 沿调用链传递为 Phase 2 项**；示例规则 pending 消除跨域误伤。验收：tsc 0 / validate 100% / 新测试全绿 / 集成验证中断-重试-降级链路。
