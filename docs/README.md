@@ -39,8 +39,8 @@
 | [validation/architecture-report.md](validation/architecture-report.md) | 架构验证报告 |
 | [performance-checklist.md](performance-checklist.md) | 性能检查清单 |
 
-## 功能规划（待实现方案）
+## 功能方案
 
-| 文档 | 内容 |
-|------|------|
-| [FEATURE_RULE_ENFORCEMENT.md](FEATURE_RULE_ENFORCEMENT.md) | 功能②规则中断更正（L3 规则执行器）最终方案 + Phase 1 落点拆解 |
+| 文档 | 内容 | 状态 |
+|------|------|------|
+| [FEATURE_RULE_ENFORCEMENT.md](FEATURE_RULE_ENFORCEMENT.md) | 功能②规则中断更正（L3 规则执行器）最终方案 + 落点拆解 | ✅ Phase 1 已实现 |
