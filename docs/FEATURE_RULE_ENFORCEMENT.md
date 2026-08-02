@@ -179,10 +179,11 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 - ✅ **缓存一致性**（已实现 2026-08-03）：`RuleRegistry.fingerprint()` 并入 `groundingCache` key——规则变更 → 指纹变 → 旧缓存天然失效
 - ✅ **L5 预算接线**（已实现 2026-08-03）：`GroundedReasoningOptions.onTokenUsage` 回调——Phase1 查询/Phase2 推理/每次规则重试后估算 tokens（ceil((prompt+text)/4)，精确计费待后续）；MorPexRuntime 接入 emit `execution.gate.token_usage`；回调带 try/catch 防御
 - ✅ **domain 上下文沿调用链传递**（已实现 2026-08-03，F）：MorPexRuntime 从 `context.goal.domain` 注入 `options.domain` 按域过滤；其余 3 调用方无可靠信号保持全局（pending 示例规则兜底）
+- ✅ **keyword 通用两级模型**（已实现 2026-08-03）：规则 = **关注点关键词 + 自然语言要求**（全行业通用，不绑领域语法：编程 `isr_interrupt` / 电商 `价格` / 金融 `利率`）。第一级 `KeywordDetector` 确定性扫名（输出含任一关键词，零成本）→ 第二级**按需** LLM 语义复核（仅命中时调，按 `description` 判定 `triggered`）→ 触发则计入违规进入修正重生成（注入判定理由/建议）；未触发 → 该规则不算违规放行；JSON 解析失败保守触发转人工；语义判断 token 已计入 `onTokenUsage`；ecommerce `price_disclosure` 示例 pending。成本控制：regex/whitelist 命中不调语义 LLM
 
 **Phase 3（可延后）**
 - L7 演化挖掘规则：failure/low_score → 规则提案 → 晋升 tier-2（TierWriteGuard 闸门已预留）
-- LLM 语义复核检测器（语义兜底）
+- LLM 语义复核检测器（语义兜底）——注：keyword 模型第二级已实现"按需语义复核"；此处指**全量语义复核**（无关键词前置，对每个输出），可延后
 - 规则治理面板（pending 确认队列 UI / 误报关闭）
 
 ---

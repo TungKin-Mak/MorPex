@@ -417,7 +417,7 @@ export async function runOntologyGroundedReasoning(
       if (!v.keyword) continue;
       const rule = applicable.find((r) => r.id === v.ruleId);
       if (!rule) continue;
-      const judgement = await semanticJudgement(piBridge, rule, v, proposal);
+      const judgement = await semanticJudgement(piBridge, rule, v, proposal, options.onTokenUsage);
       if (judgement.triggered) {
         v.semanticTriggered = true;
         v.semanticReason = judgement.reason;
@@ -812,6 +812,7 @@ async function semanticJudgement(
   rule: RuleEntity,
   violation: RuleViolation,
   proposal: OntologyProposal,
+  onTokenUsage?: (tokens: number) => void,
 ): Promise<{ triggered: boolean; reason: string; suggestion: string }> {
   const fullText = extractTargetText(proposal, violation.target) || '';
   const kw = violation.keyword ?? '';
@@ -834,6 +835,12 @@ async function semanticJudgement(
 
   try {
     const resp = await piBridge.generateText({ system, prompt, temperature: 0.2 });
+    // 预算可观测性：语义判断的 LLM 调用同样计入 onTokenUsage（与 Phase1/Phase2/重试一致）
+    try {
+      onTokenUsage?.(Math.ceil((prompt.length + (resp.text?.length ?? 0)) / 4));
+    } catch (err) {
+      console.warn('[GroundedReasoning] ⚠️ 语义判断 onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
+    }
     const block = extractBalancedJSON(resp.text);
     if (block) {
       const parsed = JSON.parse(block) as Record<string, unknown>;
