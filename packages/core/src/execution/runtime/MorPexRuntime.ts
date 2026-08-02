@@ -98,6 +98,8 @@ export class MorPexRuntime {
     this.simulator = simulator;
     this.safetyMonitor = new SafetyMonitor();
     this.evolutionLoop = new SelfImprovementLoop(this.safetyMonitor);
+    // Wave 5 注：直连 SIL 为冗余只读分析（只产提案、无生产变更，SIL 不自动审批/晋升）；
+    // 权威演化路径 = ActiveEvolutionTrigger（事件驱动，SIL 由 bootstrap 注入）。
     this.learningEngine = learningEngine;
     this.pipeline = new PipelineOrchestrator(eventBus, missionController, teamOrchestrator);
   }
@@ -351,6 +353,7 @@ export class MorPexRuntime {
       });
 
       // ── Phase 9: Self Evolution Analysis ──
+      // Wave 5 注：直连 SIL 为冗余只读分析（只产提案、无生产变更）；权威路径 = AET 事件驱动。
       if (execResult.ok) {
         try {
           const evolutionResult = await this.evolutionLoop.evolve({
@@ -495,6 +498,7 @@ export class MorPexRuntime {
         : 0;
 
       if (failedCheckpoints.length > 0) {
+        // Wave 5 注：冗余只读分析，SIL 只产提案（pending），不自动审批/晋升。
         this.evolutionLoop.evolve({
           taskSuccessRate: 1.0,
           avgLatency: 0,

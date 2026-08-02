@@ -86,6 +86,8 @@ export { EvolutionSandbox } from './EvolutionSandbox.js';
 export type { EvolutionChangeRecord, EvolutionChangeInput, EvolutionSandboxOptions } from './EvolutionSandbox.js';
 
 // ── Wave 3a 迁入（自 cognition/，L4 纯度剥离）：提案生命周期 ──
+// Wave 5：SIL 已收紧为只产提案（不自动审批/晋升，未审批只能是 pending）；
+// FeedbackAwareLearner @deprecated（未接线，见其文件头注）。
 export { SelfImprovementLoop } from './SelfImprovementLoop.js';
 export { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
 export { EvolutionProposal } from './EvolutionProposal.js';

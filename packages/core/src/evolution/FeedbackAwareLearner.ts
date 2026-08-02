@@ -1,4 +1,7 @@
 /** L7 Evolution 层 — FeedbackAwareLearner（Wave 3a 自 cognition/ 迁入）
+ * @deprecated Wave 5：未接线（构造即弃）。历史设计意图是消费反馈/查询失败信号产出提案，
+ *   但全仓无生产消费者。演化请走 L7 事件管线（ActiveEvolutionTrigger 订阅
+ *   evaluation.scored/low_score + mission.completed → SIL 只产提案 → EvolutionSandbox 审批晋升）。
  * 消费反馈与查询失败信号，产出改进提案；不直接触发生产变更。
  *
  * 迭代3：将三类信号注入 Evolution / MetaLearner：

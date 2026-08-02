@@ -1,10 +1,9 @@
 /**
- * SelfImprovementLoop — 自我改进闭环（L7 Evolution 层，Wave 3a 自 cognition/ 迁入）
- * Phase 2: Observation → Analysis → Proposal → Simulation → Evaluation → Approval → Deployment → Monitor
- * 不直接修改代码，只生成提案
- *
- * ⚠️ 边界契约：本类只产提案，不执行生产变更；提案须经 L7 EvolutionSandbox
- *    + 审批（pending→approved）后方可晋升，晋升写前再过 Gate + Trace。
+ * SelfImprovementLoop — 自我改进闭环（L7 Evolution 层，Wave 3a 自 cognition/ 迁入，Wave 5 收紧）
+ * Phase: Observation → Analysis → Proposal → Simulation → Evaluation → 待审批
+ * ⚠️ 边界契约（Wave 5）：本类只产提案，绝不自动审批/晋升——未审批状态只能是 pending；
+ *   审批与晋升唯一路径 = L7 EvolutionSandbox.approveAndApply（含 Gate 硬校验 + 完整 Trace），
+ *   提案须携带 Simulation 评估结果进入审批，禁止绕过 Sandbox 直接落地。
  */
 import { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
 import { EvolutionProposal } from './EvolutionProposal.js';
@@ -21,7 +20,7 @@ export interface ProposalSimulator {
   }>;
 }
 
-export type EvolutionPhase = 'observation' | 'analysis' | 'proposal' | 'simulation' | 'evaluation' | 'approval' | 'deployment' | 'monitoring';
+export type EvolutionPhase = 'observation' | 'analysis' | 'proposal' | 'simulation' | 'evaluation' | 'approval' | 'monitoring';
 
 export class SelfImprovementLoop {
   private analyzer = new ImprovementAnalyzer();
@@ -85,14 +84,10 @@ export class SelfImprovementLoop {
       const evalScore = simulationResult
         ? (simulationResult.estimatedImprovement * 0.7) + (simulationResult.confidence * 0.3)
         : 0.5;
-      this.transition('approval');
-      if (evalScore >= 0.7) {
-        this.proposalSystem.approve(proposal.id);
-      }
-      proposals.push({ ...proposal, simulation: simulationResult, evaluation: { score: evalScore, autoApproved: evalScore >= 0.7 } });
+      this.transition('approval', '提案待审批（未审批状态只能是 pending，晋升走 EvolutionSandbox）');
+      proposals.push({ ...proposal, simulation: simulationResult, evaluation: { score: evalScore, recommended: evalScore >= 0.7 } });
     }
 
-    this.transition('deployment', `${proposals.filter(p => p.status === 'PENDING_REVIEW').length} 个提案待实施`);
     return { observations, insights, proposals, phase: this.currentPhase };
   }
 
@@ -111,5 +106,4 @@ export class SelfImprovementLoop {
   }
 
   getPendingProposals() { return this.proposalSystem.getPending(); }
-  approveProposal(id: string) { return this.proposalSystem.approve(id); }
 }

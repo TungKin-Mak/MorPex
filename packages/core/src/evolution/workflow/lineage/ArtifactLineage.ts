@@ -1,6 +1,11 @@
 /**
  * ArtifactLineage — 产物血缘追踪 (v8.8 两阶段提交)
  *
+ * @deprecated Wave 5：两阶段提交语义已被 L6 采用的 knowledge/artifact/registry/ArtifactLineage
+ *   （图查询语义）取代——见 evaluation/lineageCompliance.ts 的 scoreLineageHealth。
+ *   本实现零逻辑消费者，仅经 workflow/index.ts → evolution/index.ts → core/index.ts:361
+ *   别名 WorkflowArtifactLineage 兼容导出。勿在新代码中使用。
+ *
  * MorPex v8.8: 追踪每个产物的来源和衍生关系。
  * 回答 "Where did this result come from?"
  *

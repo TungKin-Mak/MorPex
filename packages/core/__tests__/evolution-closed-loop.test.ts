@@ -13,6 +13,7 @@ import { ExperienceMiner } from '../src/evolution/ExperienceMiner.js';
 import { FailureAnalyzer } from '../src/evolution/FailureAnalyzer.js';
 import { ActiveEvolutionTrigger } from '../src/evolution/ActiveEvolutionTrigger.js';
 import { PatternMigrationEngine } from '../src/evolution/PatternMigrationEngine.js';
+import { SelfImprovementLoop } from '../src/evolution/SelfImprovementLoop.js';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../src/infrastructure/common/types.js';
 
@@ -104,5 +105,40 @@ describe('PatternMigrationEngine — 模式迁移接线', () => {
       id: 'evt_dept', type: 'department.created', timestamp: Date.now(),
       executionId: 'exe', source: 'test', payload: { departmentId: 'ecommerce' },
     })).not.toThrow();
+  });
+});
+
+describe('SelfImprovementLoop — Wave 5 演化安全闭环（只产提案，不自动审批）', () => {
+  it('evolve() 产出提案保持 pending（DRAFT），不自动 APPROVED', async () => {
+    const loop = new SelfImprovementLoop();
+    const r = await loop.evolve({
+      taskSuccessRate: 0.5, // 低于 0.8 阈值 → 必然产生 improvement insight → 生成提案
+      avgLatency: 1000,
+      failurePatterns: ['timeout'],
+      artifactQuality: 0.4,
+    });
+    expect(r.proposals.length).toBeGreaterThan(0);
+    for (const p of r.proposals) {
+      expect(['DRAFT', 'PENDING_REVIEW']).toContain(p.status);
+      expect(p.status).not.toBe('APPROVED');
+      expect(p.status).not.toBe('IMPLEMENTED');
+    }
+  });
+
+  it('evaluation 字段为 recommended（建议）而非 autoApproved（已审批）', async () => {
+    const loop = new SelfImprovementLoop();
+    const r = await loop.evolve({
+      taskSuccessRate: 0.3,
+      avgLatency: 2000,
+      failurePatterns: ['retry_exhausted'],
+      artifactQuality: 0.2,
+    });
+    expect(r.proposals.length).toBeGreaterThan(0);
+    for (const p of r.proposals) {
+      const ev = p.evaluation as { recommended?: boolean; autoApproved?: unknown } | undefined;
+      expect(ev).toBeDefined();
+      expect(typeof ev?.recommended).toBe('boolean');
+      expect(ev?.autoApproved).toBeUndefined();
+    }
   });
 });

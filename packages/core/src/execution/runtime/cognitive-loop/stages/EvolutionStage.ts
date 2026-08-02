@@ -1,5 +1,11 @@
 /**
- * EvolutionStage — 进化阶段
+ * EvolutionStage — 进化阶段（LEGACY 兼容层）
+ *
+ * ⚠️ Wave 5 标注：遗留兼容层演化路径，未在生产激活（CognitiveLoop 为兼容门面，
+ *   ServiceContainer/bootstrap/MorPexRuntime 均未实例化；StudioServer 仅注释提及）。
+ *   其「决策 approve → workflowPromotion.register + workflowRegistry.register」直接落地、
+ *   绕过 EvolutionSandbox Gate——勿扩展此路径；活跃演化 = L7 事件驱动管线
+ *   （ActiveEvolutionTrigger → SIL 只产提案 → EvolutionSandbox.approveAndApply 含 Gate 硬校验）。
  *
  * MorPex v8.7: 从完成的 Mission 中挖掘工作流模式并更新 Twin。
  *

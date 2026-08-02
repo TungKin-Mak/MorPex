@@ -41,7 +41,6 @@ import {
 import { createQueryPerformedEvent } from './gate/ontologyEvents.js';
 import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
 import { FeedbackService } from './knowledge/ontology/FeedbackService.js';
-import { FeedbackAwareLearner } from './evolution/FeedbackAwareLearner.js';
 
 // ── Ontology Gate for Primitives ──
 import { initializeOntologyGate, setPiBridge as setKqpBridge } from './infrastructure/tools/primitives/KnowledgeQueryPrimitive.js';
@@ -80,7 +79,6 @@ export interface UnifiedBootstrapResult {
   missionProjector: MissionProjector;
   artifactProjector: ArtifactProjector;
   feedbackService: FeedbackService;
-  feedbackAwareLearner: FeedbackAwareLearner;
 }
 
 export async function bootstrapUnified(options?: {
@@ -381,9 +379,6 @@ export async function bootstrapUnified(options?: {
   // ── 迭代3: FeedbackService ──
   const feedbackService = new FeedbackService(ontology);
 
-  // ── 迭代4: FeedbackAwareLearner ──
-  const feedbackAwareLearner = new FeedbackAwareLearner(eventStore ?? undefined);
-
   // ── vNext+: KnowledgeGapListener（QueryMiss → Feedback → Evolution 闭环）──
   const knowledgeGapListener = new KnowledgeGapListener({
     eventBus,
@@ -552,6 +547,5 @@ export async function bootstrapUnified(options?: {
     missionProjector,
     artifactProjector,
     feedbackService,
-    feedbackAwareLearner,
   };
 }

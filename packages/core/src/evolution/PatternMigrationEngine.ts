@@ -1,6 +1,10 @@
 /**
  * PatternMigrationEngine — 跨部门模式迁移引擎
  *
+ * ⚠️ Wave 5 标注：tested capability, NOT production-wired —— 仅 evolution-closed-loop.test.ts
+ *   实例化验证接线（department.created → 迁移）；无生产调用点。跨部门迁移若启用，
+ *   应接入 L7 事件管线并经 EvolutionSandbox 审批晋升，勿直接落地。
+ *
  * v16 Phase 4.7: 一人跨多领域虚拟公司的跨部门经验迁移能力。
  * 将一个部门验证成功的模式（工作流、工具链、SOP）适配并迁移到其他部门。
  *

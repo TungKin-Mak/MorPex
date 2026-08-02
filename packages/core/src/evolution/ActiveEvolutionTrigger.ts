@@ -1,5 +1,9 @@
 /**
- * ActiveEvolutionTrigger — 主动进化触发器
+ * ActiveEvolutionTrigger — 主动进化触发器（L7 权威演化路径）
+ *
+ * ⚠️ Wave 5 标注：本类是活跃演化的权威入口（事件驱动）。SIL 由 bootstrap
+ *   setSelfImprovementLoop 注入；MorPexRuntime 的直连 SIL.evolve() 仅为冗余只读分析
+ *   （只产提案，无生产变更），权威触发一律经本类消费事件。
  *
  * v16 Phase 4.7: 一人跨多领域虚拟公司的主动自我进化能力。
  * 在被动式 WorkflowMiner（每30分钟定期挖掘）之外，

@@ -25,7 +25,7 @@ export type {
   WorkflowTestSuiteResult,
 } from './testing/index.js';
 
-// ── v8.8 Artifact Lineage ──
+// ── v8.8 Artifact Lineage（@deprecated Wave 5：见 lineage/ArtifactLineage.ts 头注）──
 export { ArtifactLineage } from './lineage/index.js';
 export type {
   ArtifactNode,

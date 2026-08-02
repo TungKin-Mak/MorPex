@@ -358,6 +358,8 @@ export type {
 } from './evolution/index.js';
 
 // ── v8.8 Artifact Lineage (aliased to avoid conflict with Phase 3 Knowledge Plane ArtifactLineage) ──
+// @deprecated Wave 5：本别名对应 evolution/workflow/lineage 两阶段提交版（零逻辑消费者）；
+// L6 血缘评分用的是 knowledge/artifact/registry/ArtifactLineage（查询语义）。兼容保留。
 export { ArtifactLineage as WorkflowArtifactLineage } from './evolution/index.js';
 export type {
   ArtifactNode as WorkflowArtifactNode,
