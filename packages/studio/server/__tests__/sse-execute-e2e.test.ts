@@ -102,7 +102,7 @@ describe('SSE + /api/execute 闭环', () => {
     const execRes = await fetch(`${baseUrl}/api/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal: '写一个 todo 应用的代码实现', mode: 'auto' }),
+      body: JSON.stringify({ goal: '写一个 todo 应用的代码实现' }),
     });
     expect(execRes.status).toBe(200);
     const execBody = await execRes.json();

@@ -124,7 +124,7 @@ describe('Studio REST API — 契约', () => {
   });
 
   it('POST /api/execute 有效 goal → 执行返回', { skip: !RUN_LLM_E2E }, async () => {
-    const { status, body } = await postJson('/api/execute', { goal: '写一个 todo 应用的代码实现', mode: 'auto' });
+    const { status, body } = await postJson('/api/execute', { goal: '写一个 todo 应用的代码实现' });
     expect(status).toBe(200);
     expect(body).toBeTruthy();
   }, 60000);

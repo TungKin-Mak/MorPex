@@ -55,7 +55,7 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 60000 }, () 
   it('POST /api/execute 真实执行 → observations 记录调用链 + 执行 ID 可查', async () => {
     const execRes = await fetch(`${baseUrl}/api/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ goal: '写一个 todo 应用的代码实现', mode: 'auto' }),
+      body: JSON.stringify({ goal: '写一个 todo 应用的代码实现' }),
     });
     const execBody = await execRes.json();
     expect(execRes.status).toBe(200);

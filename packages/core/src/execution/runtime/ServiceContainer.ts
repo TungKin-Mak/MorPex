@@ -236,6 +236,25 @@ export class ServiceContainer {
     this.runtime.setPiBridge(piBridge);
   }
 
+  /** setContextAssemblyEngine — 注入上下文装配引擎到 MorPexRuntime（功能③ 聚焦装配，orchestrate 后调用） */
+  setContextAssemblyEngine(engine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null): void {
+    this._contextAssemblyEngine = engine;
+    if (typeof (this.runtime as any).setContextAssemblyEngine === 'function') {
+      (this.runtime as any).setContextAssemblyEngine(engine);
+    }
+  }
+
+  /** 功能③：注册真实数据 Provider 到装配引擎（bootstrap 在 ontology 就绪后调用） */
+  registerRealProviders(
+    goalProvider: import('../../knowledge/context/ContextFragmentRegistry.js').FragmentProvider,
+    missionProvider: import('../../knowledge/context/ContextFragmentRegistry.js').FragmentProvider,
+  ): void {
+    this._contextAssemblyEngine?.getRegistry().register(goalProvider);
+    this._contextAssemblyEngine?.getRegistry().register(missionProvider);
+  }
+
+  private _contextAssemblyEngine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
+
   /**
    * ready — 等待所有异步初始化完成
    * 确保 EventStore 等关键基础设施就绪后再对外暴露

@@ -148,9 +148,10 @@ export async function bootstrapUnified(options?: {
     ceoId,
   );
 
-  // 功能③：注入上下文组装引擎（L1 授权后装配聚焦上下文；引擎缺省零风险）
+  // 功能③：注入上下文组装引擎（装配统一在 MorPexRuntime orchestrate 后执行，读真实 Mission 数据；引擎缺省零风险）
   try {
     const { ContextAssemblyEngine } = await import('./knowledge/context/ContextAssemblyEngine.js');
+    const { GoalGraphProvider, MissionStateProvider } = await import('./knowledge/context/providers/realProviders.js');
     const assemblyEngine = new ContextAssemblyEngine(undefined, undefined, undefined, undefined, undefined, {
       enableVersioning: true,
       enableEnrichment: true,
@@ -160,7 +161,9 @@ export async function bootstrapUnified(options?: {
       focusMode: true, // 功能③：聚焦模式——只装当前任务材料
       maxTokens: 8000,
     });
-    companyFacade.setContextAssemblyEngine(assemblyEngine);
+    // 装配统一入口：MorPexRuntime orchestrate 后（Mission 已创建，missionId 真实）
+    // Provider 注册在 ontology 创建后（见下方 Ontology 迭代4 区块）
+    container.setContextAssemblyEngine(assemblyEngine);
     console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);
@@ -187,6 +190,18 @@ export async function bootstrapUnified(options?: {
   const ontology = new OntologyService(systemMetadataGraph, objectTypeRegistry);
   // OntologyService 构造函数已调用 refreshCache()，加载了重建后的数据
   const forcedQueryGuard = new ForcedQueryGuard();
+
+  // 功能③：注册真实数据 Provider（goal_graph 读真实 Goal / mission_state 读真实 Mission，挂 taskRef）
+  try {
+    const { GoalGraphProvider, MissionStateProvider } = await import('./knowledge/context/providers/realProviders.js');
+    container.registerRealProviders(
+      new GoalGraphProvider(ontology),
+      new MissionStateProvider(container.missionController),
+    );
+    console.log('[bootstrapUnified] ✅ 真实上下文 Provider 已注册（goal_graph/mission_state）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ 真实 Provider 注册失败（非阻断）:', (err as Error).message);
+  }
 
   // ★★★ 注入 Ontology Gate 到通用原语 ★★★
   initializeOntologyGate(forcedQueryGuard, ontology, eventStore, eventBus);
@@ -500,7 +515,10 @@ export async function bootstrapUnified(options?: {
     const hierarchicalPlanner = new HierarchicalPlanner(eventBus);
     (hierarchicalPlanner as any).setPiBridge?.(piBridgeWrapper);
     const arbitration = new CrossDepartmentArbitrationEngine(eventBus);
-    container.missionRuntime.setPlanner(new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration }));
+    const missionPlanner = new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration });
+    container.missionRuntime.setPlanner(missionPlanner);
+    // mode 收敛：统一规划前置到 MorPexRuntime orchestrate 后（同一实例，MissionRuntime FSM 复用已有 plan 防重复）
+    container.runtime.setPlanner(missionPlanner);
     // L3 非 Mission 路径接入：CompanyFacade 的 auto/dag/fabric 模式先规划再执行（失败不阻断）
     companyFacade.setDeliveryPlanner?.(deliveryPlanner);
     // S20 完整重包：BrainFacade 也聚合规划能力

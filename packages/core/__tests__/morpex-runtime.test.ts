@@ -62,7 +62,7 @@ describe('MorPexRuntime — 成功路径闭环', () => {
       output: 'function hello() { return 42; }', duration: 50,
     });
 
-    const result = await runtime.run('写一个 hello 函数并输出代码', { mode: 'auto', departmentId: 'engineering' });
+    const result = await runtime.run('写一个 hello 函数并输出代码', { departmentId: 'engineering' });
 
     // 闭环主断言
     expect(result.ok).toBe(true);
@@ -95,7 +95,7 @@ describe('MorPexRuntime — 成功路径闭环', () => {
       ok: true, executionId: 'exe_stub_2', mode: 'auto', status: 'completed',
       output: '这是一份纯文字报告，没有代码块。', duration: 30,
     });
-    const result = await runtime.run('写一份市场分析报告', { mode: 'auto' });
+    const result = await runtime.run('写一份市场分析报告');
     expect(result.ok).toBe(true);
     const types = result.artifacts.map((a: any) => a.type);
     expect(types).toEqual(['document']);
@@ -108,7 +108,7 @@ describe('MorPexRuntime — 失败与降级路径', () => {
       ok: false, executionId: 'exe_stub_f1', mode: 'auto', status: 'failed',
       error: 'stub engine exploded', duration: 10,
     });
-    const result = await runtime.run('写一个 hello 函数', { mode: 'auto' });
+    const result = await runtime.run('写一个 hello 函数');
     expect(result.ok).toBe(false);
     expect(result.artifacts).toHaveLength(0);
     expect(result.errors.some(e => e.includes('stub engine exploded'))).toBe(true);
@@ -127,7 +127,7 @@ describe('MorPexRuntime — 失败与降级路径', () => {
       ok: true, output: 'x', duration: 1,
     }, fakeSimulator);
 
-    const result = await runtime.run('一个必然资源不足的目标', { mode: 'auto' });
+    const result = await runtime.run('一个必然资源不足的目标');
     expect(result.ok).toBe(false);
     expect(result.errors.some(e => e.includes('资源不足'))).toBe(true);
     expect(result.artifacts).toHaveLength(0);
@@ -145,10 +145,10 @@ describe('MorPexRuntime — 事件与调用侧', () => {
       new VerificationEngine(), new ComplianceChecker(), new ApprovalGate(),
       new ExperienceMiner(), new ExecutionSimulator(), new DynamicTeamOrchestrator(),
     );
-    await runtime.run('构建一个 REST API 服务', { mode: 'mission', departmentId: 'engineering' });
+    await runtime.run('构建一个 REST API 服务', { departmentId: 'engineering' });
     expect(stub.calls).toHaveLength(1);
     expect(stub.calls[0].goal).toContain('REST API');
-    expect(stub.calls[0].mode).toBe('mission');
+    expect(stub.calls[0].mode).toBe('auto'); // 执行引擎选择内部化（mode 收敛）
     // 契约：departmentId 由 context.team.departments[0] 派生（非 options 直传）——generic 工作流可为 undefined
     expect(stub.calls[0].context?.executionId).toBeTruthy();
     expect(stub.calls[0].context?.missionId).toBeTruthy();

@@ -480,13 +480,19 @@ export class MissionRuntime {
     try {
       await this.transitionState(mission, MissionState.PLANNING, 'start_planning');
 
-      if (!this.planner) {
-        throw new Error('[MissionRuntime] No planner registered. Call setPlanner() first.');
+      // mode 收敛：统一规划已在 MorPexRuntime orchestrate 后执行（同一 planner 实例），此处复用已有 plan 防重复
+      let plan: MissionPlan;
+      if (mission.plan && (mission.plan as { steps?: unknown[] }).steps?.length) {
+        plan = mission.plan as MissionPlan;
+        console.log(`[MissionRuntime] 📋 复用统一规划 plan: ${(plan as { steps?: unknown[] }).steps?.length} 步`);
+      } else {
+        if (!this.planner) {
+          throw new Error('[MissionRuntime] No planner registered. Call setPlanner() first.');
+        }
+        plan = await this.planner.createPlan(mission);
+        mission.plan = plan;
+        console.log(`[MissionRuntime] 📋 Plan created: ${plan.steps.length} steps, risk=${plan.riskLevel}`);
       }
-
-      const plan = await this.planner.createPlan(mission);
-      mission.plan = plan;
-      console.log(`[MissionRuntime] 📋 Plan created: ${plan.steps.length} steps, risk=${plan.riskLevel}`);
 
       // 发射 PLAN_CREATED 事件
       this.bus.emit({

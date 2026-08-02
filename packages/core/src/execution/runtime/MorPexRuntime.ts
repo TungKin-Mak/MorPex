@@ -50,8 +50,6 @@ export interface RunOptions {
   departmentId?: string;
   /** 功能③：聚焦上下文（CompanyFacade 装配产出，注入执行路径；可选） */
   assembledContext?: string;
-  /** 执行模式 */
-  mode?: 'auto' | 'mission' | 'dag' | 'fabric';
   /** 自定义扩展属性 */
   [key: string]: unknown;
 }
@@ -72,6 +70,10 @@ export class MorPexRuntime {
   private learningEngine?: CrossAgentLearningEngine;
   /** 功能③：EventStore 引用（可选，历史抽离完整快照持久化用；未注入时降级为仅事件广播） */
   private eventStore: IEventStore | null = null;
+  /** 功能③：上下文装配引擎（orchestrate 后装配，读真实 Mission 数据；缺省 null 兼容） */
+  private contextAssemblyEngine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
+  /** 统一规划器（Mission 编排内先规划再执行——所有引擎共享；缺省 null 兼容） */
+  private planner: import('./mission/MissionRuntime.js').MissionPlanner | null = null;
 
   // ── Ontology 迭代4 ──
   private ontology: OntologyService | null = null;
@@ -114,6 +116,16 @@ export class MorPexRuntime {
 
   /** setEventStore — 注入 EventStore（功能③ 历史抽离：完整快照入权威存储，按 taskRef 召回） */
   setEventStore(es: IEventStore): void { this.eventStore = es; }
+
+  /** setContextAssemblyEngine — 注入上下文装配引擎（功能③ 聚焦装配，orchestrate 后调用） */
+  setContextAssemblyEngine(engine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null): void {
+    this.contextAssemblyEngine = engine;
+  }
+
+  /** setPlanner — 注入统一规划器（Mission 编排内先规划；与 MissionRuntime 同一实例，防重复规划） */
+  setPlanner(planner: import('./mission/MissionRuntime.js').MissionPlanner | null): void {
+    this.planner = planner;
+  }
   /** setForcedQueryGuard — 注入 ForcedQueryGuard（迭代4） */
   setForcedQueryGuard(g: ForcedQueryGuard): void { this.forcedQueryGuard = g; }
   /** setPiBridge — 注入 PiBridge（迭代4） */
@@ -142,7 +154,7 @@ export class MorPexRuntime {
         timestamp: Date.now(),
         executionId: context.executionId,
         source: 'morpex-runtime',
-        payload: { goal: goal.substring(0, 80), mode: options?.mode ?? 'auto' },
+        payload: { goal: goal.substring(0, 80), mode: 'auto' },
       });
 
       this.missionController.updateMission({
@@ -278,15 +290,55 @@ export class MorPexRuntime {
         }
       }
 
+      // ── Phase 1.6 统一规划（Mission 编排内先规划再执行——所有引擎共享，mode 收敛）──
+      //    DeliveryPlannerAdapter 内部发 planner.plan.started/completed；MissionRuntime FSM 复用已有 plan 防重复
+      if (this.planner && !(context.mission as { plan?: unknown }).plan) {
+        try {
+          // MissionState 无 goal/id 字段（字段为 objective/missionId）——构造 DeliveryPlannerAdapter 期望的 Mission 形状
+          const plan = await this.planner.createPlan({
+            id: context.mission.missionId,
+            goal: context.goal.objective,
+            departmentId: context.team.departments[0],
+          } as never);
+          (context.mission as { plan?: unknown }).plan = plan;
+          console.log(`[MorPexRuntime] 📋 统一规划完成: ${(plan as { steps?: unknown[] }).steps?.length ?? 0} 步`);
+        } catch (err) {
+          console.warn('[MorPexRuntime] ⚠️ 统一规划失败（非阻断，由引擎兜底）:', (err as Error).message);
+        }
+      }
+
+      // ── Phase 1.7 功能③：聚焦装配（orchestrate 后统一执行——Mission 已创建，读真实数据）──
+      //    goal_graph/mission_state Provider 读真实 Goal/Mission；taskRef=真实 missionId；非阻断
+      let focusedContext: string | undefined;
+      if (this.contextAssemblyEngine) {
+        try {
+          const assembled = await this.contextAssemblyEngine.assemble({
+            missionId: context.mission.missionId,
+            goal: context.goal.objective,
+            domain: context.goal.domain ?? (context.team.departments[0] as string | undefined),
+            tags: context.team.departments[0] ? [context.team.departments[0]] : undefined,
+            currentTask: { taskId: context.mission.missionId },
+          });
+          if (assembled.focusedSummary) {
+            focusedContext = assembled.focusedSummary;
+            console.log(`[MorPexRuntime] 🧩 聚焦上下文已装配 (${assembled.focusedSummary.length} 字符, mission=${context.mission.missionId})`);
+          }
+        } catch (err) {
+          console.warn('[MorPexRuntime] ⚠️ 上下文装配失败（非阻断，继续执行）:', (err as Error).message);
+        }
+      }
+
       // ── Phase 2: Execution（统一执行引擎）──
       const execRequest: ExecutionRequest = {
         goal: context.goal.objective,
-        mode: options?.mode ?? 'auto',
+        // 执行引擎选择内部化（UnifiedExecutionEngine auto 逻辑按复杂度选 fabric/dag/mission）
+        mode: 'auto',
         departmentId: context.team.departments[0],
         context: {
           executionId: context.executionId,
           missionId: context.mission.missionId,
           teamId: context.team.id,
+          ...(focusedContext ? { assembledContext: focusedContext } : {}),
         },
       };
       const execResult = await this.executionEngine.execute(execRequest);

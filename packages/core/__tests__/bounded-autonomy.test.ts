@@ -105,7 +105,7 @@ describe('UnifiedExecutionEngine — maxIterations（有界执行）', () => {
 
     const result = await engine.execute({
       goal: '永不完成的任务',
-      mode: 'mission',
+
       maxIterations: 2,
       timeoutMs: 60_000,
     });
@@ -134,7 +134,7 @@ describe('UnifiedExecutionEngine — 超时硬拦截（Wave 4）', () => {
 
     const result = await engine.execute({
       goal: '永不完成的任务',
-      mode: 'mission',
+
       timeoutMs: 1000,
     });
 
@@ -159,7 +159,7 @@ describe('UnifiedExecutionEngine — 超时硬拦截（Wave 4）', () => {
 
     const result = await engine.execute({
       goal: '永不完成的 DAG',
-      mode: 'dag',
+
       timeoutMs: 1000,
     });
 

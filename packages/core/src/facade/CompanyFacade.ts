@@ -23,7 +23,6 @@ export interface ExecuteGoalOptions {
   departmentName?: string;
   departmentId?: string;
   createIfMissing?: boolean;
-  mode?: 'auto' | 'mission' | 'dag' | 'fabric';
   /** 预估成本（用于资源检查） */
   estimatedCost?: number;
   [key: string]: unknown;
@@ -169,7 +168,6 @@ export class CompanyFacade {
     // ── 2. 构造 RunOptions（透传 mode + 所有选项） ──
     const deptId = options.departmentName ? this.departmentManager.findByName(options.departmentName)?.id : undefined;
     const runOpts: RunOptions = {
-      mode: options.mode, // ⬅️ 透传用户指定的 mode
       simulationHardFail: options.simulationHardFail ?? true,
       ontologyHardFail: options.ontologyHardFail ?? false,
       awaitApproval: options.awaitApproval ?? false,
@@ -177,44 +175,8 @@ export class CompanyFacade {
       departmentId: options.departmentId ?? deptId,
     };
 
-    // ── 2.2 功能③：L1 授权后装配聚焦上下文（门禁已过；非阻断——任何失败不影响执行） ──
-    if (this.contextAssemblyEngine) {
-      try {
-        const assembled = await this.contextAssemblyEngine.assemble({
-          missionId: `pre-${Date.now()}`,
-          goal,
-          domain: options.departmentName,
-          tags: options.departmentName ? [options.departmentName] : undefined,
-          // 功能③ 聚焦模式：只装当前任务材料（系统约束+goal+refs+近期摘要）
-        });
-        if (assembled.focusedSummary) {
-          runOpts.assembledContext = assembled.focusedSummary;
-          console.log(`[CompanyFacade] 🧩 聚焦上下文已装配 (${assembled.focusedSummary.length} 字符, domain=${options.departmentName ?? '无'})`);
-        }
-      } catch (err) {
-        console.warn('[CompanyFacade] ⚠️ 上下文装配失败（非阻断，继续执行）:', (err as Error).message);
-      }
-    }
-
-    // ── 2.5 L3 非 Mission 路径：DeliveryPlanner 规划（增强；失败不阻断执行） ──
-    // Mission 路径的规划由 MissionRuntime(DeliveryPlannerAdapter) 承担；此处覆盖 auto/dag/fabric。
-    let planInfo: { planId?: string; taskCount?: number; ontologyRefs?: string[] } | undefined;
-    if (this.deliveryPlanner && runOpts.mode !== 'mission') {
-      try {
-        const plan = await this.deliveryPlanner.createPlan({
-          goal,
-          mode: runOpts.mode,
-          departmentId: runOpts.departmentId,
-        });
-        planInfo = { planId: plan.id, taskCount: plan.tasks?.length ?? 0, ontologyRefs: plan.ontologyRefs };
-        (runOpts as { planId?: string }).planId = plan.id;
-        console.log(`[CompanyFacade] 📋 规划层介入（${runOpts.mode ?? 'auto'}）: plan=${plan.id} tasks=${planInfo.taskCount}`);
-      } catch (err) {
-        console.warn(`[CompanyFacade] ⚠️ 规划层未介入（非阻断）: ${(err as Error).message}`);
-      }
-    }
-
-    // ── 3. 执行 Runtime 管线 ──
+    // ── 3. 执行 Runtime 管线（统一入口：orchestrate 创建 Mission → MissionRuntime 内部规划/编排/执行）──
+    //    功能③ 聚焦装配在 MorPexRuntime orchestrate 后统一执行（读真实 Mission 数据，taskRef=真实 missionId）
     try {
       const result = await this.runtime.run(goal, runOpts);
       const duration = Date.now() - startTime;
@@ -251,7 +213,7 @@ export class CompanyFacade {
           // Brain 学习失败不阻断主流程
         }
       }
-      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: planInfo };
+      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: undefined };
     } catch (err) {
       return { ok: false, report: `❌ Runtime 执行失败: ${(err as Error).message}`, error: (err as Error).message };
     }
