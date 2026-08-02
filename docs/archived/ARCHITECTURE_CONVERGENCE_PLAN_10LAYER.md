@@ -1,5 +1,7 @@
 # MorPex 架构收敛重构方案（合并路径 + 删除清单 + 装配点修改）
 
+> ⚠️ **【部分已作废 —— 历史决策存档】**：本方案为 2026-08-01 的 10 层收敛决策记录（归档）。2026-08-02 提交 `03ed8e8` 已正式推翻其中 **E9 决策**：「SelfImprovementLoop vs LearningLoop 不合并，标注」作废——演化逻辑已自 `cognition/` 整体迁至 `evolution/`（L7 单轨），`SelfImprovementLoop / EvolutionProposal / ImprovementAnalyzer / FeedbackAwareLearner` 现为 L7 组件；`LearningLoop` 留在 `cognition/` 学习侧。本文件仅作历史决策存档，**不作为现行架构依据**；现行 8 层模型见 `docs/AICOS_CORE_ARCHITECTURE.md`。
+
 **版本**: 1.0 | **日期**: 2026-08-01 | **基于**: `docs/ARCHITECTURE_FUNCTION_MAP.md`（碎片化审计）
 **方法**: 以 `bootstrap-unified.ts` + `ServiceContainer.ts` + `StudioServer.ts` 三处装配锚点的 grep 消费者证据为准（"被装配"≠"活"；"废弃"≠"可删"）
 
@@ -67,7 +69,7 @@
 | E6 | `studio/server/learning/`（LearningPlane 等 4 文件） | **仅 V10API/V10Integration/V10MissionAdapter（死路由）** | **P3 删除** | 随 V10 死路由一起删 |
 | E7 | 能力注册：capability/CapabilityRegistry vs AgentCapabilityRegistry vs CapabilityGraph vs CapabilityStore | capability：bootstrap L100 装配（权威）；AgentCapabilityRegistry：**AgentController + QualityScorer + DynamicTeamOrchestrator（活）**；CapabilityGraph：**仅 archived**；CapabilityStore：deprecated | **P0/P4** | capability/ 权威保留；AgentCapabilityRegistry 保留（独立关注点：Agent 声明树，标注）；**CapabilityGraph + CapabilityStore P4 删除** |
 | E8 | `agent/evolution/AgentCapabilityEvolution` / `agent/optimizer/AgentAutoOptimizer` / `agent/benchmark/` | **全部 0 消费者** | **P0 删除** | 直接删（6 文件） |
-| E9 | SelfImprovementLoop vs LearningLoop | 前者→ActiveEvolutionTrigger（bootstrap L470-472）；后者→BrainFacade（bootstrap L437-441） | **不合并，标注** | 职责不同：8 阶段演化驱动 vs 学习三件套聚合；文档补边界说明 |
+| E9 | SelfImprovementLoop vs LearningLoop | 前者→ActiveEvolutionTrigger（bootstrap L470-472）；后者→BrainFacade（bootstrap L437-441） | **不合并，标注（⛔ 已作废，见文件顶部）** | 职责不同：8 阶段演化驱动 vs 学习三件套聚合；文档补边界说明（03ed8e8 已改为：演化归 L7 单轨，SIL 迁至 evolution/） |
 | E10 | CrossDepartmentKnowledgeSynthesizer 半装配 | bootstrap L447-448 仅塞 container.crossDeptSynthesizer，BrainFacade 无 setter | **P1 补装配** | 二选一：给 BrainFacade 加 setSynthesizer 并接线；或删 container 字段改纯内部实现（BrainFacade.synthesize 自包含）——推荐后者（少改面） |
 
 **E 簇 P0 可删**：agent/evolution/、agent/optimizer/、agent/benchmark/（共 6 文件）

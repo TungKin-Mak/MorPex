@@ -75,7 +75,7 @@
 | PolicyController（策略热更新） | ✅ | `feature-regression` / `governance-controllers` |
 | ResourceController（资源配额） | ✅ | `governance-controllers.test.ts` |
 | AgentController（agent 管理） | ⚠️ | 仅 `architecture-audit-fixes` 提及，无行为断言 |
-| **EvolutionController（演化提案控制）** | ✅ | `policy-engine.test.ts`（孪生集成/策略模拟/分析/观测） |
+| 演化归 L7（EvolutionController 已移除，Wave 3b） | ✅ | `governance-controllers.test.ts`（防回潮：cp.evolution 为 undefined）+ `policy-engine.test.ts`（L7 SelfImprovementLoop 直连） |
 | **PolicyEngine（13 条策略规则引擎）** | ✅ | `policy-engine.test.ts`（默认规则优先级/workflow 策略/agent 策略/execute 副作用，25 用例） |
 | ApprovalGate / 审批门禁 | ✅ | `phase0-smoke`（execute_goal 分级审批） |
 | CostController / AlertEngine / AuditTrail | ⚠️ | 无直接测试 |
@@ -266,7 +266,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 - [x] ~~**ArtifactFacade / MorPexRuntime FSM 状态机直接测试**~~ ✅（`artifact-facade.test.ts`：产物生命周期状态机 VALID_TRANSITIONS + Blueprint 依赖编排 + 事件广播，15 用例；`execution-fsm.test.ts`：ExecutionFSM 合法/非法转换 + 回调审计 + 持久化恢复，15 用例；`morpex-runtime.test.ts`：run() 9 阶段闭环 execute→artifact→verification→mission COMPLETED，5 用例）
 - [x] ~~**SSE 流真实推送测试**~~ ✅（`sse-execute-e2e.test.ts`：建连收 connected 首帧 + POST /api/execute 触发后 SSE 实时收到 execution.engine.started，含竞态防护——先等订阅就绪再触发）
 - [x] ~~**/api/execute 闭环测试**~~ ✅（`sse-execute-e2e.test.ts` HTTP 执行→事件流透传 + `morpex-runtime.test.ts` execute→artifact→评估 全链路）
-- [x] ~~**EvolutionController + PolicyEngine 测试**~~ ✅（`policy-engine.test.ts`：默认规则优先级/自定义规则/execute 副作用/workflow+agent 策略/EvolutionController 集成，25 用例）
+- [x] ~~**EvolutionController + PolicyEngine 测试**~~ ✅（Wave 3b 已移除 EvolutionController；`policy-engine.test.ts` 改测 L7 演化直连 + 4 Controller 防回潮，25 用例）
 - [x] ~~**补 ⚠️ 组件**~~ ✅（`synthesizer-fabric.test.ts`：CrossDepartmentKnowledgeSynthesizer 融合+迁移 10 用例 + ExecutionFabric 能力/重试 8 用例；PatternMigrationEngine/ActiveEvolutionTrigger 已由 evolution-closed-loop 覆盖）
 
 ### 🟢 P2（增强与自动化）

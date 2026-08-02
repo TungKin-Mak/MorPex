@@ -23,32 +23,32 @@
 | `facade/index.ts` | facade — CEO 高层操作入口模块 Phase 0 / 基础设施层 CompanyFacade = 一人虚拟公司的"CEO 控制台" / | 编排与协议适配；不承载业务/认知/存储逻辑 |
 
 
-## `governance/`（34 文件）
+## `governance/`（33 文件）
 
 > 层边界规则：目标级授权；不推理/不执行/不直接查知识
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
-| `governance/AlertEngine.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/AlertEngine.ts` | AlertEngine — 告警引擎（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/ApprovalGate.ts` | ApprovalGate — 审批门 v16: Compliance → RiskAssessment → ApprovalGate → Release Stabilization: 增加 ApprovalPolicyRegistry 商业级策略引擎 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/ArtifactChecker.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/ArtifactChecker.ts` | ArtifactChecker — 基于 QualityRule 的产物质量检查 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/AuditTrail.ts` | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  |
 | `governance/ComplianceChecker.ts` | ComplianceChecker — 合规检查引擎 v15: 按领域执行策略规则检查，返回 PASS/WARNING/BLOCK / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/CostController.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/ExecutionVerifier.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/CostController.ts` | CostController — 成本控制器（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/ExecutionVerifier.ts` | ExecutionVerifier — 基于 ArtifactChecker 的执行验证 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/GovernanceDashboard.ts` | GovernanceDashboard — 治理看板 v13 VCOS 100: 将 Observability & Governance 从 8→10 提供三个维度的治理视图: - SystemHealth: 系统健康度（模块状态、延迟、错误率） - CostReport: 成本追踪（LLM 调用、token 消耗） - ComplianceReport: 合规状态（PiBridge 隔离、barrel 完整性） 所有数据通过 EventBus 事件驱动采集，无需主动轮询。 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/PermissionModel.ts` | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe |
 | `governance/PolicyEngine.ts` | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 |
 | `governance/PolicyRuleRegistry.ts` | PolicyRuleRegistry — 合规策略规则注册中心 v15: 按领域注册可扩展的合规检查规则 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/QualityRule.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/RepairPlanner.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/QualityRule.ts` | QualityRule — 质量检查规则接口（QualityCheck） | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/RiskAnalyzer.ts` | RiskAnalyzer — 风险分析引擎 Phase 8 / MorPex v8: 在执行前评估 Mission 计划的潜在风险。 职责： 1. 分析 Mission 计划的复杂度风险 2. 检测涉及敏感领域（finance/legal/hr/production）的操作 3. 检测敏感工具（delete/deploy/email/payment）的使用 4. 评估权限范围（run-as / allowed-tools） 5. 生成包含缓解建议的 RiskAssessment 使用方式： const riskAn | RiskAnalyzer — 风险分析引擎 Phase 8 / MorPex v8: 在执行前评估 Mission 计划的潜在风险。 职责： 1. 分析 Mission 计划的复杂度风险 2. 检测涉及敏感领域（finance/legal/hr/production）的操作 3. 检测敏感工具（delete/deploy/email/payment）的使用 4. 评估权限范围（run-as / allowed-tools） 5. 生成包含缓解建议的 RiskAssessment 使用方式： const riskAn |
-| `governance/RuntimeManager.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/VerificationEngine.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/capability/AgentCapabilityRegistry.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/capability/CapabilityDiscoverer.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/RuntimeManager.ts` | RuntimeManager — 运行时管理器（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/VerificationEngine.ts` | VerificationEngine — 组合 QualityRule + ExecutionVerifier 的验证引擎 | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/capability/AgentCapabilityRegistry.ts` | AgentCapabilityRegistry — Agent 能力节点（CapabilityNode）注册 | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/capability/CapabilityDiscoverer.ts` | CapabilityDiscoverer — 基于 CapabilityRegistry 的能力发现 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/capability/CapabilityRegistry.ts` | CapabilityRegistry — 统一能力注册中心 (v16 合并版) 合并自: - capability/CapabilityRegistry.ts (静态注册) - experience/CapabilityStore.ts (动态模式存储) 现在: 一个地方存所有能力数据，包括成功率/步骤/领域/提取来源。 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/capability/index.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/capability/index.ts` | capability — 能力注册 barrel | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/control-plane/AgentController.ts` | AgentController — Agent 控制器 ═══ v16 重构 ═══ - 整合 AgentCapabilityRegistry + CapabilityRegistry - 提供能力匹配 + Agent 选择 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/control-plane/ControlPlane.ts` | ControlPlane — AI System Controller 类似 Kubernetes Controller，系统所有行为经过此层。 ═══ v16 重构 ═══ - 新增 checkAll() 聚合检查方法 - 所有控制器整合真实逻辑（非空壳） - CompanyFacade.executeGoal() 强制经过此层 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/control-plane/DepartmentContext.ts` | DepartmentContext — 部门上下文分区工具 Phase 0 / 数据隔离基础设施 提供 departmentId 分区工具，用于 Memory/Knowledge/Artifact 的数据隔离。 分区策略： - 每个部门的数据存储为 "dept:{departmentId}" 分区 - CEO 全局视图为 "global" 分区（只读） - 现有历史数据标记为 "legacy" 分区 使用方式： import { DepartmentContext } from './control-plane/D | 目标级授权；不推理/不执行/不直接查知识 |
@@ -60,7 +60,7 @@
 | `governance/control-plane/department-types.ts` | Department Types — 部门核心类型定义 Phase 0 / 组织层 虚拟部门 = 一人公司中的"工作流即部门"抽象 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/control-plane/index.ts` | control-plane — AI System Controller（理想架构第 1 层） 已取代旧版 control-plane（已废弃）；intent 解析已迁至 goal-intelligence/intent，编排已迁至 control-plane/orchestrator / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/control-plane/types.ts` | Role Types — 角色核心类型定义 Phase 0 / 组织层 相比 AgentRegistry 的完整生命周期管理，RoleRegistry 只关注： 1. 角色定义（岗位） 2. 角色分配（谁在什么部门担任什么角色） 3. 按角色查询 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/index.ts` | — | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/types.ts` | Governance Layer — 类型定义 Phase 8 / MorPex v8: 风险分析、审计追踪、治理配置。 设计原则： - RiskAnalyzer 只读不写：分析风险但不修改任何状态 - AuditTrail 只追加不改：审计日志不可篡改 - GovernanceConfig 集中配置：所有治理参数一处在 / | 目标级授权；不推理/不执行/不直接查知识 |
 
 
@@ -72,7 +72,7 @@
 |---|---|---|
 | `knowledge/artifact/ArtifactBlueprint.ts` | ArtifactBlueprint — 产物蓝图 Phase 1-5: 在执行之前先定义产物规格，Execution 围绕蓝图进行 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/ArtifactFacade.ts` | ArtifactFacade — 产物门面（v16 生命周期升级） v16: 全生命周期管理 Created→Validating→Reviewing→Approved→Released→Deployed→Retired + Lineage 追踪 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/artifact/index.ts` | — | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/artifact/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactDependencyResolver.ts` | ArtifactDependencyResolver — 产物依赖解析器 解析 Artifact 之间的依赖关系，检测循环依赖，拓扑排序。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactEmbedding.ts` | ArtifactEmbedding — 产物语义嵌入 为 Artifact 生成和管理语义向量，支持语义搜索和相似度比较。 注意：实际向量生成需要 LLM/Embedding 服务， 本模块提供向量存储、管理和相似度计算。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactEvaluator.ts` | ArtifactEvaluator — 产物评估引擎 从完整性、一致性、可用性、性能等维度评估 Artifact 质量。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -80,7 +80,7 @@
 | `knowledge/artifact/registry/ArtifactLineage.ts` | ArtifactLineage — 产物血缘追踪 追踪 Artifact 的血缘关系：谁生成了它，它基于什么生成，它被谁使用。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactRegistry.ts` | ArtifactRegistry — Artifact 注册中心 (v2: 支持 URI 引用) Phase 11.3 升级：标准化 URI 格式 - URI 格式: artifact://{domain}/{artifactType}/{artifactId} - resolve(uri) — 通过 URI 解析 ArtifactInstance - listByDomain(domainId) — 列出指定领域的所有产物 管理所有 Artifact 的注册、查找、追踪。 维护 Artifact 图谱（paren | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactVersion.ts` | ArtifactVersion — 版本管理 每次 Artifact 内容变更时创建版本快照。 支持版本回滚和变更追溯。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/artifact/registry/index.ts` | — | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/artifact/registry/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/plugin.ts` | Artifact Plugin — 交付物管理插件 管理 Agent 产出的实际交付物（Artifact Instance）。 注意：只管理 Instance（实际产物），Blueprint（蓝图）属于 Planner。 事件协议： - 监听: 'artifact.register'         ← 注册新 Artifact - 监听: 'artifact.update'           ← 更新 Artifact - 监听: 'artifact.create_relation'  ← 创建关系 - 监听: | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/types.ts` | Artifact Plugin — 类型定义 Artifact Model: Blueprint 和 Instance 的共同抽象。 Artifact Instance: 实际交付物（由 Agent 产出）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/ContextAssemblyEngine.ts` | ContextAssemblyEngine — 上下文组装引擎（核心） v9.1 Context Assembly Layer: 统一上下文构建入口。 流程： 1. 选择模板（按 templateId 或标签匹配） 2. 从注册中心收集必需 + 可选片段 3. 将片段注入 Builder 4. 应用模板基础数据 5. 构建 ExecutionContext 6. 运行增强流水线（可选） 7. 版本快照（可选） 8. 返回最终上下文 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -92,9 +92,9 @@
 | `knowledge/context/ContextVersioner.ts` | ContextVersioner — 上下文版本管理器 v9.1 Context Assembly Layer: 为 ExecutionContext 提供 Git-like 版本控制。 能力： - 快照（版本递增） - 按版本查询 - 版本历史 - 版本间差异 - 回滚到指定版本 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/index.ts` | Context Assembly Layer — Barrel Export v9.1: 统一上下文构建层导出入口。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/SystemMetadataGraph.ts` | SystemMetadataGraph — 系统元数据图 Phase 2: 记录所有实体关系 + EventStore 事件写入 + 事件重建 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/graph/index.ts` | — | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/graph/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/KnowledgeGraph.ts` | KnowledgeGraph — 轻量级知识图谱（实体 + 关系） ★ 记忆统一：存储由 JSONL 文件改为 SQLite（better-sqlite3，实时持久化）。 接口完全不变（addEntity/searchEntities/getNeighborhood/findPath/…）， 消费方（AgentHarness/MetaPlanner/StrategicDeconstructor 等）零感知。 兼容：loadFromDisk 时若 SQLite 为空且存在旧 JSONL，自动迁移一次。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/graph/knowledge/plugin.ts` | — | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/graph/knowledge/plugin.ts` | 【— 描述待补，非废弃判定】 | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/types.ts` | Knowledge Graph — 类型定义 统一知识图谱：整合 Agent / Task / Artifact / Decision / Memory 为上层提供跨数据源的查询接口。 扩展了 Cognee 风格的实体/关系类型，支持认知图谱（Cognitive Graph）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/CompanyKnowledge.ts` | memory/CompanyKnowledge — 公司知识记忆（Gate 接线注册表） 低耦合：模块级注册表 + 可选注入。 - bootstrap 装配时注入 memoryApi（cognee 引擎）；未注入时工具调用返回 QueryMiss，不硬崩。 - ontologyTools 的第 5 个工具 ontology_queryCompanyKnowledge 经此查询。 - QueryMiss → 复用现有事件链（ontology.query.miss / needs_human）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/MemoryActivationEngine.ts` | MemoryActivationEngine — 记忆激活引擎 根据当前状态、任务和执行上下文， 主动从 Memory Store 检索最相关的记忆并注入 Agent 上下文。 支持： - state-aware recall  — 根据执行状态检索 - task-aware recall   — 根据任务目标检索 - execution-aware recall — 根据执行历史和模式检索 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -119,7 +119,7 @@
 | `knowledge/ontology/prompts/prompt-types.ts` | Prompt Types — 提示词系统类型定义 三级分封架构（Leader → Expert → Fork）的提示词模板类型。 用于驱动 LLM 理解并严格执行 MorPex 系统的特权级约束。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 
 
-## `gate/`（5 文件）
+## `gate/`（6 文件）
 
 > 层边界规则：认识论拦截+信号；只读+不决策/不执行/不改权威知识
 
@@ -130,9 +130,10 @@
 | `gate/ontologyEvents.ts` | ontologyEvents — Ontology 事件类型定义 迭代2：定义 Ontology 相关事件类型，用于 Event Sourcing 记录。 事件命名空间：ontology.* / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/runOntologyGroundedReasoning.ts` | runOntologyGroundedReasoning — 共享的 Ontology Grounded Reasoning 方法 迭代2+补丁： Phase 1 - 强制查询：LLM 输出查询计划 → 执行 → 记录 - JSON 解析失败时执行默认安全查询兜底 - 空结果自动标记 missing_info Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal - 引用校验失败 → emit ReferenceValidationFailed 事件 可被 DeliveryPlanner | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/types.ts` | Ontology — 轻量本体层类型定义 迭代1：包装现有 MetadataGraph，暴露 4 个 ontology 工具给 LLM / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
+| `gate/context.ts` | KnowledgeContextPackage — 运行时 Gate 上下文 + Tier 写入守卫 + 提案状态守卫（Wave 3b）。由 runOntologyGroundedReasoning 签发凭证；Artifact 注册/演化晋升入口硬校验（缺包抛 GateContextRequiredError）；TierWriteGuard：Tier-3 禁覆盖 Tier-0/1、Tier-2 仅 L7 晋升可写；ProposalStatusGuard：未审批只能是 pending | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 
 
-## `cognition/`（60 文件）
+## `cognition/`（56 文件）
 
 > 层边界规则：理解/推理/规划；禁副作用Primitive/不改知识/不触发演化
 
@@ -140,13 +141,9 @@
 |---|---|---|
 | `cognition/BrainFacade.ts` | BrainFacade — 统一大脑门面 Phase 4.5 / 架构打磨 — P1 修复 将 4 套重叠的大脑系统统一为一个入口： - PersonalBrain   (cognition/memory/) — 五层记忆，内存级 - MemoryWiki       (packages/memory/)   — SQLite 持久层（zvec 已废弃移除 S17） - LearningLoop     (learning/)          — 经验提取 + 策略优化 - EvolutionEngine  (e | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/CrossDepartmentKnowledgeSynthesizer.ts` | CrossDepartmentKnowledgeSynthesizer — 跨部门知识融合引擎 v16 Phase 4.7: 一人跨多领域虚拟公司的核心智能引擎。 将不同部门的经验、模式、知识进行对比和融合，自动迁移成功模式。 设计原则： - EventBus 是唯一通信通道 - 部门级数据隔离（所有查询带 deptId） - PiBridge 隔离底层 LLM - 真实执行，无 mock 数据流： BrainFacade.processTask() → CrossDepartmentKnowledgeSynthe | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `evolution/EvolutionProposal.ts` | EvolutionProposal — 演化提案数据模型（Wave 3a 自 cognition/ 迁入）。创建后状态必须为 pending（DRAFT→PENDING_REVIEW→APPROVED）；tier-0/1 创建必须持有 KnowledgeContextPackage（Wave 3b Gate 硬拦截） | L7 演化唯一所有者；未审批状态只能是 pending |
-| `evolution/FeedbackAwareLearner.ts` | FeedbackAwareLearner — 消费反馈与查询失败的进化学习器（Wave 3a 自 cognition/ 迁入）。三类信号：Feedback / OntologyQueryPerformed / OntologyReferenceValidationFailed；输出改进提案交 L7 提案管线 | L7 演化唯一所有者；事件驱动，不直接触发生产变更 |
-| `evolution/ImprovementAnalyzer.ts` | ImprovementAnalyzer — 改进洞察分析（Wave 3a 自 cognition/ 迁入）：成功率/延迟/失败模式 → ImprovementInsight 列表 | L7 演化唯一所有者；只产洞察，不执行 |
 | `cognition/MetaLearner.ts` | MetaLearner — 元学习（任务记录 → 偏好/模式学习，纯学习无提案权） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/ReflectionEngine.ts` | ReflectionEngine — 反思引擎（任务后反思 → 洞察/建议，只读数据） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/SafetyMonitor.ts` | SafetyMonitor — 安全监控器 Phase 2: 持续观察系统状态，检测异常模式 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `evolution/SelfImprovementLoop.ts` | SelfImprovementLoop — 自我改进闭环（Wave 3a 自 cognition/ 迁入）。Observation → Analysis → Proposal → Simulation → Evaluation → Approval → Deployment → Monitor；只生成提案，不直接修改代码。Wave 3b：晋升经 EvolutionSandbox.approveAndApply 需 Gate 凭证 | L7 演化唯一所有者；L4 禁止直接触发 |
 | `cognition/decision/DecisionTwin.ts` | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne |
 | `cognition/decision/index.ts` | cognition/decision — Decision Twin barrel P1 架构完善: 用户决策模式分析引擎 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/decision/types.ts` | Decision Twin — 类型定义 P1 架构完善: 用户决策模式的数据模型。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -168,7 +165,7 @@
 | `cognition/learning/agent/LearningPropagationService.ts` | LearningPropagationService — 学习传播服务 控制经验的可见性与传播范围。 支持按 Agent 类型传播、匿名化。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/agent/index.ts` | Cross-Agent Learning — 统一导出 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/agent/types.ts` | Cross-Agent Learning — 类型定义 (v9.2) Agent 间经验共享的类型系统。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/learning/index.ts` | — | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/learning/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/memory/BrainPersistor.ts` | BrainPersistor — PersonalBrain（内存大脑）持久化桥接 记忆统一入口：优先经 MemoryAPI（统一层，SQLite/cognee 保存），回退旧 MemoryWiki 兼容。 - persist  → memoryApi.rememberEpisode（情景低门槛直写统一层） - restore  → 从统一层 query 恢复（按层关键词），或 wiki 兼容 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/memory/DecisionMemory.ts` | DecisionMemory — 决策记忆存储 Phase 6 / MorPex v8: 存储用户的决策模式，用于预测和推荐。 职责: 1. 存储关键决策记录 2. 分析常见决策因素 3. 按上下文搜索相似决策 4. 为 Planner 提供决策依据 与 PersonalTwinGraph 的关系: - PersonalTwinGraph 存储决策节点（图谱视角） - DecisionMemory 存储决策细节（记忆视角） - DecisionMemory.getCommonFactors() → TwinGrap | DecisionMemory — 决策记忆存储 Phase 6 / MorPex v8: 存储用户的决策模式，用于预测和推荐。 职责: 1. 存储关键决策记录 2. 分析常见决策因素 3. 按上下文搜索相似决策 4. 为 Planner 提供决策依据 与 PersonalTwinGraph 的关系: - PersonalTwinGraph 存储决策节点（图谱视角） - DecisionMemory 存储决策细节（记忆视角） - DecisionMemory.getCommonFactors() → TwinGrap |
 | `cognition/memory/PersonalBrain.ts` | PersonalBrain — 个人大脑（统一记忆门面） Phase 6 / MorPex v8: 五层记忆体系的统一入口。 记忆分层: working    — 工作记忆（短期、会话级，30 分钟 TTL） episodic   — 情景记忆（事件、经历，7 天 TTL） semantic   — 语义记忆（事实、知识，永久） preference — 偏好记忆（用户喜好，永久） workflow   — 工作流记忆（已学流程，永久，委托给 WorkflowMemory） 设计原则: 1. 统一 API 访问所有 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -178,14 +175,14 @@
 | `cognition/planning/CrossDepartmentArbitrationEngine.ts` | CrossDepartmentArbitrationEngine — 跨部门冲突仲裁引擎 v16: 检测并仲裁跨部门计划冲突（资源竞争、循环依赖、时间窗口冲突）。 在 HierarchicalPlanner.createPlan() 之后自动调用。 仲裁策略: - 'priority': 按部门优先级（CEO 设定） - 'cost': 按预估成本最小化 - 'risk': 按风险最低优先 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/DeliveryPlanner.ts` | DeliveryPlanner — 统一规划引擎（Facade） Phase 2 / 交付层 对外提供统一的规划入口，对内委托给: - MetaPlanner（完整 7 引擎规划管线） - CognitivePipeline（认知管线中的规划阶段） - SimulationEngine（执行前仿真预测） 设计原则： - Facade 模式：不修改现有模块 - 根据任务复杂度自动选择规划路径 - 支持 "快速规划"（简单任务跳过仿真） - 支持 "完整规划"（复杂任务走全管线） 规划模式： - 'quick': 快速 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/DeliveryPlannerAdapter.ts` | DeliveryPlannerAdapter — 将 DeliveryPlanner 适配为 MissionPlanner 接口 L3 全功能实现：把理想架构第 3 层（DeliveryPlanner，真实 piBridge + Ontology Gate） 接入 MissionRuntime 的任务 FSM 规划阶段（此前规划层不可达）。 深度接入（vNext+ L3）： - 主规划：DeliveryPlanner.createPlan（Ontology Grounded） - 重规划（replan）：Hiera | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/HierarchicalPlanner.ts` | — | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/HierarchicalPlanner.ts` | 【— 描述待补，非废弃判定】 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/ConstraintAnalyzer.ts` | ConstraintAnalyzer — 约束分析器 从目标文本中提取预算/期限/平台等约束 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalParser.ts` | GoalParser — 目标解析器 将用户原始语句解析为目标+领域+子目标 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalValidator.ts` | GoalValidator — 目标验证器 检查目标上下文的完整性和可行性 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/RequirementExtractor.ts` | RequirementExtractor — 从目标中提取能力需求 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/index.ts` | — | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/types.ts` | — | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/types.ts` | 【— 描述待补，非废弃判定】 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/index.ts` | planner — 统一规划层 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/twin/BehaviorTwin.ts` | BehaviorTwin v2 — 用户行为模式学习引擎（含版本化） MorPex v8.6: 从交互历史中学习用户行为模式， 输出 BehaviorProfile 供 Planner 约束生成风格匹配的方案。 ★ v8.6 新增：版本化支持。每次 buildProfile 调用都会创建一个 版本快照，可通过 getVersion/getVersionHistory/diffVersions 回溯。 学习维度: - planningStyle:       规划风格（自上而下/架构优先/原型优先） - riskTo | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/twin/OrganizationTwin.ts` | OrganizationTwin — 组织孪生 Phase 2: 模拟虚拟公司的组织结构、角色决策、协作策略 复用 BehaviorTwin/DecisionTwin/PreferenceModel 作为个体基础 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -206,39 +203,39 @@
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
-| `execution/AgentAllocator.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/DependencyCoordinator.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/AgentAllocator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/DependencyCoordinator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/DynamicTeamOrchestrator.ts` | DynamicTeamOrchestrator — 动态团队编排器 (v16) 能力驱动: Goal → CapabilityDiscovery → WorkflowSelection → TeamFormation → Execution / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/SubAgentFork.ts` | SubAgentFork — 无状态子 Agent 执行肢（Fleet） Phase 2 / 交付层 增强 Phase 0 的 ForkExecuteTool（单次 bash/JS 执行）为完整的 "子 Agent 舰队"管理： 1. 创建临时子 Agent 执行任务（通过 fork） 2. 子 Agent 有独立的 DepartmentContext 分区 3. 执行完成后记忆快照自动写入部门 Memory 4. 通过 EventBus 广播生命周期事件 5. 支持超时、重试、并发控制 对比 ForkExecut | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/TeamBuilder.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/TeamBuilder.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/UnifiedExecutionEngine.ts` | UnifiedExecutionEngine — 统一执行引擎（Facade） Phase 2 / 交付层 对外提供统一的执行入口，对内委托给三个现有执行模块: - MissionRuntime (24 状态 FSM) - DAGRuntime (DAG 调度) - ExecutionFabric (v11 Agent 能力解析 + Connector 调用) 设计原则： - Facade 模式：不修改现有模块，只在外部包裹统一 API - 根据执行模式（mode）自动路由到正确的引擎 - 聚合状态查询：统一从三个 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/ExecutionFabric.ts` | ExecutionFabric — v11 Unified Execution Fabric Merges AgentRuntime, Scheduler, and Connector Runtime into a single execution plane. Coordinates the flow: Workflow Node → Capability Resolver → Agent Selection → Action Request → Execution @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/index.ts` | Execution Fabric — v11 Unified Execution Plane @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/AgentHarness.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/ContextBuilder.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/HarnessContext.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/AgentHarness.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/ContextBuilder.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/HarnessContext.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/orchestrator/AgentOrchestrator.ts` | AgentOrchestrator — Agent 编排器 管理 Agent 的创建、分配、生命周期。 支持 CEO/Manager 层级结构。 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/orchestrator/plugin.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/orchestrator/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/swarm/SwarmEngine.ts` | SwarmEngine — 群组智能引擎 管理 Agent 群组（Swarm），支持多种协作策略： - consensus: 共识决策（多数表决） - round_robin: 轮流执行 - voting: 加权投票 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/swarm/plugin.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/harness/swarm/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/types.ts` | Memory record retrieved from memory store */ | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/index.ts` | Execution — v11 Execution Plane + Phase 2 统一引擎 @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/ExecutionContext.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/MorPexRuntime.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/PersistentArtifactStore.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/ExecutionContext.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/MorPexRuntime.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/PersistentArtifactStore.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/PersistentMissionStore.ts` | PersistentMissionStore — Event Sourcing 架构 所有 Mission 状态变化通过事件记录，启动时从事件重放重建状态 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/PipelineOrchestrator.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/ServiceContainer.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/PipelineOrchestrator.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/ServiceContainer.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/approval/ApprovalEngine.ts` | ApprovalEngine — 审批引擎 Phase 4 / MorPex v8: 标准化人工审批流程管理。 职责： 1. 创建审批请求（高风险操作需要人工确认） 2. 发射 APPROVAL_REQUIRED 事件让前端展示 3. 支持 approve / deny / 超时自动拒绝 4. 低风险操作可配置自动批准 与 MissionRuntime 的集成： MissionRuntime 在 WAIT_APPROVAL 状态下调用 ApprovalEngine： const request = await ap | ApprovalEngine — 审批引擎 Phase 4 / MorPex v8: 标准化人工审批流程管理。 职责： 1. 创建审批请求（高风险操作需要人工确认） 2. 发射 APPROVAL_REQUIRED 事件让前端展示 3. 支持 approve / deny / 超时自动拒绝 4. 低风险操作可配置自动批准 与 MissionRuntime 的集成： MissionRuntime 在 WAIT_APPROVAL 状态下调用 ApprovalEngine： const request = await ap |
 | `execution/runtime/approval/index.ts` | approval — Approval Engine Barrel Phase 4 / MorPex v8: 人工审批流程管理。 导出： - ApprovalEngine   审批引擎（核心类） - ApprovalRequest  审批请求类型 - ApprovalStatus   审批状态类型 - ApprovalEngineConfig  审批引擎配置 - ApprovalEventPayload  审批事件负载 - ApprovalStats    审批统计类型 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/approval/types.ts` | Approval Engine — 类型定义 Phase 4 / MorPex v8: 人工审批流程的标准数据结构。 设计原则： - 每个审批请求独立追踪（id, status, context） - 审批请求可过期自动拒绝（timeoutMs） - 低风险操作可选自动审批（autoApproveLowRisk） / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/budget/BudgetManager.ts` | BudgetManager — 预算管理器 MorPex v8.8: 防止 Agent 无限消耗 Token/步骤/费用。 每个 Mission 有独立的预算上限，超限时触发告警或阻止执行。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/budget/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/budget/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/checkpoint/CheckpointManager.ts` | CheckpointManager — 检查点管理器 (v9.2 Phase 1 Enhanced) 负责保存和加载执行快照，支持中断继续执行和失败恢复。 支持双后端: 原有 JSONL（默认）+ SQLite（当传入 db） v9.2 Phase 1 增强: - SQLite 后端 (checkpoints 表) - saveMissionCheckpoint: 富检查点 (stage/context/artifacts/team) - loadMissionCheckpoint: 按 mission 恢复最新检 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/checkpoint/RecoveryManager.ts` | RecoveryManager — 执行恢复管理器 根据检查点快照生成恢复计划。 确定哪些节点需要重试、哪些可以跳过、哪些正在执行中。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/checkpoint/ReplayEngine.ts` | ReplayEngine — 重放引擎 从检查点快照重放执行过程，支持 step-by-step 和 full-speed 模式。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/checkpoint/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/checkpoint/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/cognitive-loop/CognitiveLoop.ts` | CognitiveLoop — 认知循环（v8.6 兼容门面） MorPex v8.6: CognitiveLoop 现在是 CognitivePipeline 的兼容门面。 内部使用 CognitivePipeline + 8 个独立 Stage，对外保持相同接口。 向后兼容: - process(msg) — 行为不变 - asMessageHandler() — 行为不变 - approveCandidate / denyCandidate / getPendingCandidates — 行为不变 - ch | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/cognitive-loop/CognitivePipeline.ts` | CognitivePipeline — 认知流水线 MorPex v8.6: 替代 CognitiveLoop God Object，将 9 个阶段拆分为独立 Stage。 设计原则: 1. 每个 Stage 只做一件事（Single Responsibility） 2. 通过 CognitiveContext 传递状态（无共享可变状态） 3. 每个 Stage 可以独立测试 4. Control Plane 模块（RiskAnalyzer/PolicyEngine/AuditTrail）作为横切注入点 使用方式: | CognitivePipeline — 认知流水线 MorPex v8.6: 替代 CognitiveLoop God Object，将 9 个阶段拆分为独立 Stage。 设计原则: 1. 每个 Stage 只做一件事（Single Responsibility） 2. 通过 CognitiveContext 传递状态（无共享可变状态） 3. 每个 Stage 可以独立测试 4. Control Plane 模块（RiskAnalyzer/PolicyEngine/AuditTrail）作为横切注入点 使用方式: |
 | `execution/runtime/cognitive-loop/index.ts` | runtime/cognitive-loop — 认知运行时循环 Barrel Phase 6 / MorPex v8.5 v8.6: 新增 CognitivePipeline + CognitiveStage 接口 + 8 个阶段 / | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -254,19 +251,19 @@
 | `execution/runtime/cognitive-loop/stages/index.ts` | Cognitive Pipeline Stages — Barrel Export MorPex v8.6: 认知流水线各个阶段的统一导出。 v9.1: 新增 ContextStage（在 IntentStage 之前执行）。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/cognitive-loop/types.ts` | Cognitive Runtime Loop — 类型定义 Phase 6 / MorPex v8.5: 认知循环的统一上下文与阶段类型。 CognitiveLoop 是整个系统的统一入口编排器， 将 Interaction → Cognition → Mission → Learning 串联为一个闭环。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/compensation/CompensationEngine.ts` | CompensationEngine — 补偿引擎（Saga 模式） MorPex v8.8: 任务失败时按逆序回滚已执行的操作。 基于 Saga 模式：每个步骤注册对应的补偿操作，失败时自动回滚。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/compensation/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/compensation/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/DAGRuntime.ts` | DAGRuntime — DAG 运行时主引擎 将 MetaPlanner 产生的 ExecutionDAG 转换为真实执行。 流程: 1. 接收 ExecutionDAG → 构建 TaskGraph 2. 循环: 解析依赖 → 调度 → 执行 → 直到完成或失败 3. 返回 DAGResult / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/DependencyResolver.ts` | DependencyResolver — 依赖解析器 管理 DAG 节点间的依赖关系，判断哪些节点可以执行。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/ParallelExecutor.ts` | ParallelExecutor — 并行执行器 并发执行多个 TaskNode，处理执行结果和错误。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/Scheduler.ts` | Scheduler — DAG 调度器 决定下一批可执行的节点，支持优先级和并发控制。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/TaskGraph.ts` | TaskGraph — DAG 图结构 管理节点和边的数据结构和组织。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/TaskNode.ts` | TaskNode — DAG 执行节点 包装 DAGNode，添加运行时执行状态。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/dag/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/dag/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/types.ts` | DAG Plugin — 类型定义 DAG 节点、边、验证、状态相关类型。 从 src/core/types.ts 中的 AdaptiveDAGNode 等类型迁移。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/index.ts` | ── Runtime Kernel (Phase 1 / MorPex v8) ── | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/mission/MissionController.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/mission/MissionController.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/MissionRuntime.ts` | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 |
-| `execution/runtime/mission/MissionTypes.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/mission/MissionTypes.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/DAGExecutorAdapter.ts` | DAGExecutorAdapter — 将 DAGRuntime 适配为 MissionExecutor 接口 P0 架构完善: 连接 MissionRuntime → DAGRuntime MissionRuntime 通过 MissionExecutor 接口委托执行工作。 此适配器将现有的 DAGRuntime（TaskGraph/Scheduler/ParallelExecutor）包装为 MissionExecutor。 使用方式： const adapter = new DAGExecutorAdap | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/GatewayHandler.ts` | GatewayMissionHandler — 将 MessageGateway 连接到 MissionRuntime P0 架构完善: 连接 Interaction Gateway → Mission Runtime MessageGateway 通过 MessageHandler 接口委托消息处理。 此处理器将用户消息转换为 Mission，触发 Mission 的完整生命周期。 使用方式： const handler = new GatewayMissionHandler(missionRuntime); m | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/MetaPlannerAdapter.ts` | MetaPlannerAdapter — 将 MetaPlanner 适配为 MissionPlanner 接口 P0 架构完善: 连接 MissionRuntime → MetaPlanner ★ v8.5 升级: 读取 Twin 约束 (PlannerConstraint) 并注入 MetaPlanner MissionRuntime 通过 MissionPlanner 接口委托规划工作。 此适配器将现有的 MetaPlanner（7-Stage Pipeline）包装为 MissionPlanner。 使用方 | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -274,40 +271,45 @@
 | `execution/runtime/mission/index.ts` | runtime/mission — Mission Runtime 模块统一入口 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排。 导出: - MissionState:          业务级生命周期枚举（8 状态） - MISSION_VALID_TRANSITIONS: 有效转换映射 - MissionRuntime:        运行时主引擎 - MissionPlanner/MissionExecutor: 规划器/执行器接口  | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/types.ts` | Mission Runtime — 任务/使命数据类型定义 Phase 3 / MorPex v8: Mission 是用户意图的顶级抽象。 设计原则： 1. 每个用户意图实例化为一个 Mission 2. Mission 有完整的业务生命周期（MissionState 枚举） 3. Mission 拥有 Plan（策略层）和 Execution（执行层） 4. Mission 携带权限上下文（approval / allowedTools） 与现有 ExecutionFSM（agent-level）的关系： -  | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/sandbox/SandboxManager.ts` | SandboxManager — 沙箱执行管理器 MorPex v8.8 -> v9.2: 从模拟层升级为真实代码执行。 每个任务在沙箱上下文中执行，限制 CPU/内存/网络/文件系统访问。 v9.2 新增: - executeCode() — 真实 child_process 执行代码 - executeCodeFromArtifact() — 从产物自动提取并执行 - detectLanguage() — 自动识别代码语言 - 支持 Python, JavaScript, Go, Bash, TypeScrip | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/sandbox/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/sandbox/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/sandbox/types.ts` | Sandbox — 类型定义 MorPex v8.8: 沙箱隔离执行上下文。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/scheduler/SchedulerEngine.ts` | SchedulerEngine — STUB (replaced by DAG Runtime's Scheduler) @deprecated Use Scheduler from runtime/dag/ / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/scheduler/plugin.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/scheduler/plugin.ts` | 【— 描述待补，非废弃判定】 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/simulation/ExecutionSimulator.ts` | ExecutionSimulator — 执行计划模拟器 v16: 在规划后执行前模拟，发现潜在问题 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/simulation/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/simulation/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/state-machine/ExecutionFSM.ts` | ExecutionFSM — 执行状态机 MorPex Runtime 执行状态管理。 管理 Agent 执行的生命周期状态转换。 States: CREATED → PLANNING → READY → EXECUTING ⇄ WAITING ↓ REVIEWING → COMPLETED ↓ FAILED / CANCELLED Features: - 状态转换验证 - 状态持久化 (JSONL) - 状态恢复 - 事件发射 - 审计日志 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/state-machine/index.ts` | — | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/state-machine/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/verification/VerificationEngine.ts` | VerificationEngine — 验证引擎 Phase 4 / MorPex v8: 验证 Mission 执行结果的完整性、正确性。 使用场景： MissionRuntime 在 MissionState.VERIFYING 阶段调用 verify() 验证完成后根据结果决定进入 COMPLETED 或 FAILED 标准验证点： 1. step_completion   — 计划中所有步骤是否都完成（weight: 0.4） 2. output_presence   — 是否产生了输出（weight:  | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/verification/index.ts` | runtime/verification — Verification Engine Barrel Phase 4 / MorPex v8: 验证引擎统一导出入口。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/verification/types.ts` | Verification Engine — 类型定义 Phase 4 / MorPex v8: 验证 Mission 执行结果的标准数据结构。 设计原则： - 每次验证产生一个 VerificationResult（不可变） - 每个验证点（check）有明确的权重和通过/不通过 - Issue 区分三个严重等级：error / warning / info / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/types.ts` | Organization Types — 组织上下文类型定义 Phase 0 / 组织层 v15: +DynamicTeam 动态团队编排类型 为 Memory/Knowledge/Artifact 操作提供部门感知上下文 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 
 
-## `evaluation/`（4 文件）
+## `evaluation/`（5 文件）
 
 > 层边界规则：评分+血缘+低分信号；不修改行为/不执行业务
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
-| `evaluation/EvaluationEngine.ts` | — | 评分+血缘+低分信号；不修改行为/不执行业务 |
-| `evaluation/QualityScorer.ts` | — | 评分+血缘+低分信号；不修改行为/不执行业务 |
+| `evaluation/EvaluationEngine.ts` | EvaluationEngine — 系统级评价（Wave 3a 事件桥）：注入 EventBus 后必发 evaluation.scored，低于阈值（默认 0.6）发 evaluation.low_score；纯函数返回值不变；低分只发事件，不直接触发生产变更 | 评分+血缘+低分信号；不修改行为/不执行业务 |
+| `evaluation/QualityScorer.ts` | QualityScorer — 质量评分器：scoreSystem(metrics) → {overall, dimensions, suggestions}（overall 0-100），decide(score) → continue/retry/replan/abort | 评分+血缘+低分信号；不修改行为/不执行业务 |
 | `evaluation/index.ts` | L6 Evaluation 评价层 | 评分+血缘+低分信号；不修改行为/不执行业务 |
 | `evaluation/ontologyCompliance.ts` | ontologyCompliance — Ontology 查询合规评分 迭代1：在现有 EvaluationEngine 基础上增加两维： - queryScore：是否执行了 ontology 查询 - referenceScore：引用的 ID 是否都来自已检索集合 用法： const { queryScore, referenceScore } = scoreOntologyCompliance(guard, executionId, referencedIds); // 将分数注入 evaluation  | 评分+血缘+低分信号；不修改行为/不执行业务 |
+| `evaluation/lineageCompliance.ts` | lineageCompliance — L6 血缘健康评分（Wave 3a 新增）：复用 L2 ArtifactLineage 计算批准占比/孤立节点/违规清单 → LineageHealthScore（0-1），不直接触发生产变更 | 评分+血缘+低分信号；不修改行为/不执行业务 |
 
 
-## `evolution/`（24 文件）
+## `evolution/`（28 文件）
 
 > 层边界规则：提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
+| `evolution/EvolutionProposal.ts` | EvolutionProposal — 演化提案数据模型（Wave 3a 自 cognition/ 迁入）。创建后状态必须为 pending（DRAFT→PENDING_REVIEW→APPROVED）；tier-0/1 创建必须持有 KnowledgeContextPackage（Wave 3b Gate 硬拦截） | L7 演化唯一所有者；未审批状态只能是 pending |
+| `evolution/FeedbackAwareLearner.ts` | FeedbackAwareLearner — 消费反馈与查询失败的进化学习器（Wave 3a 自 cognition/ 迁入）。三类信号：Feedback / OntologyQueryPerformed / OntologyReferenceValidationFailed；输出改进提案交 L7 提案管线 | L7 演化唯一所有者；事件驱动，不直接触发生产变更 |
+| `evolution/ImprovementAnalyzer.ts` | ImprovementAnalyzer — 改进洞察分析（Wave 3a 自 cognition/ 迁入）：成功率/延迟/失败模式 → ImprovementInsight 列表 | L7 演化唯一所有者；只产洞察，不执行 |
+| `evolution/SelfImprovementLoop.ts` | SelfImprovementLoop — 自我改进闭环（Wave 3a 自 cognition/ 迁入）。Observation → Analysis → Proposal → Simulation → Evaluation → Approval → Deployment → Monitor；只生成提案，不直接修改代码。Wave 3b：晋升经 EvolutionSandbox.approveAndApply 需 Gate 凭证 | L7 演化唯一所有者；L4 禁止直接触发 |
 | `evolution/ActiveEvolutionTrigger.ts` | ActiveEvolutionTrigger — 主动进化触发器 v16 Phase 4.7: 一人跨多领域虚拟公司的主动自我进化能力。 在被动式 WorkflowMiner（每30分钟定期挖掘）之外， 增加基于失败、质量、新部门等条件的主动进化触发器。 设计原则： - EventBus 通信（监听 mission.completed、evolution.active_triggered 等） - 部门隔离（按 deptId 独立追踪失败计数） - 阈值可配置 - 非阻塞：触发检查不干扰主线执行 触发条件： 1.  | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
-| `evolution/EvolutionSandbox.ts` | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） vNext+ L8：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L8：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） vNext+ L8：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L8：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 |
+| `evolution/EvolutionSandbox.ts` | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 |
 | `evolution/ExperienceMiner.ts` | ExperienceMiner — 经验挖掘器 v16: 任务完成后自动挖掘经验，更新 CapabilityRegistry / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/FailureAnalyzer.ts` | FailureAnalyzer — v11 Failure Analysis Engine Analyzes workflow execution failures to identify root causes, failure patterns, and recovery recommendations. Flow: Execution History → Failure Detection → Root Cause Analysis → Recommendations @packageDocumentatio | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/KnowledgeGapListener.ts` | KnowledgeGapListener — 知识缺失监听器（QueryMiss → Feedback → Evolution） vNext+ 演化安全闭环的一部分： Ontology Gate 无结果（QueryMiss）不能静默失败。 本监听器订阅 EventBus 的 `ontology.query.miss` 事件： 1. 将每次知识缺失写入 FeedbackService（Feedback 对象，source='query_miss'） 2. 聚合缺失统计（按 tier / reason / goal）， | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
@@ -321,13 +323,13 @@
 | `evolution/workflow/WorkflowSimulator.ts` | WorkflowSimulator — 工作流仿真引擎 MorPex v8.7: 在 PolicyEngine 决策之前对 WorkflowCandidate 进行离线仿真验证。 职责: 1. 对候选工作流进行历史回放仿真 2. 计算多维度指标 (successRate, failureModes, avgLatency, riskScore, resourceCost) 3. 生成 SimulationResult 供 PolicyEngine 决策 4. 不再自行决策通过/拒绝 — 阈值由 PolicyEngi | WorkflowSimulator — 工作流仿真引擎 MorPex v8.7: 在 PolicyEngine 决策之前对 WorkflowCandidate 进行离线仿真验证。 职责: 1. 对候选工作流进行历史回放仿真 2. 计算多维度指标 (successRate, failureModes, avgLatency, riskScore, resourceCost) 3. 生成 SimulationResult 供 PolicyEngine 决策 4. 不再自行决策通过/拒绝 — 阈值由 PolicyEngi |
 | `evolution/workflow/contract/ContractValidator.ts` | WorkflowContract — 工作流契约 MorPex v8.8: 每个工作流必须定义输入/输出/前置条件/成功标准/失败策略。 在执行前验证契约，确保可交付性。 / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/contract/WorkflowContract.ts` | WorkflowContract — 工作流契约 MorPex v8.8: 每个工作流必须定义输入/输出/前置条件/成功标准/失败策略。 在注册和执行前进行契约验证。 设计原则: 1. 契约即文档：工作流契约是 Workflow 的"类型签名" 2. 先验证后执行：契约验证不通过则不执行 3. 版本化：契约版本随工作流版本递增 / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
-| `evolution/workflow/contract/index.ts` | — | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
+| `evolution/workflow/contract/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/contract/types.ts` | Workflow Contract — 类型定义 MorPex v8.8: 工作流契约的类型定义。 每个工作流在注册前必须定义其契约。 / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/index.ts` | evolution/workflow — Workflow Evolution Engine Barrel Phase 5 / MorPex v8.5 / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/lineage/ArtifactLineage.ts` | ArtifactLineage — 产物血缘追踪 (v8.8 两阶段提交) MorPex v8.8: 追踪每个产物的来源和衍生关系。 回答 "Where did this result come from?" ★ v8.8 两阶段提交 (Prepare → Commit): 1. stage()     — 暂存临时产物 (TEMPORARY) 2. verify()    — 验证通过后 commit() → COMMITTED 3. verify()    — 验证失败后 rollback() → ROLLED | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/lineage/index.ts` | evolution/workflow/lineage — Barrel / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/testing/WorkflowTestRunner.ts` | WorkflowTestRunner — 工作流测试框架 MorPex v8.8: 在注册工作流前自动运行测试用例。 基于 WorkflowSimulator 对候选工作流进行批量测试。 设计原则: 1. 测试即准入：测试不通过的工作流不可注册为正式工作流 2. 自动生成：从契约自动生成测试用例 3. 量化评分：passRate < 1.0 不通过 / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
-| `evolution/workflow/testing/index.ts` | — | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
+| `evolution/workflow/testing/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/testing/types.ts` | 工作流测试用例 */ | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/workflow/types.ts` | Workflow Evolution Engine — 类型定义 Phase 5 / MorPex v8.5: 工作流持续演化系统的数据模型。 与 cognition/workflow/ 的区别: cognition/workflow/ — 工作流智能: 模式检测、提取、优化建议 (一次性分析) evolution/workflow/ — 工作流演化: 持续挖掘、注册管理、版本化、自动执行 (生命周期) 生命周期: candidate (系统发现) → confirmed (用户确认) → active (自动执行 | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 
@@ -365,7 +367,7 @@
 | `infrastructure/common/resilience/CircuitBreaker.ts` | CircuitBreaker — 熔断器 v9.2 Phase 1: 防止级联故障，快速失败。 状态机: CLOSED (正常) → 连续 failureCount >= failureThreshold → OPEN OPEN (熔断) → 等待 openTimeoutMs → HALF_OPEN HALF_OPEN (半开) → 首次成功 → CLOSED HALF_OPEN (半开) → 失败 → OPEN (立即) 使用方式: const cb = new CircuitBreaker('execution | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/resilience/ErrorHandlerService.ts` | ErrorHandlerService — 统一错误处理与恢复服务 v9.2 Phase 1: 编排 RetryPolicy + CircuitBreaker + 补偿回调。 所有 Stage / Manager 的关键操作包裹此服务。 流程: 1. CircuitBreaker 快速拒绝 (OPEN 状态) 2. RetryPolicy 控制重试次数 + 退避延迟 3. 所有失败 → 补偿回调 (Saga 模式) 4. 事件广播到 EventBus / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/resilience/RetryPolicy.ts` | RetryPolicy — 可配置重试策略 v9.2 Phase 1: 统一重试框架，支持多种退避策略和错误过滤。 使用方式: const policy = RetryPolicy.standard(); for (let i = 0; i <= policy.maxAttempts; i++) { try { return await op(); } catch (e) { if (!policy.shouldRetry(e)) throw e; await delay(policy.getDelay(i));  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/common/resilience/index.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/common/resilience/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/types.ts` | MorPexCore — 核心接口定义 这是整个 MorPexCore 的类型基础。 Event Schema 最先冻结，之后所有插件层的开发都基于它展开。 ═══ MorPex v8 Phase 1 ═══ 事件协议已标准化为 protocol/events/ 模块。 新代码应优先使用以下协议类型： import { EventType } from '../../infrastructure/protocol/events/EventType.js'; import type { BaseEvent } fro | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/CompactionService.ts` | CompactionService — SQLite 数据库压缩维护服务 v9.2 Phase 2: 自动清理旧事件、快照、版本，VACUUM 回收磁盘空间。 使用方式: import Database from 'better-sqlite3'; const db = new Database('./data/morpex-events.db'); const svc = new CompactionService(db); await svc.compact(); svc.startAuto(); // 定时自 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/HealthCheckService.ts` | HealthCheckService — 健康检查聚合器 v9.2 Phase 4: 注册多个健康检查，并行运行并汇总状态。 支持超时、熔断降级语义 (healthy/degraded/unhealthy)。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -375,14 +377,14 @@
 | `infrastructure/observability/PrometheusExporter.ts` | PrometheusExporter — 轻量 Prometheus 文本格式导出器 v9.2 Phase 4: 将 MetricsCollector 的指标导出为 Prometheus text format。 无外部依赖。同时返回 JSON 格式供内部 HTTP 端点使用。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/TraceManager.ts` | TraceManager — 追踪管理器 MorPex v8.8: 记录每个 Mission 的完整执行追踪。 每个 Span 代表一个阶段（Intent/Plan/Task/Verification）， 形成树形追踪结构。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/WorkflowMetrics.ts` | WorkflowMetrics — 工作流运行指标 MorPex v8.8: 聚合工作流运行的关键业务指标。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/observability/index.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/contracts/artifact-lifecycle.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/observability/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/protocol/contracts/artifact-lifecycle.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/artifact.ts` | Artifact — 可交付物共享类型 @deprecated 使用 contracts/artifact-lifecycle.ts 代替。 v16 Phase 2: 统一 Artifact 模型已迁移到 ArtifactNode (contracts/artifact-lifecycle.ts)。 此文件保留只为向后兼容，新代码应使用 artifact-lifecycle.ts。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/goal.ts` | Goal Intelligence — 共享类型 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/BaseEvent.ts` | MorPex Event Protocol — Base Event Interface Phase 1 / MorPex v8: 系统中所有事件的基础接口。 BaseEvent 定义了事件的最小通用结构： - id:         唯一标识（evt_{YYYYMMDD}_{shortUUID}） - type:       标准事件类型（EventType 枚举或扩展字符串） - timestamp:   时间戳（Date.now()） - executionId: 关联执行 ID（始终必填） - source | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/DecisionEvent.ts` | DecisionEvent — 认知决策事件（Cognitive Event Stream） v8.6: 记录 Agent 做出每个决策时的完整上下文。 与 Execution History（MissionRuntime 状态转换）互补，形成完整的认知审计线索。 设计原则: - 只追加（append-only）：决策记录不可篡改 - 完整上下文：记录决策时的输入、推理、证据 - 版本关联：记录决策时使用的 Twin 版本 与 EventStore 的关系: - DecisionEvent 通过 EventStor | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/EventType.ts` | MorPex Event Protocol — Standard Event Types Phase 1 / MorPex v8: 标准化事件类型枚举。 所有事件按架构层分组： Interaction → Cognitive → Mission → Planning → Execution → Agent → Tool → Workflow → Control → System → Artifact → Cross-Domain 使用方式： import { EventType } from './EventTyp | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/events/EventTypes.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/protocol/events/EventTypes.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/index.ts` | protocol/events — MorPex Event Protocol Barrel Phase 1 / MorPex v8: 事件协议层统一导出入口。 导出： - EventType:         标准事件类型枚举 - EVENT_LAYERS:      事件类型按层分组 - getAllEventTypes:  获取所有标准事件类型 - BaseEvent:         基础事件接口 - isStandardEvent:   判断是否为标准事件类型 - isEventInLayer:    判 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/EventProjection.ts` | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p |
 | `infrastructure/protocol/events/store/EventRepository.ts` | EventRepository — 事件查询层 Phase 4 / MorPex v8.5: 在 EventStore 基础上提供过滤、聚合、时序查询。 使用方式: const repo = new EventRepository(eventStore); const errors = repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 }); const timeline = repo.getTimeline('mis | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -402,15 +404,15 @@
 | `infrastructure/tools/TeamSayTool.ts` | TeamSayTool — 领域间通信工具 向指定 Agent 发送消息（UDP 语义，非阻塞）。 目标 Agent 当前 turn 完成后自动消费消息。 使用 pi-agent-core harness.steer() 实现。 steer() 注入 steering 消息，异步非阻塞。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 0.4 (删除优先法则): 使用 pi 原生 steer() 而非自定义通信 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolCallTracker.ts` | ToolCallTracker — 工具调用生命周期状态追踪（合并版） 基于 AgentScope ToolCallState 设计，提供双重追踪方式： 1. EventBus 驱动（自动）：订阅 runtime.tool.* 事件自动追踪 2. 手动 API（精确）：供 PermissionEngine 等模块直接调用 状态机（与 AgentScope 兼容）: ``` PENDING ──(deny/beforeToolCall)──► FINISHED (blocked) ├──(ask)──────► AS | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolExecutionProxy.ts` | ToolExecutionProxy — Worker 隔离执行器（含僵尸防御 + 反向熔断） 每个工具调用在独立 worker_threads 中执行。 内核不关心执行细节，只监听三种信号： - progress   → 透传给 harness 的 tool_execution_update - completed  → 返回 ToolResult - timeout/oom → 执行 worker.terminate()，向 FSMEngine 抛出 TOOL_EXECUTION_TIMEOUT / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolFactory.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolRegistry.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ToolFactory.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ToolRegistry.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/artifact-registry-skill.ts` | artifact-registry-skill — 产物注册 AgentTool (Phase 11: Harness-aware) 将 ArtifactRegistry 封装为 AgentTool。 优先通过 AgentHarness 注册（权限+上下文），回退到直接 registry 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ask-user-tool.ts` | ask-user-tool — 向用户提问的 AgentTool options 必填，前端渲染为可点击按钮。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/builtin-tools.ts` | builtin-tools — MorPex 内置 AgentTool 定义 v3.x 重构：所有 pi 包直接依赖已隔离到适配层。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/index.ts` | tools — 动态工具层 ToolFactory → 动态生成工具 ToolRegistry → 工具注册与统计 DomainPrimitiveRegistry → 通用原语注册与匹配 primitives/ → 5 个领域无关的基础原语 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/knowledge-graph-skill.ts` | knowledge-graph-skill — 知识图谱查询 AgentTool (Phase 11: Harness-aware) 优先通过 AgentHarness 查询（上下文+权限），回退到直接 KnowledgeGraph 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/memory-search-tool.ts` | memory-search-tool.ts — 记忆搜索工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 搜索（上下文+记忆激活），回退到直接 MemoryRetriever 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ontologyTools.ts` | — | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ontologyTools.ts` | 【— 描述待补，非废弃判定】 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/APICallPrimitive.ts` | APICallPrimitive — API 调用原语 通用的 HTTP API 调用操作，通过 ConnectorRegistry 执行。 不包含任何领域逻辑——纯粹的基础设施能力。 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/ArtifactGenerationPrimitive.ts` | ArtifactGenerationPrimitive — 产物生成原语 通用的产物生成操作，始终以知识查询结果为前提： 1. 先查询 KnowledgeQueryPrimitive 获取已有知识 2. 将知识作为上下文注入 LLM 生成 3. 通过 FileOperationPrimitive 写入文件 4. 通过 ArtifactFacade 注册产物生命周期 支持的产物类型： - code: 源代码文件 - doc: 文档（Markdown, HTML 等） - config: 配置文件（JSON, YAML | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/FileOperationPrimitive.ts` | FileOperationPrimitive — 文件操作原语 通用的文件系统操作，通过 ConnectorRegistry 执行。 不包含任何领域逻辑——纯粹的基础能力。 支持的操���： - read: 读取文件内容 - write: 写入文件内容 - delete: 删除文件 - list: 列出目录文件 - exists: 检查文件/目录是否存在 - mkdir: 创建目录 - copy: 复制文件 - move: 移动文件 - stat: 文件状态信息 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -431,7 +433,7 @@
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
 | `workflow/WorkflowProvider.ts` | WorkflowProvider — 工作流插件接口 v15: 核心通过此接口发现和加载外部 workflow 包 / | 插件注册契约；不承载领域实现 |
-| `workflow/index.ts` | — | 插件注册契约；不承载领域实现 |
+| `workflow/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 插件注册契约；不承载领域实现 |
 
 
 ---
@@ -450,7 +452,7 @@
 ### 核心可观测事件（S35 新增，安全增量）
 | 文件 | 事件 |
 |------|------|
-| `execution/runtime/MorPexRuntime.ts` | `runtime.started/completed`（L5 主驱动器）、`evaluation.completed`（L6）、`evolution.completed`（L8） |
+| `execution/runtime/MorPexRuntime.ts` | `runtime.started/completed`（L5 主驱动器）、`evaluation.completed`（L6）、`evolution.completed`（L7） |
 | `gate/runOntologyGroundedReasoning.ts` | `ontology.grounded`（L2 gate 成功时发，并修复调用未传 eventBus 的 bug） |
 
 ### 测试体系（S22-S37，详见 `docs/TESTING_PLAN.md`）
