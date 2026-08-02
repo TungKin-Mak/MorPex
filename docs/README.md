@@ -2,7 +2,6 @@
 
 > v11 Adaptive Workflow Operating System — Phase 1-4 完成，Phase 5 待开发
 > 从 v10 升级：+21 源文件 | PiBridge 隔离层 | pi-ai/pi-agent-core 0.81.1
-> 旧版在 `_archive/`。
 
 ## 核心文档
 
@@ -88,8 +87,3 @@
 | v10 | Autonomous Organization Intelligence OS（5 模块组 35 源文件） |
 | v9.2 | Agent Organization OS（79 模块） |
 
----
-
-## 归档文档
-
-`docs/_archive/` — 包含历史版本文档。

@@ -1,7 +1,7 @@
 # MorPex 项目目录树（AICOS-Core 8 层）
 
 > 生成时间: 2026-08-01 | 单一真相源: docs/AICOS_CORE_ARCHITECTURE.md
-> 已排除: node_modules/.git/archived/data/dist/coverage
+> 已排除: node_modules/.git/data/dist/coverage
 
 ## packages/core/src — AICOS-Core 8 层
 
@@ -92,7 +92,6 @@ workflow
 ```
 configs
 docs
-packages/archived
 packages/connectors
 packages/contracts
 packages/core

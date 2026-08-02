@@ -230,7 +230,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 | `scripts/run-all-tests.ts` | 重写为调用统一入口 `scripts/run-tests.ts`（当前 testScripts 引用不存在的文件） |
 | `ci.yml` v15-full-cycle 步骤 | 移除或替换为 `npx tsx tests/run-all.ts` |
 | `e2e-tests.yml` | **整文件删除或重写**为"后端 API 契约 + CLI"流水线（UI 已不存在，Playwright 无对象可测） |
-| `docs/testing-guide.md` | 标注"UI 已移除，仅保留 API/CLI 部分"，或归档至 `docs/_archive/` |
+| `docs/testing-guide.md` | 标注"UI 已移除，仅保留 API/CLI 部分"，或删除 |
 | `architecture-check.yml` production-check `|| true` | 去掉 `|| true`（8/8 已稳定，失败应真正红） |
 
 ---

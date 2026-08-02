@@ -400,7 +400,7 @@ export type {
   SessionContext,
 } from './infrastructure/common/types.js';
 
-// P4 收敛：内核扩展系统（ExtensionRegistry）已归档至 packages/archived/extensions-legacy
+// P4 收敛：内核扩展系统（ExtensionRegistry）已移除
 
 // ── v8.8 Runtime: Sandbox, Budget, Compensation ──
 export { SandboxManager } from './execution/runtime/sandbox/index.js';
