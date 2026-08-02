@@ -165,7 +165,7 @@ export class CompanyFacade {
     }
     console.log(`  ├─ ControlPlane: 通过 (goal=${gate.goal.approved}, policy=${gate.policy?.allowed ?? true}, resource=${gate.resource?.available ?? true})`);
 
-    // ── 2. 构造 RunOptions（透传 mode + 所有选项） ──
+    // ── 2. 构造 RunOptions（执行 mode 已收敛内部化——不再透传；引擎内部 auto 选） ──
     const deptId = options.departmentName ? this.departmentManager.findByName(options.departmentName)?.id : undefined;
     const runOpts: RunOptions = {
       simulationHardFail: options.simulationHardFail ?? true,
