@@ -661,6 +661,13 @@ export class UnifiedExecutionEngine {
 
   /**
    * executeAuto — 基于复杂度自动选择执行路径
+   *
+   * ⚠️ Wave 8d 边界说明（Gate 凭证）：本路径经 DomainPrimitiveRegistry.execute 调用原语时
+   * 不携带 KnowledgeContextPackage。这是【有意的安全默认】（知识优先 + 副作用隔离）：
+   *   - 只读原语（read/list/GET/echo 等）缺凭证 → WARN 计数放行（渐进迁移）
+   *   - 破坏性原语（write/POST/git 等）缺凭证 → GateContextRequiredError 硬拦截
+   * 因此经 auto 路径的破坏性简单任务会失败——这是安全默认，非缺陷；需要执行时须先经
+   * Ontology Gate 取得凭证再调用（或走 mission/dag 完整路径）。
    */
   private async executeAuto(request: ExecutionRequest, executionId: string): Promise<ExecutionResult> {
     // v13: 优先检查是否有匹配的 ActionExecutor

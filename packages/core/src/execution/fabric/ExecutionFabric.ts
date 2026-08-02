@@ -49,6 +49,11 @@ export interface ExecutionFabricConfig {
    * Wave 4: maxAttempts 用尽回调（运行时强制闭环）
    * 重试全部失败时调用，用于发 execution.budget.exceeded 类失败事件；
    * 业务代码无法自行吞掉后继续循环。默认 undefined 时保持原行为（仅返回失败）。
+   *
+   * ⚠️ Wave 8d 边界说明：生产路径的 "fabric" 是 ServiceContainer.createExecutionFabric()
+   * 返回的 ExecutionFabricLike 结构包装（PiBridge 单次 LLM 调用，无重试耗尽语义），
+   * 因此本回调在生产 fabric 路径不触发；它服务于 ExecutionFabric 类（测试/其他上下文）
+   * 的重试耗尽场景。非未接线缺口，是两条执行路径语义差异。
    */
   onAttemptsExhausted?: (info: {
     executionId?: string;

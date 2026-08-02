@@ -48,3 +48,7 @@ repomix-output.xml
 
 # ── 运行时 PID 文件 ──
 .run-all.pids
+
+# Obsidian editor layout (machine-specific, not project config)
+.obsidian/workspace.json
+.obsidian/workspace-mobile.json

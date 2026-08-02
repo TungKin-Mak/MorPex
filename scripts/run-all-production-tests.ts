@@ -107,8 +107,7 @@ async function main() {
   // 生产关键测试
   // ⚠️ 排除说明：
   //  - critical-llm-mock.test.ts：文件已不存在（S23 重构后移除），不列入
-  //  - critical-cognitive-pipeline.test.ts：S20 已重写为规范 vitest（describe/it），
-  //    由 `npx vitest run` 执行；tsx 直跑会因缺 vitest runner.config 崩溃
+  //  - critical-cognitive-pipeline.test.ts：Wave 6a 已删除（cognitive-loop 遗留层移除），不列入
   const productionTests = [
     'packages/core/__tests__/production-llm-mock.test.ts',
     'packages/core/__tests__/production-pipeline.test.ts',

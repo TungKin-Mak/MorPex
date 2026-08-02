@@ -218,9 +218,9 @@ npx vitest run           # 仅单元/集成
 | Golden Benchmark tasks | **52** (5 domains) |
 | VCOS | **100/100** 🎯 |
 | Engineering maturity | **90/100** |
-| Execution phases | **9** (Goal→Evolution 闭环) |
-| Event types | **28** (全域 Event Sourcing) |
-| Policy rules | **13** (统一 PolicyEngine) |
+| Execution phases | **4**（UnifiedExecutionEngine: mission/dag/fabric/auto） |
+| Event types | **34**（全域 Event Sourcing） |
+| Policy rules | **5**（PolicyEngine 默认风险规则）+ 工作流/Agent 策略 |
 | Capability nodes | **27** (4 domains) |
 | **测试用例** | **596**（vitest 61 文件，覆盖矩阵 ❌ 清零） |
 | **一键测试** | `npm run test:full`（25 步全绿） |

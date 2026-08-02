@@ -12,7 +12,6 @@ for PATTERN in "bootstrap-v12" "bootstrap-v13" "bootstrap-v14" "bootstrap-v15" "
         | grep -v "__tests__" \
         | grep -v "packages/core/src/index.ts" \
         | grep -v "packages/core/src/bootstrap-$PATTERN.ts" \
-        | grep -v "packages/archived" \
         || true)
     if [ -n "$MATCHES" ]; then
         echo "[FAIL] Found imports of deprecated $PATTERN:"
