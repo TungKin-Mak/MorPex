@@ -11,7 +11,7 @@
  *   L10 基础设施: EventBus(SSE) / Observability
  *
  * 已移除（前端 UI 废弃 + 多代遗留）：
- *   - v8 MessageGateway / MissionRuntime / CognitiveLoop / PersonalBrain / Twin
+ *   - v8 MessageGateway / MissionRuntime / PersonalBrain / Twin
  *   - v9 Agent 组织平面 / AgentHarness / CrossAgent 编排
  *   - v10 LearningPlane / EventMesh
  *   - v12 departments / management / groupchat

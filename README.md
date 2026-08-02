@@ -212,7 +212,7 @@ npx vitest run           # 仅单元/集成
 | Metric | Value |
 |--------|-------|
 | TypeScript errors | **0** |
-| TypeScript source files | **532** |
+| TypeScript source files | **490** |
 | Architecture directories | **53** |
 | Core modules | **22** |
 | Golden Benchmark tasks | **52** (5 domains) |
@@ -222,7 +222,7 @@ npx vitest run           # 仅单元/集成
 | Event types | **28** (全域 Event Sourcing) |
 | Policy rules | **13** (统一 PolicyEngine) |
 | Capability nodes | **27** (4 domains) |
-| **测试用例** | **568**（vitest 60 文件，覆盖矩阵 ❌ 清零） |
+| **测试用例** | **596**（vitest 61 文件，覆盖矩阵 ❌ 清零） |
 | **一键测试** | `npm run test:full`（25 步全绿） |
 | **行覆盖** | **37%+**（阈值 34/27/32/36 防回退） |
 | **架构可观测** | `/api/observability/*`（audit 绕过检测 + 8 层事件链） |
