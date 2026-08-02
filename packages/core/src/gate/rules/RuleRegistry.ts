@@ -71,6 +71,25 @@ export class RuleRegistry {
     return !!r && r.status === 'active';
   }
 
+  /**
+   * fingerprint — 全部 active 规则的稳定签名（缓存一致性，Phase 2）
+   *
+   * 规则变更（register/setStatus/内容修改）必变；无 active 规则返回空串。
+   * 用途：并入 groundingCache 的 key —— 规则变更 → fingerprint 变 → 旧缓存天然失效，
+   * 避免"命中旧缓存跳过新规则检查"（见 runOntologyGroundedReasoning.getCacheKey）。
+   */
+  static fingerprint(): string {
+    const active = [...RuleRegistry.rules.values()].filter((r) => r.status === 'active');
+    if (active.length === 0) return '';
+    return active
+      .map(
+        (r) =>
+          `${r.id}:${r.status}:${r.ruleType}:${r.disallowedPattern}:${(r.allowedApiPrefixes ?? []).join(',')}:${r.target}`,
+      )
+      .sort()
+      .join('|');
+  }
+
   /** clear — 清空注册表（测试隔离用） */
   static clear(): void {
     RuleRegistry.rules.clear();

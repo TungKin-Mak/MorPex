@@ -30,6 +30,7 @@ import {
 // 功能② Phase 1：规则中断更正（RuleEnforcementGuard）
 import { RuleRegistry } from './rules/RuleRegistry.js';
 import { check as ruleEnforcementCheck } from './rules/RuleEnforcementGuard.js';
+import { lexicalCorrect } from './rules/lexicalCorrection.js';
 import {
   createRuleViolationEvent,
   createRuleDowngradedEvent,
@@ -136,7 +137,11 @@ function getCacheKey(goal: string, scenario?: string, riskTier?: RiskTier): stri
   if (goal.length > 80) return '';
   // tier-0 禁止缓存：资金/对外发布/架构变更必须强制两阶段 + 同步验证
   if (riskTier === 'tier-0') return '';
-  return `${riskTier || 'tier-1'}::${scenario || ''}::${goal}`;
+  // Phase 2（D）：规则指纹并入 key —— 规则变更 → fingerprint 变 → 旧缓存天然失效，
+  // 避免"命中旧缓存跳过新规则检查"（规则更新后旧缓存可能携带违规结果）
+  const ruleFingerprint = RuleRegistry.fingerprint();
+  const fpPart = ruleFingerprint ? `::rules:${ruleFingerprint}` : '';
+  return `${riskTier || 'tier-1'}::${scenario || ''}::${goal}${fpPart}`;
 }
 
 function getCachedResult(key: string): GroundedReasoningResult | null {
@@ -377,7 +382,7 @@ export async function runOntologyGroundedReasoning(
     const applicable = activeRules.filter((r) => !downgradedRules.has(r.id));
     const checkResult = ruleEnforcementCheck(proposal, applicable);
     ruleViolations = checkResult.violations;
-    const errorViolations = ruleViolations.filter((v) => v.severity === 'ERROR');
+    let errorViolations = ruleViolations.filter((v) => v.severity === 'ERROR');
 
     // WARNING 违规：不中断，仅记录事件（eventStore 存在时）
     for (const v of ruleViolations.filter((x) => x.severity === 'WARNING')) {
@@ -402,6 +407,24 @@ export async function runOntologyGroundedReasoning(
 
     // 合规 → 放行
     if (errorViolations.length === 0) break;
+
+    // ═══════════════════════════════════════════════════════════
+    // Phase 2（A）：词法修正（通用修正管线①）—— 最便宜的快速通道
+    //   仅对 allowedAction 明确的规则做保守机械替换；修正后重新 check，
+    //   合规则放行（跳过 LLM 重试）；仍违规 → 继续降级/重试逻辑
+    // ═══════════════════════════════════════════════════════════
+    const corrected = lexicalCorrect(proposal, errorViolations, applicable);
+    if (corrected.correctedCount > 0) {
+      proposal = corrected.proposal;
+      const recheck = ruleEnforcementCheck(proposal, applicable);
+      ruleViolations = recheck.violations;
+      if (!recheck.hasError) {
+        console.log(`[GroundedReasoning] ✅ 词法修正成功（${corrected.correctedCount} 处），合规放行`);
+        break;
+      }
+      // 修正后仍违规 → 用修正后的违规集继续（供降级/重试用尽判断）
+      errorViolations = recheck.violations.filter((v) => v.severity === 'ERROR');
+    }
 
     // 连续命中降级：同一规则连续 2 次命中仍不过 → 临时跳过（仅本次执行，不改持久状态）
     for (const v of errorViolations) {

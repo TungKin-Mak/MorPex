@@ -58,6 +58,37 @@ describe('gate/rules/RuleRegistry', () => {
     expect(rules).toHaveLength(1);
     expect(rules[0].id).toMatch(/^rule_/);
   });
+
+  it('fingerprint：无 active 规则返回空串；规则变更必变（缓存一致性）', () => {
+    expect(RuleRegistry.fingerprint()).toBe('');
+
+    RuleRegistry.register('test-domain', makeRule('r1', 'active'));
+    const fp1 = RuleRegistry.fingerprint();
+    expect(fp1).not.toBe('');
+
+    // setStatus 变更 → fingerprint 变
+    RuleRegistry.setStatus('r1', 'disabled');
+    expect(RuleRegistry.fingerprint()).not.toBe(fp1);
+
+    // 同规则重复 register（内容相同）→ fingerprint 稳定
+    RuleRegistry.setStatus('r1', 'active');
+    RuleRegistry.register('test-domain', makeRule('r1', 'active'));
+    expect(RuleRegistry.fingerprint()).toBe(fp1);
+  });
+
+  it('fingerprint：允许 API 前缀参与签名', () => {
+    const r = makeRule('r1', 'active');
+    (r as any).ruleType = 'whitelist';
+    (r as any).allowedApiPrefixes = ['IOCP', 'NVIC'];
+    RuleRegistry.register('test-domain', r);
+    const fp1 = RuleRegistry.fingerprint();
+
+    const r2 = makeRule('r1', 'active');
+    (r2 as any).ruleType = 'whitelist';
+    (r2 as any).allowedApiPrefixes = ['IOCP', 'GPIO'];
+    RuleRegistry.register('test-domain', r2); // 覆盖注册（同 id）
+    expect(RuleRegistry.fingerprint()).not.toBe(fp1);
+  });
 });
 
 describe('gate/rules/rulePersistence', () => {
