@@ -116,6 +116,19 @@ async function main() {
     'packages/core/__tests__/critical-sandbox-security.test.ts',
     'packages/core/__tests__/critical-memory-knowledge.test.ts',
     'packages/core/__tests__/security-prompt-injection.test.ts',
+    // ═══ Wave 9.6：脚本式回归测试接线（此前 vitest exclude + 无 runner，从不运行 → 假绿）═══
+    'packages/core/__tests__/artifact-lifecycle.test.ts',
+    'packages/core/__tests__/architecture-integration.test.ts',
+    'packages/core/__tests__/config-validation.test.ts',
+    'packages/core/__tests__/context-assembly.test.ts',
+    'packages/core/__tests__/fsm-lifecycle.test.ts',
+    'packages/core/__tests__/learning-loop.test.ts',
+    'packages/core/__tests__/phase2-optimization.test.ts',
+    'packages/core/__tests__/phase3-security.test.ts',
+    'packages/core/__tests__/phase4-observability.test.ts',
+    'packages/core/__tests__/recovery-lifecycle.test.ts',
+    'packages/core/__tests__/resilience.test.ts',
+    'packages/core/__tests__/unified-eventstore.test.ts',
   ];
 
   for (const testFile of productionTests) {
