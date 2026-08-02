@@ -40,8 +40,9 @@ export class ContextPersistence {
    *
    * @param context - ExecutionContext 对象
    * @param changeDesc - 变更说明（可选）
+   * @param taskRef - 任务归属 ID（功能③ 身份 ID 主键，存入 session_data 供按任务召回）
    */
-  save(context: ExecutionContext, changeDesc?: string): void {
+  save(context: ExecutionContext, changeDesc?: string, taskRef?: string): void {
     const stmt = this.db.prepare(`
       INSERT OR REPLACE INTO context_snapshots
         (context_id, version, mission_id, schema_version,
@@ -50,13 +51,19 @@ export class ContextPersistence {
       VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
     `);
 
+    // 任务归属写入 session_data（免表结构迁移；loadByTaskRef 据此检索）
+    const session = {
+      ...(context.layers.session ?? {}),
+      ...(taskRef ? { taskRef } : {}),
+    };
+
     stmt.run(
       context.contextId,
       context.version,
       context.missionId,
       context.schemaVersion,
       JSON.stringify(context.layers.base ?? {}),
-      JSON.stringify(context.layers.session ?? {}),
+      JSON.stringify(session),
       JSON.stringify(context.layers.ephemeral ?? {}),
       JSON.stringify(context.fragments),
       changeDesc ?? null,
@@ -117,6 +124,26 @@ export class ContextPersistence {
     ).all(missionId) as PersistedContextRow[];
 
     return rows.map((r) => this.hydrate(r));
+  }
+
+  /**
+   * loadByTaskRef — 按任务归属检索上下文快照（功能③ 身份 ID 召回）
+   *
+   * @param taskRef - 任务归属 ID（goalId/planId/taskId）
+   * @returns 匹配的 ExecutionContext 列表（按时间倒序）；无则空数组
+   */
+  loadByTaskRef(taskRef: string): ExecutionContext[] {
+    const rows = this.db.prepare(
+      "SELECT * FROM context_snapshots WHERE session_data LIKE ? ORDER BY assembled_at DESC"
+    ).all(`%${taskRef}%`) as PersistedContextRow[];
+
+    // session_data 为 JSON 文本，LIKE 可能宽松命中 → 内存精确匹配 taskRef 字段
+    return rows
+      .map((r) => this.hydrate(r))
+      .filter((c) => {
+        const ref = (c.layers.session as Record<string, unknown> | undefined)?.taskRef;
+        return ref === taskRef;
+      });
   }
 
   /**

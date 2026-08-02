@@ -39,6 +39,11 @@ export interface ContextFragment {
   collectedAt: number
   /** 存活时间 (ms)，过期后可丢弃 */
   ttl?: number
+  /**
+   * 任务归属（功能③ 身份 ID 主键：goalId/planId/taskId）——上下文生命周期主键，
+   * 装配按它过滤（当前任务 vs 历史任务），抽离快照带它入库，召回按它检索。
+   */
+  taskRef?: string
 }
 
 // ── ContextAssemblyInput — 上下文组装输入 ──
@@ -60,6 +65,11 @@ export interface ContextAssemblyInput {
   domain?: string
   /** 功能③：本任务必需的 ontologyRefs（聚焦模式用） */
   taskRefs?: string[]
+  /**
+   * 当前任务身份（功能③ 身份 ID 驱动聚焦：goalId/planId/taskId 任一匹配即算当前任务）
+   * 同会话多任务时，片段按 taskRef 归属过滤——只装当前任务材料，历史任务抽离需则召回。
+   */
+  currentTask?: { goalId?: string; planId?: string; taskId?: string }
 }
 
 // ── FragmentProvider — 片段提供者接口 ──

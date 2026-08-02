@@ -92,14 +92,18 @@ export class ContextAssemblyEngine {
     // 1. 选择模板
     const template = this.selectTemplate(input)
 
-    // 功能③ 聚焦模式：片段来源按"当前任务"筛选（goal/mission/artifact + custom），
-    // 跳过"历史倾向"片段（user_profile/behavior_twin/decision_history/agent_status），
-    // 除非 input.tags 显式要求（保持向后兼容：focusMode=false 时行为不变）
+    // 功能③ 聚焦模式（三分法，用户主导设计）：
+    //   ① 系统级（user_profile/custom：用户画像、既定规则、系统约束）→ 永不省略
+    //   ② 当前任务级（goal_graph/mission_state/artifact_lineage）→ 按 taskRef 归属匹配 currentTask
+    //   ③ 历史级（decision_history/behavior_twin/agent_status）→ 不采集（需则主动召回）
+    // 身份 ID 是上下文生命周期主键：装配按它过滤 → 抽离快照带它入库 → 召回按它检索。
     const focusMode = this.config.focusMode === true
-    const FOCUS_SOURCES: FragmentSource[] = ['goal_graph', 'mission_state', 'artifact_lineage', 'custom']
+    const SYSTEM_SOURCES: FragmentSource[] = ['user_profile', 'custom']
+    const TASK_SOURCES: FragmentSource[] = ['goal_graph', 'mission_state', 'artifact_lineage']
+    const HISTORY_SOURCES: FragmentSource[] = ['decision_history', 'behavior_twin', 'agent_status']
     const sourceFilter = (s: FragmentSource): boolean => {
       if (!focusMode) return true
-      return FOCUS_SOURCES.includes(s)
+      return SYSTEM_SOURCES.includes(s) || TASK_SOURCES.includes(s)
     }
 
     // 2. 决定采集哪些片段来源
@@ -108,7 +112,21 @@ export class ContextAssemblyEngine {
     const allSources = [...new Set([...requiredSources, ...optionalSources])] as FragmentSource[]
 
     // 3. 从注册中心收集片段（带超时）
-    const fragments = await this.collectFragmentsWithTimeout(input, allSources)
+    let fragments = await this.collectFragmentsWithTimeout(input, allSources)
+
+    // 功能③ 聚焦模式·身份过滤：任务级片段按 taskRef 归属匹配当前任务（身份 ID 主键）
+    //   - 系统级片段永不省略；任务级片段需 taskRef == currentTask.{goalId|planId|taskId}
+    //   - 任务级但未挂 taskRef（Provider 未实现归属标记）→ 保守装（防误删当前任务材料）
+    //   - 未传 currentTask → 不过滤（向后兼容）
+    if (focusMode) {
+      const ct = input.currentTask
+      fragments = fragments.filter((f) => {
+        if (SYSTEM_SOURCES.includes(f.source)) return true
+        if (!f.taskRef) return true
+        if (!ct) return true
+        return f.taskRef === ct.goalId || f.taskRef === ct.planId || f.taskRef === ct.taskId
+      })
+    }
 
     // 4. 兜底：为核心片段自动生成默认值（首次使用自动创建）
     const collectedSources = new Set(fragments.map(f => f.source))
@@ -136,17 +154,20 @@ export class ContextAssemblyEngine {
       })
     }
 
-    // 5. 限制片段数量（功能③ 聚焦模式：按 token 估算截断，替代 slice(0,maxFragments)）
+    // 5. 限制片段数量（功能③ 聚焦模式：不主动截断——选对材料优先（原则①），
+    //    maxTokens 仅为异常兜底上限：仅当材料异常超限（> maxTokens×10）才截，防极端失控）
     let trimmedFragments = fragments
     if (focusMode) {
       const maxTokens = this.config.maxTokens ?? 8000
-      let acc = 0
-      trimmedFragments = []
-      for (const f of fragments) {
-        const size = estimateFragmentTokens(f)
-        if (acc + size > maxTokens && trimmedFragments.length > 0) break
-        acc += size
-        trimmedFragments.push(f)
+      const totalTokens = fragments.reduce((acc, f) => acc + estimateFragmentTokens(f), 0)
+      if (totalTokens > maxTokens * 10) {
+        let acc = 0
+        trimmedFragments = []
+        for (const f of fragments) {
+          if (acc + estimateFragmentTokens(f) > maxTokens && trimmedFragments.length > 0) break
+          acc += estimateFragmentTokens(f)
+          trimmedFragments.push(f)
+        }
       }
     } else {
       trimmedFragments = fragments.slice(0, this.config.maxFragments)
@@ -443,12 +464,21 @@ function estimateFragmentTokens(fragment: ContextFragment): number {
 /**
  * buildFocusedSummary — 生成聚焦摘要（功能③ 聚焦模式产物）
  *
- * 内容：系统约束 + goal + domain + taskRefs + 已收集片段的精简摘要。
- * 只含当前任务材料，不含历史对话/中间推理（原则①聚焦）。
+ * 内容：系统级材料（用户画像/既定规则/系统约束）+ 当前任务身份（goal/domain/taskRefs）
+ *      + 已收集片段精简摘要（任务级片段标注归属）。
+ * 不含历史对话/中间推理（原则①聚焦；历史抽离需则召回）。
  */
 function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFragment[]): string {
   const lines: string[] = []
   lines.push(`【当前任务】${input.goal ?? input.missionId}`)
+  if (input.currentTask) {
+    const parts = [
+      input.currentTask.goalId && `goal=${input.currentTask.goalId}`,
+      input.currentTask.planId && `plan=${input.currentTask.planId}`,
+      input.currentTask.taskId && `task=${input.currentTask.taskId}`,
+    ].filter(Boolean)
+    if (parts.length) lines.push(`【任务身份】${parts.join(' / ')}`)
+  }
   if (input.domain) lines.push(`【领域】${input.domain}`)
   if (input.taskRefs && input.taskRefs.length > 0) {
     lines.push(`【必需知识引用】${input.taskRefs.join(', ')}`)
@@ -457,7 +487,8 @@ function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFrag
     try {
       const data = JSON.stringify(f.data ?? {})
       const snippet = data.length > 200 ? `${data.slice(0, 200)}…` : data
-      lines.push(`【${f.source}】${snippet}`)
+      const ref = f.taskRef ? `（归属:${f.taskRef}）` : ''
+      lines.push(`【${f.source}】${ref}${snippet}`)
     } catch {
       // 片段序列化失败 → 跳过该片段摘要（不阻断）
     }

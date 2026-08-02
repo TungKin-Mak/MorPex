@@ -275,7 +275,11 @@ export class ServiceContainer {
       }
       // 接入 SystemMetadataGraph
       systemMetadataGraph.setEventStore(this._eventStore);
-      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade + SystemMetadataGraph');
+      // 功能③：历史抽离完整快照入 EventStore（MorPexRuntime 按 taskRef 召回精确还原）
+      if (typeof (this.runtime as any).setEventStore === 'function') {
+        (this.runtime as any).setEventStore(this._eventStore);
+      }
+      console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade + SystemMetadataGraph + MorPexRuntime');
     } catch (err) {
       console.warn('[ServiceContainer] ⚠️ EventStore 不可用:', (err as Error).message);
     }

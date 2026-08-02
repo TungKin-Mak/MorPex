@@ -1,10 +1,11 @@
 /**
- * Context Assembly 聚焦模式测试（功能③ Phase 1 — 原则①聚焦 / 原则④时机）
+ * Context Assembly 聚焦模式测试（功能③ Phase 1 修正——身份 ID 驱动 + 三分法）
  *
  * 覆盖 ContextAssemblyEngine 聚焦模式：
- *   - focusMode=true 只收集"当前任务"片段（goal_graph/mission_state/artifact_lineage/custom）
- *   - focusedSummary 生成（含 goal/domain/taskRefs + 片段精简摘要）
- *   - token 估算截断（超出 maxTokens 从后续片段截掉）
+ *   - 三分法：系统级（user_profile/custom）永不省略；任务级收集；历史级跳过
+ *   - 身份 ID 聚焦：同会话多任务，片段按 taskRef 归属匹配 currentTask，A/C 不装
+ *   - 聚焦不主动截断（选对材料优先）；仅异常超限（>maxTokens×10）才兜底截断
+ *   - focusedSummary 生成（含任务身份/系统材料 + 片段摘要）
  *   - focusMode=false 行为不变（向后兼容）
  */
 import { describe, it, expect, beforeEach } from 'vitest';
@@ -12,18 +13,18 @@ import { ContextFragmentRegistry } from '../src/knowledge/context/ContextFragmen
 import type { FragmentProvider, ContextAssemblyInput } from '../src/knowledge/context/ContextFragmentRegistry.js';
 import { ContextAssemblyEngine } from '../src/knowledge/context/ContextAssemblyEngine.js';
 
-function mockProvider(source: string, data: Record<string, unknown>): FragmentProvider {
+function mockProvider(source: string, data: Record<string, unknown>, taskRef?: string): FragmentProvider {
   return {
     source: source as any,
     async collect(_input: ContextAssemblyInput) {
-      return { source: source as any, data, version: 1, collectedAt: Date.now() };
+      return { source: source as any, data, version: 1, collectedAt: Date.now(), ...(taskRef ? { taskRef } : {}) };
     },
   };
 }
 
 function makeEngine(config?: Partial<ConstructorParameters<typeof ContextAssemblyEngine>[5]>) {
   const registry = new ContextFragmentRegistry();
-  // 注册全部 8 种来源（验证聚焦模式会跳过"历史倾向"片段）
+  // 注册全部 8 种来源（验证三分法：系统级必装 / 任务级收集 / 历史级跳过）
   registry.register(mockProvider('user_profile', { name: 'Alice', prefs: 'long history...' }));
   registry.register(mockProvider('behavior_twin', { profile: 'risk-averse' }));
   registry.register(mockProvider('goal_graph', { goals: [{ id: 'g1', title: '当前目标' }] }));
@@ -35,14 +36,14 @@ function makeEngine(config?: Partial<ConstructorParameters<typeof ContextAssembl
   return new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, config);
 }
 
-describe('ContextAssemblyEngine 聚焦模式（功能③）', () => {
+describe('ContextAssemblyEngine 聚焦模式（功能③ 身份 ID + 三分法）', () => {
   let engine: ContextAssemblyEngine;
 
   beforeEach(() => {
     engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
   });
 
-  it('focusMode=true 只收集当前任务片段（跳过 user_profile/behavior_twin/decision_history/agent_status）', async () => {
+  it('三分法：系统级（user_profile/custom）永不省略 + 任务级收集 + 历史级跳过', async () => {
     const ctx = await engine.assemble({
       missionId: 'm1',
       goal: '开发空气检测设备',
@@ -50,56 +51,102 @@ describe('ContextAssemblyEngine 聚焦模式（功能③）', () => {
       taskRefs: ['ref-1'],
     });
     const sources = ctx.fragments.map((f) => f.source);
-    // 聚焦片段源（default 模板含且在 FOCUS_SOURCES）应被收集
+    // 任务级片段收集
     for (const s of ['goal_graph', 'mission_state', 'artifact_lineage']) {
       expect(sources).toContain(s);
     }
-    // "历史倾向"片段（default 模板含但不在 FOCUS_SOURCES）不应被收集
-    for (const s of ['user_profile', 'behavior_twin', 'decision_history', 'agent_status']) {
+    // 系统级永不省略：user_profile 在 default 模板 required 中，聚焦时必须保留（用户画像必须）
+    expect(sources).toContain('user_profile');
+    // 历史级跳过（需则主动召回）
+    for (const s of ['behavior_twin', 'decision_history', 'agent_status']) {
       expect(sources).not.toContain(s);
     }
   });
 
-  it('focusedSummary 包含 goal/domain/taskRefs 与片段摘要', async () => {
+  it('身份 ID 聚焦：taskRef 不匹配当前任务的片段被过滤，匹配的保留，系统级必装', async () => {
+    const registry = new ContextFragmentRegistry();
+    // 任务 A 的 goal（归属 taskA）——当前任务是 B，应被过滤
+    registry.register(mockProvider('goal_graph', { goals: [{ id: 'gA', title: '任务A的目标' }] }, 'taskA'));
+    // 任务 B 的 mission（归属 taskB）——应保留
+    registry.register(mockProvider('mission_state', { id: 'mB', status: 'EXECUTING' }, 'taskB'));
+    // 系统级（无归属）——必装
+    registry.register(mockProvider('user_profile', { name: 'Alice' }));
+    const eng = new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, {
+      focusMode: true,
+      enableVersioning: false,
+      enableEnrichment: false,
+    });
+    const ctx = await eng.assemble({ missionId: 'm1', goal: '推进任务B', currentTask: { taskId: 'taskB' } });
+    const sources = ctx.fragments.map((f) => f.source);
+    expect(sources).toContain('mission_state');   // B 匹配 → 装
+    expect(sources).not.toContain('goal_graph');  // A 不匹配 → 过滤（同会话多任务可分）
+    expect(sources).toContain('user_profile');    // 系统级 → 必装
+  });
+
+  it('focusedSummary 包含 goal/domain/taskRefs/任务身份 与片段摘要', async () => {
     const ctx = await engine.assemble({
       missionId: 'm1',
       goal: '开发空气检测设备',
       domain: 'hardware',
       taskRefs: ['ref-1', 'ref-2'],
+      currentTask: { goalId: 'g1', taskId: 't1' },
     });
     expect(ctx.focusedSummary).toBeTruthy();
     expect(ctx.focusedSummary).toContain('开发空气检测设备');
     expect(ctx.focusedSummary).toContain('hardware');
     expect(ctx.focusedSummary).toContain('ref-1');
     expect(ctx.focusedSummary).toContain('goal_graph');
+    expect(ctx.focusedSummary).toContain('任务身份');
+    expect(ctx.focusedSummary).toContain('goal=g1');
   });
 
-  it('token 截断：超出 maxTokens 的片段被截掉', async () => {
+  it('聚焦不主动截断（选对材料优先）；仅异常超限（>maxTokens×10）才兜底截断', async () => {
+    // 正常情况：大片段也不截（硬截断降级为兜底）——用 default 模板含的 goal_graph 做大片段源
     const bigProvider: FragmentProvider = {
-      source: 'custom' as any,
+      source: 'goal_graph' as any,
       async collect() {
-        return { source: 'custom' as any, data: { big: 'x'.repeat(20000) }, version: 1, collectedAt: Date.now() };
+        return { source: 'goal_graph' as any, data: { big: 'x'.repeat(20000) }, version: 1, collectedAt: Date.now() };
       },
     };
     const registry = new ContextFragmentRegistry();
-    registry.register(mockProvider('goal_graph', { goals: [] }));
+    registry.register(mockProvider('user_profile', { name: 'Alice' }));
+    registry.register(mockProvider('mission_state', { id: 'm1' }));
     registry.register(bigProvider);
-    const smallEngine = new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, {
+    const eng = new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, {
       focusMode: true,
-      maxTokens: 1000, // 第一个大片段就超限
+      maxTokens: 1000, // 正常不应触发兜底（total ≈ 5000 tokens < 1000×10）
       enableVersioning: false,
       enableEnrichment: false,
     });
-    const ctx = await smallEngine.assemble({ missionId: 'm1', goal: 'g' });
-    // 大片段（~5000 tokens）超过 1000 上限且已有片段 → 被截
-    expect(ctx.fragments.every((f) => f.source !== 'custom')).toBe(true);
+    const ctx = await eng.assemble({ missionId: 'm1', goal: 'g' });
+    expect(ctx.fragments.some((f) => f.source === 'goal_graph')).toBe(true); // 不主动截
+
+    // 异常超限：total > maxTokens×10 → 兜底截断
+    const hugeProvider: FragmentProvider = {
+      source: 'goal_graph' as any,
+      async collect() {
+        return { source: 'goal_graph' as any, data: { big: 'x'.repeat(200000) }, version: 1, collectedAt: Date.now() };
+      },
+    };
+    const registry2 = new ContextFragmentRegistry();
+    registry2.register(mockProvider('user_profile', { name: 'Alice' }));
+    registry2.register(mockProvider('mission_state', { id: 'm1' }));
+    registry2.register(hugeProvider);
+    const eng2 = new ContextAssemblyEngine(registry2, undefined, undefined, undefined, undefined, {
+      focusMode: true,
+      maxTokens: 1000, // total ≈ 50000 tokens > 10000 → 兜底截
+      enableVersioning: false,
+      enableEnrichment: false,
+    });
+    const ctx2 = await eng2.assemble({ missionId: 'm1', goal: 'g' });
+    expect(ctx2.fragments.every((f) => f.source !== 'goal_graph')).toBe(true); // 被兜底截掉
   });
 
   it('focusMode=false 保持原行为（模板全部片段 + slice 截断）', async () => {
     const legacy = makeEngine({ focusMode: false, maxFragments: 50, enableVersioning: false, enableEnrichment: false });
     const ctx = await legacy.assemble({ missionId: 'm1' });
     const sources = ctx.fragments.map((f) => f.source);
-    // 原行为：default 模板定义的 7 个片段源全部收集（含 user_profile 等历史倾向片段）
+    // 原行为：default 模板定义的 7 个片段源全部收集（含 user_profile 等）
     expect(sources.length).toBe(7);
     expect(sources).toContain('user_profile');
     // 不生成 focusedSummary

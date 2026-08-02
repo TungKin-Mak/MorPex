@@ -16,6 +16,7 @@ import { SafetyMonitor } from '../../cognition/index.js';
 import { SelfImprovementLoop } from '../../evolution/index.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';
 import type { CrossAgentLearningEngine } from '../../cognition/learning/agent/CrossAgentLearningEngine.js';
+import type { IEventStore } from '../../infrastructure/protocol/events/store/IEventStore.js';
 
 // ── Ontology 迭代4：收敛 ──
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
@@ -69,6 +70,8 @@ export class MorPexRuntime {
   private safetyMonitor: SafetyMonitor;
   private evolutionLoop: SelfImprovementLoop;
   private learningEngine?: CrossAgentLearningEngine;
+  /** 功能③：EventStore 引用（可选，历史抽离完整快照持久化用；未注入时降级为仅事件广播） */
+  private eventStore: IEventStore | null = null;
 
   // ── Ontology 迭代4 ──
   private ontology: OntologyService | null = null;
@@ -108,6 +111,9 @@ export class MorPexRuntime {
 
   /** setOntology — 注入 OntologyService（迭代4） */
   setOntology(o: OntologyService): void { this.ontology = o; }
+
+  /** setEventStore — 注入 EventStore（功能③ 历史抽离：完整快照入权威存储，按 taskRef 召回） */
+  setEventStore(es: IEventStore): void { this.eventStore = es; }
   /** setForcedQueryGuard — 注入 ForcedQueryGuard（迭代4） */
   setForcedQueryGuard(g: ForcedQueryGuard): void { this.forcedQueryGuard = g; }
   /** setPiBridge — 注入 PiBridge（迭代4） */
@@ -475,7 +481,10 @@ export class MorPexRuntime {
       // ── Phase 9.7 功能③ D：历史抽离最小版（原则②——已完成历史进权威存储，工作上下文只留摘要） ──
       // Mission 完成 + L6 评价后：生成摘要（goal + 结果 + keyRefs + score）→ 事件入 EventStore；
       // 摘要同时存入 RunResult.experience，供下次装配作"近期摘要"片段源（Phase 1 最小版：先写入+承载）。
+      // 任务身份 ID（功能③：当前以 missionId 为任务主键；goalId/planId 细粒度留后续）
+      const taskRef = context.mission.missionId;
       const missionSummary = {
+        taskRef,
         missionId: context.mission.missionId,
         goal: context.goal.objective.substring(0, 120),
         result: execResult.ok ? 'success' : 'failure',
@@ -494,6 +503,35 @@ export class MorPexRuntime {
         });
       } catch (err) {
         console.warn('[MorPexRuntime] ⚠️ 历史抽离事件写入失败（非阻断）:', (err as Error).message);
+      }
+
+      // 功能③ 抽离三级·完整快照：完整 ExecutionContext 快照入 EventStore（权威存储，按 taskRef 召回精确还原）
+      //   防召回时只有摘要导致信息丢失；eventStore 未注入时降级（仅事件广播，不阻断）
+      if (this.eventStore) {
+        try {
+          await this.eventStore.append({
+            id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+            type: 'context.snapshot',
+            timestamp: Date.now(),
+            executionId: context.executionId,
+            source: 'morpex-runtime',
+            payload: {
+              taskRef,
+              missionId: context.mission.missionId,
+              goal: context.goal.objective.substring(0, 200),
+              domain: context.goal.domain,
+              result: execResult.ok ? 'success' : 'failure',
+              workflow: context.workflow,
+              budget: context.budget,
+              risk: context.risk,
+              artifacts: context.artifacts,
+              score: ontologyEval?.missionQuality ?? undefined,
+              archivedAt: Date.now(),
+            },
+          });
+        } catch (err) {
+          console.warn('[MorPexRuntime] ⚠️ 完整快照写入 EventStore 失败（非阻断）:', (err as Error).message);
+        }
       }
 
       // S34 可观测：主管线完成事件（success → /audit 标记 morpex-runtime ACTIVE/exercised）
