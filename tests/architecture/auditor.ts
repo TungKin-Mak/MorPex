@@ -100,7 +100,7 @@ function main() {
     eventCoverage: { totalEventTypes: eventCount, emittedCount: emitCount, coverageScore: eventScore },
     testCoverage: { totalModules: 44, tested: 6, untested: 38, score: testScore },
     architectureScore: finalScore,
-    recommendations: violations.length > 0 ? ['Fix boundary violations'] : ['Add unit tests for untested modules (P0: CognitiveLoop done, next: MissionRuntime, EventStore)'],
+    recommendations: violations.length > 0 ? ['Fix boundary violations'] : ['Add unit tests for untested modules (next: MissionRuntime, EventStore)'],
   };
 
   const reportDir = 'tests/reports';

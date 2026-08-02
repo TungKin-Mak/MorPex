@@ -5,7 +5,7 @@
  *
  * 对外提供统一的规划入口，对内委托给:
  *   - MetaPlanner（完整 7 引擎规划管线）
- *   - CognitivePipeline（认知管线中的规划阶段）
+ *   - 多规划器降级链（MetaPlanner → DAG → HierarchicalPlanner）
  *   - SimulationEngine（执行前仿真预测）
  *
  * 设计原则：
@@ -22,7 +22,8 @@
  * 使用方式：
  *   const planner = new DeliveryPlanner(eventBus);
  *   planner.setMetaPlanner(metaPlanner);
- *   planner.setCognitivePipeline(pipeline);
+ * 使用方式：
+ *   const planner = new DeliveryPlanner();
  *   const plan = await planner.createPlan({ goal: '优化登录模块', mode: 'auto' });
  *   const simulation = await planner.simulate('计划ID');
  */
@@ -96,7 +97,6 @@ export interface SimulationResult {
 
 export interface PlannerHealth {
   metaPlanner: boolean;
-  cognitivePipeline: boolean;
   simulationEngine: boolean;
   uptime: number;
 }
@@ -105,11 +105,6 @@ export interface PlannerHealth {
 
 export interface MetaPlannerLike {
   createPlan(goal: string, context?: Record<string, unknown>): Promise<{ plan: Record<string, unknown>; planId?: string }>;
-  readonly name: string;
-}
-
-export interface CognitivePipelineLike {
-  run(goal: string, context?: Record<string, unknown>): Promise<{ plan: Record<string, unknown> }>;
   readonly name: string;
 }
 
@@ -126,7 +121,6 @@ export class DeliveryPlanner {
 
   private eventBus: EventBus;
   private metaPlanner: MetaPlannerLike | null = null;
-  private cognitivePipeline: CognitivePipelineLike | null = null;
   private simulationEngine: SimulationEngineLike | null = null;
   private plans: Map<string, Plan> = new Map();
   private planCounter = 0;
@@ -189,13 +183,6 @@ export class DeliveryPlanner {
   }
 
   /**
-   * setCognitivePipeline — 注入 CognitivePipeline 实现
-   */
-  setCognitivePipeline(pipeline: CognitivePipelineLike): void {
-    this.cognitivePipeline = pipeline;
-  }
-
-  /**
    * setSimulationEngine — 注入 SimulationEngine 实现
    */
   setSimulationEngine(engine: SimulationEngineLike): void {
@@ -236,7 +223,7 @@ export class DeliveryPlanner {
    * isReady — 检查是否至少有一个规划引擎可用
    */
   isReady(): boolean {
-    return !!(this.metaPlanner || this.cognitivePipeline);
+    return !!(this.metaPlanner || this.simulationEngine);
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -433,7 +420,7 @@ export class DeliveryPlanner {
     // 如果 quick 模式有足够数据和较高成功率，优先 quick
     if (quickTotal >= DeliveryPlanner.MODE_LEARNING_THRESHOLD && quickStats) {
       const quickRate = quickStats.success / quickTotal;
-      if (quickRate >= 0.8 && this.cognitivePipeline) return 'quick';
+      if (quickRate >= 0.8) return 'quick';
     }
 
     // 如果 full 模式有足够数据和较高成功率，优先 full
@@ -444,7 +431,6 @@ export class DeliveryPlanner {
 
     // 默认：有 MetaPlanner 就走 full
     if (this.metaPlanner) return 'full';
-    if (this.cognitivePipeline) return 'full';
 
     return 'quick';
   }
@@ -535,17 +521,7 @@ export class DeliveryPlanner {
       }
     }
 
-    // 策略 1: CognitivePipeline（已有，优先）
-    if (this.cognitivePipeline) {
-      const result = await this.cognitivePipeline.run(request.goal, {
-        ...request.context,
-        departmentId: request.departmentId,
-        planId,
-      });
-      return this.normalizePlan(result.plan, request, planId, 'quick');
-    }
-
-    // 策略 2: HierarchicalPlanner 再次尝试（作为 SOP 之前的降级）
+    // 策略 1: HierarchicalPlanner 再次尝试（作为 SOP 之前的降级）
     if (this.hierarchicalPlanner) {
       try {
         const dagPlan = await this.hierarchicalPlanner.createPlan(request.goal, {
@@ -918,7 +894,6 @@ export class DeliveryPlanner {
   getHealth(): PlannerHealth {
     return {
       metaPlanner: !!this.metaPlanner,
-      cognitivePipeline: !!this.cognitivePipeline,
       simulationEngine: !!this.simulationEngine,
       uptime: Date.now() - this.startedAt,
     };

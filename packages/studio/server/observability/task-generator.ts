@@ -57,8 +57,6 @@ const MODULES: Array<{ name: string; layer: string; version: string }> = [
   { name: 'cross-agent-learning',   layer: 'runtime',       version: '9.2.0' },
   { name: 'shared-memory-manager',  layer: 'runtime',       version: '9.2.0' },
   // Evolution
-  { name: 'cognitive-loop',         layer: 'evolution',     version: '9.2.0' },
-  { name: 'workflow-miner',         layer: 'evolution',     version: '9.2.0' },
   { name: 'workflow-registry',      layer: 'evolution',     version: '9.2.0' },
   // Resilience
   { name: 'circuit-breaker',        layer: 'control-plane', version: '9.2.0' },
@@ -102,9 +100,7 @@ const PATHS: Record<PathKey, string[]> = {
     'sandbox-manager', 'budget-manager', 'dag-runtime', 'health-check',
   ],
   'evolution-workflow': [
-    'execution-stage', 'learning-stage', 'evolution-stage',
-    'workflow-miner', 'workflow-registry', 'cognitive-loop',
-    'persistence-stage',
+    'workflow-registry',
   ],
   'learning-feedback': [
     'execution-stage', 'learning-stage', 'cross-agent-learning',

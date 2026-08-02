@@ -5,14 +5,12 @@
  *   - ExperienceMiner.mineFromCompletedTask → PatternExtractor.extract
  *   - FailureAnalyzer.analyze（健康分级 + 失败模式 + 建议）
  *   - ActiveEvolutionTrigger.checkAndTrigger（连续失败触发 + 配置阈值）
- *   - PatternMigrationEngine 构造 + EventBus 接线（department.created → 迁移）
  *   - EvolutionSandbox apply/revert/verify（补充性回归，feature-regression 已有 8 用例）
  */
 import { describe, it, expect } from 'vitest';
 import { ExperienceMiner } from '../src/evolution/ExperienceMiner.js';
 import { FailureAnalyzer } from '../src/evolution/FailureAnalyzer.js';
 import { ActiveEvolutionTrigger } from '../src/evolution/ActiveEvolutionTrigger.js';
-import { PatternMigrationEngine } from '../src/evolution/PatternMigrationEngine.js';
 import { SelfImprovementLoop } from '../src/evolution/SelfImprovementLoop.js';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../src/infrastructure/common/types.js';
@@ -92,19 +90,6 @@ describe('ActiveEvolutionTrigger — 主动进化触发', () => {
     });
     const result = await trigger.checkAndTrigger();
     expect(result).toBeTruthy();
-  });
-});
-
-describe('PatternMigrationEngine — 模式迁移接线', () => {
-  it('构造 + department.created 事件订阅不抛错', () => {
-    const bus = new EventBus();
-    const engine = new PatternMigrationEngine(bus); // 注意：构造函数直接接收 eventBus
-    expect(engine).toBeTruthy();
-    // 触发事件不应导致未捕获异常（异步迁移内部消化）
-    expect(() => bus.emit({
-      id: 'evt_dept', type: 'department.created', timestamp: Date.now(),
-      executionId: 'exe', source: 'test', payload: { departmentId: 'ecommerce' },
-    })).not.toThrow();
   });
 });
 

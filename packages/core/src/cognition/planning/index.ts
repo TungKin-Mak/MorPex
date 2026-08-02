@@ -13,7 +13,6 @@ export type {
   SimulationResult,
   PlannerHealth,
   MetaPlannerLike,
-  CognitivePipelineLike,
   SimulationEngineLike,
 } from './DeliveryPlanner.js';
 

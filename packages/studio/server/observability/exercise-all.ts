@@ -593,9 +593,9 @@ export async function exerciseAllModules(ctx: ExerciseContext): Promise<string[]
     () => safe(() => ctx.workflowExecutor?.execute?.({ workflowId: 'ex' })),
     'evolution');
 
-  await chain.invokeIf(ctx.cognitiveLoop, 'cognitive-loop', 'step',
-    () => safe(() => ctx.cognitiveLoop?.step?.({ message: 'ex' })),
-    'control-plane');
+  await chain.invokeIf(ctx.workflowRegistry, 'workflow-registry', 'getAll',
+    () => safe(() => ctx.workflowRegistry?.getAll?.()),
+    'evolution');
 
   // ═══════════════════════════════════════════════════
   // Phase 7: Emit kernel events（事件驱动的流水线阶段）

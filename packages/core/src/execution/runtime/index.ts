@@ -34,19 +34,6 @@ export type { VerificationResult, VerificationCheck, VerificationIssue, Verifica
 export { ApprovalEngine } from './approval/index.js';
 export type { ApprovalRequest, ApprovalStatus, ApprovalEngineConfig, ApprovalEventPayload, ApprovalStats } from './approval/index.js';
 
-// ── Cognitive Runtime Loop (Phase 6) ──
-export { CognitiveLoop, CognitivePipeline } from './cognitive-loop/index.js';
-export type {
-  CognitiveStage, CognitiveContext, CognitivePhase, DetectedIntent, LoopStats,
-  WorkflowCandidateEntry, BehaviorDriftEntry, TwinCandidate, EvidenceAggregation,
-} from './cognitive-loop/index.js';
-
-// ── Pipeline Stages ──
-export {
-  ContextStage, IntentStage, GoalStage, TwinStage, PlanningStage,
-  ExecutionStage, LearningStage, EvolutionStage, PersistenceStage,
-} from './cognitive-loop/index.js';
-
 // ── Sandbox / Budget / Compensation ──
 export { SandboxManager } from './sandbox/index.js';
 export type { SandboxContext, SandboxExecutionResult } from './sandbox/index.js';

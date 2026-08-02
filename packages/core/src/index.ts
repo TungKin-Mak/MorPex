@@ -240,23 +240,6 @@ export type { VerificationResult, VerificationCheck, VerificationIssue, Verifica
 export { ApprovalEngine } from './execution/runtime/index.js';
 export type { ApprovalRequest, ApprovalStatus, ApprovalEngineConfig, ApprovalEventPayload, ApprovalStats } from './execution/runtime/index.js';
 
-// ── Cognitive Runtime Loop (Phase 6 / MorPex v8.5) ──
-export { CognitiveLoop, CognitivePipeline } from './execution/runtime/index.js';
-export type { CognitiveStage, CognitiveContext, CognitivePhase, DetectedIntent, LoopStats, WorkflowCandidateEntry, BehaviorDriftEntry, TwinCandidate, EvidenceAggregation } from './execution/runtime/index.js';
-
-// ── v8.6 Pipeline Stages (v9.1: +ContextStage) ──
-export {
-  ContextStage,
-  IntentStage,
-  GoalStage,
-  TwinStage,
-  PlanningStage,
-  ExecutionStage,
-  LearningStage,
-  EvolutionStage,
-  PersistenceStage,
-} from './execution/runtime/index.js';
-
 // ── Cognitive Layer (Phase 5-6 / MorPex v8) ──
 // Personal Twin Graph
 export { PersonalTwinGraph, BehaviorTwin } from './cognition/index.js';
@@ -328,7 +311,7 @@ export type {
 } from './cognition/index.js';
 
 // ── MorPex v8.6 Evolution Layer ──
-export { WorkflowMiner, WorkflowRegistry, WorkflowOptimizer, WorkflowExecutor, WorkflowSimulator } from './evolution/index.js';
+export { WorkflowRegistry, WorkflowSimulator, WorkflowOptimizer, WorkflowExecutor } from './evolution/index.js';
 export type { SimulationResult, SimulationMetrics, SimulatorConfig } from './evolution/index.js';
 export type {
   WorkflowStatus,
@@ -347,25 +330,6 @@ export { ContractValidator } from './evolution/index.js';
 export type {
   WorkflowContract,
   ContractValidationResult,
-} from './evolution/index.js';
-
-// ── v8.8 Workflow Testing ──
-export { WorkflowTestRunner } from './evolution/index.js';
-export type {
-  WorkflowTestCase,
-  WorkflowTestResult,
-  WorkflowTestSuiteResult,
-} from './evolution/index.js';
-
-// ── v8.8 Artifact Lineage (aliased to avoid conflict with Phase 3 Knowledge Plane ArtifactLineage) ──
-// @deprecated Wave 5：本别名对应 evolution/workflow/lineage 两阶段提交版（零逻辑消费者）；
-// L6 血缘评分用的是 knowledge/artifact/registry/ArtifactLineage（查询语义）。兼容保留。
-export { ArtifactLineage as WorkflowArtifactLineage } from './evolution/index.js';
-export type {
-  ArtifactNode as WorkflowArtifactNode,
-  ArtifactEdge as WorkflowArtifactEdge,
-  LineageQuery as WorkflowLineageQuery,
-  LineagePath as WorkflowLineagePath,
 } from './evolution/index.js';
 
 // ── MorPex v8 Event Protocol ──

@@ -25,7 +25,7 @@
  *   ActiveEvolutionTrigger.checkAndTrigger()
  *     → 检查失败/质量/新部门条件
  *     → EventBus.emit('evolution.active_triggered')
- *     → SelfImprovementLoop.evolve() / PatternMigrationEngine.migratePattern()
+ *     → SelfImprovementLoop.evolve()（只产 pending 提案，审批晋升走 EvolutionSandbox）
  *
  * @packageDocumentation
  */

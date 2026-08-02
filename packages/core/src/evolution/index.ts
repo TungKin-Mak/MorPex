@@ -5,8 +5,7 @@
  * v11: +ExperienceMiner, +FailureAnalyzer, +PatternExtractor
  *
  * v16 Phase 4.7 新增:
- *   ActiveEvolutionTrigger — 主动进化触发器
- *   PatternMigrationEngine — 跨部门模式迁移引擎
+ *   ActiveEvolutionTrigger — 主动进化触发器（事件驱动权威入口）
  *
  * 子模块:
  *   evolution/workflow/   — Workflow Evolution Engine (Phase 5)
@@ -16,8 +15,8 @@
  */
 
 // ── Workflow Evolution (Phase 5) ──
-export { WorkflowMiner, WorkflowRegistry, WorkflowOptimizer, WorkflowExecutor, WorkflowSimulator } from './workflow/index.js';
-export { ContractValidator, WorkflowTestRunner, ArtifactLineage } from './workflow/index.js';
+export { WorkflowRegistry, WorkflowSimulator, WorkflowOptimizer, WorkflowExecutor } from './workflow/index.js';
+export { ContractValidator } from './workflow/index.js';
 export type {
   WorkflowStatus,
   WorkflowVersion,
@@ -36,13 +35,6 @@ export type {
   // v8.8
   WorkflowContract,
   ContractValidationResult,
-  WorkflowTestCase,
-  WorkflowTestResult,
-  WorkflowTestSuiteResult,
-  ArtifactNode,
-  ArtifactEdge,
-  LineageQuery,
-  LineagePath,
 } from './workflow/index.js';
 
 // ── v11 Evolution Engine ──
@@ -63,15 +55,6 @@ export type {
   TriggerStats,
 } from './ActiveEvolutionTrigger.js';
 
-export { PatternMigrationEngine } from './PatternMigrationEngine.js';
-export type {
-  PatternMigrationRecord,
-  MigrationStatus,
-  MigrationTemplate,
-  MigrationStats,
-  WorkflowRegistryLike,
-} from './PatternMigrationEngine.js';
-
 // ── vNext+: 知识缺失监听器（QueryMiss → Feedback → Evolution）──
 export { KnowledgeGapListener } from './KnowledgeGapListener.js';
 export type {
@@ -86,11 +69,9 @@ export { EvolutionSandbox } from './EvolutionSandbox.js';
 export type { EvolutionChangeRecord, EvolutionChangeInput, EvolutionSandboxOptions } from './EvolutionSandbox.js';
 
 // ── Wave 3a 迁入（自 cognition/，L4 纯度剥离）：提案生命周期 ──
-// Wave 5：SIL 已收紧为只产提案（不自动审批/晋升，未审批只能是 pending）；
-// FeedbackAwareLearner @deprecated（未接线，见其文件头注）。
+// Wave 5：SIL 已收紧为只产提案（不自动审批/晋升，未审批只能是 pending）。
 export { SelfImprovementLoop } from './SelfImprovementLoop.js';
 export { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
 export { EvolutionProposal } from './EvolutionProposal.js';
-export { FeedbackAwareLearner } from './FeedbackAwareLearner.js';
 export type { ImprovementInsight } from './ImprovementAnalyzer.js';
 export type { Proposal } from './EvolutionProposal.js';

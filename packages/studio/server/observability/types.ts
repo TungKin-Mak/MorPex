@@ -172,13 +172,8 @@ export const DEFAULT_MODULES: ModuleRegistration[] = [
   { id: 'unified-event-store',       name: 'unified-event-store',       layer: 'runtime', version: '9.2.0' },
   { id: 'artifact-plane',            name: 'artifact-plane',            layer: 'knowledge', version: '9.2.0' },
 
-  // ═══ Evolution Plane (3) ═══
-  { id: 'workflow-miner',            name: 'workflow-miner',            layer: 'evolution', version: '9.2.0' },
+  // ═══ Evolution Plane (1) ═══
   { id: 'workflow-registry',         name: 'workflow-registry',         layer: 'evolution', version: '9.2.0' },
-  { id: 'workflow-executor',        name: 'workflow-executor',        layer: 'evolution', version: '9.2.0' },
-
-  // ═══ Cognitive Loop (1) ═══
-  { id: 'cognitive-loop',           name: 'cognitive-loop',           layer: 'control-plane', version: '9.2.0' },
 ];
 
 // ═══════════════════════════════════════════════════════════════════

@@ -13,12 +13,12 @@
             "state": {
               "type": "markdown",
               "state": {
-                "file": "docs/v16-architecture-audit.md",
+                "file": "docs/AICOS_CORE_ARCHITECTURE.md",
                 "mode": "source",
                 "source": false
               },
               "icon": "lucide-file",
-              "title": "v16-architecture-audit"
+              "title": "AICOS_CORE_ARCHITECTURE"
             }
           }
         ]
@@ -185,17 +185,22 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
-    "data/test-es-1785334178294/event-store.jsonl",
-    "data/test-es-1785334178294/decision-stream.jsonl",
-    "data/test-es-1785334178294",
-    "data/test-repo-1785334178170",
-    "data/test-events-1785334178170/event-store.jsonl",
-    "data/test-events-1785334178170",
-    "data/ut-checkpoints/ut-cp-1.jsonl",
-    "data/test-es-1785333947677/event-store.jsonl",
-    "data/test-es-1785333947677/decision-stream.jsonl",
-    "data/test-es-1785333947677",
-    "data/test-repo-1785333947557",
+    "docs/sedqEuy9v",
+    "packages/core/src/evolution/workflow/WorkflowOptimizer.ts",
+    "packages/core/src/evolution/workflow/WorkflowExecutor.ts",
+    "data/data/deliverables-global/task-1-todo/todo_app.py",
+    "data/data/deliverables-global/task-1-todo/README.md",
+    "data/data/deliverables-global/task-1-todo",
+    "packages/core/src/infrastructure/tools/primitives/gateBinding.ts",
+    "docs/sedHukzQs",
+    "docs/sedH48MEv",
+    "packages/core/src/infrastructure/tools/primitives/sedU4XFRO",
+    "packages/core/src/infrastructure/tools/primitives/sedesPRrq",
+    "packages/core/src/infrastructure/tools/primitives/sedMwWZ2B",
+    "docs/AICOS_CORE_FILE_REGISTRY.md",
+    "docs/MEMORY_DEPLOYMENT.md",
+    "docs/AICOS_CORE_ARCHITECTURE.md",
+    "data/data/deliverables-global/todo_app/README.md",
     "docs/state-source-unification-plan.md",
     "docs/dataflow-audit-report.md",
     "docs/phase2-complete.md",
