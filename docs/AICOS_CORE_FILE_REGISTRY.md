@@ -9,16 +9,14 @@
 > **列说明**：功能 = 文件顶部声明；职责边界 = 文件自身声明中的边界条款（含"职责/不做/只做/禁止"者直接引用），否则用层边界规则。
 
 
-## `facade/`（6 文件）
+## `facade/`（4 文件）
 
 > 层边界规则：编排与协议适配；不承载业务/认知/存储逻辑
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
 | `facade/CompanyFacade.ts` | CompanyFacade — CEO 高层操作入口（v16 Unified） ═══ 硬管道 ═══ - Runtime 与 ControlPlane 构造时强制（NODE_ENV=production 旧签名抛错） - executeGoal: ControlPlane.checkAll() + RunOptions 透传 - sendTask: 委托 executeGoal（不跳过门禁） / | 编排与协议适配；不承载业务/认知/存储逻辑 |
-| `facade/gateway/ContractGateway.ts` | ContractGateway — Contract-based execution gateway (replaces old ExecutionGateway). Routes execution requests through AgentRuntimePort/InferencePort adapters. Core code never touches Pi types — only contracts. / | 编排与协议适配；不承载业务/认知/存储逻辑 |
 | `facade/gateway/ExecutionGateway.ts` | ExecutionGateway — 统一执行网关 职责： - 管理多个运行时适配器（PiAdapter 等） - 根据 agentRole 路由到对应 adapter - 确保 executionId 已设置 - 调用 adapter.execute() 并标准化返回结果 - 通过 EventBus 广播 runtime.* 事件 设计约束： - Gateway 不缓存状态（薄桥转发） - 所有事件通过 EventBus 广播 - 所有事件 ID 必须通过 ExecutionIdentity.createEven | ExecutionGateway — 统一执行网关 职责： - 管理多个运行时适配器（PiAdapter 等） - 根据 agentRole 路由到对应 adapter - 确保 executionId 已设置 - 调用 adapter.execute() 并标准化返回结果 - 通过 EventBus 广播 runtime.* 事件 设计约束： - Gateway 不缓存状态（薄桥转发） - 所有事件通过 EventBus 广播 - 所有事件 ID 必须通过 ExecutionIdentity.createEven |
-| `facade/gateway/PiAdapterBridge.ts` | PiAdapterBridge — Wraps the old PiAdapter (which uses pi-agent-core AgentRuntime) into the new AgentRuntimePort contract interface. Migration bridge: allows gradual transition from old PiAdapter to new PiAgentCoreAdapter without breaking existing ExecutionGate | 编排与协议适配；不承载业务/认知/存储逻辑 |
 | `facade/gateway/adapters/PiAdapter.ts` | PiAdapter — pi AgentRuntime → AgentRuntimeAdapter 适配器 将现有 AgentRuntime（src/core/runtime.ts）包装为标准的 AgentRuntimeAdapter。 包装对象：AgentRuntime（src/core/runtime.ts） 不包装：Orchestrator、MentionRouter、FSMAgentRuntime 内部逻辑： execute(request) ├── ExecutionRequest.input → pi  | 编排与协议适配；不承载业务/认知/存储逻辑 |
 | `facade/index.ts` | facade — CEO 高层操作入口模块 Phase 0 / 基础设施层 CompanyFacade = 一人虚拟公司的"CEO 控制台" / | 编排与协议适配；不承载业务/认知/存储逻辑 |
 
@@ -59,7 +57,7 @@
 | `governance/types.ts` | Governance Layer — 类型定义 Phase 8 / MorPex v8: 风险分析、审计追踪、治理配置。 设计原则： - RiskAnalyzer 只读不写：分析风险但不修改任何状态 - AuditTrail 只追加不改：审计日志不可篡改 - GovernanceConfig 集中配置：所有治理参数一处在 / | 目标级授权；不推理/不执行/不直接查知识 |
 
 
-## `knowledge/`（47 文件）
+## `knowledge/`（45 文件）
 
 > 层边界规则：权威存储+Tier写规则；不拦截/不推理/不触发演化
 
@@ -76,7 +74,6 @@
 | `knowledge/artifact/registry/ArtifactRegistry.ts` | ArtifactRegistry — Artifact 注册中心 (v2: 支持 URI 引用) Phase 11.3 升级：标准化 URI 格式 - URI 格式: artifact://{domain}/{artifactType}/{artifactId} - resolve(uri) — 通过 URI 解析 ArtifactInstance - listByDomain(domainId) — 列出指定领域的所有产物 管理所有 Artifact 的注册、查找、追踪。 维护 Artifact 图谱（paren | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/ArtifactVersion.ts` | ArtifactVersion — 版本管理 每次 Artifact 内容变更时创建版本快照。 支持版本回滚和变更追溯。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/artifact/registry/plugin.ts` | Artifact Plugin — 交付物管理插件 管理 Agent 产出的实际交付物（Artifact Instance）。 注意：只管理 Instance（实际产物），Blueprint（蓝图）属于 Planner。 事件协议： - 监听: 'artifact.register'         ← 注册新 Artifact - 监听: 'artifact.update'           ← 更新 Artifact - 监听: 'artifact.create_relation'  ← 创建关系 - 监听: | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/types.ts` | Artifact Plugin — 类型定义 Artifact Model: Blueprint 和 Instance 的共同抽象。 Artifact Instance: 实际交付物（由 Agent 产出）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/ContextAssemblyEngine.ts` | ContextAssemblyEngine — 上下文组装引擎（核心） v9.1 Context Assembly Layer: 统一上下文构建入口。 流程： 1. 选择模板（按 templateId 或标签匹配） 2. 从注册中心收集必需 + 可选片段 3. 将片段注入 Builder 4. 应用模板基础数据 5. 构建 ExecutionContext 6. 运行增强流水线（可选） 7. 版本快照（可选） 8. 返回最终上下文 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/ContextBuilder.ts` | ContextBuilder — 上下文构建器 v9.1 Context Assembly Layer: 将多个上下文片段组装为统一的分层 ExecutionContext。 三层结构： - base: 基础层（不变的会话常量，如 schemaVersion、用户身份） - session: 会话层（当前会话数据，如 missionId、当前意图） - ephemeral: 临时层（瞬态计算结果，如风险评分、推荐） / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -89,7 +86,6 @@
 | `knowledge/graph/SystemMetadataGraph.ts` | SystemMetadataGraph — 系统元数据图 Phase 2: 记录所有实体关系 + EventStore 事件写入 + 事件重建 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/KnowledgeGraph.ts` | KnowledgeGraph — 轻量级知识图谱（实体 + 关系） ★ 记忆统一：存储由 JSONL 文件改为 SQLite（better-sqlite3，实时持久化）。 接口完全不变（addEntity/searchEntities/getNeighborhood/findPath/…）， 消费方（AgentHarness/MetaPlanner/StrategicDeconstructor 等）零感知。 兼容：loadFromDisk 时若 SQLite 为空且存在旧 JSONL，自动迁移一次。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/graph/knowledge/plugin.ts` | KnowledgeGraphPlugin — L2 知识图谱插件（MorPexPlugin 实现，挂载知识图到运行面） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/graph/knowledge/types.ts` | Knowledge Graph — 类型定义 统一知识图谱：整合 Agent / Task / Artifact / Decision / Memory 为上层提供跨数据源的查询接口。 扩展了 Cognee 风格的实体/关系类型，支持认知图谱（Cognitive Graph）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/CompanyKnowledge.ts` | memory/CompanyKnowledge — 公司知识记忆（Gate 接线注册表） 低耦合：模块级注册表 + 可选注入。 - bootstrap 装配时注入 memoryApi（cognee 引擎）；未注入时工具调用返回 QueryMiss，不硬崩。 - ontologyTools 的第 5 个工具 ontology_queryCompanyKnowledge 经此查询。 - QueryMiss → 复用现有事件链（ontology.query.miss / needs_human）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/MemoryActivationEngine.ts` | MemoryActivationEngine — 记忆激活引擎 根据当前状态、任务和执行上下文， 主动从 Memory Store 检索最相关的记忆并注入 Agent 上下文。 支持： - state-aware recall  — 根据执行状态检索 - task-aware recall   — 根据任务目标检索 - execution-aware recall — 根据执行历史和模式检索 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -192,7 +188,7 @@
 | `cognition/workflow/types.ts` | Workflow Intelligence — 类型定义 Phase 7 / MorPex v8: 工作流智能引擎数据类型。 四大能力： 1. Pattern Detection — 重复行为模式检测 2. Workflow Extraction — 从 Mission 历史提取流程 3. Workflow Optimization — 流程优化建议 4. Automation Assessment — 自动化成熟度评估 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 
 
-## `execution/`（66 文件）
+## `execution/`（59 文件）
 
 > 层边界规则：有界执行+硬边界；不重规划/不评分/不演化
 
@@ -210,10 +206,6 @@
 | `execution/harness/ContextBuilder.ts` | ContextBuilder — 从记忆/产物/经验构建 Harness 执行上下文（意图/计划/记忆） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/HarnessContext.ts` | Harness 上下文类型定义（IntentContext / PlanContext / MemoryContext 结构化） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/orchestrator/AgentOrchestrator.ts` | AgentOrchestrator — Agent 编排器 管理 Agent 的创建、分配、生命周期。 支持 CEO/Manager 层级结构。 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/orchestrator/plugin.ts` | createOrchestratorPlugin — 编排器插件工厂（name/version） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/swarm/SwarmEngine.ts` | SwarmEngine — 群组智能引擎 管理 Agent 群组（Swarm），支持多种协作策略： - consensus: 共识决策（多数表决） - round_robin: 轮流执行 - voting: 加权投票 Phase 5 / 实现版本 1.0.0 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/swarm/plugin.ts` | createSwarmPlugin — Swarm 群体执行插件工厂（name/version） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/harness/types.ts` | Memory record retrieved from memory store */ | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/index.ts` | Execution — v11 Execution Plane + Phase 2 统一引擎 @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/ExecutionContext.ts` | ExecutionContext — 执行上下文（GoalContext + MissionState + 运行时快照） | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -246,7 +238,6 @@
 | `execution/runtime/mission/MissionRuntime.ts` | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 |
 | `execution/runtime/mission/MissionTypes.ts` | Mission 状态/阶段类型定义（MissionStatus / MissionPhase） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/DAGExecutorAdapter.ts` | DAGExecutorAdapter — 将 DAGRuntime 适配为 MissionExecutor 接口 P0 架构完善: 连接 MissionRuntime → DAGRuntime MissionRuntime 通过 MissionExecutor 接口委托执行工作。 此适配器将现有的 DAGRuntime（TaskGraph/Scheduler/ParallelExecutor）包装为 MissionExecutor。 使用方式： const adapter = new DAGExecutorAdap | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/mission/adapters/GatewayHandler.ts` | GatewayMissionHandler — 将 MessageGateway 连接到 MissionRuntime P0 架构完善: 连接 Interaction Gateway → Mission Runtime MessageGateway 通过 MessageHandler 接口委托消息处理。 此处理器将用户消息转换为 Mission，触发 Mission 的完整生命周期。 使用方式： const handler = new GatewayMissionHandler(missionRuntime); m | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/MetaPlannerAdapter.ts` | MetaPlannerAdapter — 将 MetaPlanner 适配为 MissionPlanner 接口 P0 架构完善: 连接 MissionRuntime → MetaPlanner ★ v8.5 升级: 读取 Twin 约束 (PlannerConstraint) 并注入 MetaPlanner MissionRuntime 通过 MissionPlanner 接口委托规划工作。 此适配器将现有的 MetaPlanner（7-Stage Pipeline）包装为 MissionPlanner。 使用方 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/adapters/index.ts` | runtime/mission/adapters — Mission Runtime 适配器 barrel P0 架构完善: 将新 v8 模块连接到现有引擎。 适配器清单： MetaPlannerAdapter  — MissionRuntime → MetaPlanner（7-Stage Pipeline） DAGExecutorAdapter  — MissionRuntime → DAGRuntime（TaskGraph/Scheduler） GatewayMissionHandler — deprecate | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/index.ts` | runtime/mission — Mission Runtime 模块统一入口 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排。 导出: - MissionState:          业务级生命周期枚举（8 状态） - MISSION_VALID_TRANSITIONS: 有效转换映射 - MissionRuntime:        运行时主引擎 - MissionPlanner/MissionExecutor: 规划器/执行器接口  | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -254,8 +245,6 @@
 | `execution/runtime/sandbox/SandboxManager.ts` | SandboxManager — 沙箱执行管理器 MorPex v8.8 -> v9.2: 从模拟层升级为真实代码执行。 每个任务在沙箱上下文中执行，限制 CPU/内存/网络/文件系统访问。 v9.2 新增: - executeCode() — 真实 child_process 执行代码 - executeCodeFromArtifact() — 从产物自动提取并执行 - detectLanguage() — 自动识别代码语言 - 支持 Python, JavaScript, Go, Bash, TypeScrip | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/sandbox/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/sandbox/types.ts` | Sandbox — 类型定义 MorPex v8.8: 沙箱隔离执行上下文。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/scheduler/SchedulerEngine.ts` | SchedulerEngine — STUB (replaced by DAG Runtime's Scheduler) @deprecated Use Scheduler from runtime/dag/ / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/scheduler/plugin.ts` | SchedulerPlugin — 调度器插件（v0.1.0 占位） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/simulation/ExecutionSimulator.ts` | ExecutionSimulator — 执行计划模拟器 v16: 在规划后执行前模拟，发现潜在问题 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/simulation/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/state-machine/ExecutionFSM.ts` | ExecutionFSM — 执行状态机 MorPex Runtime 执行状态管理。 管理 Agent 执行的生命周期状态转换。 States: CREATED → PLANNING → READY → EXECUTING ⇄ WAITING ↓ REVIEWING → COMPLETED ↓ FAILED / CANCELLED Features: - 状态转换验证 - 状态持久化 (JSONL) - 状态恢复 - 事件发射 - 审计日志 / | 有界执行+硬边界；不重规划/不评分/不演化 |
@@ -312,20 +301,18 @@
 | `evolution/workflow/types.ts` | Workflow Evolution Engine — 类型定义 Phase 5 / MorPex v8.5: 工作流持续演化系统的数据模型。 与 cognition/workflow/ 的区别: cognition/workflow/ — 工作流智能: 模式检测、提取、优化建议 (一次性分析) evolution/workflow/ — 工作流演化: 持续挖掘、注册管理、版本化、自动执行 (生命周期) 生命周期: candidate (系统发现) → confirmed (用户确认) → active (自动执行 | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 
 
-## `infrastructure/`（86 文件）
+## `infrastructure/`（76 文件）
 
 > 层边界规则：底座服务；无领域逻辑/不推理/不规划/不评价/不演化
 
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
 | `infrastructure/adapters/agent-spawner.ts` | AgentSpawnerAdapter — Agent 创建工厂 通过 PiBridge 隔离 pi-agent-core 依赖。 PiBridge 是唯一直接导入 pi-agent-core 的文件。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/adapters/domain-cluster.ts` | DomainClusterAdapter — isolates pi-agent-core AgentHarness / InMemorySessionRepo / NodeExecutionEnv All pi-agent-core dependencies go through PiBridge static methods. Types are re-exported from pi-utils.ts (which also goes through PiBridge). / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/identity.ts` | IdentityAdapter — ID generation utilities Pi-independent implementation using Node 20+ crypto.randomUUID(). Previously used pi-agent-core's uuidv7 — now self-contained. The generated IDs are time-sortable UUID v7-compatible. Format: {prefix}_{YYYYMMDD}_{8hex}  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/index.ts` | MorPex Core Adapter Layer — Barrel export All Pi-adjacent types and utilities are re-exported from here. Core business logic may import from this barrel: import { MPAgentTool, Type } from '../../infrastructure/adapters/index.js'; ══════════════════════════════ | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/memory/index.ts` | Memory Adapter Bridge — 统一 memory 包接入层 ═══════════════════════════════════════════════════════════════════ ARCHITECTURAL BOUNDARY Only files in packages/core/src/infrastructure/adapters/ may directly import from the memory package. All L2/L3/L4 core modules MU | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/model-registry.ts` | ModelRegistryAdapter — isolates pi-ai model discovery functions. Wraps pi-ai's getModels / getProviders / getModel. Uses type-safe provider validation. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/model-resolver.ts` | ModelResolver — Type-safe wrapper around pi-ai's getModel(). Uses pi-ai/compat for backward compatibility. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/adapters/pi-agent-runtime.ts` | PiAgentCoreRuntime — Pi Runtime adapter Minimal adapter wrapping pi-agent-core AgentHarness for the ExecutionGateway. This file was recreated after cleanup removed an unused predecessor. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-ai-types.ts` | PiAITypesAdapter — isolates pi-ai TypeBox type exports Re-exports Type, Static, TSchema from pi-ai for use in tool definitions. If pi-ai changes these exports, only this file needs updating. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-augmentations.ts` | Pi Augmentations — TypeScript declaration merging for pi-agent-core types. Extends pi-agent-core's AgentMessage to support MorPex custom message roles (memoryHint, dagNodeStatus) used by MemoryMessages.ts. This file is imported as a side-effect by MemoryMessag | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-bridge/PiBridge.ts` | PiBridge — 稳定的 pi-ai + pi-agent-core 抽象层 隔离 @earendil-works/pi-ai 和 @earendil-works/pi-agent-core 的 API 变更。 当底层包升级时，只需修改此文件。 内部使用 pi-ai 0.81.x 新 API：builtinModels / Models.complete 内部使用 pi-agent-core 0.81.x API：AgentHarness / InMemorySessionRepo / NodeExecutio | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -333,7 +320,6 @@
 | `infrastructure/adapters/pi-types.ts` | MorPex Pi Type Adapter — Central type-level bridge ═══════════════════════════════════════════════════════════════════ IMPORTANT: THIS IS THE ONLY FILE WHERE Pi TYPES ARE IMPORTED. All other core files MUST import Pi types from here: import { MPAgentTool } fro | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-utils.ts` | MorPex Pi Utilities Adapter — Central runtime bridge to Pi packages ═══════════════════════════════════════════════════════════════════ ALL pi-agent-core classes go through PiBridge static getters. When pi packages upgrade, only PiBridge needs changing. pi-ai  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/thinking-level.ts` | ThinkingLevel — 模型推理深度控制 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/common/BaseModule.ts` | BaseModule — 模块基类（可选继承，零依赖） 继承此类的模块获得: 1. name/layer 元数据 2. onTrace 回调（由外部 ModuleInvoker 注入） 3. execute() 生命周期钩子 使用方式: class Planner extends BaseModule<PlannerInput, Plan> { name = 'planner'; layer = 'control-plane'; async run(ctx: unknown, input: PlannerInput | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/EncryptionService.ts` | EncryptionService — AES-256-GCM 加密/解密 v9.2 Phase 3: 保护敏感字段的静态加密。 使用 Node.js 内置 crypto 模块，AES-256-GCM 认证加密。 环境变量: MORPEX_ENCRYPTION_KEY (32字节 hex) 使用方式: const enc = new EncryptionService(); const encrypted = enc.encrypt('{"apiKey":"sk-..."}'); const decrypted = | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/EventBus.ts` | EventBus — 事件总线 (v2: 支持领域作用域) 插件间唯一通信通道。 所有事件必须携带 executionId。 事件类型命名空间：{domain}.{action}（如 runtime.tool.called） Phase 11 新增： - emitToDomain(domainId, event) — 只发送到指定领域 - onDomain(domainId, eventType, handler) — 只监听指定领域 - broadcastCrossDomain(event) — 跨领域广播 设计 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/common/ExecutionIdentity.ts` | ExecutionIdentity — 全链路 ID 系统 ID 格式：{prefix}_{YYYYMMDD}_{shortUUID} | 类型      | prefix | 示例                        | |-----------|--------|-----------------------------| | executionId | exe  | exe_20260707_a81f92cd       | | traceId   | trc    | trc_20260707_b | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -366,10 +352,8 @@
 | `infrastructure/protocol/events/index.ts` | protocol/events — MorPex Event Protocol Barrel Phase 1 / MorPex v8: 事件协议层统一导出入口。 导出： - EventType:         标准事件类型枚举 - EVENT_LAYERS:      事件类型按层分组 - getAllEventTypes:  获取所有标准事件类型 - BaseEvent:         基础事件接口 - isStandardEvent:   判断是否为标准事件类型 - isEventInLayer:    判 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/EventProjection.ts` | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p |
 | `infrastructure/protocol/events/store/EventRepository.ts` | EventRepository — 事件查询层 Phase 4 / MorPex v8.5: 在 EventStore 基础上提供过滤、聚合、时序查询。 使用方式: const repo = new EventRepository(eventStore); const errors = repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 }); const timeline = repo.getTimeline('mis | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/events/store/EventStore.Extensions.ts` | EventStore Cognitive Extensions — 认知决策事件流支持 v8.6: 为 EventStore 添加 DecisionEvent 支持。 与 Execution History 并行存储，共同构成完整的事件溯源审计线索。 设计原则: - DecisionEvent 与 BaseEvent 分开存储（不同文件、不同索引） - 但共享同一个 EventStore 实例的数据目录 - 查询时可分别查询或关联查询 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/EventStore.ts` | EventStore — Event Sourcing 不可变事件存储 (JSONL) @deprecated 使用 SqliteEventStore 或 UnifiedEventStore（SQLite 后端）代替。 迁移路径: const store = new SqliteEventStore();        // 新实现 const store = new UnifiedEventStore();       // 兼容旧 API 的门面 Phase 4 / MorPex v8.5: 所有状态变更通过事 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/IEventStore.ts` | IEventStore — 统一 EventStore 接口 v9.2 Stage 0: 定义统一的 EventStore 契约。 所有模块通过此接口访问事件存储，不依赖具体实现。 设计原则: - 接口最小化：只暴露必要方法 - 异步友好：所有方法返回 Promise - 可替换：内存 / SQLite / PostgreSQL 均可实现 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/events/store/MigrationRunner.ts` | MigrationRunner — SQLite 迁移运行器 v9.2 Stage 2: 基于 schema_migrations 表的版本化迁移。 使用方式: const runner = new MigrationRunner(db); const applied = runner.run(MIGRATIONS); console.log(`Applied ${applied} migrations`); / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/SqliteEventStore.ts` | SqliteEventStore — SQLite 后端事件存储 v9.2 Stage 0: 替代 JSONL 事件存储，提供： - WAL 模式（并发读安全） - 事务批量写入 - 时序索引（sequence + timestamp） - aggregateId 索引（领域/聚合溯源） 表结构: events           — 主事件表 (BaseEvent) events_decision  — 决策事件表 (DecisionEvent) schema_migrations — 迁移版本跟踪 使用方式:  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/UnifiedEventStore.ts` | UnifiedEventStore — 统一 EventStore 门面 v9.2 Stage 0: 桥接新旧 EventStore API。 内部使用 SqliteEventStore，对外暴露旧版 API 实现平滑迁移。 旧 API 兼容（@deprecated，用于迁移期）: - replay(executionId?) → ReplayState        (旧 EventStore) - query(executionId) → SourcingEvent[]       (旧 EventStore) | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/index.ts` | protocol/events/store — Event Sourcing Barrel Phase 4 / MorPex v8.5: 事件溯源存储层。 v9.2 Stage 0: - 新增 IEventStore 接口（统一契约） - 新增 SqliteEventStore（SQLite 实现，取代 JSONL） - 新增 UnifiedEventStore（兼容新旧 API 的门面） - 旧 EventStore 标记为 @deprecated，保留向后兼容 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -380,15 +364,10 @@
 | `infrastructure/tools/ForkExecuteTool.ts` | ForkExecuteTool — 派生无状态执行肢（Fork） Expert (Ring 1) 通过此工具将高风险/高耗时任务下放到 Fork (Ring 2) 执行。Fork 运行在隔离的 worker_threads 中，超时/内存超限自动 terminate。 底层调用 ToolExecutionProxy.execute()，使用已有的 worker_threads 隔离机制。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 0.4 (删除优先法则): 使用已有的  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ReadArtifactTool.ts` | ReadArtifactTool — 按需读取 Artifact 工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 读取（权限检查），回退到直接 ArtifactRegistry 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/TeamSayTool.ts` | TeamSayTool — 领域间通信工具 向指定 Agent 发送消息（UDP 语义，非阻塞）。 目标 Agent 当前 turn 完成后自动消费消息。 使用 pi-agent-core harness.steer() 实现。 steer() 注入 steering 消息，异步非阻塞。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 0.4 (删除优先法则): 使用 pi 原生 steer() 而非自定义通信 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolCallTracker.ts` | ToolCallTracker — 工具调用生命周期状态追踪（合并版） 基于 AgentScope ToolCallState 设计，提供双重追踪方式： 1. EventBus 驱动（自动）：订阅 runtime.tool.* 事件自动追踪 2. 手动 API（精确）：供 PermissionEngine 等模块直接调用 状态机（与 AgentScope 兼容）: ``` PENDING ──(deny/beforeToolCall)──► FINISHED (blocked) ├──(ask)──────► AS | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolExecutionProxy.ts` | ToolExecutionProxy — Worker 隔离执行器（含僵尸防御 + 反向熔断） 每个工具调用在独立 worker_threads 中执行。 内核不关心执行细节，只监听三种信号： - progress   → 透传给 harness 的 tool_execution_update - completed  → 返回 ToolResult - timeout/oom → 执行 worker.terminate()，向 FSMEngine 抛出 TOOL_EXECUTION_TIMEOUT / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolFactory.ts` | ToolFactory — 工具工厂（EventBus 注入，创建并注册 LLM 工具） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolRegistry.ts` | ToolRegistry — LLM 工具注册中心（ToolSchema 登记/查找） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/artifact-registry-skill.ts` | artifact-registry-skill — 产物注册 AgentTool (Phase 11: Harness-aware) 将 ArtifactRegistry 封装为 AgentTool。 优先通过 AgentHarness 注册（权限+上下文），回退到直接 registry 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ask-user-tool.ts` | ask-user-tool — 向用户提问的 AgentTool options 必填，前端渲染为可点击按钮。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/builtin-tools.ts` | builtin-tools — MorPex 内置 AgentTool 定义 v3.x 重构：所有 pi 包直接依赖已隔离到适配层。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/index.ts` | tools — 动态工具层 ToolFactory → 动态生成工具 ToolRegistry → 工具注册与统计 DomainPrimitiveRegistry → 通用原语注册与匹配 primitives/ → 5 个领域无关的基础原语 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/knowledge-graph-skill.ts` | knowledge-graph-skill — 知识图谱查询 AgentTool (Phase 11: Harness-aware) 优先通过 AgentHarness 查询（上下文+权限），回退到直接 KnowledgeGraph 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/memory-search-tool.ts` | memory-search-tool.ts — 记忆搜索工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 搜索（上下文+记忆激活），回退到直接 MemoryRetriever 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ontologyTools.ts` | ontologyTools — Ontology LLM 工具定义（查询/检索，供 Gate 两阶段推理使用） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/primitives/APICallPrimitive.ts` | APICallPrimitive — API 调用原语 通用的 HTTP API 调用操作，通过 ConnectorRegistry 执行。 不包含任何领域逻辑——纯粹的基础设施能力。 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |

@@ -185,6 +185,7 @@
   },
   "active": "ebdc404037157d07",
   "lastOpenFiles": [
+    "reconcile_tmp.py",
     "packages/core/__tests__/sedqbIPwz",
     "packages/core/src/execution/runtime/sedd4PNOE",
     "packages/core/src/execution/runtime/sedSLK7CO",
@@ -195,7 +196,6 @@
     "packages/core/src/evaluation/verification/ArtifactChecker.ts",
     "packages/core/src/evaluation/verification/QualityRule.ts",
     "packages/core/src/evaluation/verification/VerificationEngine.ts",
-    "packages/core/src/evaluation/verification",
     "data/data/deliverables-global/task-1-todo/README.md",
     "docs/AICOS_CORE_FILE_REGISTRY.md",
     "docs/MEMORY_DEPLOYMENT.md",
