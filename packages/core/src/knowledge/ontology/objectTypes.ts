@@ -17,6 +17,7 @@ export const CORE_OBJECT_TYPES = [
   'SOP',
   'Feedback',
   'Department',
+  'Rule',
 ] as const;
 
 export type CoreObjectType = (typeof CORE_OBJECT_TYPES)[number];
@@ -98,5 +99,15 @@ export const DEFAULT_SCHEMAS: ObjectTypeSchema[] = [
     requiredProperties: ['name'],
     optionalProperties: ['description', 'type', 'status'],
     defaultStatus: 'active',
+  },
+  // 功能②：规则中断更正 —— 规则作为 L2 知识权威实体（tier-0/1 人工 / tier-2 演化）
+  {
+    type: 'Rule',
+    requiredProperties: ['title', 'status', 'domain', 'severity'],
+    optionalProperties: [
+      'tier', 'ruleType', 'target', 'disallowedPattern', 'aliases',
+      'allowedAction', 'priority', 'source', 'extractedFrom', 'description',
+    ],
+    defaultStatus: 'pending',
   },
 ];

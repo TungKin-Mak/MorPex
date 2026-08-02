@@ -590,6 +590,18 @@ export type { WorkflowProvider, WorkflowAction } from './workflow/index.js';
 export { ComplianceChecker, PolicyRuleRegistry } from './governance/index.js';
 export type { ComplianceResult } from './governance/index.js';
 
+// ── 功能②：规则中断更正（RuleEnforcementGuard）—— core 机制 + 领域插件注入内容 ──
+export { RuleRegistry } from './gate/rules/RuleRegistry.js';
+export { rulePersistence } from './gate/rules/rulePersistence.js';
+export { extractRule } from './gate/rules/RuleExtractor.js';
+export { normalizeText, normalizePattern } from './gate/rules/normalize.js';
+export { check as ruleEnforcementCheck } from './gate/rules/RuleEnforcementGuard.js';
+export type {
+  RuleEntity, RuleViolation, RuleSeverity, RuleStatus,
+  RuleType, RuleTarget, RuleSource, RuleTier, RuleCheckResult,
+} from './gate/rules/types.js';
+export type { RuleExtractorLLM, RuleExtractInput } from './gate/rules/RuleExtractor.js';
+
 // ── Runtime Governance (v15) ──
 export { RuntimeManager, CostController, AlertEngine } from './governance/index.js';
 export type { Alert, AlertLevel } from './governance/index.js';

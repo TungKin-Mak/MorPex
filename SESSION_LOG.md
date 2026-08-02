@@ -35,11 +35,21 @@
 - 微信域逻辑必须留在适配器/插件层（领域隔离）
 - **待决策**：企业微信（合规）vs 个人微信（风险）？微信可否作 human-approval 通道？
 
-### ② 升级记忆系统（规则中断更正）—— ⭐ L3 Gate 扩展（关键认知：这本质是"规则执行器"非记忆系统）
-- 架构映射：规则文档 = L2 知识权威（tier-0/1）；中断器 = L3 新组件 `RuleEnforcementGuard`（挂 runOntologyGroundedReasoning Phase 2 后）；修正 = 携带规则约束重试（受 L5 预算保护）
-- 检测机制：**确定性规则匹配器**（规则条目 `{condition, disallowedPattern, allowedAction}`，正则/语法匹配 LLM 输出，命中→中断）——非 LLM 自检（弱）
-- **待决策**：① 规则来源（人工 tier-0 vs 演化 tier-2）② 是否接受确定性匹配器 ③ 修正策略（先确定性替换、失败再重试，受预算限制）
-- 风险：误报卡死（需规则优先级/降级）
+### ② 升级记忆系统（规则中断更正）—— ✅ 方案定稿 + Phase 1 已实现（2026-08-03）
+
+**文档**：`docs/FEATURE_RULE_ENFORCEMENT.md`（唯一真相源：架构分层/数据结构/流程/落点拆解/验收标准）
+
+**已定决策**（多轮讨论收敛）：
+1. 规则来源：**人工反馈→LLM 提炼→人工确认生效**（pending/active，存 L2 tier-0/1 RuleEntity）；演化 tier-2 延后 Phase 3（TierWriteGuard 已预留闸门）
+2. 检测机制：**确定性优先**——规范化管道(NFKC+casefold+去空白)+正则为主力，别名表补充，模糊匹配可选，LLM 语义复核仅兜底
+3. 检测器架构：**core 管骨架/领域管内容**——5 维分类（文本/结构/代码/行为/合规）；正则引擎内置 core，AST/编译/Lint 走 `Detector` 接口由领域实现；复用现有 validateReferences/QualityRule/PolicyRuleRegistry/TierWriteGuard/L5 预算
+4. 修正策略：ERROR 命中→中断→带约束重试（maxAttempts=3 管道自控，guard 纯化）→仍违规 needs_human_review
+5. 误报降级：ERROR/WARNING 分级 + 连续命中 2 次自动降级 + rule.violation/rule.downgraded 事件（字符串字面量 type，不走 EventType 枚举）
+6. 已识别的坑：groundingCache 缓存跳过校验（Phase 2 规则版本入 key）；Gate 无预算感知（重试管道自控）
+
+**Phase 1 落点**（7 新文件+4 改文件+测试+1 插件示例）：`gate/rules/{types,RuleRegistry,normalize,RuleEnforcementGuard,ruleEvents,RuleExtractor,rulePersistence}.ts`；改 `runOntologyGroundedReasoning`（Phase 2 后挂载+带约束重试）/`gate/index`/`objectTypes`(Rule 类型)/`bootstrap-unified`；测试 normalize 管道/guard 匹配/重试循环/连续降级；ecommerce 插件示例。验收：tsc 0 / validate 100% / 新测试全绿 / 集成验证中断-重试-降级链路。
+
+**✅ Phase 1 已实现并验证（2026-08-03）**：全部落点落地（含 ecommerce 插件 `rule-register.ts`、validate-architecture 白名单加 `/gate/rules/`）；tsc 0 / validate 100% / vitest 64 文件 614 通过（新增 5 测试文件 25 用例，原 589 零回归）；集成测试证明中断-重试-降级-转人工链路 + eventStore undefined 兼容（4 调用方）。实现中修复 2 个设计缺口：① 降级后违规内容会静默放行 → 补"降级后转人工"；② 重试温度统一 0.3 → 重试轮 0.2。剩余建议项（WARNING 事件冗余、缓存规则版本并入 key）归 Phase 2。
 
 ### ③ 升级上下文管理 —— L2/L4 组装
 - `ContextAssemblyEngine` 已存在（Builder/Enricher/FragmentRegistry/Versioner），是"升级"非"新建"
@@ -57,7 +67,8 @@
 
 ## 当前开放决策（会话 2 待定）
 
-1. ② 规则来源：人工 tier-0 vs 演化 tier-2
-2. ② 检测机制：是否接受确定性规则匹配器
-3. ① 微信类型：企业微信 vs 个人微信
-4. ③ 上下文"优化"的具体方向
+1. ② 规则来源：人工 tier-0 vs 演化 tier-2 → **已定**（反馈提炼+确认，演化延后）
+2. ② 检测机制：是否接受确定性规则匹配器 → **已定**（确定性优先+语义兜底）
+3. ① 微信类型：企业微信 vs 个人微信（未讨论）
+4. ③ 上下文"优化"的具体方向（未讨论）
+5. ✅ ② Phase 1 实现已确认开工并完成（2026-08-03，验收全绿）

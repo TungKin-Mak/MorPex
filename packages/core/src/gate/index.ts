@@ -6,3 +6,5 @@ export type { GroundedReasoningOptions, GroundedReasoningResult } from './runOnt
 export * from './types.js';
 export { createQueryPerformedEvent, createQueryMissEvent, createReferenceValidationFailedEvent } from './ontologyEvents.js';
 export type { OntologyQueryMissEvent, OntologyQueryPerformedEvent, OntologyReferenceValidationFailedEvent } from './ontologyEvents.js';
+// 功能②：规则中断更正（RuleEnforcementGuard）
+export * from './rules/index.js';

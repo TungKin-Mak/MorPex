@@ -245,6 +245,7 @@ const GENERATION_ALLOWLIST = [
   '/facade/gateway',                           // L1 入口适配（PiAdapterBridge）
   '/infrastructure/tools/ToolFactory.ts',                     // 通用工具工厂（动态 schema 生成，非领域生成）
   '/knowledge/ontology/prompts/',                        // L2 prompt 构建（非生成）
+  '/gate/rules/',                                        // 功能② 规则提炼（L3 内部受控生成点，产物 pending 须人工确认，不触达外部）
   '/bootstrap',                                // bootstrap 注入 piBridge
 ];
 

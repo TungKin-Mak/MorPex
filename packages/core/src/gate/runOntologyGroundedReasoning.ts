@@ -27,6 +27,15 @@ import {
   createReferenceValidationFailedEvent,
   createQueryMissEvent,
 } from './ontologyEvents.js';
+// 功能② Phase 1：规则中断更正（RuleEnforcementGuard）
+import { RuleRegistry } from './rules/RuleRegistry.js';
+import { check as ruleEnforcementCheck } from './rules/RuleEnforcementGuard.js';
+import {
+  createRuleViolationEvent,
+  createRuleDowngradedEvent,
+} from './rules/ruleEvents.js';
+import type { RuleDowngradedEvent } from './rules/ruleEvents.js';
+import type { RuleViolation } from './rules/types.js';
 
 export interface GroundedReasoningOptions {
   goal: string;
@@ -100,6 +109,8 @@ export interface GroundedReasoningResult {
     referenceCheck: { valid: boolean; missing: string[]; knownCount: number };
     issuedAt: number;
   };
+  /** 功能②：规则中断结果（无违规/无规则时为空数组；供审计与演化队列） */
+  ruleViolations?: RuleViolation[];
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -315,13 +326,143 @@ export async function runOntologyGroundedReasoning(
 
   const reasoningUser = buildReasoningUserPrompt(goal, factsSummary, missionId);
 
-  const reasoningResponse = await piBridge.generateText({
-    system: FORCED_QUERY_SYSTEM_PROMPT,
-    prompt: reasoningUser,
-    temperature: 0.3,
-  });
+  // ═══════════════════════════════════════════════════════════
+  // 功能② Phase 1：规则中断更正（RuleEnforcementGuard）
+  //   无 active 规则 → 完全旁路（不引入任何额外 LLM 调用，保持既有行为）
+  //   ERROR 违规 → 携带规则约束重试（最多 3 次）→ 仍违规 → needs_human_review
+  //   连续命中 2 次 → 临时降级该规则（仅本次执行，防误报卡死）
+  //   WARNING 违规 → 不中断，仅记录事件
+  // ═══════════════════════════════════════════════════════════
+  const activeRules = RuleRegistry.getActiveRules();
+  const RULE_MAX_ATTEMPTS = 3;
+  /** 连续命中降级阈值：同一规则连续命中 N 次仍不过 → 临时降级（疑似误报）+ 转人工 */
+  const CONSECUTIVE_HIT_LIMIT = 2;
+  const consecutiveHits = new Map<string, number>();
+  const downgradedRules = new Set<string>();
+  const downgradedEvents: RuleDowngradedEvent[] = [];
+  const ruleDomainOf = (ruleId: string): string =>
+    activeRules.find((r) => r.id === ruleId)?.domain ?? '';
+  let proposal: OntologyProposal | null = null;
+  let ruleViolations: RuleViolation[] = [];
 
-  const proposal = normalizeProposal(reasoningResponse.text);
+  for (let attempt = 0; attempt < RULE_MAX_ATTEMPTS; attempt++) {
+    const constraintSuffix =
+      attempt === 0 || ruleViolations.length === 0
+        ? ''
+        : `\n\n【修正要求】你的上一版输出违反以下规则，必须修改输出使其完全合规（不得再出现违规内容）：\n${ruleViolations
+            .filter((v) => v.severity === 'ERROR')
+            .map((v) => `- [${v.ruleId}] ${v.description}（命中内容：${v.matchedText}）`)
+            .join('\n')}`;
+
+    const reasoningResponse = await piBridge.generateText({
+      system: FORCED_QUERY_SYSTEM_PROMPT,
+      prompt: attempt === 0 ? reasoningUser : reasoningUser + constraintSuffix,
+      // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
+      temperature: attempt === 0 ? 0.3 : 0.2,
+    });
+
+    proposal = normalizeProposal(reasoningResponse.text);
+
+    // 无规则 → 旁路（no-op，保既有行为）
+    if (activeRules.length === 0) break;
+
+    const applicable = activeRules.filter((r) => !downgradedRules.has(r.id));
+    const checkResult = ruleEnforcementCheck(proposal, applicable);
+    ruleViolations = checkResult.violations;
+    const errorViolations = ruleViolations.filter((v) => v.severity === 'ERROR');
+
+    // WARNING 违规：不中断，仅记录事件（eventStore 存在时）
+    for (const v of ruleViolations.filter((x) => x.severity === 'WARNING')) {
+      if (eventStore) {
+        try {
+          await eventStore.append(createRuleViolationEvent(executionId, {
+            missionId,
+            goal,
+            ruleId: v.ruleId,
+            ruleDomain: ruleDomainOf(v.ruleId),
+            severity: 'WARNING',
+            matchedText: v.matchedText,
+            target: v.target,
+            description: v.description,
+            retriesExhausted: false,
+          }));
+        } catch (err) {
+          console.warn(`[GroundedReasoning] ⚠️ 写入规则 WARNING 事件失败:`, (err as Error).message);
+        }
+      }
+    }
+
+    // 合规 → 放行
+    if (errorViolations.length === 0) break;
+
+    // 连续命中降级：同一规则连续 2 次命中仍不过 → 临时跳过（仅本次执行，不改持久状态）
+    for (const v of errorViolations) {
+      const hits = (consecutiveHits.get(v.ruleId) ?? 0) + 1;
+      consecutiveHits.set(v.ruleId, hits);
+      if (hits >= CONSECUTIVE_HIT_LIMIT && !downgradedRules.has(v.ruleId)) {
+        downgradedRules.add(v.ruleId);
+        downgradedEvents.push(createRuleDowngradedEvent(executionId, {
+          missionId,
+          goal,
+          ruleId: v.ruleId,
+          ruleDomain: ruleDomainOf(v.ruleId),
+          hitCount: hits,
+        }));
+      }
+    }
+
+    // 重试用尽仍违规 → 转人工 + 记录违规事件
+    if (attempt === RULE_MAX_ATTEMPTS - 1) {
+      proposal.needs_human_review = true;
+      proposal.missing_info = [
+        ...(proposal.missing_info ?? []),
+        `规则中断更正失败（${errorViolations.length} 条 ERROR 违规仍存在）：${errorViolations.map((v) => v.ruleId).join(', ')}`,
+      ];
+      for (const v of errorViolations) {
+        if (eventStore) {
+          try {
+            await eventStore.append(createRuleViolationEvent(executionId, {
+              missionId,
+              goal,
+              ruleId: v.ruleId,
+              ruleDomain: ruleDomainOf(v.ruleId),
+              severity: 'ERROR',
+              matchedText: v.matchedText,
+              target: v.target,
+              description: v.description,
+              retriesExhausted: true,
+            }));
+          } catch (err) {
+            console.warn(`[GroundedReasoning] ⚠️ 写入规则违规事件失败:`, (err as Error).message);
+          }
+        }
+      }
+      break;
+    }
+  }
+
+  // 降级事件统一落库（防误报卡死信号可观测）
+  if (downgradedEvents.length > 0 && eventStore) {
+    for (const ev of downgradedEvents) {
+      try {
+        await eventStore.append(ev);
+      } catch (err) {
+        console.warn(`[GroundedReasoning] ⚠️ 写入规则降级事件失败:`, (err as Error).message);
+      }
+    }
+  }
+
+  // 规则被临时降级（疑似误报）→ 输出仍疑似违规，转人工确认（不静默放行）
+  if (downgradedRules.size > 0 && proposal && !proposal.needs_human_review) {
+    proposal.needs_human_review = true;
+    proposal.missing_info = [
+      ...(proposal.missing_info ?? []),
+      `规则已因连续命中临时降级（${[...downgradedRules].join(', ')}），输出仍疑似违规，转人工确认`,
+    ];
+  }
+
+  // 循环保证至少一次赋值；防御性兜底（TS 收窄）
+  if (!proposal) proposal = normalizeProposal('');
 
   // 空结果处理：分级行为 + QueryMiss 标记（vNext+）
   if (!hasUsefulFacts) {
@@ -437,6 +578,8 @@ export async function runOntologyGroundedReasoning(
     hasUsefulFacts,
     riskTier,
     queryMiss,
+    // 功能②：规则中断结果（审计/演化队列用；无违规时空数组）
+    ruleViolations,
     // Wave 3b：签发运行时 Gate 凭证（KnowledgeContextPackage）——
     // Artifact 注册/晋升等入口可凭此包通过 requireKnowledgeContext 硬校验
     knowledgeContextPackage: {
