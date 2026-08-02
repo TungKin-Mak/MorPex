@@ -212,10 +212,12 @@ export class ContextAssemblyEngine {
       this.versioner.snapshot(enrichedContext, `Assembly from template "${template?.templateId ?? 'none'}"`)
     }
 
-    // ★ P0: 持久化到 SQLite（如果配置了）
+    // ★ P0: 持久化到 SQLite（如果配置了）——功能③：装配快照透传任务身份 ID（taskRef），
+    //    与任务完成快照（EventStore context.snapshot）同索引，召回按 taskRef 统一检索
     if (this.persistence) {
       try {
-        this.persistence.save(enrichedContext)
+        const taskRef = input.currentTask?.goalId ?? input.currentTask?.planId ?? input.currentTask?.taskId
+        this.persistence.save(enrichedContext, undefined, taskRef)
       } catch (err) {
         console.warn('[ContextAssemblyEngine] Persistence save failed:', err)
       }

@@ -525,6 +525,15 @@ export class MorPexRuntime {
               budget: context.budget,
               risk: context.risk,
               artifacts: context.artifacts,
+              // 功能③ 快照补全（防召回信息丢失）：团队/能力/时长/执行结果摘要——
+              // 召回时除摘要外可还原"当时发生了什么"（team 构成、用了哪些能力、跑了多久）
+              team: {
+                departments: context.team?.departments ?? [],
+                agents: (context.team as any)?.agents?.length ?? 0,
+              },
+              capabilitiesCount: context.capabilities?.length ?? 0,
+              startedAt: context.startedAt,
+              duration: execResult.duration,
               score: ontologyEval?.missionQuality ?? undefined,
               archivedAt: Date.now(),
             },
