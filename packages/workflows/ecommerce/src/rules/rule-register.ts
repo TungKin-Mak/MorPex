@@ -38,6 +38,22 @@ export function registerDomainRules(): void {
       source: 'manual',
       description: '对外文案禁止出现竞品商标（Apple/iPhone/AirPods/Samsung/Galaxy 及常见代称）',
     },
+    {
+      // 通用两级模型示例（ruleType='keyword'，全行业通用，不绑代码语法）：
+      //   第一级：输出含关键词「价格」→ 第二级 LLM 语义判断"触及价格的内容是否满足要求"
+      id: 'price_disclosure',
+      title: '价格披露合规',
+      tier: 'tier-1',
+      domain: DOMAIN,
+      severity: 'ERROR',
+      ruleType: 'keyword',
+      target: 'proposal.payload',
+      keywords: ['价格'],
+      priority: 90,
+      status: 'pending', // 待人工确认生效
+      source: 'manual',
+      description: '展示价格必须含税，不得使用“仅剩 1 件”等虚假紧迫感话术',
+    },
   ];
   RuleRegistry.registerMany(DOMAIN, rules);
   console.log(`[Workflow:ecommerce] ✅ 规则中断规则已注册（${rules.length} 条，pending 待确认生效）`);
