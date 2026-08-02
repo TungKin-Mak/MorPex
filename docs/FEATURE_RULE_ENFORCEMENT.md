@@ -104,6 +104,8 @@ LLM 输出 → 人工审核 → 反馈一句话（"文案别出现竞品xx的名
 | 正则/别名/规范化 | **core 内置** | 规则**数据** |
 | AST/编译/Lint | core 只留 **Detector 接口** | 检测器**实现**（适配器） |
 
+**⚠️ 语义边界**：`ApiWhitelistDetector` 是**代码类 payload 专用**检测器（剥注释/字符串后扫 API token）——纯文案场景（含引号）会造成漏报，应使用 `regex` 规则，勿当作通用文本检测器。
+
 ---
 
 ## 5. 中断 → 修正 → 降级 流程
@@ -172,11 +174,11 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 
 **Phase 2（正确性+成本）**
 - ✅ **通用修正管线①词法层**（已实现 2026-08-03）：`lexicalCorrection.ts` 保守机械替换（allowedAction 定位不到不动/异常兜底），挂载于重试前；`allowedAction` 为可选微优化（非核心）
-- **通用修正管线②结构层**：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具；software 领域 tsc/eslint 适配器（待实现）
-- ✅ **检测器类型扩展（规范驱动）**（部分实现）：`Detector` 接口正式化（`gate/rules/detectors.ts`）+ `ApiWhitelistDetector`（API 白名单前缀，MCU `allowedApiPrefixes`，xjmcu 示例已注册 pending）；schema/AST 规则待实现
+- **通用修正管线②结构层**：AST/编译/类型校验后自动修复（eslint --fix 式），引擎调用通用工具；software 领域 tsc/eslint 适配器（待实现；依赖解析需验证，完整 AST 区分声明/调用待后续）
+- ✅ **检测器类型扩展（规范驱动）**（已实现 2026-08-03 两批）：`RuleDetector` 接口正式化 + `ApiWhitelistDetector`（API 白名单前缀，剥注释/字符串升级 B1，xjmcu 示例 pending）+ `DetectorRegistry` 领域注入机制（B2，software `custom:no-eval` 示例 pending，验证注入链路）；schema/AST 规则待后续
 - ✅ **缓存一致性**（已实现 2026-08-03）：`RuleRegistry.fingerprint()` 并入 `groundingCache` key——规则变更 → 指纹变 → 旧缓存天然失效
-- L5 预算接线：重试的 LLM 调用计入 costTokens（`runOntologyGroundedReasoning` 当前无预算感知，需从 ExecutionContext 注入或回调）
-- **domain 上下文沿调用链传递 + 按域路由**：当前 4 个调用方均无可靠 domain 信号（Planner 仅 goal 字符串 / Primitive 仅 deptId），需上游 goal→domain 映射后注入 `GroundedReasoningOptions.domain`，`getActiveRules(domain)` 按域过滤（Phase 1 已留接口：options.domain + 示例规则 pending 消除跨域影响）
+- ✅ **L5 预算接线**（已实现 2026-08-03）：`GroundedReasoningOptions.onTokenUsage` 回调——Phase1 查询/Phase2 推理/每次规则重试后估算 tokens（ceil((prompt+text)/4)，精确计费待后续）；MorPexRuntime 接入 emit `execution.gate.token_usage`；回调带 try/catch 防御
+- ✅ **domain 上下文沿调用链传递**（已实现 2026-08-03，F）：MorPexRuntime 从 `context.goal.domain` 注入 `options.domain` 按域过滤；其余 3 调用方无可靠信号保持全局（pending 示例规则兜底）
 
 **Phase 3（可延后）**
 - L7 演化挖掘规则：failure/low_score → 规则提案 → 晋升 tier-2（TierWriteGuard 闸门已预留）

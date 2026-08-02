@@ -235,8 +235,12 @@ export async function runOntologyGroundedReasoning(
     prompt: queryPrompt,
     temperature: 0.2,
   });
-  // Phase 2 E：预算接线——Phase 1 查询 token 估算回调（粗略：字符数/4）
-  options.onTokenUsage?.(Math.ceil((queryPrompt.length + (queryResponse.text?.length ?? 0)) / 4));
+  // Phase 2 E：预算接线——Phase 1 查询 token 估算回调（粗略：字符数/4）；回调异常不影响主流程
+  try {
+    options.onTokenUsage?.(Math.ceil((queryPrompt.length + (queryResponse.text?.length ?? 0)) / 4));
+  } catch (err) {
+    console.warn('[GroundedReasoning] ⚠️ onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
+  }
 
   // 解析查询计划（改进：平衡括号匹配 + 失败默认查询）
   const queryPlan = parseQueryPlanRobust(queryResponse.text);
@@ -381,8 +385,12 @@ export async function runOntologyGroundedReasoning(
       // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
       temperature: attempt === 0 ? 0.3 : 0.2,
     });
-    // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试的 token 估算回调
-    options.onTokenUsage?.(Math.ceil((reasoningUser.length + (reasoningResponse.text?.length ?? 0)) / 4));
+    // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试的 token 估算回调；回调异常不影响主流程
+    try {
+      options.onTokenUsage?.(Math.ceil((reasoningUser.length + (reasoningResponse.text?.length ?? 0)) / 4));
+    } catch (err) {
+      console.warn('[GroundedReasoning] ⚠️ onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
+    }
 
     proposal = normalizeProposal(reasoningResponse.text);
 
