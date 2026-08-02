@@ -105,6 +105,14 @@ export class CompanyFacade {
 
   private brainFacade: any = null;
 
+  /** 功能③：上下文组装引擎（可选注入，无则跳过——零风险） */
+  private contextAssemblyEngine: import('../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
+
+  /** 功能③：注入上下文组装引擎（bootstrap 装配调用） */
+  setContextAssemblyEngine(engine: import('../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine): void {
+    this.contextAssemblyEngine = engine;
+  }
+
   /** L3 非 Mission 路径：DeliveryPlanner（auto/dag/fabric 模式先规划再执行，失败不阻断） */
   private deliveryPlanner: DeliveryPlannerLike | null = null;
 
@@ -168,6 +176,25 @@ export class CompanyFacade {
       approvalTimeoutMs: options.approvalTimeoutMs,
       departmentId: options.departmentId ?? deptId,
     };
+
+    // ── 2.2 功能③：L1 授权后装配聚焦上下文（门禁已过；非阻断——任何失败不影响执行） ──
+    if (this.contextAssemblyEngine) {
+      try {
+        const assembled = await this.contextAssemblyEngine.assemble({
+          missionId: `pre-${Date.now()}`,
+          goal,
+          domain: options.departmentName,
+          tags: options.departmentName ? [options.departmentName] : undefined,
+          // 功能③ 聚焦模式：只装当前任务材料（系统约束+goal+refs+近期摘要）
+        });
+        if (assembled.focusedSummary) {
+          runOpts.assembledContext = assembled.focusedSummary;
+          console.log(`[CompanyFacade] 🧩 聚焦上下文已装配 (${assembled.focusedSummary.length} 字符, domain=${options.departmentName ?? '无'})`);
+        }
+      } catch (err) {
+        console.warn('[CompanyFacade] ⚠️ 上下文装配失败（非阻断，继续执行）:', (err as Error).message);
+      }
+    }
 
     // ── 2.5 L3 非 Mission 路径：DeliveryPlanner 规划（增强；失败不阻断执行） ──
     // Mission 路径的规划由 MissionRuntime(DeliveryPlannerAdapter) 承担；此处覆盖 auto/dag/fabric。

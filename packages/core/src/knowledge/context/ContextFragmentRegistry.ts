@@ -54,6 +54,12 @@ export interface ContextAssemblyInput {
   parentContextId?: string
   /** 标签（用于模板匹配） */
   tags?: string[]
+  /** 功能③：当前任务目标（聚焦模式用） */
+  goal?: string
+  /** 功能③：领域归属（聚焦模式用，按域筛选） */
+  domain?: string
+  /** 功能③：本任务必需的 ontologyRefs（聚焦模式用） */
+  taskRefs?: string[]
 }
 
 // ── FragmentProvider — 片段提供者接口 ──

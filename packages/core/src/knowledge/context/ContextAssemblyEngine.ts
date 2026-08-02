@@ -38,6 +38,10 @@ export interface ContextAssemblyConfig {
   fragmentTimeoutMs: number
   /** Schema 版本 */
   schemaVersion: string
+  /** 功能③：聚焦模式（只装当前任务材料：goal/mission/artifact + custom，生成 focusedSummary，按 token 截断） */
+  focusMode?: boolean
+  /** 功能③：聚焦模式 token 估算上限（超出从低优先级片段截断；默认 8000） */
+  maxTokens?: number
 }
 
 const DEFAULT_CONFIG: ContextAssemblyConfig = {
@@ -46,6 +50,8 @@ const DEFAULT_CONFIG: ContextAssemblyConfig = {
   maxFragments: 50,
   fragmentTimeoutMs: 5000,
   schemaVersion: '1.0',
+  focusMode: false,
+  maxTokens: 8000,
 }
 
 // ── ContextAssemblyEngine — 核心引擎 ──
@@ -86,9 +92,19 @@ export class ContextAssemblyEngine {
     // 1. 选择模板
     const template = this.selectTemplate(input)
 
+    // 功能③ 聚焦模式：片段来源按"当前任务"筛选（goal/mission/artifact + custom），
+    // 跳过"历史倾向"片段（user_profile/behavior_twin/decision_history/agent_status），
+    // 除非 input.tags 显式要求（保持向后兼容：focusMode=false 时行为不变）
+    const focusMode = this.config.focusMode === true
+    const FOCUS_SOURCES: FragmentSource[] = ['goal_graph', 'mission_state', 'artifact_lineage', 'custom']
+    const sourceFilter = (s: FragmentSource): boolean => {
+      if (!focusMode) return true
+      return FOCUS_SOURCES.includes(s)
+    }
+
     // 2. 决定采集哪些片段来源
-    const requiredSources = template?.requiredFragments ?? []
-    const optionalSources = template?.optionalFragments ?? []
+    const requiredSources = (template?.requiredFragments ?? []).filter(sourceFilter)
+    const optionalSources = (template?.optionalFragments ?? []).filter(sourceFilter)
     const allSources = [...new Set([...requiredSources, ...optionalSources])] as FragmentSource[]
 
     // 3. 从注册中心收集片段（带超时）
@@ -120,8 +136,21 @@ export class ContextAssemblyEngine {
       })
     }
 
-    // 5. 限制片段数量
-    const trimmedFragments = fragments.slice(0, this.config.maxFragments)
+    // 5. 限制片段数量（功能③ 聚焦模式：按 token 估算截断，替代 slice(0,maxFragments)）
+    let trimmedFragments = fragments
+    if (focusMode) {
+      const maxTokens = this.config.maxTokens ?? 8000
+      let acc = 0
+      trimmedFragments = []
+      for (const f of fragments) {
+        const size = estimateFragmentTokens(f)
+        if (acc + size > maxTokens && trimmedFragments.length > 0) break
+        acc += size
+        trimmedFragments.push(f)
+      }
+    } else {
+      trimmedFragments = fragments.slice(0, this.config.maxFragments)
+    }
 
     // 6. 注入 Builder
     this.builder.reset()
@@ -143,6 +172,11 @@ export class ContextAssemblyEngine {
 
     // 9. 构建 ExecutionContext
     const context = this.builder.build(input.missionId)
+
+    // 功能③ 聚焦模式：生成聚焦摘要（系统约束 + goal + domain + taskRefs + 片段精简摘要）
+    if (focusMode) {
+      context.focusedSummary = buildFocusedSummary(input, trimmedFragments)
+    }
 
     // 10. 运行增强流水线（可选）
     let enrichedContext = context
@@ -391,4 +425,42 @@ export class ContextAssemblyEngine {
     const results = await Promise.all(collectPromises)
     return results.filter((f): f is ContextFragment => f !== null)
   }
+}
+
+/**
+ * estimateFragmentTokens — 片段 token 估算（功能③ 聚焦模式截断用）
+ * 粗略：按 JSON 序列化长度 / 4 估算（与 gate/rules onTokenUsage 同口径）
+ */
+function estimateFragmentTokens(fragment: ContextFragment): number {
+  try {
+    const raw = JSON.stringify(fragment.data ?? {})
+    return Math.ceil(raw.length / 4)
+  } catch {
+    return 0
+  }
+}
+
+/**
+ * buildFocusedSummary — 生成聚焦摘要（功能③ 聚焦模式产物）
+ *
+ * 内容：系统约束 + goal + domain + taskRefs + 已收集片段的精简摘要。
+ * 只含当前任务材料，不含历史对话/中间推理（原则①聚焦）。
+ */
+function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFragment[]): string {
+  const lines: string[] = []
+  lines.push(`【当前任务】${input.goal ?? input.missionId}`)
+  if (input.domain) lines.push(`【领域】${input.domain}`)
+  if (input.taskRefs && input.taskRefs.length > 0) {
+    lines.push(`【必需知识引用】${input.taskRefs.join(', ')}`)
+  }
+  for (const f of fragments) {
+    try {
+      const data = JSON.stringify(f.data ?? {})
+      const snippet = data.length > 200 ? `${data.slice(0, 200)}…` : data
+      lines.push(`【${f.source}】${snippet}`)
+    } catch {
+      // 片段序列化失败 → 跳过该片段摘要（不阻断）
+    }
+  }
+  return lines.join('\n')
 }

@@ -47,6 +47,8 @@ export interface RunOptions {
   approvalTimeoutMs?: number;
   /** 部门 ID（可选） */
   departmentId?: string;
+  /** 功能③：聚焦上下文（CompanyFacade 装配产出，注入执行路径；可选） */
+  assembledContext?: string;
   /** 执行模式 */
   mode?: 'auto' | 'mission' | 'dag' | 'fabric';
   /** 自定义扩展属性 */
@@ -179,6 +181,38 @@ export class MorPexRuntime {
       if (this.ontology && this.forcedQueryGuard && this.piBridge) {
         try {
           const { runOntologyGroundedReasoning } = await import('../../gate/runOntologyGroundedReasoning.js');
+          // 功能③ C：聚焦上下文（CompanyFacade 装配产出）并入 extraContext；
+          // 功能② 协同：active keyword 规则 description 前置注入（平台信息前置预防，比事后拦截省钱）
+          let extraCtx = `MorPexRuntime 主执行路径 grounded reasoning。`;
+          if (options?.assembledContext) {
+            extraCtx += `\n\n【聚焦上下文】\n${options.assembledContext}`;
+            // S34 可观测：context.assembled 真实 emit（此前为死事件）
+            this.eventBus.emit({
+              id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              type: 'context.assembled',
+              timestamp: Date.now(),
+              executionId: context.executionId,
+              source: 'morpex-runtime',
+              payload: {
+                missionId: context.mission.missionId,
+                goal: goal.substring(0, 80),
+                domain: context.goal.domain,
+                summaryLength: options.assembledContext.length,
+              },
+            });
+          }
+          try {
+            const { RuleRegistry } = await import('../../gate/rules/RuleRegistry.js');
+            const activeRules = RuleRegistry.getActiveRules(context.goal.domain);
+            const ruleConstraints = activeRules
+              .filter((r) => r.ruleType === 'keyword' && r.description)
+              .map((r) => `- ${r.description}`);
+            if (ruleConstraints.length > 0) {
+              extraCtx += `\n\n【规则约束（前置）】\n${ruleConstraints.join('\n')}`;
+            }
+          } catch {
+            // 规则约束注入失败不阻断
+          }
           const result = await runOntologyGroundedReasoning({
             goal: context.goal.objective,
             missionId: context.mission.missionId,
@@ -186,7 +220,7 @@ export class MorPexRuntime {
             guard: this.forcedQueryGuard,
             piBridge: this.piBridge,
             eventBus: this.eventBus, // S34 可观测：传 bus 使 ontology.grounded 事件可达观测面
-            extraContext: `MorPexRuntime 主执行路径 grounded reasoning。`,
+            extraContext: extraCtx,
             scenario: 'runtime-exec',
             // Phase 2 F：domain 上下文传递——goal→domain 映射打通，getActiveRules(domain) 按域过滤
             domain: context.goal.domain,
@@ -438,6 +472,30 @@ export class MorPexRuntime {
       const returnedArtifacts = [docArtifact];
       if (hasCode && codeArtifact) returnedArtifacts.push(codeArtifact);
 
+      // ── Phase 9.7 功能③ D：历史抽离最小版（原则②——已完成历史进权威存储，工作上下文只留摘要） ──
+      // Mission 完成 + L6 评价后：生成摘要（goal + 结果 + keyRefs + score）→ 事件入 EventStore；
+      // 摘要同时存入 RunResult.experience，供下次装配作"近期摘要"片段源（Phase 1 最小版：先写入+承载）。
+      const missionSummary = {
+        missionId: context.mission.missionId,
+        goal: context.goal.objective.substring(0, 120),
+        result: execResult.ok ? 'success' : 'failure',
+        keyRefs: ontologyProposal?.referenced_object_ids?.slice(0, 10) ?? [],
+        score: ontologyEval?.missionQuality ?? undefined,
+        archivedAt: Date.now(),
+      };
+      try {
+        this.eventBus.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'context.archived',
+          timestamp: Date.now(),
+          executionId: context.executionId,
+          source: 'morpex-runtime',
+          payload: missionSummary,
+        });
+      } catch (err) {
+        console.warn('[MorPexRuntime] ⚠️ 历史抽离事件写入失败（非阻断）:', (err as Error).message);
+      }
+
       // S34 可观测：主管线完成事件（success → /audit 标记 morpex-runtime ACTIVE/exercised）
       this.eventBus.emit({
         id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
@@ -458,10 +516,11 @@ export class MorPexRuntime {
         context,
         executionResult: execResult,
         artifacts: returnedArtifacts,
+        // 功能③ D：历史抽离——Mission 摘要并入 experience（工作上下文只保留 {missionId, 摘要, keyRefs, score}）
+        experience: { mined: true, archived: missionSummary },
         verification: verResult,
         compliance: complianceResult,
         approval: approvalRequest,
-        experience: { mined: true },
         ontologyEval,
         errors: [],
       };

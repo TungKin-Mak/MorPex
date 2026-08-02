@@ -26,6 +26,8 @@ export interface ExecutionContext {
   missionId: string
   /** 三层数据 */
   layers: Record<ContextLayer, Record<string, unknown>>
+  /** 功能③：聚焦摘要（聚焦模式产物：系统约束 + goal + domain + taskRefs + 片段精简摘要） */
+  focusedSummary?: string
   /** 使用的片段列表 */
   fragments: ContextFragment[]
   /** 组装时间 */

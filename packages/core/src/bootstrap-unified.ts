@@ -148,6 +148,24 @@ export async function bootstrapUnified(options?: {
     ceoId,
   );
 
+  // 功能③：注入上下文组装引擎（L1 授权后装配聚焦上下文；引擎缺省零风险）
+  try {
+    const { ContextAssemblyEngine } = await import('./knowledge/context/ContextAssemblyEngine.js');
+    const assemblyEngine = new ContextAssemblyEngine(undefined, undefined, undefined, undefined, undefined, {
+      enableVersioning: true,
+      enableEnrichment: true,
+      maxFragments: 50,
+      fragmentTimeoutMs: 3000,
+      schemaVersion: '1.0',
+      focusMode: true, // 功能③：聚焦模式——只装当前任务材料
+      maxTokens: 8000,
+    });
+    companyFacade.setContextAssemblyEngine(assemblyEngine);
+    console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);
+  }
+
   // ⬅️ 从 EventStore 重建状态源（使状态可事件溯源）
   try {
     const es = (container as any)._eventStore as any;
