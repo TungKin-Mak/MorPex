@@ -241,7 +241,7 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 |------|----------|------|------|
 | 层覆盖（10 层有测试归属） | 矩阵人工核对（§3） | L6 ❌、L1 部分 ❌ | 10/10 层 ✅ |
 | 组件级引用覆盖 | grep 测试文件引用核心模块 | 32 核心组件 7 个 ❌ / 8 个 ⚠️ | ❌→0，⚠️→≤3 |
-| 测试数 | vitest | 559 | ≥580 |
+| 测试数 | vitest | 566 | ≥580 |
 | 用例通过率 | 统一入口报告 | 100% | ≥98% |
 | 行覆盖 | `npx vitest run --coverage` | 37.23% | ≥38%（S30-S33 四轮补测达 37.2%+，持续提升） |
 | 架构违规 | validate-architecture | 0 | 0 |
@@ -277,6 +277,28 @@ npx tsx scripts/run-tests.ts --skip-tsc       # 跳过编译检查（迭代用�
 12. cognee 真实链路测试纳入 --full 档
 - [x] ~~**领域插件真实工具链测试（环境探测驱动）**~~ ✅（`plugin-toolchain.test.ts`：vi.mock child_process 模拟 buildcli 缺失 → xjmcu compile 优雅降级 / pipeline 部分降级 / generate 纯 fs 真实产出，7 用例）
 - [x] ~~**混沌注入扩展**~~ ✅（`chaos-concurrency.test.ts`：EventBus 崩溃韧性 4 用例 + EvolutionSandbox TOCTOU 并发守卫 2 用例；`storage-resilience.spec.ts`：JSONLWriter 存储写满重试/丢弃 + LogRotator 轮转/防并发/清理 9 用例）
+
+## 10. 架构可观测（S34 新增 — 落地要求：所有功能模块可观测、流程可溯源、绕过可检测）
+
+### 问题（此前观测面是空壳）
+- `/api/observability/audit` **503**（ArchitectureAuditor 从未初始化）
+- `/heartbeats` 全部 `status:unknown`（模块声明但运行时从不心跳）
+- `/observations`、`/topology`、`/modules-v2` 全空（ObservationCollector 从未接入真实运行时）
+
+### 修复（`observability/runtime-bridge.ts` + StudioServer 接线）
+| 能力 | 端点 | 接线后 |
+|------|------|--------|
+| 运行流程 | `/observations` `/span-tree/:taskId` `/topology` | 真实执行 → 带层标注（L1-L10）的调用链 |
+| 每层模块健康 | `/modules-v2` `/heartbeats` `/exercise-status` | 实际执行模块 → `online/ACTIVE/exercised` |
+| 绕过检测 | `/audit` | ArchitectureAuditor 活：报告 `REQUIRED_MODULE_NEVER_CALLED` 等 |
+| 回放 | `/replay/*` | ReplayEngine 已接线 |
+
+### 验证（`observability-bridge.test.ts`，7 用例）
+- /audit 200（不再 503）+ 报告含 findings（绕过检测真实输出）
+- POST /api/execute 真实执行 → observations 记录 L5-execution 调用链 + executionId 可查
+- span-tree 含 parentId 父子链（首 span 为根）
+- modules-v2 显示 executed 模块 online/ACTIVE/exercised + callCount
+- /audit 检测到绕过：直连 execute 未走治理层 → `REQUIRED_MODULE_NEVER_CALLED`
 
 ---
 

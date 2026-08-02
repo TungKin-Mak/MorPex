@@ -25,6 +25,7 @@ import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
+import { startObservabilityBridge, wireObservabilityServices } from './observability/runtime-bridge.js';
 import { registerRuntimeRoutes } from './RuntimeAPI.js';
 
 export interface StudioServerConfig {
@@ -71,6 +72,11 @@ export class StudioServer {
 
     // L10 观测面
     this.app.use('/api/observability', createObservabilityRouter());
+
+    // ═══ 架构可观测（S34）：接线 /audit、/replay 服务 + 核心 EventBus → 观测面桥接 ═══
+    // 修复此前 archAuditor/replayEngine 从未初始化（/audit 503）+ ObservationCollector 无真实数据
+    wireObservabilityServices();
+    startObservabilityBridge(container.eventBus);
 
     // 运行时 API（RuntimeAPI：FSM/DAG/ArtifactGraph/Learning/SSE）
     // ⚠️ S24 修复：此前 registerRuntimeRoutes 从未被挂载 → 11 个路由全部不可达（死代码面）
