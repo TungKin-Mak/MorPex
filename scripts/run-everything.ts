@@ -16,7 +16,7 @@
  *   --skip-static 跳过 Phase 0
  *   --with-k6 跑 Phase 6（需环境）
  *   --with-coverage 跑 Phase 1 后附加覆盖率采集（c8，阈值低于基线防回退）
- *   --e2e     给 vitest 传 RUN_LLM_E2E=1（真实 LLM 路径，需 DEEPSEEK_API_KEY）
+ *   --e2e     给 vitest 传 RUN_LLM_E2E=1 + COGNEE_E2E=1（真实 LLM / cognee 真实链路，需 DEEPSEEK_API_KEY + cognee:8001 在线）
  *
  * 用法：
  *   npm run test:full                       # 全部
@@ -118,7 +118,7 @@ async function main() {
 
   // ── Phase 1 单元/集成（vitest 全量，含 connectors/api-contract/simulation/verification）──
   const vitestEnv: Record<string, string> = {};
-  if (E2E) vitestEnv.RUN_LLM_E2E = '1';
+  if (E2E) { vitestEnv.RUN_LLM_E2E = '1'; vitestEnv.COGNEE_E2E = '1'; }
   if (WITH_COVERAGE) {
     // 覆盖率采集（--coverage 自身即跑全量测试，作为独立阶段避免双跑）
     await run('npx vitest run --coverage', [], { timeout: 900, env: vitestEnv });

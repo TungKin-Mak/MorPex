@@ -39,6 +39,7 @@
     "test:system": "npx tsx tests/run-all.ts",
     "test:production": "npx tsx scripts/run-all-production-tests.ts",
     "test:coverage": "npx vitest run --coverage",
+    "test:cognee": "bash -c \"COGNEE_E2E=1 npx vitest run packages/memory/__tests__/cognee-integration.spec.ts\"",
     "test:k6": "bash scripts/run-k6-test.sh --smoke",
     "══════════ 后端 ══════════": "",
     "studio:server": "npx tsx packages/studio/server/index.ts",

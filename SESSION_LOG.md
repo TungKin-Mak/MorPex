@@ -85,8 +85,8 @@
   · ✅ 已交付：方案 `docs/TESTING_PLAN.md`（覆盖矩阵 ❌ 清零）+ 统一执行器 `run-everything.ts`（--with-coverage/--with-k6/--quick）+ 覆盖率报告（c8，阈值防回退）+ 修复 EventBus 通配符/RuntimeAPI 未挂载 2 个真实 bug + 15 个新测试文件 +275 用例（vitest 199→469）
   · ✅ P1 全部完成：EvaluationEngine/primitives/OrganizationTwin/ArtifactFacade/ExecutionFSM/MorPexRuntime/SSE/execute 闭环/PolicyEngine/EvolutionController/Synthesizer/ExecutionFabric
   · ✅ P2 全部完成：coverage 报告 + security-middleware 认证 + k6 冒烟（scripts/k6-smoke.js，:8080）+ 混沌注入（EventBus 崩溃/存储写满/TOCTOU）+ 插件工具链降级
-  · ⏳ 唯一 P2 尾项：cognee 真实链路测试（需外部 cognee 服务，`scripts/run-all.sh` 就绪后补）
-  · ⚠️ 注意：`tests/api/` 已删除（API 契约以 `api-contract.test.ts` 为准）；S24「并行会话」实为本会话自身并行 fork（见 S29 附注）
+  · ✅ 唯一 P2 尾项已交付：cognee 真实链路测试（`cognee-integration.spec.ts`：探活离线安全跳过 + COGNEE_E2E=1 真实 write→recall→search→防幻觉，本机 cognee 1.4.0 实测 4/4 全过）
+  · ⚠️ 注意：`tests/api/` 已删除（API 契约以 `api-contract.test.ts` 为准）；S24「并行会话」实为本会话自身并行 fork（见 S29 附注）；cognee 真实测试需 `ENABLE_BACKEND_ACCESS_CONTROL=false` + DEEPSEEK key + ladybug 锁问题需清 `~/.cognee_system/databases`
 - [ ] **记忆系统（L7）整合（S13/S14 已收敛核心，剩深水区）**：
   · ✅ 已交付：统一记忆层 @morpex/memory（MemoryAPI+白名单+确认队列+强制门禁+cognee引擎）+ Gate 第5工具 + 读写入口统一（rememberEpisode/MemoryApiBus/search-tool/PersonalBrain纯内存化/BrainPersistor走统一层）+ 废弃 Python company_memory
   · ⏳ 剩余碎片（需收敛到 SQLite/统一层）：① ~~KnowledgeGraph(JSONL)→SQLite~~ ✅（S15 完成）；② ~~BrainFacade 学习闭环→MemoryAPI~~ ✅（S15 完成）；③ ~~MemoryActivationEngine working 数据源统一到 MemoryAPI~~ ✅（S18 完成：MemoryActivationSource + refresh + bootstrap 装配 + RuntimeAPI 复用，首拉 7 条实测）；④ SystemMetadataGraph（运行时对象图，内存+EventStore）保留非记忆
