@@ -198,4 +198,47 @@ describe('gate/rules 集成（挂载 runOntologyGroundedReasoning）', () => {
     expect(piBridge.callCount()).toBe(4);
     expect(res.proposal.needs_human_review).toBe(true);
   });
+
+  it('options.domain 传入 → 按域路由：非本域规则不生效（旁路）', async () => {
+    // 注册 ecommerce 规则，但调用方传 domain='software' → 不匹配 → 旁路
+    RuleRegistry.register('ecommerce', makeRule('no_airpods', 'AirPods'));
+    const piBridge = createSequencePiBridge([proposalJson('含 AirPods 的文案')]);
+    const { ontology, guard, store } = setup();
+    const res = await runOntologyGroundedReasoning({
+      goal: '按域路由-非本域目标',
+      ontology,
+      guard,
+      piBridge,
+      eventStore: store as never,
+      scenario: 'rule-integration-domain-other',
+      riskTier: 'tier-2',
+      domain: 'software', // 非规则所属域
+    });
+
+    expect(piBridge.callCount()).toBe(2); // 无重试
+    expect(res.ruleViolations).toEqual([]);
+    expect(res.proposal.needs_human_review).toBeFalsy();
+  });
+
+  it('options.domain 传入 → 按域路由：本域规则生效（命中→重试）', async () => {
+    RuleRegistry.register('ecommerce', makeRule('no_airpods', 'AirPods'));
+    const piBridge = createSequencePiBridge([
+      proposalJson('含 AirPods 的文案'),
+      proposalJson('合规文案'),
+    ]);
+    const { ontology, guard, store } = setup();
+    const res = await runOntologyGroundedReasoning({
+      goal: '按域路由-本域目标',
+      ontology,
+      guard,
+      piBridge,
+      eventStore: store as never,
+      scenario: 'rule-integration-domain-own',
+      riskTier: 'tier-2',
+      domain: 'ecommerce',
+    });
+
+    expect(piBridge.callCount()).toBe(3); // Phase1 + Phase2×2（重试 1 次）
+    expect(res.proposal.payload).toEqual({ content: '合规文案' });
+  });
 });

@@ -142,13 +142,13 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 | 文件 | 改动 |
 |---|---|
 | `packages/core/src/knowledge/ontology/objectTypes.ts` | `CORE_OBJECT_TYPES` 加 `'Rule'`；`DEFAULT_SCHEMAS` 加 Rule schema |
-| `packages/core/src/gate/runOntologyGroundedReasoning.ts` | Phase 2 normalizeProposal 后挂 guard；加带约束重试循环（maxAttempts=3）；挂载需对 4 个调用方默认值兜底（Planner/Runtime 不传 riskTier/eventStore） |
+| `packages/core/src/gate/runOntologyGroundedReasoning.ts` | Phase 2 normalizeProposal 后挂 guard；加带约束重试循环（maxAttempts=3）；挂载需对 4 个调用方默认值兜底（Planner/Runtime 不传 riskTier/eventStore）；`GroundedReasoningOptions` 新增可选 `domain?: string` 按域路由（当前调用方未传 → 全局，Phase 2 打通） |
 | `packages/core/src/gate/index.ts` | 导出 rules 新模块 |
 
 ### 新增（领域示例）
 | 文件 | 职责 |
 |---|---|
-| `packages/workflows/ecommerce/src/rules/rule-register.ts` | 注册 1 条示例 ERROR 规则（如竞品禁词），bootstrap 时调用（仿 registerAmazonRules 链路） |
+| `packages/workflows/ecommerce/src/rules/rule-register.ts` | 注册 1 条示例 ERROR 规则（竞品禁词），bootstrap 时调用（仿 registerAmazonRules 链路）；**默认 status='pending' 待确认生效**（演示确认闸，且避免未确认示例规则跨域误伤其它领域输出） |
 
 ### 测试
 `packages/core/__tests__/gate/rules/*.test.ts`（直接 import src，vitest）：
@@ -167,6 +167,7 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 - 确定性替换：allowedAction 机械修正（eslint --fix / clamp 式），先于 LLM 重试
 - 缓存一致性：规则版本并入 `groundingCache` key（`runOntologyGroundedReasoning.ts` 5min LRU，命中会跳过检查——规则更新后旧缓存可能违规）；规则变更清缓存
 - L5 预算接线：重试的 LLM 调用计入 costTokens（`runOntologyGroundedReasoning` 当前无预算感知，需从 ExecutionContext 注入或回调）
+- **domain 上下文沿调用链传递 + 按域路由**：当前 4 个调用方均无可靠 domain 信号（Planner 仅 goal 字符串 / Primitive 仅 deptId），需上游 goal→domain 映射后注入 `GroundedReasoningOptions.domain`，`getActiveRules(domain)` 按域过滤（Phase 1 已留接口：options.domain + 示例规则 pending 消除跨域影响）
 - 代码层检测器：Detector 接口正式化 + software 领域 tsc/eslint 适配器
 
 **Phase 3（可延后）**
@@ -196,4 +197,5 @@ Phase 2 推理 → normalizeProposal（JSON 解析）
 - [x] 规范化管道对大小写/全角/空格变体 100% 命中（单测证明）
 - [x] 连续命中 2 次自动降级 + 事件可审计（rule.violation / rule.downgraded）
 - [x] pending→active 确认闸生效；未确认规则不参与匹配
-- [x] 领域注册 1 条示例规则，bootstrap 链路跑通（core 零领域依赖可验证）
+- [x] 领域注册 1 条示例规则（**默认 pending**，演示确认闸），bootstrap 链路跑通（core 零领域依赖可验证）
+- [x] `options.domain` 传入时按域路由（集成测试：非本域规则旁路 / 本域规则命中重试）
