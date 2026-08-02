@@ -23,11 +23,10 @@
 // ── MorPexEvent — 标准化事件（最先冻结） ──
 
 /**
- * 标准化事件结构
+ * 标准化事件结构 — EventBus 的标准事件类型（活跃）
  *
- * @deprecated MorPex v8 起推荐使用 protocol/events/BaseEvent.ts 中的 BaseEvent 接口。
- * BaseEvent 提供相同的结构，但 type 字段支持 EventType 枚举约束。
- * 本接口保持向后兼容，将在后续版本逐步迁移。
+ * 注：protocol/events/BaseEvent.ts 中的 BaseEvent 是事件溯源/投影侧的领域事件类型；
+ * EventBus 传输统一使用本接口（type 为宽松字符串）。两者并存且各司其职。
  */
 export interface MorPexEvent {
   id: string;            // evt_{YYYYMMDD}_{shortUUID}

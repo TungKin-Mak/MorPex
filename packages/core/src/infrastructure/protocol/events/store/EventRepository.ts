@@ -1,16 +1,16 @@
 /**
- * EventRepository — 事件查询层
+ * EventRepository — 事件查询层（Wave 9 迁移：EventStore → IEventStore 异步 API）
  *
- * Phase 4 / MorPex v8.5: 在 EventStore 基础上提供过滤、聚合、时序查询。
+ * Phase 4 / MorPex v8.5: 在 IEventStore 基础上提供过滤、聚合、时序查询。
  *
  * 使用方式:
  *   const repo = new EventRepository(eventStore);
- *   const errors = repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 });
- *   const timeline = repo.getTimeline('mis_001');
- *   const counts = repo.aggregate();
+ *   const errors = await repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 });
+ *   const timeline = await repo.getTimeline('mis_001');
+ *   const counts = await repo.aggregate();
  */
 
-import { EventStore } from './EventStore.js';
+import type { IEventStore } from './IEventStore.js';
 import { EventType } from '../EventType.js';
 import type { BaseEvent } from '../BaseEvent.js';
 
@@ -29,31 +29,23 @@ export interface EventQuery {
   source?: string;
   /** 最大返回条数 */
   limit?: number;
-  /** 跳过条数 */
+  /** 跳过前 N 条 */
   offset?: number;
   /** 排序方式 */
   orderBy?: 'timestamp-asc' | 'timestamp-desc';
 }
 
-// ── 聚合结果 ──
-
 export interface AggregationResult {
-  /** 事件类型 */
-  type: EventType | string;
-  /** 出现次数 */
+  type: string;
   count: number;
-  /** 首次出现时间 */
   firstSeen: number;
-  /** 最近出现时间 */
   lastSeen: number;
 }
 
-// ── EventRepository ──
-
 export class EventRepository {
-  private store: EventStore;
+  private store: IEventStore;
 
-  constructor(store: EventStore) {
+  constructor(store: IEventStore) {
     this.store = store;
   }
 
@@ -63,12 +55,12 @@ export class EventRepository {
    * 支持 executionId、事件类型、时间范围、来源组件过滤。
    * 按 orderBy 排序，支持分页。
    */
-  query(q: EventQuery): BaseEvent[] {
-    let results = [...this.store.getStream()];
+  async query(q: EventQuery): Promise<BaseEvent[]> {
+    let results = await this.store.query({});
 
     // 按 executionId 过滤
     if (q.executionId) {
-      results = this.store.getByExecutionId(q.executionId);
+      results = await this.store.query({ executionId: q.executionId });
     }
 
     // 按事件类型过滤
@@ -111,8 +103,8 @@ export class EventRepository {
   /**
    * getLatest — 获取某个事务的最新特定类型事件
    */
-  getLatest(executionId: string, type: EventType | string): BaseEvent | null {
-    const events = this.store.getByExecutionId(executionId)
+  async getLatest(executionId: string, type: EventType | string): Promise<BaseEvent | null> {
+    const events = (await this.store.query({ executionId }))
       .filter(e => e.type === type)
       .sort((a, b) => b.timestamp - a.timestamp);
     return events[0] ?? null;
@@ -121,8 +113,8 @@ export class EventRepository {
   /**
    * count — 统计匹配条件的事件数
    */
-  count(q: Omit<EventQuery, 'limit' | 'offset' | 'orderBy'>): number {
-    return this.query({ ...q, limit: 0 }).length;
+  async count(q: Omit<EventQuery, 'limit' | 'offset' | 'orderBy'>): Promise<number> {
+    return (await this.query({ ...q, limit: 0 })).length;
   }
 
   /**
@@ -130,10 +122,10 @@ export class EventRepository {
    *
    * 可选择限定 executionId。
    */
-  aggregate(executionId?: string): AggregationResult[] {
+  async aggregate(executionId?: string): Promise<AggregationResult[]> {
     const events = executionId
-      ? this.store.getByExecutionId(executionId)
-      : [...this.store.getStream()];
+      ? await this.store.query({ executionId })
+      : await this.store.query({});
 
     const typeMap = new Map<string, { count: number; first: number; last: number }>();
 
@@ -163,7 +155,7 @@ export class EventRepository {
    *
    * 返回按时间排序的事件序列，可用于重建事务的完整演化过程。
    */
-  getTimeline(executionId: string): BaseEvent[] {
+  async getTimeline(executionId: string): Promise<BaseEvent[]> {
     return this.query({
       executionId,
       orderBy: 'timestamp-asc',
@@ -176,8 +168,8 @@ export class EventRepository {
    * 返回指定时间点之前的最新事件列表。
    * 用于"回滚查看"场景。
    */
-  getStateAt(executionId: string, timestamp: number): BaseEvent[] {
-    return this.store.getByExecutionId(executionId)
+  async getStateAt(executionId: string, timestamp: number): Promise<BaseEvent[]> {
+    return (await this.store.query({ executionId }))
       .filter(e => e.timestamp <= timestamp)
       .sort((a, b) => a.timestamp - b.timestamp);
   }

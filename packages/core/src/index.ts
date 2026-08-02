@@ -150,9 +150,6 @@ export { convertMemoryHintToLlm, convertDagNodeStatusToLlm, createCustomConvertT
 
 // ── SessionProjection (Phase 3.6) — 会话状态读模型投影 ──
 
-// ── Negotiation (Phase 11.5) ──
-/** @deprecated 协商功能已合并到 LeadAgentOrchestrator.resolveTaskConflict() */
-
 // ── Skill 工具（内部使用，不对外暴露）─
 
 // ── MorPex v8 Mission Runtime ──
@@ -346,10 +343,9 @@ export {
 } from './infrastructure/protocol/index.js';
 export type { BaseEvent, DecisionEvent, DecisionEventQuery } from './infrastructure/protocol/index.js';
 
-// ── Event Sourcing (v9.2 Stage 0: 统一 SQLite EventStore + 旧版兼容) ──
-export { SqliteEventStore, UnifiedEventStore, EventStore as EventSourcingStore, EventRepository, EventProjection } from './infrastructure/protocol/index.js';
-export type { IEventStore, EventQueryFilter, EventStoreStats, EventStoreConfig as SourcingStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './infrastructure/protocol/index.js';
-export type { ReplayState, SourcingEvent } from './infrastructure/protocol/events/store/UnifiedEventStore.js';
+// ── Event Sourcing (v9.2 Stage 0: 统一 SQLite EventStore；旧版兼容已删 Wave 9) ──
+export { SqliteEventStore, UnifiedEventStore, EventRepository, EventProjection } from './infrastructure/protocol/index.js';
+export type { IEventStore, EventQueryFilter, EventStoreStats, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './infrastructure/protocol/index.js';
 
 // ── MorPex v8 Interaction Layer ──
 
@@ -422,11 +418,6 @@ export { TraceManager } from './infrastructure/observability/index.js';
 export type { TraceSpan, MissionTrace } from './infrastructure/observability/index.js';
 export { WorkflowMetrics } from './infrastructure/observability/index.js';
 export type { WorkflowMetricsSnapshot } from './infrastructure/observability/index.js';
-
-// ── Phase 3 ObservabilityLite ──
-/** @deprecated 可观测性指标已合并到 EventBus.getMetrics() */
-export { ObservabilityLite } from './infrastructure/observability/ObservabilityLite.js';
-export type { HealthState, MetricCounter, LatencyStats, HealthEntry, ObservabilitySnapshot } from './infrastructure/observability/ObservabilityLite.js';
 
 // ── v8.9 Reliability Plane ──
 
@@ -507,11 +498,6 @@ export { bootstrapUnified } from './bootstrap-unified.js';
 export type { UnifiedBootstrapResult } from './bootstrap-unified.js';
 
 // ═══════════════════════════════════════════════════════════════
-// @deprecated 旧版本 Bootstrap — 请使用 bootstrapUnified()
-// ═══════════════════════════════════════════════════════════════
-/** @deprecated 请使用 bootstrapUnified */
-
-// ═══════════════════════════════════════════════════════════════
 // v13 增强模块
 // ═══════════════════════════════════════════════════════════════
 
@@ -571,10 +557,6 @@ export type {
 // ── 治理看板: GovernanceDashboard (VCOS 100) ──
 export { GovernanceDashboard } from './governance/index.js';
 
-// ── v13 Bootstrap ──
-/** @deprecated 请使用 bootstrapUnified */
-
-
 
 // ═══════════════════════════════════════════════════════════════
 // v14 新增模块
@@ -585,15 +567,11 @@ export { GoalIntelligenceFacade, GoalParser, GoalValidator } from './cognition/p
 export type { GoalParseResult, GoalContext } from './infrastructure/protocol/contracts/goal.js';
 
 // v16 ArtifactFacade 替代 (v14 版本)
-export type { Artifact, ArtifactType } from './infrastructure/protocol/contracts/artifact.js';
+export type { ArtifactNode as Artifact } from './infrastructure/protocol/contracts/artifact-lifecycle.js';
 
 // ── Verification Engine (v14) — VerificationEngine 已从 runtime 导出；验证簇已迁至 evaluation/verification（Wave 8a）
 export { QualityRule, ArtifactChecker, ExecutionVerifier, RepairPlanner } from './evaluation/index.js';
 export type { QualityCheck, CheckResult, RepairPlan } from './evaluation/index.js';
-
-
-// ── v14 Bootstrap ──
-/** @deprecated 请使用 bootstrapUnified */
 
 
 // ═══════════════════════════════════════════════════════════════
@@ -619,10 +597,6 @@ export type { Alert, AlertLevel } from './governance/index.js';
 // ── Self Improvement Loop (v15) — Wave 3a 已迁至 evolution/ ──
 export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './evolution/index.js';
 export type { ImprovementInsight, Proposal } from './evolution/index.js';
-
-// ── v15 Bootstrap ──
-/** @deprecated 请使用 bootstrapUnified */
-
 
 // ═══════════════════════════════════════════════════════════════
 // v16 新增模块
@@ -672,8 +646,4 @@ export type { Observation } from './cognition/index.js';
 // ── Metadata Graph (Phase 2) ──
 export { SystemMetadataGraph, systemMetadataGraph } from './knowledge/graph/index.js';
 export type { Entity, EntityType, Relation, RelationType } from './knowledge/graph/index.js';
-
-// ── v16 Bootstrap ──
-/** @deprecated 请使用 bootstrapUnified */
-
 

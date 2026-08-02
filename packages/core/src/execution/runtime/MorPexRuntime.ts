@@ -11,7 +11,7 @@ import { ExperienceMiner } from '../../evolution/ExperienceMiner.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { DynamicTeamOrchestrator } from '../../execution/DynamicTeamOrchestrator.js';
 import type { ExecutionContext } from './ExecutionContext.js';
-import type { Artifact } from '../../infrastructure/protocol/contracts/artifact.js';
+import type { ArtifactNode as Artifact } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';
 import { SafetyMonitor } from '../../cognition/index.js';
 import { SelfImprovementLoop } from '../../evolution/index.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';

@@ -38,7 +38,6 @@ import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js'
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
 import type { ForcedQueryGuard } from '../../gate/ForcedQueryGuard.js';
 import type { OntologyProposal } from '../../gate/types.js';
-import { runOntologyGroundedReasoning } from '../../gate/runOntologyGroundedReasoning.js';
 
 // ── Types ──
 
@@ -784,54 +783,6 @@ export class DeliveryPlanner {
   // ═══════════════════════════════════════════════════════════════
   // 迭代1: Ontology 强制查询规划
   // ═══════════════════════════════════════════════════════════════
-
-  /**
-   * planWithOntology — 带强制查询的规划入口
-   *
-   * @deprecated 统一使用 runOntologyGroundedReasoning（ontology/runOntologyGroundedReasoning.ts）
-   *   此方法仅做委托转发，新代码应直接调用共享方法。
-   *   迭代4 收敛后所有执行路径均走 runOntologyGroundedReasoning。
-   *
-   * 迭代1：改造主规划路径，拆分为两阶段：
-   *   Phase 1 - 强制查询：LLM 必须调用 ontology_* 工具获取事实
-   *   Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal
-   *
-   * @param goal - 目标描述
-   * @param context - 上下文（含 missionId 等）
-   * @returns 包含 executionId、proposal、queryTrace 的结果
-   */
-  async planWithOntology(
-    goal: string,
-    context: { missionId?: string; [k: string]: unknown } = {},
-  ): Promise<{
-    executionId: string;
-    proposal: OntologyProposal;
-    queryTrace: {
-      callCount: number;
-      retrievedIds: string[];
-      referenceCheck: { valid: boolean; missing: string[]; knownCount: number };
-    };
-  }> {
-    const ontology = this.ontology;
-    const guard = this.forcedQueryGuard;
-    const piBridge = this.piBridgeRef;
-
-    if (!ontology || !guard || !piBridge) {
-      throw new Error(
-        '[DeliveryPlanner] planWithOntology 需要注入 OntologyService、ForcedQueryGuard 和 PiBridge。请先调用 setOntology/setForcedQueryGuard/setPiBridge。',
-      );
-    }
-
-    // 委托给共享方法
-    return runOntologyGroundedReasoning({
-      goal,
-      missionId: context.missionId,
-      ontology,
-      guard,
-      piBridge,
-      extraContext: context.extraContext as string | undefined,
-    });
-  }
 
   // ═══════════════════════════════════════════════════════════════
   // 仿真

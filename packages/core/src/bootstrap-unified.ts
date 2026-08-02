@@ -19,7 +19,7 @@
  * 设计原则：
  *   - ServiceContainer 创建所有运行时服务 + MorPexRuntime
  *   - CompanyFacade 构造时强制要求 Runtime + ControlPlane（非可选注入）
- *   - 所有旧 bootstrap（v12-v16）标记 @deprecated
+ *   - 旧 bootstrap（v12-v16）已删除（Wave 9），唯一入口 bootstrapUnified
  */
 
 import { ServiceContainer } from './execution/runtime/ServiceContainer.js';

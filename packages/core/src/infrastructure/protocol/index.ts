@@ -21,7 +21,6 @@ export {
   isEventInLayer,
   extractEventLayer,
   // Event Sourcing (Phase 4 / v8.5)
-  EventStore,
   EventRepository,
   EventProjection,
   // Decision Events (v8.6: Cognitive Event Stream)
@@ -36,15 +35,12 @@ export type {
   IEventStore,
   EventQueryFilter,
   EventStoreStats,
-  EventStoreConfig,
   EventQuery,
   AggregationResult,
   MissionProjection,
   SystemProjection,
   DecisionEvent,
   DecisionEventQuery,
-  ReplayState,
-  SourcingEvent,
 } from './events/index.js';
 
 // ═══════════════════════════════════════════════════════════════

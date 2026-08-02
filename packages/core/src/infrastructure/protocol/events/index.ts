@@ -23,9 +23,8 @@ export { createDecisionEvent, decisionToBaseEvent } from './DecisionEvent.js';
 
 // ── Event Sourcing Store (v9.2 Stage 0: 统一 IEventStore + SQLite) ──
 export type { IEventStore } from './store/index.js';
-export { SqliteEventStore, UnifiedEventStore, EventStore, EventRepository, EventProjection } from './store/index.js';
-export type { EventQueryFilter, EventStoreStats, EventStoreConfig, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './store/index.js';
-export type { ReplayState, SourcingEvent } from './store/UnifiedEventStore.js';
+export { SqliteEventStore, UnifiedEventStore, EventRepository, EventProjection } from './store/index.js';
+export type { EventQueryFilter, EventStoreStats, EventQuery, AggregationResult, MissionProjection, SystemProjection } from './store/index.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 遗留事件类型映射表

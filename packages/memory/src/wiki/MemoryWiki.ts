@@ -19,7 +19,7 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type {
-  MemoryItem, MemoryRelation, QueryOptions, QueryResult,
+  MemoryItem, MemoryRelation,
   MemoryWikiConfig,
 } from './types.js';
 import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
@@ -365,17 +365,6 @@ export class MemoryWiki {
   // ═════════════════════════════════════════════════════════════
   // 查询
   // ═════════════════════════════════════════════════════════════
-
-  /**
-   * query — 查询（语义召回已移除）
-   *
-   * zvec/BGE-M3 已废弃移除（S17），语义检索由 cognee 统一记忆层（MemoryAPI）接管。
-   * 本方法保留签名以兼容旧调用方，恒返回空结果；新代码请改用 MemoryAPI.query。
-   */
-  async query(_queryEmbedding: number[], _options: QueryOptions = {}): Promise<QueryResult> {
-    if (!this.db) throw new Error('MemoryWiki not initialized');
-    return { vectors: [], graph: [], timestamp: Date.now() };
-  }
 
   // ═════════════════════════════════════════════════════════════
   // 领域查询

@@ -242,15 +242,6 @@ export class CompanyFacade {
 
   async searchAcrossDepartments(_q: string, _o?: { limit?: number; departmentFilter?: string[] }): Promise<Array<{ content: string; departmentName?: string; relevance: number }>> { return []; }
 
-  /** @deprecated 仅在旧 bootstrap 兼容路径使用 — 生产环境抛错 */
-  setRuntime(r: MorPexRuntime): void {
-    if (process.env.NODE_ENV === 'production') throw new Error('[CompanyFacade] 生产环境禁止 setRuntime，请使用构造注入');
-    this.runtime = r;
-  }
-  setControlPlane(cp: ControlPlane): void {
-    if (process.env.NODE_ENV === 'production') throw new Error('[CompanyFacade] 生产环境禁止 setControlPlane，请使用构造注入');
-    this.controlPlane = cp;
-  }
   setBrainFacade(brain: any): void { this.brainFacade = brain; }
   setGoalIntelligenceFacade(_: any): void {}
   setFeedbackService(_: any): void {}

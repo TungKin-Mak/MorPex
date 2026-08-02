@@ -1,7 +1,7 @@
 import { QualityRule } from './QualityRule.js';
 import { ExecutionVerifier } from './ExecutionVerifier.js';
 import { RepairPlanner } from './RepairPlanner.js';
-import type { Artifact } from '../../infrastructure/protocol/contracts/artifact.js';
+import type { ArtifactNode as Artifact } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';
 import type { VerificationResult } from './ExecutionVerifier.js';
 import type { RepairPlan } from './RepairPlanner.js';
 

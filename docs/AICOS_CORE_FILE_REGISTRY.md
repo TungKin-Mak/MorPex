@@ -300,7 +300,7 @@
 | `evolution/workflow/types.ts` | Workflow Evolution Engine — 类型定义 Phase 5 / MorPex v8.5: 工作流持续演化系统的数据模型。 与 cognition/workflow/ 的区别: cognition/workflow/ — 工作流智能: 模式检测、提取、优化建议 (一次性分析) evolution/workflow/ — 工作流演化: 持续挖掘、注册管理、版本化、自动执行 (生命周期) 生命周期: candidate (系统发现) → confirmed (用户确认) → active (自动执行 | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 
 
-## `infrastructure/`（76 文件）
+## `infrastructure/`（73 文件）
 
 > 层边界规则：底座服务；无领域逻辑/不推理/不规划/不评价/不演化
 
@@ -336,13 +336,11 @@
 | `infrastructure/observability/HealthCheckService.ts` | HealthCheckService — 健康检查聚合器 v9.2 Phase 4: 注册多个健康检查，并行运行并汇总状态。 支持超时、熔断降级语义 (healthy/degraded/unhealthy)。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/MetricsCollector.ts` | MetricsCollector — 指标收集器 MorPex v8.8: 收集运行时指标的时序数据。 支持按名称查询、时间窗口聚合。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/ObservabilityBootstrap.ts` | ObservabilityBootstrap — 可观测性快速启动工具 将 PrometheusExporter 和 HealthCheckService 组合为一个统一的启动函数。 应用方只需一次调用即可挂载 /metrics 和 /health 端点。 使用方式: import { bootstrapObservability } from './infrastructure/observability/ObservabilityBootstrap.js'; const obs = bootstrapObser | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/observability/ObservabilityLite.ts` | ObservabilityLite — 精简版可观测性模块 Phase 3 / 基础设施层 替代原有的 8 文件 Observability 模块（MetricsCollector、TraceManager、 CompactionService、WorkflowMetrics 等），保留核心监控能力： 1. 计数器（事件处理数、错误数、任务数） 2. 延迟统计（平均/最大/最小/百分位） 3. 健康状态（各模块 up/down） 4. 事件辅助队列（emitCount） 设计原则： - 单体文件，无子模块 - 所有 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/PrometheusExporter.ts` | PrometheusExporter — 轻量 Prometheus 文本格式导出器 v9.2 Phase 4: 将 MetricsCollector 的指标导出为 Prometheus text format。 无外部依赖。同时返回 JSON 格式供内部 HTTP 端点使用。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/TraceManager.ts` | TraceManager — 追踪管理器 MorPex v8.8: 记录每个 Mission 的完整执行追踪。 每个 Span 代表一个阶段（Intent/Plan/Task/Verification）， 形成树形追踪结构。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/WorkflowMetrics.ts` | WorkflowMetrics — 工作流运行指标 MorPex v8.8: 聚合工作流运行的关键业务指标。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/observability/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/artifact-lifecycle.ts` | Artifact 生命周期契约（CREATED→…→RETIRED 状态机 + LineageEntry） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/contracts/artifact.ts` | Artifact — 可交付物共享类型 @deprecated 使用 contracts/artifact-lifecycle.ts 代替。 v16 Phase 2: 统一 Artifact 模型已迁移到 ArtifactNode (contracts/artifact-lifecycle.ts)。 此文件保留只为向后兼容，新代码应使用 artifact-lifecycle.ts。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/contracts/goal.ts` | Goal Intelligence — 共享类型 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/BaseEvent.ts` | MorPex Event Protocol — Base Event Interface Phase 1 / MorPex v8: 系统中所有事件的基础接口。 BaseEvent 定义了事件的最小通用结构： - id:         唯一标识（evt_{YYYYMMDD}_{shortUUID}） - type:       标准事件类型（EventType 枚举或扩展字符串） - timestamp:   时间戳（Date.now()） - executionId: 关联执行 ID（始终必填） - source | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/DecisionEvent.ts` | DecisionEvent — 认知决策事件（Cognitive Event Stream） v8.6: 记录 Agent 做出每个决策时的完整上下文。 与 Execution History（MissionRuntime 状态转换）互补，形成完整的认知审计线索。 设计原则: - 只追加（append-only）：决策记录不可篡改 - 完整上下文：记录决策时的输入、推理、证据 - 版本关联：记录决策时使用的 Twin 版本 与 EventStore 的关系: - DecisionEvent 通过 EventStor | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -351,7 +349,6 @@
 | `infrastructure/protocol/events/index.ts` | protocol/events — MorPex Event Protocol Barrel Phase 1 / MorPex v8: 事件协议层统一导出入口。 导出： - EventType:         标准事件类型枚举 - EVENT_LAYERS:      事件类型按层分组 - getAllEventTypes:  获取所有标准事件类型 - BaseEvent:         基础事件接口 - isStandardEvent:   判断是否为标准事件类型 - isEventInLayer:    判 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/EventProjection.ts` | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p | EventProjection — 事件投影：从事件流计算当前状态 Phase 4 / MorPex v8.5: 纯函数集合。接受事件流，输出状态视图。 不修改任何状态，无副作用。 核心原则: 状态 = 投影(事件流) 禁止: mission.state = "COMPLETED" 必须: missionState = EventProjection.projectMission(missionId, events).currentState 使用方式: const proj = EventProjection.p |
 | `infrastructure/protocol/events/store/EventRepository.ts` | EventRepository — 事件查询层 Phase 4 / MorPex v8.5: 在 EventStore 基础上提供过滤、聚合、时序查询。 使用方式: const repo = new EventRepository(eventStore); const errors = repo.query({ types: [EventType.SYSTEM_ERROR], since: Date.now() - 3600000 }); const timeline = repo.getTimeline('mis | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/protocol/events/store/EventStore.ts` | EventStore — Event Sourcing 不可变事件存储 (JSONL) @deprecated 使用 SqliteEventStore 或 UnifiedEventStore（SQLite 后端）代替。 迁移路径: const store = new SqliteEventStore();        // 新实现 const store = new UnifiedEventStore();       // 兼容旧 API 的门面 Phase 4 / MorPex v8.5: 所有状态变更通过事 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/IEventStore.ts` | IEventStore — 统一 EventStore 接口 v9.2 Stage 0: 定义统一的 EventStore 契约。 所有模块通过此接口访问事件存储，不依赖具体实现。 设计原则: - 接口最小化：只暴露必要方法 - 异步友好：所有方法返回 Promise - 可替换：内存 / SQLite / PostgreSQL 均可实现 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/SqliteEventStore.ts` | SqliteEventStore — SQLite 后端事件存储 v9.2 Stage 0: 替代 JSONL 事件存储，提供： - WAL 模式（并发读安全） - 事务批量写入 - 时序索引（sequence + timestamp） - aggregateId 索引（领域/聚合溯源） 表结构: events           — 主事件表 (BaseEvent) events_decision  — 决策事件表 (DecisionEvent) schema_migrations — 迁移版本跟踪 使用方式:  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/protocol/events/store/UnifiedEventStore.ts` | UnifiedEventStore — 统一 EventStore 门面 v9.2 Stage 0: 桥接新旧 EventStore API。 内部使用 SqliteEventStore，对外暴露旧版 API 实现平滑迁移。 旧 API 兼容（@deprecated，用于迁移期）: - replay(executionId?) → ReplayState        (旧 EventStore) - query(executionId) → SourcingEvent[]       (旧 EventStore) | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |

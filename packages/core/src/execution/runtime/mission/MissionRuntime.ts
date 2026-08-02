@@ -53,7 +53,7 @@ import type { VerificationEngine } from '../verification/VerificationEngine.js';
 import type { ApprovalEngine } from '../approval/ApprovalEngine.js';
 
 // ── Event Sourcing (Phase 4 / v8.5, 可选) ──
-import type { EventStore } from '../../../infrastructure/protocol/events/store/EventStore.js';
+import type { IEventStore } from '../../../infrastructure/protocol/events/store/IEventStore.js';
 import { EventProjection } from '../../../infrastructure/protocol/events/store/EventProjection.js';
 
 // ═══════════════════════════════════════════════════════════════
@@ -151,7 +151,7 @@ export class MissionRuntime {
 
   /** ⭐ P0: 审批引擎（可选） */
   /** Event Sourcing 存储（可选，Phase 4 / v8.5） */
-  private eventStore: EventStore | null = null;
+  private eventStore: IEventStore | null = null;
   private approvalEngine: ApprovalEngine | null = null;
 
   /** 配置 */
@@ -222,7 +222,7 @@ export class MissionRuntime {
    *
    * @param store - EventStore 实例
    */
-  setEventStore(store: EventStore): void {
+  setEventStore(store: IEventStore): void {
     this.eventStore = store;
     console.log('[MissionRuntime] EventStore attached');
   }
@@ -373,13 +373,13 @@ export class MissionRuntime {
    * @param missionId - Mission ID
    * @returns 包含投影状态的 Mission 对象，不存在返回 undefined
    */
-  getProjectedMission(missionId: string): Mission | undefined {
+  async getProjectedMission(missionId: string): Promise<Mission | undefined> {
     const mission = this.missions.get(missionId);
     if (!mission) return undefined;
 
     // 如果 EventStore 已注入，从事件流推导状态
     if (this.eventStore) {
-      const events = this.eventStore.getByExecutionId(missionId);
+      const events = await this.eventStore.query({ executionId: missionId });
       if (events.length > 0) {
         const projection = EventProjection.projectMission(missionId, events);
         // 单向同步：事件流状态 → 内存状态（不反向）
@@ -405,8 +405,11 @@ export class MissionRuntime {
   /**
    * ★ v8.5: 列出所有 Mission 并投影状态
    */
-  listProjectedMissions(filter?: MissionState): Mission[] {
-    const all = [...this.missions.values()].map(m => this.getProjectedMission(m.id)).filter((m): m is Mission => m != null);
+  async listProjectedMissions(filter?: MissionState): Promise<Mission[]> {
+    const projected = await Promise.all(
+      [...this.missions.values()].map(m => this.getProjectedMission(m.id)),
+    );
+    const all = projected.filter((m): m is Mission => m != null);
     if (filter !== undefined) {
       return all.filter(m => m.state === filter);
     }

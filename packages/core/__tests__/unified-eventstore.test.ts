@@ -12,9 +12,9 @@
  *   6. SqliteEventStore: query 多条件过滤
  *   7. SqliteEventStore: getStats
  *   8. SqliteEventStore: clear
- *   9. UnifiedEventStore: 旧版 replay() 兼容
- *  10. UnifiedEventStore: 旧版 query() 兼容
- *  11. UnifiedEventStore: getStream() + getByExecutionId()
+ *   9. UnifiedEventStore: query by executionId（Wave 9：旧版 compat 已删）
+ *  10. UnifiedEventStore: query all
+ *  11. UnifiedEventStore: query({ executionId }) 流式查询
  *  12. UnifiedEventStore: getDecisionStream()
  */
 
@@ -303,9 +303,9 @@ test('SqliteEventStore: clear', async () => {
   await store.close();
 });
 
-// ── 9. UnifiedEventStore: backward-compatible replay() ──
+// ── 9. UnifiedEventStore: query() 按 executionId 查询（Wave 9：旧版 replayLegacy 已删） ──
 
-test('UnifiedEventStore: legacy replay() compat', async () => {
+test('UnifiedEventStore: query by executionId', async () => {
   const db = await createMemoryDb();
   const store = new UnifiedEventStore(db);
 
@@ -315,15 +315,15 @@ test('UnifiedEventStore: legacy replay() compat', async () => {
     payload: { taskId: 't1', from: 'IDLE', to: 'RUNNING' },
   }));
 
-  const state = await store.replayLegacy('legacy-replay');
-  assert(state.totalEvents === 1, 'replay: 1 event');
+  const events = await store.query({ executionId: 'legacy-replay' });
+  assert(events.length === 1, 'query by executionId: 1 event');
 
   await store.close();
 });
 
-// ── 10. UnifiedEventStore: backward-compatible query() ──
+// ── 10. UnifiedEventStore: query() 全量查询 ──
 
-test('UnifiedEventStore: legacy query() compat', async () => {
+test('UnifiedEventStore: query all', async () => {
   const db = await createMemoryDb();
   const store = new UnifiedEventStore(db);
 
@@ -333,15 +333,15 @@ test('UnifiedEventStore: legacy query() compat', async () => {
     payload: { toolCallId: 'tc-1', from: 'IDLE', to: 'RUNNING' },
   }));
 
-  const sourcingEvents = await store.queryLegacy('legacy-query');
-  assert(sourcingEvents.length >= 0, 'legacy query returns without error');
+  const all = await store.query({});
+  assert(all.length === 1, 'query all returns events');
 
   await store.close();
 });
 
-// ── 11. UnifiedEventStore: getStream() + getByExecutionId() ──
+// ── 11. UnifiedEventStore: query({ executionId }) 流式查询（Wave 9：旧版 getStream/getByExecutionId 已删） ──
 
-test('UnifiedEventStore: getStream + getByExecutionId', async () => {
+test('UnifiedEventStore: query by executionId stream', async () => {
   const db = await createMemoryDb();
   const store = new UnifiedEventStore(db);
 
@@ -349,18 +349,18 @@ test('UnifiedEventStore: getStream + getByExecutionId', async () => {
   await store.append(makeEvent({ executionId: 'stream-test' }));
   await store.append(makeEvent({ executionId: 'other-exec' }));
 
-  const stream = await store.getStream();
-  assert(stream.length === 3, `getStream: 3 events, got ${stream.length}`);
+  const all = await store.query({});
+  assert(all.length === 3, `query all: 3 events, got ${all.length}`);
 
-  const byExec = await store.getByExecutionId('stream-test');
-  assert(byExec.length === 2, `getByExecutionId: 2 events, got ${byExec.length}`);
+  const byExec = await store.query({ executionId: 'stream-test' });
+  assert(byExec.length === 2, `query by executionId: 2 events, got ${byExec.length}`);
 
   await store.close();
 });
 
-// ── 12. UnifiedEventStore: getDecisionStream() ──
+// ── 12. UnifiedEventStore: appendDecision + query（Wave 9：getDecisionStream 从未实现，改用真实 API） ──
 
-test('UnifiedEventStore: getDecisionStream', async () => {
+test('UnifiedEventStore: appendDecision + query by type', async () => {
   const db = await createMemoryDb();
   const store = new UnifiedEventStore(db);
 
@@ -368,11 +368,11 @@ test('UnifiedEventStore: getDecisionStream', async () => {
   await store.appendDecision(makeDecision({ executionId: 'dec-stream' }));
   await store.appendDecision(makeDecision({ executionId: 'other-dec' }));
 
-  const allDecisions = await store.getDecisionStream();
-  assert(allDecisions.length === 3, `getDecisionStream: 3 decisions, got ${allDecisions.length}`);
+  const allDecisions = await store.queryDecisions({});
+  assert(allDecisions.length === 3, `queryDecisions: 3, got ${allDecisions.length}`);
 
-  const byExec = await store.getDecisionsByExecution('dec-stream');
-  assert(byExec.length === 2, `getDecisionsByExecution: 2 decisions, got ${byExec.length}`);
+  const byExec = await store.queryDecisions({ executionId: 'dec-stream' });
+  assert(byExec.length === 2, `queryDecisions by execution: 2, got ${byExec.length}`);
 
   await store.close();
 });

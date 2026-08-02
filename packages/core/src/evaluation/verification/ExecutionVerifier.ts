@@ -1,5 +1,5 @@
 import { ArtifactChecker } from './ArtifactChecker.js';
-import type { Artifact } from '../../infrastructure/protocol/contracts/artifact.js';
+import type { ArtifactNode as Artifact } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';
 
 export interface VerificationResult {
   success: boolean;
