@@ -23,7 +23,7 @@
 | `facade/index.ts` | facade — CEO 高层操作入口模块 Phase 0 / 基础设施层 CompanyFacade = 一人虚拟公司的"CEO 控制台" / | 编排与协议适配；不承载业务/认知/存储逻辑 |
 
 
-## `governance/`（33 文件）
+## `governance/`（28 文件）
 
 > 层边界规则：目标级授权；不推理/不执行/不直接查知识
 
@@ -31,20 +31,15 @@
 |---|---|---|
 | `governance/AlertEngine.ts` | AlertEngine — 告警引擎（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/ApprovalGate.ts` | ApprovalGate — 审批门 v16: Compliance → RiskAssessment → ApprovalGate → Release Stabilization: 增加 ApprovalPolicyRegistry 商业级策略引擎 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/ArtifactChecker.ts` | ArtifactChecker — 基于 QualityRule 的产物质量检查 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/AuditTrail.ts` | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  |
 | `governance/ComplianceChecker.ts` | ComplianceChecker — 合规检查引擎 v15: 按领域执行策略规则检查，返回 PASS/WARNING/BLOCK / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/CostController.ts` | CostController — 成本控制器（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/ExecutionVerifier.ts` | ExecutionVerifier — 基于 ArtifactChecker 的执行验证 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/GovernanceDashboard.ts` | GovernanceDashboard — 治理看板 v13 VCOS 100: 将 Observability & Governance 从 8→10 提供三个维度的治理视图: - SystemHealth: 系统健康度（模块状态、延迟、错误率） - CostReport: 成本追踪（LLM 调用、token 消耗） - ComplianceReport: 合规状态（PiBridge 隔离、barrel 完整性） 所有数据通过 EventBus 事件驱动采集，无需主动轮询。 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/PermissionModel.ts` | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe |
 | `governance/PolicyEngine.ts` | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 |
 | `governance/PolicyRuleRegistry.ts` | PolicyRuleRegistry — 合规策略规则注册中心 v15: 按领域注册可扩展的合规检查规则 / | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/QualityRule.ts` | QualityRule — 质量检查规则接口（QualityCheck） | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/RiskAnalyzer.ts` | RiskAnalyzer — 风险分析引擎 Phase 8 / MorPex v8: 在执行前评估 Mission 计划的潜在风险。 职责： 1. 分析 Mission 计划的复杂度风险 2. 检测涉及敏感领域（finance/legal/hr/production）的操作 3. 检测敏感工具（delete/deploy/email/payment）的使用 4. 评估权限范围（run-as / allowed-tools） 5. 生成包含缓解建议的 RiskAssessment 使用方式： const riskAn | RiskAnalyzer — 风险分析引擎 Phase 8 / MorPex v8: 在执行前评估 Mission 计划的潜在风险。 职责： 1. 分析 Mission 计划的复杂度风险 2. 检测涉及敏感领域（finance/legal/hr/production）的操作 3. 检测敏感工具（delete/deploy/email/payment）的使用 4. 评估权限范围（run-as / allowed-tools） 5. 生成包含缓解建议的 RiskAssessment 使用方式： const riskAn |
 | `governance/RuntimeManager.ts` | RuntimeManager — 运行时管理器（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
-| `governance/VerificationEngine.ts` | VerificationEngine — 组合 QualityRule + ExecutionVerifier 的验证引擎 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/capability/AgentCapabilityRegistry.ts` | AgentCapabilityRegistry — Agent 能力节点（CapabilityNode）注册 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/capability/CapabilityDiscoverer.ts` | CapabilityDiscoverer — 基于 CapabilityRegistry 的能力发现 | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/capability/CapabilityRegistry.ts` | CapabilityRegistry — 统一能力注册中心 (v16 合并版) 合并自: - capability/CapabilityRegistry.ts (静态注册) - experience/CapabilityStore.ts (动态模式存储) 现在: 一个地方存所有能力数据，包括成功率/步骤/领域/提取来源。 / | 目标级授权；不推理/不执行/不直接查知识 |
@@ -271,7 +266,7 @@
 | `execution/types.ts` | Organization Types — 组织上下文类型定义 Phase 0 / 组织层 v15: +DynamicTeam 动态团队编排类型 为 Memory/Knowledge/Artifact 操作提供部门感知上下文 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 
 
-## `evaluation/`（5 文件）
+## `evaluation/`（10 文件）
 
 > 层边界规则：评分+血缘+低分信号；不修改行为/不执行业务
 
@@ -282,6 +277,11 @@
 | `evaluation/index.ts` | L6 Evaluation 评价层 | 评分+血缘+低分信号；不修改行为/不执行业务 |
 | `evaluation/ontologyCompliance.ts` | ontologyCompliance — Ontology 查询合规评分 迭代1：在现有 EvaluationEngine 基础上增加两维： - queryScore：是否执行了 ontology 查询 - referenceScore：引用的 ID 是否都来自已检索集合 用法： const { queryScore, referenceScore } = scoreOntologyCompliance(guard, executionId, referencedIds); // 将分数注入 evaluation  | 评分+血缘+低分信号；不修改行为/不执行业务 |
 | `evaluation/lineageCompliance.ts` | lineageCompliance — L6 血缘健康评分（Wave 3a 新增）：复用 L2 ArtifactLineage 计算批准占比/孤立节点/违规清单 → LineageHealthScore（0-1），不直接触发生产变更 | 评分+血缘+低分信号；不修改行为/不执行业务 |
+| `evaluation/verification/VerificationEngine.ts` | VerificationEngine — L6 验证引擎（Wave 8a 自 governance/ 迁入）：组合 QualityRule + ExecutionVerifier + RepairPlanner 对产物做质量验证并生成修复计划 | L6 评价/验证权威；不触发生产变更 |
+| `evaluation/verification/QualityRule.ts` | QualityRule — 质量检查规则接口（QualityCheck）与规则注册 | L6 评价/验证权威 |
+| `evaluation/verification/ArtifactChecker.ts` | ArtifactChecker — 基于 QualityRule 的产物质量检查 | L6 评价/验证权威 |
+| `evaluation/verification/ExecutionVerifier.ts` | ExecutionVerifier — 基于 ArtifactChecker 的执行结果验证 | L6 评价/验证权威 |
+| `evaluation/verification/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | L6 评价/验证权威 |
 
 
 ## `evolution/`（20 文件）

@@ -588,9 +588,9 @@ export type { GoalParseResult, GoalContext } from './infrastructure/protocol/con
 // v16 ArtifactFacade 替代 (v14 版本)
 export type { Artifact, ArtifactType } from './infrastructure/protocol/contracts/artifact.js';
 
-// ── Verification Engine (v14) — VerificationEngine 已从 runtime 导出，用别名
-export { QualityRule, ArtifactChecker, ExecutionVerifier, RepairPlanner } from './governance/index.js';
-export type { QualityCheck, CheckResult, RepairPlan } from './governance/index.js';
+// ── Verification Engine (v14) — VerificationEngine 已从 runtime 导出；验证簇已迁至 evaluation/verification（Wave 8a）
+export { QualityRule, ArtifactChecker, ExecutionVerifier, RepairPlanner } from './evaluation/index.js';
+export type { QualityCheck, CheckResult, RepairPlan } from './evaluation/index.js';
 
 
 // ── v14 Bootstrap ──

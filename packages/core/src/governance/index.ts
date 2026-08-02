@@ -46,16 +46,9 @@ export { CapabilityRegistry } from './capability/CapabilityRegistry.js';
 export { CapabilityDiscoverer } from './capability/CapabilityDiscoverer.js';
 export { AgentCapabilityRegistry } from './capability/AgentCapabilityRegistry.js';
 
-// ── 验证/审批（L1：原 verification/ 归位）──
-export { VerificationEngine } from './VerificationEngine.js';
-export { QualityRule } from './QualityRule.js';
-export type { QualityCheck } from './QualityRule.js';
-export { ArtifactChecker } from './ArtifactChecker.js';
-export type { CheckResult } from './ArtifactChecker.js';
-export { ExecutionVerifier } from './ExecutionVerifier.js';
-export type { VerificationResult } from './ExecutionVerifier.js';
-export { RepairPlanner } from './RepairPlanner.js';
-export type { RepairPlan } from './RepairPlanner.js';
+// ── 审批（L1）──
+// Wave 8a：验证簇（VerificationEngine/QualityRule/ArtifactChecker/ExecutionVerifier/RepairPlanner）
+// 已迁至 evaluation/verification/（L6 评价权威）——L1 治理不再承载执行验证逻辑。
 export { ComplianceChecker } from './ComplianceChecker.js';
 export type { ComplianceResult } from './ComplianceChecker.js';
 export { PolicyRuleRegistry } from './PolicyRuleRegistry.js';

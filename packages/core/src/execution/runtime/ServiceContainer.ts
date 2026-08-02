@@ -4,7 +4,7 @@ import { DynamicTeamOrchestrator } from '../../execution/DynamicTeamOrchestrator
 import { UnifiedExecutionEngine } from '../../execution/UnifiedExecutionEngine.js';
 import type { MissionRuntimeLike, DAGRuntimeLike, ExecutionFabricLike } from '../../execution/UnifiedExecutionEngine.js';
 import { ArtifactFacade } from '../../knowledge/artifact/ArtifactFacade.js';
-import { VerificationEngine } from '../../governance/VerificationEngine.js';
+import { VerificationEngine } from '../../evaluation/verification/VerificationEngine.js';
 import { ComplianceChecker } from '../../governance/ComplianceChecker.js';
 import { ApprovalGate } from '../../governance/ApprovalGate.js';
 import { ExperienceMiner } from '../../evolution/ExperienceMiner.js';

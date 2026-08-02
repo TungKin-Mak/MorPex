@@ -13,7 +13,7 @@ import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { MorPexRuntime } from '../src/execution/runtime/MorPexRuntime.js';
 import { MissionController } from '../src/execution/runtime/mission/MissionController.js';
 import { ArtifactFacade } from '../src/knowledge/artifact/ArtifactFacade.js';
-import { VerificationEngine } from '../src/governance/VerificationEngine.js';
+import { VerificationEngine } from '../src/evaluation/verification/VerificationEngine.js';
 import { ComplianceChecker } from '../src/governance/ComplianceChecker.js';
 import { ApprovalGate } from '../src/governance/ApprovalGate.js';
 import { ExperienceMiner } from '../src/evolution/ExperienceMiner.js';
