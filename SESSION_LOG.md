@@ -65,9 +65,17 @@
 - 门禁：tsc 0 / validate 100% / vitest 66 文件 634 通过 + 5 skipped（规则测试 6 文件 45 用例全绿）
 - 剩余：修正管线②结构层（tsc/eslint 适配器）、schema/AST 检测器、L5 预算接线、domain 上下文传递 → 第二批
 
-### ③ 升级上下文管理 —— L2/L4 组装
-- `ContextAssemblyEngine` 已存在（Builder/Enricher/FragmentRegistry/Versioner），是"升级"非"新建"
-- **待决策**："优化"具体指体积/token 预算控制、相关性排序、风险分级组装、还是部门隔离强化？
+### ③ 升级上下文管理 —— L2/L4 组装 ✅ 方案定稿（2026-08-03）
+
+- `ContextAssemblyEngine` 已存在（Builder/Enricher/FragmentRegistry/Versioner），**零业务调用方（孤立组件）**，需先接通
+- **设计哲学（用户定稿）**：上下文不是堆砌，是**聚焦 + 按需召回**。四条原则（不新增层，现有 8 层内固化）：
+  1. **聚焦**：工作上下文 = 系统约束 + Goal/PlanContract/TaskContract + 本步 ontologyRefs + ≤N 条近期摘要；禁止塞已完成 Mission 的完整对话/中间推理
+  2. **抽离**：已完成历史默认进 EventStore/Artifact/Evaluation/Experience；工作上下文只留 {missionId, 摘要, keyRefs, score}
+  3. **召回经 Gate**：需要历史 → 显式 KnowledgeQuery/Ontology → KnowledgeContextPackage（来源+置信度）；QueryMiss 仍是信号，禁贴旧聊天
+  4. **时机**：L4 规划前装配一次；L5 关键 Step/Primitive 前可精炼
+- **接线点（已探索）**：L1 授权后 = CompanyFacade.executeGoal:162（ControlPlane 门禁后）+ domain 信号可用（options.departmentName）；历史抽离 = MorPexRuntime COMPLETED+evaluation 后（:354-444）；⚠️ 两个 ExecutionContext 类型不同（runtime vs knowledge/context）需映射；Agent 注入可走 harness setContextBias
+- **与功能②协同**：domain 复用 + keyword 规则 description 前置注入（平台信息前置预防，比事后拦截省钱）
+- **Phase 1 已实现并验证（2026-08-03）**：①聚焦——ContextAssemblyEngine 聚焦模式（只装当前任务片段 goal/mission/artifact+custom，跳过历史倾向片段；focusedSummary 生成；token 估算截断；focusMode=false 向后兼容）；②抽离最小版——MorPexRuntime COMPLETED+evaluation 后生成 Mission 摘要（goal/result/keyRefs/score）→ context.archived 事件 + experience.archived 承载；③④时机——CompanyFacade L1 门禁后装配（可选注入非阻断）→ runOpts.assembledContext → MorPexRuntime 并入 extraContext + context.assembled 真实 emit + keyword 规则 description 前置注入（与功能②协同）；bootstrap 注入引擎（聚焦模式）。门禁：tsc 0 / validate 100% / vitest 71 文件 665 通过（原 658 零回归 + 7 新用例）。剩余：近期摘要消费端拼接、其余调用方（Planner/Primitive）domain 传递、风险分级组装（可延后）
 
 **优先级建议**：③ 上下文（基础）→ ② 规则中断（核心价值）→ ① 微信（独立通道）
 
