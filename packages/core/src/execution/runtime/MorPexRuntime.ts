@@ -13,7 +13,7 @@ import { DynamicTeamOrchestrator } from '../../execution/DynamicTeamOrchestrator
 import type { ExecutionContext } from './ExecutionContext.js';
 import type { Artifact } from '../../infrastructure/protocol/contracts/artifact.js';
 import { SafetyMonitor } from '../../cognition/index.js';
-import { SelfImprovementLoop } from '../../cognition/index.js';
+import { SelfImprovementLoop } from '../../evolution/index.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';
 import type { CrossAgentLearningEngine } from '../../cognition/learning/agent/CrossAgentLearningEngine.js';
 
@@ -379,6 +379,9 @@ export class MorPexRuntime {
       if (this.evaluationEngine && this.forcedQueryGuard) {
         try {
           ontologyEval = this.evaluationEngine.evaluate({
+            // Wave 3a：携带 missionId/departmentId → L6 事件可被 L7 按部门追踪（此前事件桥是死的）
+            missionId: context.mission.missionId,
+            departmentId: context.team?.departments?.[0],
             plan: { steps: context.capabilities.length, capabilities: context.capabilities.map(c => c.name) },
             executionResult: { ok: execResult.ok, duration: execResult.duration, errors: [] },
             ontologyCompliance: {

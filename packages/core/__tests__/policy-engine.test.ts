@@ -16,7 +16,9 @@ import { describe, it, expect } from 'vitest';
 import { PolicyEngine } from '../src/governance/PolicyEngine.js';
 import type { ActionProposal, PolicyRule, WorkflowSimulationProposal, AgentPolicyRule } from '../src/governance/PolicyEngine.js';
 import type { RiskLevel } from '../src/governance/types.js';
-import { EvolutionController } from '../src/governance/control-plane/EvolutionController.js';
+import { OrganizationTwin } from '../src/cognition/twin/OrganizationTwin.js';
+import { SelfImprovementLoop } from '../src/evolution/SelfImprovementLoop.js';
+import { SafetyMonitor } from '../src/cognition/SafetyMonitor.js';
 
 function makeProposal(riskLevel: RiskLevel, toolName?: string): ActionProposal {
   return {
@@ -222,31 +224,25 @@ describe('PolicyEngine — evaluateAgentAction Agent 策略', () => {
   });
 });
 
-describe('EvolutionController — 治理控制器集成', () => {
-  it('构造 + getOrganizationTwin 返回孪生实例', () => {
-    const ec = new EvolutionController();
-    expect(ec.getOrganizationTwin()).toBeTruthy();
-  });
-
-  it('simulateStrategy 委托 OrganizationTwin.goToMarket（预算决定 GO/REVISIT）', async () => {
-    const ec = new EvolutionController();
-    const big = await ec.simulateStrategy('产品A', 'US', 200000);
+describe('L7 演化能力直连（EvolutionController 已于 Wave 3b 移除，职责归 L7）', () => {
+  it('OrganizationTwin.simulateGoToMarket 预算决定 GO/REVISIT', () => {
+    const twin = new OrganizationTwin();
+    const big = twin.simulateGoToMarket('产品A', 'US', 200000);
     expect(big.recommended).toBe('GO');
-    const small = await ec.simulateStrategy('产品B', 'US', 10000);
+    const small = twin.simulateGoToMarket('产品B', 'US', 10000);
     expect(small.recommended).toBe('REVISIT');
   });
 
-  it('analyze 返回 SelfImprovementLoop 分析（insights + proposals）', async () => {
-    const ec = new EvolutionController();
-    const r = await ec.analyze({ taskSuccessRate: 1.0, avgLatency: 50, failurePatterns: [], artifactQuality: 0.9 });
+  it('SelfImprovementLoop.runAnalysis 返回 insights + proposals（L7 提案生命周期入口）', async () => {
+    const loop = new SelfImprovementLoop();
+    const r = await loop.runAnalysis({ taskSuccessRate: 1.0, avgLatency: 50, failurePatterns: [], artifactQuality: 0.9 });
     expect(Array.isArray(r.insights)).toBe(true);
     expect(Array.isArray(r.proposals)).toBe(true);
   });
 
-  it('observe 记录安全监控观测（低成功率 → WARNING observation）', () => {
-    const ec = new EvolutionController();
-    ec.observe({ taskSuccessRate: 0.4, avgLatency: 1000, failurePatterns: ['x'], artifactQuality: 0.5 });
-    // SafetyMonitor 已记录观测；observe 不抛错即接线成立
-    expect(true).toBe(true);
+  it('SafetyMonitor.observe 记录安全监控观测（低成功率 → WARNING observation）', () => {
+    const sm = new SafetyMonitor();
+    const obs = sm.observe({ taskSuccessRate: 0.4, avgLatency: 1000, retryRate: 0, artifactQuality: 0.5 });
+    expect(Array.isArray(obs)).toBe(true);
   });
 });

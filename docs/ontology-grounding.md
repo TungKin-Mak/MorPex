@@ -71,7 +71,7 @@ await companyFacade.submitFeedback({
 1. 写入 Ontology（`Feedback` 类型）
 2. 建立 `corrects` 关系到目标对象
 3. 自动标记 `isTestCase`（rating=down 时）
-4. 被 `FeedbackAwareLearner` 消费 → 生成改进提案
+4. 被 L7 `FeedbackAwareLearner`（evolution/，Wave 3a 自 cognition/ 迁入）消费 → 生成改进提案，经 L7 提案管线（沙箱+审批）落地
 
 ## 执行路径覆盖
 

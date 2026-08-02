@@ -84,3 +84,11 @@ export type {
 // ── vNext+ L8: 演化安全沙箱（Verifiable Evolution）──
 export { EvolutionSandbox } from './EvolutionSandbox.js';
 export type { EvolutionChangeRecord, EvolutionChangeInput, EvolutionSandboxOptions } from './EvolutionSandbox.js';
+
+// ── Wave 3a 迁入（自 cognition/，L4 纯度剥离）：提案生命周期 ──
+export { SelfImprovementLoop } from './SelfImprovementLoop.js';
+export { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
+export { EvolutionProposal } from './EvolutionProposal.js';
+export { FeedbackAwareLearner } from './FeedbackAwareLearner.js';
+export type { ImprovementInsight } from './ImprovementAnalyzer.js';
+export type { Proposal } from './EvolutionProposal.js';

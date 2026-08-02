@@ -29,6 +29,8 @@ export const SYSTEM_EVENT_TYPES = {
   ARTIFACT_APPROVED: 'artifact.approved',
   EVALUATION_SCORED: 'evaluation.scored',
   EVALUATION_DECIDED: 'evaluation.decided',
+  /** L6 低分事件：missionQuality 低于阈值时发射，L7 演化只消费事件、禁止被 L4 直接触发 */
+  EVALUATION_LOW_SCORE: 'evaluation.low_score',
   EXPERIENCE_MINED: 'experience.mined',
   PATTERN_EXTRACTED: 'pattern.extracted',
   CAPABILITY_UPDATED: 'capability.updated',

@@ -12,7 +12,6 @@ import { GoalController, type GoalCheckResult } from './GoalController.js';
 import { PolicyController, type PolicyCheckResult } from './PolicyController.js';
 import { ResourceController, type ResourceAvailability } from './ResourceController.js';
 import { AgentController } from './AgentController.js';
-import { EvolutionController } from './EvolutionController.js';
 import { CapabilityRegistry } from '../../governance/capability/CapabilityRegistry.js';
 
 export interface ControlPlaneCheckResult {
@@ -33,14 +32,12 @@ export class ControlPlane {
   readonly policy: PolicyController;
   readonly resource: ResourceController;
   readonly agent: AgentController;
-  readonly evolution: EvolutionController;
 
   constructor() {
     this.goal = new GoalController();
     this.policy = new PolicyController();
     this.resource = new ResourceController();
     this.agent = new AgentController();
-    this.evolution = new EvolutionController();
   }
 
   /**

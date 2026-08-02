@@ -91,6 +91,15 @@ export interface GroundedReasoningResult {
     controlledExploration: boolean;
     timestamp: number;
   };
+  /** Wave 3b：运行时 Gate 凭证（供 Artifact 注册/晋升等入口硬校验） */
+  knowledgeContextPackage?: {
+    executionId: string;
+    riskTier: RiskTier;
+    queryCallCount: number;
+    retrievedIds: string[];
+    referenceCheck: { valid: boolean; missing: string[]; knownCount: number };
+    issuedAt: number;
+  };
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -428,6 +437,16 @@ export async function runOntologyGroundedReasoning(
     hasUsefulFacts,
     riskTier,
     queryMiss,
+    // Wave 3b：签发运行时 Gate 凭证（KnowledgeContextPackage）——
+    // Artifact 注册/晋升等入口可凭此包通过 requireKnowledgeContext 硬校验
+    knowledgeContextPackage: {
+      executionId,
+      riskTier,
+      queryCallCount: trace?.toolCalls.length ?? 0,
+      retrievedIds,
+      referenceCheck: check,
+      issuedAt: Date.now(),
+    },
   };
 
   // ⭐ P2.7: 写入缓存

@@ -24,6 +24,12 @@ import type {
   ArtifactPluginConfig,
 } from './types.js';
 import { createVersionSnapshot } from './ArtifactVersion.js';
+import {
+  requireKnowledgeContext,
+  TierWriteGuard,
+  type KnowledgeAuthorityTier,
+  type KnowledgeContextPackage,
+} from '../../../gate/context.js';
 import { ExecutionIdentity } from '../../../infrastructure/common/ExecutionIdentity.js';
 import { AsyncResourceLocker, VersionConflictError } from '../../../infrastructure/utils/AsyncResourceLocker.js';
 
@@ -73,6 +79,9 @@ export class ArtifactRegistry {
   private _autoSaveTimer: ReturnType<typeof setTimeout> | null = null;
   private readonly AUTO_SAVE_DELAY_MS = 2000;
 
+  /** Wave 3b：无 Gate 上下文的历史 tier-3 写入计数（可观测，不静默） */
+  private ungatedWrites = 0;
+
   constructor(config?: ArtifactPluginConfig, locker?: AsyncResourceLocker) {
     this.config = {
       maxVersions: config?.maxVersions ?? 10,
@@ -100,6 +109,28 @@ export class ArtifactRegistry {
     await this._locker.withLock(artifact.id, async () => {
       if (this.artifacts.has(artifact.id)) {
         throw new Error(`Artifact ${artifact.id} 已注册`);
+      }
+
+      // ═══ Wave 3b：Gate/Tier 运行时硬拦截 ═══
+      const meta = artifact.metadata ?? {};
+      const authorityTier = (meta.authorityTier as KnowledgeAuthorityTier | undefined) ?? 'tier-3';
+      const pkg = meta.knowledgeContextPackage as KnowledgeContextPackage | undefined;
+      if (authorityTier === 'tier-0' || authorityTier === 'tier-1') {
+        // tier-0/1 注册必须持有 Gate 凭证，缺失直接抛错
+        requireKnowledgeContext(pkg, `ArtifactRegistry.register(${artifact.id})`);
+      } else if (authorityTier === 'tier-2') {
+        // 只有 L7 已晋升结果才能写 Tier-2
+        TierWriteGuard.assertWriteAllowed({
+          incoming: 'tier-2',
+          promotedByEvolution: meta.promotedByEvolution === true,
+          operation: `ArtifactRegistry.register(${artifact.id})`,
+        });
+      } else if (!pkg) {
+        // tier-3 无 Gate 凭证：历史调用方不阻断，但 WARN 计数可观测
+        this.ungatedWrites += 1;
+        console.warn(
+          `[ArtifactRegistry] ⚠️ tier-3 写入无 KnowledgeContextPackage（累计 ${this.ungatedWrites} 次）：${artifact.id}`,
+        );
       }
 
       this.artifacts.set(artifact.id, artifact);
@@ -136,6 +167,16 @@ export class ArtifactRegistry {
 
       const prevVersion = existing.version;
       const prevStatus = existing.status;
+
+      // ═══ Wave 3b：Tier 写入守卫（运行时拒绝违规覆盖）═══
+      const existingTier = (existing.metadata?.authorityTier as KnowledgeAuthorityTier | undefined) ?? 'tier-3';
+      const incomingTier = (artifact.metadata?.authorityTier as KnowledgeAuthorityTier | undefined) ?? 'tier-3';
+      TierWriteGuard.assertWriteAllowed({
+        existing: existingTier,
+        incoming: incomingTier,
+        promotedByEvolution: artifact.metadata?.promotedByEvolution === true,
+        operation: `ArtifactRegistry.update(${artifact.id})`,
+      });
 
       this.artifacts.set(artifact.id, artifact);
 

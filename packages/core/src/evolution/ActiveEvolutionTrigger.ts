@@ -148,6 +148,14 @@ export class ActiveEvolutionTrigger {
       }
     });
 
+    // Wave 3a：低分事件（L6 低于阈值时发出）→ 与 scored 同口径记录，触发质量退化检查
+    this.eventBus.on('evaluation.low_score', (event: MorPexEvent) => {
+      const p = event.payload;
+      if (p?.departmentId && typeof p.qualityScore === 'number') {
+        this.recordQuality(p.departmentId, p.qualityScore);
+      }
+    });
+
     // 监听新部门创建
     this.eventBus.on('department.created', (event: MorPexEvent) => {
       const p = event.payload;

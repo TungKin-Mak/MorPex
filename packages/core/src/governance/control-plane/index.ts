@@ -8,7 +8,6 @@ export { GoalController } from './GoalController.js';
 export { PolicyController } from './PolicyController.js';
 export { ResourceController } from './ResourceController.js';
 export { AgentController } from './AgentController.js';
-export { EvolutionController } from './EvolutionController.js';
 
 // ── 部门（L1：原 department/ 归位）──
 export { DepartmentManager } from './DepartmentManager.js';

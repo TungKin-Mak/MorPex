@@ -10,11 +10,10 @@
  *   4. 检测性能退化并自动触发重新优化
  */
 
-import { WorkflowIntelligence } from '../../cognition/workflow/WorkflowIntelligence.js';
-import { WorkflowMemory } from '../../cognition/memory/WorkflowMemory.js';
+import { WorkflowIntelligence, WorkflowMemory } from '../../cognition/index.js';
 import { WorkflowRegistry } from './WorkflowRegistry.js';
 import type { RegisteredWorkflow, WorkflowVersion, OptimizationPlan } from './types.js';
-import type { OptimizationSuggestion } from '../../cognition/workflow/types.js';
+import type { OptimizationSuggestion } from '../../cognition/index.js';
 
 /** 优化配置 */
 export interface OptimizerConfig {

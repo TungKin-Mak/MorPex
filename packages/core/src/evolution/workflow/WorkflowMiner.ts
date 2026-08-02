@@ -14,11 +14,10 @@
  *   WorkflowMiner: 调度层 — 何时挖掘、如何过滤、生成候选
  */
 
-import { WorkflowIntelligence } from '../../cognition/workflow/WorkflowIntelligence.js';
-import { WorkflowMemory } from '../../cognition/memory/WorkflowMemory.js';
+import { WorkflowIntelligence, WorkflowMemory } from '../../cognition/index.js';
 import type { Mission } from '../../execution/runtime/mission/types.js';
 import type { WorkflowCandidate, WorkflowStepDef } from './types.js';
-import type { WorkflowPattern } from '../../cognition/workflow/types.js';
+import type { WorkflowPattern } from '../../cognition/index.js';
 
 /** 挖掘配置 */
 export interface MiningConfig {

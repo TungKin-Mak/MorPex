@@ -1,3 +1,5 @@
+/** L7 Evolution 层 — ImprovementAnalyzer（Wave 3a 自 cognition/ 迁入）
+ * 仅做指标→改进洞察分析，不产生任何执行副作用。 */
 export interface ImprovementInsight {
   id: string;
   title: string;

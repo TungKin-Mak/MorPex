@@ -1,5 +1,5 @@
-/**
- * FeedbackAwareLearner — 消费反馈与查询失败的进化学习器
+/** L7 Evolution 层 — FeedbackAwareLearner（Wave 3a 自 cognition/ 迁入）
+ * 消费反馈与查询失败信号，产出改进提案；不直接触发生产变更。
  *
  * 迭代3：将三类信号注入 Evolution / MetaLearner：
  *   1. Feedback（人工/评估反馈）

@@ -13,6 +13,19 @@ import { PolicyController } from '../src/governance/control-plane/PolicyControll
 import { ApprovalPolicyRegistry } from '../src/governance/ApprovalGate.js';
 import { GovernanceDashboard } from '../src/governance/GovernanceDashboard.js';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import type { KnowledgeContextPackage } from '../src/gate/context.js';
+
+/** Wave 3b：Gate 硬拦截后，晋升调用必须携带有效 KnowledgeContextPackage */
+function validGateContext(): KnowledgeContextPackage {
+  return {
+    executionId: `test-exec-${Math.random().toString(36).slice(2)}`,
+    riskTier: 'tier-0',
+    queryCallCount: 1,
+    retrievedIds: ['o1'],
+    referenceCheck: { valid: true, missing: [], knownCount: 1 },
+    issuedAt: Date.now(),
+  };
+}
 
 describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
   it('沙箱试跑通过 → pending_approval → 审批 → applied → 可回滚', async () => {
@@ -20,7 +33,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
     const rec = await sb.proposeChange({ summary: '优化规划' });
     expect(rec.sandboxPassed).toBe(true);
     expect(rec.status).toBe('pending_approval');
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     expect(sb.getChange(rec.id)?.status).toBe('applied');
     await sb.rollback(rec.id);
     expect(sb.getChange(rec.id)?.status).toBe('rolled_back');
@@ -44,7 +57,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
     });
     expect(rec.status).toBe('pending_approval');
 
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     expect(applied).toEqual(['apply:0.2']);
     expect(sb.getChange(rec.id)?.status).toBe('applied');
     expect(sb.getChange(rec.id)?.applyOutcome).toBe('ok');
@@ -63,7 +76,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
       apply: async () => { throw new Error('apply 写入失败'); },
       revert: async () => { reverted.push('revert:恢复旧配置'); },
     });
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     const after = sb.getChange(rec.id)!;
     expect(after.status).toBe('failed');
     expect(after.applyOutcome).toBe('failed');
@@ -82,7 +95,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
       apply: async () => undefined,
       revert: async () => { throw new Error('revert 网络超时'); },
     });
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     await sb.rollback(rec.id);
     const after = sb.getChange(rec.id)!;
     expect(after.status).toBe('applied');  // revert 失败保持原状态
@@ -98,7 +111,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
       revert: async () => undefined,
       verify: async () => true,
     });
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     await sb.rollback(rec.id);
     expect(sb.getChange(rec.id)?.status).toBe('rolled_back');
     expect(sb.getChange(rec.id)?.verifyOutcome).toBe('ok');
@@ -118,8 +131,8 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
       summary: '改权重',
       apply: async () => { applyCalls++; },
     });
-    await sb.approveAndApply(rec.id);
-    await sb.approveAndApply(rec.id); // 已 applied，守卫拒绝
+    await sb.approveAndApply(rec.id, validGateContext());
+    await sb.approveAndApply(rec.id, validGateContext()); // 已 applied，守卫拒绝
     expect(applyCalls).toBe(1);
     expect(sb.getChange(rec.id)?.status).toBe('applied');
   });
@@ -140,7 +153,7 @@ describe('EvolutionSandbox（L8 演化安全沙箱）', () => {
       revert: async () => undefined,
       verify: async () => false,
     });
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     await sb.rollback(rec.id);
     const after = sb.getChange(rec.id)!;
     expect(after.status).toBe('rolled_back');

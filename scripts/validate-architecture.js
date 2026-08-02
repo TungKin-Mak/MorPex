@@ -16,6 +16,11 @@
  *   6. [P1] No Domain Logic in Core：core 中出现领域关键词/领域目录依赖（WARNING）
  *   7. [P1] Ontology Bypass：绕过 KnowledgeQueryPrimitive 直接调用 LLM 生成（ERROR）
  *   8. [P1] Workflow 插件标准接口：实现 ActionPrimitive + bootstrap 注册（WARNING）
+ *   9. [P1] L4 禁止副作用：cognition/ 不得 import evolution/execution/primitives（ERROR）
+ *  10. [P1] L7 边界：evolution/ 不得 import cognition/（SafetyMonitor 只读豁免，ERROR）
+ *  11. [P1] L6/L7 解耦：evaluation/ 与 evolution/ 互禁直接 import（ERROR）
+ *  12. [P1] L1 治理瘦身：control-plane/ 不得 import cognition/ 或 evolution/ 实现（ERROR）
+ *  13. [P1] L1 硬编码演化实现：control-plane/ 出现 SelfImprovementLoop/EvolutionController 即违规（ERROR）
  */
 
 import { readFileSync, existsSync, readdirSync, statSync } from 'fs';
@@ -307,6 +312,156 @@ if (existsSync(WORKFLOWS)) {
       WARNINGS.push(`⚠️  [插件标准] ${dir}/ 未发现注册调用（DomainPrimitiveRegistry.register / bootstrap）`);
     }
   }
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 9. [P1] L4 禁止副作用 — cognition/ 不得 import 演化/执行/可执行原语
+//    （L4 纯认知：只能经公开接口或 EventBus 与 L5/L7 通信，禁止拉入生产变更能力）
+// ═══════════════════════════════════════════════════════════════
+const L4_FORBIDDEN_PREFIXES = [
+  'evolution/',
+  'execution/',
+  'infrastructure/tools/primitives/',
+];
+
+const l4SideEffectViolations = coreFiles
+  .filter((file) => file.startsWith('packages/core/src/cognition/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => {
+    const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
+    return L4_FORBIDDEN_PREFIXES.some((prefix) =>
+      new RegExp(`from\s+['"][^'"]*${prefix.replace(/\//g, '\\/')}`).test(content)
+    );
+  });
+
+if (l4SideEffectViolations.length > 0) {
+  ERRORS.push(`❌ [L4 纯度] cognition/ 引用了演化/执行/可执行原语（L4 禁止副作用）— ${l4SideEffectViolations.length} 处`);
+  l4SideEffectViolations.slice(0, 10).forEach((f) => {
+    console.log(`   - ${f}`);
+    matchLines(f, /from\s+['"][^'"]*(evolution|execution|infrastructure\/tools\/primitives)\//).forEach((l) => console.log(`       ${l}`));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 11. [P1] L6/L7 解耦 — evaluation/ 与 evolution/ 互禁直接 import（事件驱动）
+// ═══════════════════════════════════════════════════════════════
+const l6ToL7 = coreFiles
+  .filter((file) => file.startsWith('packages/core/src/evaluation/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => /from\s+['"][^'"]*evolution\//.test(readFileSync(join(ROOT, ...file.split('/')), 'utf8')));
+
+const l7ToL6 = coreFiles
+  .filter((file) => file.startsWith('packages/core/src/evolution/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => /from\s+['"][^'"]*evaluation\//.test(readFileSync(join(ROOT, ...file.split('/')), 'utf8')));
+
+if (l6ToL7.length > 0) {
+  ERRORS.push(`❌ [L6/L7 解耦] evaluation/ 直接 import 了 evolution/ — ${l6ToL7.length} 处`);
+  l6ToL7.slice(0, 10).forEach((f) => console.log(`   - ${f}`));
+}
+if (l7ToL6.length > 0) {
+  ERRORS.push(`❌ [L6/L7 解耦] evolution/ 直接 import 了 evaluation/ — ${l7ToL6.length} 处`);
+  l7ToL6.slice(0, 10).forEach((f) => console.log(`   - ${f}`));
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 10. [P1] L7 边界 — evolution/ 不得 import cognition/（事件驱动，只读数据例外）
+//    符号级白名单：evolution 只能从 cognition 引入「只读数据/智能门面」：
+//      - SafetyMonitor（安全度量，只读数据）
+//      - WorkflowIntelligence / WorkflowMemory（L4 工作流智能与记忆，L7 挖掘只读）
+//      - CrossDepartmentKnowledgeSynthesizer + MigrationResult（DI 注入的只读知识综合）
+//      - WorkflowPattern / OptimizationSuggestion（工作流数据结构类型）
+//    其余任何 cognition 符号（尤其演化/执行能力）一律 ERROR。
+// ═══════════════════════════════════════════════════════════════
+const L7_COGNITION_ALLOWED_SYMBOLS = new Set([
+  'SafetyMonitor',
+  'WorkflowIntelligence',
+  'WorkflowMemory',
+  'CrossDepartmentKnowledgeSynthesizer',
+  'MigrationResult',
+  'WorkflowPattern',
+  'OptimizationSuggestion',
+]);
+
+/** 提取从指定路径前缀导入的具名符号 */
+function namedImportsFrom(content, pathRe) {
+  const out = [];
+  const re = /import\s+(?:type\s+)?\{([^}]*)\}\s+from\s+['"]([^'"]+)['"]/g;
+  let m;
+  while ((m = re.exec(content)) !== null) {
+    const path = m[2];
+    if (pathRe.test(path)) {
+      m[1].split(',').map((s) => s.trim().split(/\s+as\s+/)[0]).filter(Boolean).forEach((sym) => out.push({ sym, path }));
+    }
+  }
+  return out;
+}
+
+const l7CognitionViolations = coreFiles
+  .filter((file) => file.startsWith('packages/core/src/evolution/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => {
+    const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
+    const imports = namedImportsFrom(content, /cognition/);
+    return imports.some(({ sym, path }) => {
+      // 允许从 SafetyMonitor 直接路径导入该符号
+      if (sym === 'SafetyMonitor' && /cognition\/SafetyMonitor\.js$/.test(path)) return false;
+      return !L7_COGNITION_ALLOWED_SYMBOLS.has(sym);
+    });
+  });
+
+if (l7CognitionViolations.length > 0) {
+  ERRORS.push(`❌ [L7 边界] evolution/ 直接 import 了 cognition/ 非白名单符号（应事件驱动）— ${l7CognitionViolations.length} 处`);
+  l7CognitionViolations.slice(0, 10).forEach((f) => {
+    console.log(`   - ${f}`);
+    matchLines(f, /from\s+['"][^'"]*cognition[^'"]*['"]/).forEach((l) => console.log(`       ${l}`));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 12. [P1] L1 治理瘦身 — control-plane/ 不得 import cognition/ 或 evolution/ 实现
+//    （演化职责归 L7；control-plane 只暴露策略/审批，不持有演化实现。
+//     符号级白名单：仅放行 GoalIntelligenceFacade（L1 编排 L4 规划的公开门面）；
+//     其余 cognition/evolution 导入（尤其演化实现）一律 ERROR。）
+// ═══════════════════════════════════════════════════════════════
+const L1_ALLOWED_SYMBOLS = new Set(['GoalIntelligenceFacade']);
+
+const controlPlaneImplViolations = coreFiles
+  .filter((file) => file.includes('/governance/control-plane/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => {
+    const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
+    const imports = namedImportsFrom(content, /(cognition|evolution)\//);
+    return imports.some(({ sym }) => !L1_ALLOWED_SYMBOLS.has(sym));
+  });
+
+if (controlPlaneImplViolations.length > 0) {
+  ERRORS.push(`❌ [L1 治理] control-plane/ 直接引用了 cognition/ 或 evolution/ 实现 — ${controlPlaneImplViolations.length} 处`);
+  controlPlaneImplViolations.slice(0, 10).forEach((f) => {
+    console.log(`   - ${f}`);
+    matchLines(f, /from\s+['"][^'"]*(cognition|evolution)\//).forEach((l) => console.log(`       ${l}`));
+  });
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 13. [P1] L1 硬编码演化实现 — control-plane/ 内出现演化实现符号即违规
+//    （SelfImprovementLoop / EvolutionController 属 L7/L1 应移除的历史残留）
+// ═══════════════════════════════════════════════════════════════
+const L1_EVOLUTION_SYMBOLS = ['SelfImprovementLoop', 'EvolutionController'];
+const controlPlaneSymbolViolations = coreFiles
+  .filter((file) => file.includes('/governance/control-plane/'))
+  .filter((file) => isRelevantSource(join(ROOT, ...file.split('/'))))
+  .filter((file) => {
+    const content = readFileSync(join(ROOT, ...file.split('/')), 'utf8');
+    return L1_EVOLUTION_SYMBOLS.some((s) => content.includes(s));
+  });
+
+if (controlPlaneSymbolViolations.length > 0) {
+  ERRORS.push(`❌ [L1 治理] control-plane/ 硬编码演化实现符号（SelfImprovementLoop/EvolutionController）— ${controlPlaneSymbolViolations.length} 处`);
+  controlPlaneSymbolViolations.slice(0, 10).forEach((f) => {
+    console.log(`   - ${f}`);
+    matchLines(f, /SelfImprovementLoop|EvolutionController/).forEach((l) => console.log(`       ${l}`));
+  });
 }
 
 // ═══════════════════════════════════════════════════════════════

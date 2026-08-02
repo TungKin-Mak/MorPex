@@ -13,7 +13,7 @@ import { BrainFacade } from '../src/cognition/BrainFacade.js';
 import { ControlPlane } from '../src/governance/control-plane/ControlPlane.js';
 import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
 import { MetaLearner } from '../src/cognition/MetaLearner.js';
-import { SelfImprovementLoop } from '../src/cognition/SelfImprovementLoop.js';
+import { SelfImprovementLoop } from '../src/evolution/SelfImprovementLoop.js';
 import { CrossDepartmentKnowledgeSynthesizer } from '../src/cognition/CrossDepartmentKnowledgeSynthesizer.js';
 
 describe('S22 架构审计修复', () => {

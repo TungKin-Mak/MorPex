@@ -10,6 +10,7 @@
  */
 
 import type { IEventStore } from '../infrastructure/protocol/events/store/IEventStore.js';
+import { requireKnowledgeContext, type KnowledgeContextPackage } from '../gate/context.js';
 
 export interface EvolutionChangeRecord {
   id: string;
@@ -150,10 +151,14 @@ export class EvolutionSandbox {
   /**
    * approveAndApply — 人工审批通过 → 落地（版本化）
    *
+   * Wave 3b：晋升写前再过 Gate —— 必须持有有效 KnowledgeContextPackage，缺失直接抛错（硬拦截）。
    * L8 自动回滚：若变更携带 apply()，则真正执行；
    * 执行失败 → status='failed'（可随后用 rollback 补偿撤销，不产生半落地悬挂态）。
    */
-  async approveAndApply(id: string): Promise<EvolutionChangeRecord | undefined> {
+  async approveAndApply(id: string, gateContext?: KnowledgeContextPackage): Promise<EvolutionChangeRecord | undefined> {
+    // 晋升硬拦截：缺包即抛错，禁止继续
+    requireKnowledgeContext(gateContext, `EvolutionSandbox.approveAndApply(${id}) 晋升`);
+
     const rec = this.changes.get(id);
     if (!rec) return undefined;
     if (rec.status !== 'pending_approval') return rec;

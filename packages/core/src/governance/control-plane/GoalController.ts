@@ -6,7 +6,7 @@
  * - 返回完整的风险评估 + 审批建议
  */
 
-import { GoalIntelligenceFacade } from '../../cognition/planning/goal-intelligence/GoalIntelligenceFacade.js';
+import { GoalIntelligenceFacade } from '../../cognition/index.js';
 import { RiskAnalyzer } from '../../governance/RiskAnalyzer.js';
 import type { GoalContext } from '../../infrastructure/protocol/contracts/goal.js';
 import type { RiskLevel, RiskAssessment } from '../../governance/types.js';

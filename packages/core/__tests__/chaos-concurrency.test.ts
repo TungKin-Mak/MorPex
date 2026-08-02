@@ -14,6 +14,18 @@ import { describe, it, expect } from 'vitest';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../src/infrastructure/common/types.js';
 import { EvolutionSandbox } from '../src/evolution/EvolutionSandbox.js';
+import type { KnowledgeContextPackage } from '../src/gate/context.js';
+
+function validGateContext(): KnowledgeContextPackage {
+  return {
+    executionId: `test-exec-${Math.random().toString(36).slice(2)}`,
+    riskTier: 'tier-0',
+    queryCallCount: 1,
+    retrievedIds: ['o1'],
+    referenceCheck: { valid: true, missing: [], knownCount: 1 },
+    issuedAt: Date.now(),
+  };
+}
 
 function makeEvent(type: string, overrides: Partial<MorPexEvent> = {}): MorPexEvent {
   return {
@@ -89,8 +101,8 @@ describe('EvolutionSandbox — TOCTOU 并发守卫', () => {
     expect(rec.status).toBe('pending_approval');
 
     // 两个并发调用（第二个应在 inflight 守卫处立即返回）
-    const p1 = sb.approveAndApply(rec.id);
-    const p2 = sb.approveAndApply(rec.id);
+    const p1 = sb.approveAndApply(rec.id, validGateContext());
+    const p2 = sb.approveAndApply(rec.id, validGateContext());
     const r2 = await p2; // inflight 守卫 → 立即 resolve（不进入 apply）
     expect(r2?.id).toBe(rec.id);
     release(); // 释放 apply 挂起点
@@ -115,7 +127,7 @@ describe('EvolutionSandbox — TOCTOU 并发守卫', () => {
         await gate;
       },
     });
-    await sb.approveAndApply(rec.id);
+    await sb.approveAndApply(rec.id, validGateContext());
     expect(sb.getChange(rec.id)?.status).toBe('applied');
 
     const p1 = sb.rollback(rec.id);

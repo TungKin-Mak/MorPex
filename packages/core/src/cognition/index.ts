@@ -37,12 +37,7 @@ export type { BrainReflectionState, BrainReflectionResult, ReflectionEngineLike 
 export { MetaLearner } from './MetaLearner.js';
 export type { TaskRecord, UserFeedback, LearningResult, MetaLearnerLike } from './MetaLearner.js';
 
-export { SelfImprovementLoop } from './SelfImprovementLoop.js';
-export { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
-export { EvolutionProposal } from './EvolutionProposal.js';
 export { SafetyMonitor } from './SafetyMonitor.js';
-export type { ImprovementInsight } from './ImprovementAnalyzer.js';
-export type { Proposal } from './EvolutionProposal.js';
 export type { Observation } from './SafetyMonitor.js';
 
 export { CrossDepartmentKnowledgeSynthesizer } from './CrossDepartmentKnowledgeSynthesizer.js';
@@ -130,6 +125,8 @@ export type {
 
 // ── Goal Plane (Phase 1 / v8.5) ──
 export { GoalManager, GoalGraph } from './goal/index.js';
+// Wave 3b：L1 GoalController 经公开 barrel 使用（此前直连深层路径）
+export { GoalIntelligenceFacade } from './planning/goal-intelligence/index.js';
 export type {
   Goal,
   GoalStatus,

@@ -41,7 +41,7 @@ import {
 import { createQueryPerformedEvent } from './gate/ontologyEvents.js';
 import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
 import { FeedbackService } from './knowledge/ontology/FeedbackService.js';
-import { FeedbackAwareLearner } from './cognition/FeedbackAwareLearner.js';
+import { FeedbackAwareLearner } from './evolution/FeedbackAwareLearner.js';
 
 // ── Ontology Gate for Primitives ──
 import { initializeOntologyGate, setPiBridge as setKqpBridge } from './infrastructure/tools/primitives/KnowledgeQueryPrimitive.js';
@@ -57,7 +57,7 @@ import {
 } from './infrastructure/tools/primitives/index.js';
 
 // ── v16 模块 ──
-import { SelfImprovementLoop } from './cognition/SelfImprovementLoop.js';
+import { SelfImprovementLoop } from './evolution/SelfImprovementLoop.js';
 import { ReflectionEngine } from './cognition/index.js';
 import { MetaLearner } from './cognition/index.js';
 import { ExecutionSimulator } from './execution/runtime/simulation/ExecutionSimulator.js';
@@ -456,7 +456,7 @@ export async function bootstrapUnified(options?: {
   const { ActiveEvolutionTrigger, FailureAnalyzer, EvolutionSandbox } = await import('./evolution/index.js');
   const activeEvolutionTrigger = new ActiveEvolutionTrigger(eventBus);
   // ═══ S22 审计修复：注入 SelfImprovementLoop → 激活 autoEvolve（此前永不触发）═══
-  const { SelfImprovementLoop } = await import('./cognition/SelfImprovementLoop.js');
+  const { SelfImprovementLoop } = await import('./evolution/SelfImprovementLoop.js');
   const selfImprovementLoop = new SelfImprovementLoop();
   activeEvolutionTrigger.setSelfImprovementLoop(selfImprovementLoop);
   (container as any).selfImprovementLoop = selfImprovementLoop;

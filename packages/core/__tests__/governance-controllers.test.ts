@@ -72,12 +72,13 @@ describe('PolicyController — 统一策略评估', () => {
 describe('ControlPlane — 聚合门禁', () => {
   const cp = new ControlPlane();
 
-  it('5 个 Controller 全部装配（死组件回归守卫）', () => {
+  it('4 个 Controller 全部装配 + evolution 已移除（死组件回归守卫，Wave 3b）', () => {
     expect(cp.goal).toBeInstanceOf(GoalController);
     expect(cp.policy).toBeInstanceOf(PolicyController);
     expect(cp.resource).toBeTruthy();
     expect(cp.agent).toBeTruthy();
-    expect(cp.evolution).toBeTruthy();
+    // ⚠️ Wave 3b：EvolutionController 已从 control-plane 移除（演化归 L7，事件驱动）
+    expect((cp as unknown as { evolution?: unknown }).evolution).toBeUndefined();
   });
 
   it('受限目标 → checkAll 拒绝', async () => {

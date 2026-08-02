@@ -25,9 +25,10 @@
    DeliveryPlanner + HierarchicalPlanner + CrossDepartmentArbitrationEngine
    (Plan 输出携带 ontologyRefs[] 引用 Trace，可审计)
 
-4. Cognition & Brain Layer
-   BrainFacade (unified) + ReflectionEngine + MetaLearner + SelfImprovementLoop
+4. Cognition & Brain Layer (纯认知，禁副作用)
+   BrainFacade (unified) + ReflectionEngine + MetaLearner
    + CrossDepartmentKnowledgeSynthesizer
+   (演化逻辑已剥离至 L8；L4 不得 import 可执行 Primitive / 演化实现)
 
 5. Execution Layer (Bounded Autonomy)
    UnifiedExecutionEngine + SubAgentFork + ExecutionFabric + MorPexRuntime (FSM/DAG)
@@ -49,7 +50,9 @@
 8. Evolution Layer (Verifiable Evolution)
    ExperienceMiner + FailureAnalyzer + PatternExtractor
    ActiveEvolutionTrigger + PatternMigrationEngine + KnowledgeGapListener
-   (QueryMiss → Feedback → Evolution 闭环；演化须沙箱试跑 + 人工审批 + 版本化回滚)
+   SelfImprovementLoop + EvolutionProposal + ImprovementAnalyzer + FeedbackAwareLearner（自 L4 迁入）
+   (QueryMiss → Feedback → Evolution 闭环；只消费 L6 evaluation.* 事件，禁止被 L4 直接触发；
+    演化须沙箱试跑 + 人工审批 + 版本化回滚；晋升写前再过 Gate + 完整 Trace)
 
 9. Workflow Plugin Layer (Domain Logic — Completely Isolated)
    packages/workflows/<domain>/  (xjmcu, ecommerce, hardware, software)
@@ -143,9 +146,10 @@ ontology/
    DeliveryPlanner + HierarchicalPlanner + CrossDepartmentArbitrationEngine
    (Plan 输出携带 ontologyRefs[] 引用 Trace，可审计)
 
-4. Cognition & Brain Layer
-   BrainFacade (unified) + ReflectionEngine + MetaLearner + SelfImprovementLoop
+4. Cognition & Brain Layer (纯认知，禁副作用)
+   BrainFacade (unified) + ReflectionEngine + MetaLearner
    + CrossDepartmentKnowledgeSynthesizer
+   (演化逻辑已剥离至 L8；L4 不得 import 可执行 Primitive / 演化实现)
 
 5. Execution Layer (Bounded Autonomy)
    UnifiedExecutionEngine + SubAgentFork + ExecutionFabric + MorPexRuntime (FSM/DAG)
@@ -167,7 +171,9 @@ ontology/
 8. Evolution Layer (Verifiable Evolution)
    ExperienceMiner + FailureAnalyzer + PatternExtractor
    ActiveEvolutionTrigger + PatternMigrationEngine + KnowledgeGapListener
-   (QueryMiss → Feedback → Evolution 闭环；演化须沙箱试跑 + 人工审批 + 版本化回滚)
+   SelfImprovementLoop + EvolutionProposal + ImprovementAnalyzer + FeedbackAwareLearner（自 L4 迁入）
+   (QueryMiss → Feedback → Evolution 闭环；只消费 L6 evaluation.* 事件，禁止被 L4 直接触发；
+    演化须沙箱试跑 + 人工审批 + 版本化回滚；晋升写前再过 Gate + 完整 Trace)
 
 9. Workflow Plugin Layer (Domain Logic — Completely Isolated)
    packages/workflows/<domain>/  (xjmcu, ecommerce, hardware, software)

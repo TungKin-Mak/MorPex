@@ -225,7 +225,8 @@ export class ServiceContainer {
     );
 
     // 注入 EvaluationEngine（迭代4：主路径合规）
-    this.runtime.setEvaluationEngine(new EvaluationEngine());
+    // Wave 3a：注入 EventBus → L6 评价结果以 evaluation.scored / evaluation.low_score 事件流出（此前事件桥是死的）
+    this.runtime.setEvaluationEngine(new EvaluationEngine(this.eventBus));
   }
 
   /** setOntology — 注入 Ontology 依赖到 MorPexRuntime（迭代4） */

@@ -1,11 +1,14 @@
 /**
- * SelfImprovementLoop — 自我改进闭环
+ * SelfImprovementLoop — 自我改进闭环（L7 Evolution 层，Wave 3a 自 cognition/ 迁入）
  * Phase 2: Observation → Analysis → Proposal → Simulation → Evaluation → Approval → Deployment → Monitor
  * 不直接修改代码，只生成提案
+ *
+ * ⚠️ 边界契约：本类只产提案，不执行生产变更；提案须经 L7 EvolutionSandbox
+ *    + 审批（pending→approved）后方可晋升，晋升写前再过 Gate + Trace。
  */
 import { ImprovementAnalyzer } from './ImprovementAnalyzer.js';
 import { EvolutionProposal } from './EvolutionProposal.js';
-import { SafetyMonitor } from './SafetyMonitor.js';
+import { SafetyMonitor } from '../cognition/SafetyMonitor.js';
 import type { ImprovementInsight } from './ImprovementAnalyzer.js';
 import type { Proposal } from './EvolutionProposal.js';
 

@@ -651,9 +651,9 @@ export type { ComplianceResult } from './governance/index.js';
 export { RuntimeManager, CostController, AlertEngine } from './governance/index.js';
 export type { Alert, AlertLevel } from './governance/index.js';
 
-// ── Self Improvement Loop (v15) ──
-export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './cognition/index.js';
-export type { ImprovementInsight, Proposal } from './cognition/index.js';
+// ── Self Improvement Loop (v15) — Wave 3a 已迁至 evolution/ ──
+export { SelfImprovementLoop, ImprovementAnalyzer, EvolutionProposal } from './evolution/index.js';
+export type { ImprovementInsight, Proposal } from './evolution/index.js';
 
 // ── v15 Bootstrap ──
 /** @deprecated 请使用 bootstrapUnified */
