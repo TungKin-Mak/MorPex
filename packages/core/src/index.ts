@@ -595,6 +595,10 @@ export { RuleRegistry } from './gate/rules/RuleRegistry.js';
 export { rulePersistence } from './gate/rules/rulePersistence.js';
 export { extractRule } from './gate/rules/RuleExtractor.js';
 export { normalizeText, normalizePattern } from './gate/rules/normalize.js';
+export { detectorRegistry, RegexDetector, ApiWhitelistDetector, extractTargetText } from './gate/rules/detectors.js';
+export type { RuleDetector } from './gate/rules/detectors.js';
+export { lexicalCorrect } from './gate/rules/lexicalCorrection.js';
+export type { LexicalCorrectionResult } from './gate/rules/lexicalCorrection.js';
 export { check as ruleEnforcementCheck } from './gate/rules/RuleEnforcementGuard.js';
 export type {
   RuleEntity, RuleViolation, RuleSeverity, RuleStatus,

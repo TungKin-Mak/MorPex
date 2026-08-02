@@ -10,8 +10,8 @@
 /** 规则严重度：ERROR=硬中断（进入修正重试）；WARNING=记录+继续 */
 export type RuleSeverity = 'ERROR' | 'WARNING';
 
-/** 检测方式：regex=确定性正则（Phase 1）；semantic=LLM 语义复核（Phase 3） */
-export type RuleType = 'regex' | 'semantic';
+/** 检测方式：regex=确定性正则（Phase 1）；whitelist=API 白名单前缀（Phase 2）；semantic=LLM 语义复核（Phase 3） */
+export type RuleType = 'regex' | 'whitelist' | 'semantic';
 
 /** 规则状态：pending=提炼待人工确认（不参与匹配）；active=生效；disabled=人工关闭 */
 export type RuleStatus = 'pending' | 'active' | 'disabled';
@@ -48,10 +48,17 @@ export interface RuleEntity {
   ruleType: RuleType;
   /** 检查 LLM 输出的哪个字段 */
   target: RuleTarget;
-  /** 禁止模式（正则；经规范化后匹配） */
-  disallowedPattern: string;
+  /** 禁止模式（正则；经规范化后匹配；ruleType='regex' 时使用，白名单规则可省略） */
+  disallowedPattern?: string;
   /** 别名/代称展开（规范化后精确包含匹配） */
   aliases?: string[];
+  /**
+   * API 白名单前缀（ruleType='whitelist' 时使用，Phase 2）
+   * 检测：目标文本中出现的"厂商风格 API token"（含下划线且首字母大写，如 IOCP_W / LL_GPIO_WritePin）
+   * 其前缀（第一个 _ 前片段）不在白名单内 → 违规。
+   * MCU 场景示例：['IOCP','NVIC','SysTick','FLASH','RCC']
+   */
+  allowedApiPrefixes?: string[];
   /** 确定性替换目标（Phase 2；Phase 1 保留字段不执行） */
   allowedAction?: string;
   /** 优先级（越大越先匹配；误报降级用） */

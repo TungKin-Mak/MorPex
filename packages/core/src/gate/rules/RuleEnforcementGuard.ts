@@ -5,7 +5,8 @@
  * 设计约束：
  *   - 纯函数：不持有 LLM / piBridge / eventStore —— 重试编排在 runOntologyGroundedReasoning 管道
  *   - 默认 no-op：rules 为空 → 返回空违规（不改变任何现有行为）
- *   - 只检查 status='active' 且 ruleType='regex' 的规则（semantic 留 Phase 3）
+ *   - 只检查 status='active' 的规则；按 rule.ruleType 分派到 detectorRegistry
+ *     （regex=规范化正则+别名；whitelist=API 白名单前缀；semantic=Phase 3 暂缺）
  *
  * 匹配语义（与 normalize.ts 一致）：
  *   - target 文本经规范化（NFKC+小写+去空白）后匹配
@@ -14,8 +15,8 @@
  */
 
 import type { OntologyProposal } from '../types.js';
-import type { RuleCheckResult, RuleEntity, RuleTarget, RuleViolation } from './types.js';
-import { normalizePattern, normalizeText } from './normalize.js';
+import type { RuleCheckResult, RuleEntity, RuleViolation } from './types.js';
+import { detectorRegistry } from './detectors.js';
 
 /**
  * check — 对 proposal 执行规则匹配
@@ -35,21 +36,18 @@ export function check(proposal: OntologyProposal, rules: RuleEntity[]): RuleChec
 
   for (const rule of sorted) {
     if (rule.status !== 'active') continue;
-    if (rule.ruleType !== 'regex') continue; // semantic 留 Phase 3
 
-    const text = extractTargetText(proposal, rule.target);
-    if (!text) continue;
-
-    const matched = matchText(normalizeText(text), rule);
-    if (matched) {
-      violations.push({
-        ruleId: rule.id,
-        severity: rule.severity,
-        matchedText: matched,
-        target: rule.target,
-        description: rule.description,
-      });
+    const detector = detectorRegistry[rule.ruleType];
+    if (!detector) {
+      // semantic 等未注册检测器：不匹配（Phase 3 前不硬崩），仅提示一次
+      if (rule.ruleType === 'semantic') {
+        console.warn(`[RuleEnforcementGuard] ⚠️ ruleType='semantic' 检测器未注册（Phase 3），规则 ${rule.id} 跳过`);
+      }
+      continue;
     }
+
+    const violation = detector.check(proposal, rule);
+    if (violation) violations.push(violation);
   }
 
   return {
@@ -57,47 +55,4 @@ export function check(proposal: OntologyProposal, rules: RuleEntity[]): RuleChec
     hasError: violations.some((v) => v.severity === 'ERROR'),
     downgradedRuleIds: [],
   };
-}
-
-/** extractTargetText — 按 target 提取 proposal 的检查文本 */
-function extractTargetText(proposal: OntologyProposal, target: RuleTarget): string {
-  switch (target) {
-    case 'proposal.payload': {
-      const p = proposal.payload ?? proposal.proposal;
-      if (typeof p === 'string') return p;
-      if (p !== undefined && p !== null) return JSON.stringify(p);
-      return '';
-    }
-    case 'proposal.action_type':
-      return proposal.action_type ?? '';
-    case 'proposal.raw':
-      if (typeof proposal.raw === 'string') return proposal.raw;
-      return proposal.raw ? JSON.stringify(proposal.raw) : '';
-  }
-}
-
-/**
- * matchText — 对规范化文本执行匹配（正则 + 别名）
- *
- * @returns 命中的规范化片段；未命中返回 null
- */
-function matchText(normText: string, rule: RuleEntity): string | null {
-  // 1. aliases 精确包含（规范化后）
-  for (const alias of rule.aliases ?? []) {
-    const normAlias = normalizeText(alias);
-    if (normAlias && normText.includes(normAlias)) return normAlias;
-  }
-
-  // 2. disallowedPattern 正则（规范化后 + 'i' 防御）
-  if (rule.disallowedPattern) {
-    try {
-      const re = new RegExp(normalizePattern(rule.disallowedPattern), 'i');
-      const m = normText.match(re);
-      if (m && m[0]) return m[0];
-    } catch {
-      // 非法正则 → 跳过该规则（防误伤），不硬崩
-    }
-  }
-
-  return null;
 }
