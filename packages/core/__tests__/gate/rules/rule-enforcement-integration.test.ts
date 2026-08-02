@@ -241,4 +241,30 @@ describe('gate/rules 集成（挂载 runOntologyGroundedReasoning）', () => {
     expect(piBridge.callCount()).toBe(3); // Phase1 + Phase2×2（重试 1 次）
     expect(res.proposal.payload).toEqual({ content: '合规文案' });
   });
+
+  it('onTokenUsage 回调：每次 LLM 调用（含重试）都上报 token 估算', async () => {
+    RuleRegistry.register('ecommerce', makeRule('no_airpods', 'AirPods'));
+    const piBridge = createSequencePiBridge([
+      proposalJson('含 AirPods 的文案'),
+      proposalJson('合规文案'),
+    ]);
+    const { ontology, guard, store } = setup();
+    const tokenReports: number[] = [];
+    const res = await runOntologyGroundedReasoning({
+      goal: '预算接线目标',
+      ontology,
+      guard,
+      piBridge,
+      eventStore: store as never,
+      scenario: 'rule-integration-token-usage',
+      riskTier: 'tier-2',
+      domain: 'ecommerce',
+      onTokenUsage: (tokens) => tokenReports.push(tokens),
+    });
+
+    // Phase1 查询 + Phase2 首次 + 重试 1 次 = 3 次上报，且都 > 0
+    expect(tokenReports.length).toBe(3);
+    expect(tokenReports.every((t) => t > 0)).toBe(true);
+    expect(res.proposal.payload).toEqual({ content: '合规文案' });
+  });
 });

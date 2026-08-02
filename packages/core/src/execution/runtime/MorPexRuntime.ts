@@ -188,6 +188,19 @@ export class MorPexRuntime {
             eventBus: this.eventBus, // S34 可观测：传 bus 使 ontology.grounded 事件可达观测面
             extraContext: `MorPexRuntime 主执行路径 grounded reasoning。`,
             scenario: 'runtime-exec',
+            // Phase 2 F：domain 上下文传递——goal→domain 映射打通，getActiveRules(domain) 按域过滤
+            domain: context.goal.domain,
+            // Phase 2 E：L5 预算接线——Gate 内 LLM 调用（含规则重试）token 估算上报（可观测，不阻断）
+            onTokenUsage: (tokens) => {
+              this.eventBus.emit({
+                id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+                type: 'execution.gate.token_usage',
+                timestamp: Date.now(),
+                executionId: context.mission.missionId,
+                source: 'gate',
+                payload: { tokens, goal: context.goal.objective, domain: context.goal.domain },
+              });
+            },
           });
           ontologyProposal = result.proposal;
           console.log(`[MorPexRuntime] 🏁 Ontology grounding 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);

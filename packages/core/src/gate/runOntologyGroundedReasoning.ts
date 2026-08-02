@@ -69,9 +69,9 @@ export interface GroundedReasoningOptions {
   /** 执行场景标签（用于日志和事件） */
   scenario?: string;
   /**
-   * 领域路由（功能② Phase 1）：传入则规则只匹配该 domain 的 active 规则；
-   * 不传则按全局匹配（Phase 1 默认）。当前 4 个调用方尚无可靠 domain 信号，
-   * domain 上下文沿调用链传递 + 按域路由为 Phase 2 项（见 docs/FEATURE_RULE_ENFORCEMENT.md §7）。
+   * 领域路由（功能② Phase 1 + Phase 2 F）：传入则规则只匹配该 domain 的 active 规则；
+   * 不传则按全局匹配。Phase 2 F 已由 MorPexRuntime 从 context.goal.domain 打通；
+   * 其余调用方暂无可靠信号（见 docs/FEATURE_RULE_ENFORCEMENT.md §7）。
    */
   domain?: string;
   /**
@@ -81,6 +81,12 @@ export interface GroundedReasoningOptions {
    *   tier-2 Draft/Internal：尽力查询；无结果 → ControlledExploration + QueryMiss 事件
    */
   riskTier?: RiskTier;
+  /**
+   * Token 用量回调（Phase 2 E — L5 预算接线）：Gate 内每次 LLM 调用（Phase 1 查询 +
+   * Phase 2 推理 + 每次规则重试）后估算 tokens 并回调，供上层累计成本。
+   * 估算 = ceil((prompt.length + text.length) / 4)（粗略；精确计费留后续）。可选，未传无副作用。
+   */
+  onTokenUsage?: (tokens: number) => void;
 }
 
 export interface GroundedReasoningResult {
@@ -229,6 +235,8 @@ export async function runOntologyGroundedReasoning(
     prompt: queryPrompt,
     temperature: 0.2,
   });
+  // Phase 2 E：预算接线——Phase 1 查询 token 估算回调（粗略：字符数/4）
+  options.onTokenUsage?.(Math.ceil((queryPrompt.length + (queryResponse.text?.length ?? 0)) / 4));
 
   // 解析查询计划（改进：平衡括号匹配 + 失败默认查询）
   const queryPlan = parseQueryPlanRobust(queryResponse.text);
@@ -373,6 +381,8 @@ export async function runOntologyGroundedReasoning(
       // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
       temperature: attempt === 0 ? 0.3 : 0.2,
     });
+    // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试的 token 估算回调
+    options.onTokenUsage?.(Math.ceil((reasoningUser.length + (reasoningResponse.text?.length ?? 0)) / 4));
 
     proposal = normalizeProposal(reasoningResponse.text);
 
