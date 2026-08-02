@@ -5,7 +5,8 @@
  */
 import { describe, it, expect, beforeEach } from 'vitest';
 import { check as ruleEnforcementCheck } from '../../../src/gate/rules/RuleEnforcementGuard.js';
-import { RegexDetector, ApiWhitelistDetector } from '../../../src/gate/rules/detectors.js';
+import { RegexDetector, ApiWhitelistDetector, stripCommentsAndStrings } from '../../../src/gate/rules/detectors.js';
+import { DetectorRegistry } from '../../../src/gate/rules/DetectorRegistry.js';
 import { RuleRegistry } from '../../../src/gate/rules/RuleRegistry.js';
 import type { RuleEntity } from '../../../src/gate/rules/types.js';
 
@@ -56,7 +57,56 @@ describe('gate/rules/RegexDetector（Phase 1 行为不回归）', () => {
   });
 });
 
-describe('gate/rules/ApiWhitelistDetector（Phase 2 白名单）', () => {
+describe('gate/rules/stripCommentsAndStrings（Phase 2 B1）', () => {
+  it('行注释被剥掉，代码保留', () => {
+    const src = 'IOCP_W(reg, 0); // 参考 STM32 HAL_GPIO_Init';
+    expect(stripCommentsAndStrings(src)).not.toContain('HAL_GPIO');
+    expect(stripCommentsAndStrings(src)).toContain('IOCP_W');
+  });
+
+  it('块注释被剥掉', () => {
+    const src = '/* LL_GPIO_WritePin 参考 */ IOCP_R(reg);';
+    const cleaned = stripCommentsAndStrings(src);
+    expect(cleaned).not.toContain('LL_GPIO');
+    expect(cleaned).toContain('IOCP_R');
+  });
+
+  it('字符串字面量被剥掉（含转义引号）', () => {
+    const src = 'printf("use HAL_GPIO_Init\\n"); IOCP_W(reg, 1);';
+    const cleaned = stripCommentsAndStrings(src);
+    expect(cleaned).not.toContain('HAL_GPIO');
+    expect(cleaned).toContain('IOCP_W');
+  });
+
+  it('反引号模板字符串被剥掉', () => {
+    const src = 'const s = `LL_GPIO_WritePin`; IOCP_W(reg, 1);';
+    expect(stripCommentsAndStrings(src)).not.toContain('LL_GPIO');
+  });
+
+  it('正常代码不动，空输入安全', () => {
+    const src = 'IOCP_W(REG0, 0x00); SysTick_Config(72);';
+    expect(stripCommentsAndStrings(src)).toBe(src);
+    expect(stripCommentsAndStrings('')).toBe('');
+  });
+});
+
+describe('gate/rules/ApiWhitelistDetector（Phase 2 白名单 + B1 剥注释）', () => {
+  it('注释/字符串里的非白名单 API 不再误报', () => {
+    const rule = makeRule({ ruleType: 'whitelist', allowedApiPrefixes: ['IOCP', 'NVIC', 'SysTick'] });
+    const code = `// 参考 STM32 HAL_GPIO_Init 的实现
+  IOCP_W(REG0, 0x00);
+  printf("注意 LL_GPIO_WritePin 不可用");`;
+    expect(ApiWhitelistDetector.check({ payload: code } as any, rule)).toBeNull();
+  });
+
+  it('真实代码中的非白名单 API 仍命中', () => {
+    const rule = makeRule({ ruleType: 'whitelist', allowedApiPrefixes: ['IOCP', 'NVIC', 'SysTick'] });
+    const code = 'IOCP_W(REG0, 0); LL_GPIO_WritePin(GPIOA, LL_GPIO_PIN_5, 1);';
+    const v = ApiWhitelistDetector.check({ payload: code } as any, rule);
+    expect(v).not.toBeNull();
+    expect(v!.matchedText).toContain('LL_GPIO');
+  });
+
   it('白名单内前缀 → 不违规', () => {
     const rule = makeRule({ ruleType: 'whitelist', allowedApiPrefixes: ['IOCP', 'NVIC', 'SysTick'] });
     const v = ApiWhitelistDetector.check({ payload: 'IOCP_W(REG0, 0x00); SysTick_Config(72);' } as any, rule);

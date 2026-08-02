@@ -17,6 +17,64 @@ import type { OntologyProposal } from '../types.js';
 import type { RuleEntity, RuleTarget, RuleType, RuleViolation } from './types.js';
 import { normalizePattern, normalizeText } from './normalize.js';
 
+/**
+ * stripCommentsAndStrings — 剥离注释与字符串字面量（轻量状态机，零外部依赖）
+ *
+ * Phase 2（B1）：白名单/代码类检测的前处理——避免注释或字符串里的平台名
+ * （如注释写"参考其它平台 API"）被当作真实 API 调用误报。
+ *
+ * 处理：
+ *   - 行注释 `// ...` → 替换为换行
+ *   - 块注释 `/* ... *\/` → 替换为空格
+ *   - 字符串 `'...'` `"..."` `` `...` ``（含转义 `\\`）→ 替换为空格
+ *
+ * 限制（已知）：模板字符串内的 `${}` 插值也会被剥掉；完整 AST 解析
+ * （区分声明/调用、模板插值）留后续结构层增强，不引外部 AST 依赖。
+ */
+export function stripCommentsAndStrings(code: string): string {
+  let out = '';
+  let i = 0;
+  const n = code.length;
+  while (i < n) {
+    const ch = code[i];
+    // 行注释 //
+    if (ch === '/' && code[i + 1] === '/') {
+      while (i < n && code[i] !== '\n') i++;
+      out += '\n';
+      continue;
+    }
+    // 块注释 /* */
+    if (ch === '/' && code[i + 1] === '*') {
+      i += 2;
+      while (i < n && !(code[i] === '*' && code[i + 1] === '/')) i++;
+      i += 2; // 跳过 */
+      out += ' ';
+      continue;
+    }
+    // 字符串 ' " ` （含转义）
+    if (ch === "'" || ch === '"' || ch === '`') {
+      const quote = ch;
+      i++;
+      while (i < n) {
+        if (code[i] === '\\') {
+          i += 2;
+          continue;
+        }
+        if (code[i] === quote) {
+          i++;
+          break;
+        }
+        i++;
+      }
+      out += ' '; // 字符串整体替换为空格，防止 token 粘连
+      continue;
+    }
+    out += ch;
+    i++;
+  }
+  return out;
+}
+
 /** RuleDetector — 检测器契约（core 机制 / 领域可经此接口注入专属检测器） */
 export interface RuleDetector {
   /** 检测器类型（对应 RuleEntity.ruleType） */
@@ -112,12 +170,15 @@ export const ApiWhitelistDetector: RuleDetector = {
     const text = extractTargetText(proposal, rule.target);
     if (!text) return null;
 
+    // Phase 2（B1）：先剥注释/字符串，避免注释里写平台名（如"参考 XX_GPIO"）被误报
+    const cleaned = stripCommentsAndStrings(text);
+
     // 前缀比较：大小写不敏感（厂商前缀风格多样，避免误伤）
     const normWhitelist = prefixes.map((p) => p.toLowerCase());
     const tokenRe = /\b[A-Z][A-Za-z0-9]*_[A-Za-z0-9_]*\b/g;
 
     let m: RegExpExecArray | null;
-    while ((m = tokenRe.exec(text)) !== null) {
+    while ((m = tokenRe.exec(cleaned)) !== null) {
       const token = m[0];
       const prefix = token.split('_')[0];
       if (!normWhitelist.includes(prefix.toLowerCase())) {
