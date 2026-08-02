@@ -79,7 +79,11 @@ describe('MorPexRuntime — 成功路径闭环', () => {
     expect(result.verification).toBeTruthy();
     expect(result.compliance).toBeTruthy();
     expect(result.approval).toBeTruthy();
-    expect(result.experience).toEqual({ mined: true });
+    // 功能③ D：experience 含 mined + archived（历史抽离——Mission 摘要 {missionId, goal, result, keyRefs}）
+    expect((result.experience as any)?.mined).toBe(true);
+    expect((result.experience as any)?.archived).toBeTruthy();
+    expect((result.experience as any)?.archived?.missionId).toBeTruthy();
+    expect((result.experience as any)?.archived?.result).toBe('success');
     // Phase 6：mission 推进到 COMPLETED
     const mission = missionController.getMission(result.context.mission.missionId);
     expect(mission?.phase).toBe('RELEASING');
