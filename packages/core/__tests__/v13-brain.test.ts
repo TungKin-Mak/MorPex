@@ -4,7 +4,7 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
 import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
-import { MetaLearner } from '../src/cognition/MetaLearner.js';
+import { LearningLoop } from '../src/cognition/learning/LearningLoop.js';
 
 describe('ReflectionEngine', () => {
   let eventBus: EventBus;
@@ -48,13 +48,13 @@ describe('ReflectionEngine', () => {
   });
 });
 
-describe('MetaLearner', () => {
+describe('MetaLearner → LearningLoop（Wave 8c 合并）', () => {
   let eventBus: EventBus;
-  let learner: MetaLearner;
+  let learner: LearningLoop;
 
   beforeEach(() => {
     eventBus = new EventBus();
-    learner = new MetaLearner(eventBus);
+    learner = new LearningLoop(eventBus);
   });
 
   it('learnFromTask 更新部门模式', async () => {

@@ -5,7 +5,7 @@
  *
  * 合并所有版本能力：
  *   v12 组织层: DepartmentManager / LeadAgent / GroupChat / ManagementHub
- *   v13 大脑层: ReflectionEngine / MetaLearner / HierarchicalPlanner / ToolFactory
+ *   v13 大脑层: ReflectionEngine / LearningLoop / HierarchicalPlanner / ToolFactory
  *   v14 目标层: GoalIntelligence / ArtifactFacade / VerificationEngine / ExperienceMiner
  *   v15 团队层: DynamicTeamOrchestrator / WorkflowRegistry / Compliance / SelfImprovement
  *   v16 总控层: MissionController / CapabilityRegistry / ExecutionSimulator / ApprovalGate
@@ -58,7 +58,7 @@ import {
 // ── v16 模块 ──
 import { SelfImprovementLoop } from './evolution/SelfImprovementLoop.js';
 import { ReflectionEngine } from './cognition/index.js';
-import { MetaLearner } from './cognition/index.js';
+import { LearningLoop } from './cognition/learning/LearningLoop.js';
 import { ExecutionSimulator } from './execution/runtime/simulation/ExecutionSimulator.js';
 import { ApprovalGate } from './governance/ApprovalGate.js';
 import { MissionController } from './execution/runtime/mission/MissionController.js';
@@ -387,13 +387,13 @@ export async function bootstrapUnified(options?: {
   knowledgeGapListener.attach();
   console.log('[bootstrapUnified] ✅ KnowledgeGapListener 已挂载（QueryMiss → Feedback → Evolution）');
 
-  // ── 架构全功能实现：接通第 4 层 Brain（ReflectionEngine + MetaLearner）──
+  // ── 架构全功能实现：接通第 4 层 Brain（ReflectionEngine + LearningLoop 单一学习入口）──
   const reflectionEngine = new ReflectionEngine(eventBus);
   reflectionEngine.setLLMCaller({
     generateText: async (opts: { prompt: string; maxTokens?: number; temperature?: number }) =>
       piBridgeWrapper.generateText({ prompt: opts.prompt, maxTokens: opts.maxTokens ?? 500, temperature: opts.temperature ?? 0.3 }),
   });
-  const metaLearner = new MetaLearner(eventBus);
+  const learningLoop = new LearningLoop(eventBus);
   const brainSubscribe = (type: string, result: 'success' | 'failure') => {
     eventBus.on(type, (event: any) => {
       const p = event?.payload ?? {};
@@ -407,25 +407,21 @@ export async function bootstrapUnified(options?: {
         departmentId: p.departmentId,
       };
       void reflectionEngine.reflect({ recentTasks: [taskRecord] }).catch(() => {});
-      void metaLearner.learnFromTask(taskRecord).catch(() => {});
+      void learningLoop.learnFromTask(taskRecord).catch(() => {});
     });
   };
   brainSubscribe(EventType.EXECUTION_COMPLETED, 'success');
   brainSubscribe(EventType.EXECUTION_FAILED, 'failure');
   brainSubscribe(EventType.MISSION_COMPLETED, 'success');
   brainSubscribe(EventType.MISSION_FAILED, 'failure');
-  console.log('[bootstrapUnified] ✅ Brain 已接通：ReflectionEngine + MetaLearner 订阅执行/任务事件');
+  console.log('[bootstrapUnified] ✅ Brain 已接通：ReflectionEngine + LearningLoop 订阅执行/任务事件');
 
   // L4 全功能实现：BrainFacade 统一入口接入（executeGoal 完成后触发 learn 学习闭环）
   try {
     const { BrainFacade } = await import('./cognition/BrainFacade.js');
     const brainFacade = new BrainFacade(eventBus);
-    // ═══ S22 审计修复：注入 reflectionEngine/metaLearner（此前字段 null，聚合门面空转）═══
+    // ═══ S22 审计修复：注入 reflectionEngine/learningLoop（此前字段 null，聚合门面空转）═══
     brainFacade.setReflectionEngine(reflectionEngine);
-    brainFacade.setMetaLearner(metaLearner);
-    // ═══ S22 审计补全：真实 LearningLoop 实现（此前 learningEngine 容器从未赋值）═══
-    const { LearningLoop } = await import('./cognition/learning/LearningLoop.js');
-    const learningLoop = new LearningLoop();
     brainFacade.setLearningLoop(learningLoop);
     // P1 收敛：learningEngine 键归 CrossAgentLearningEngine（ServiceContainer L208），
     // LearningLoop 仅挂 BrainFacade 专用键 brainLearningLoop，避免覆盖冲突

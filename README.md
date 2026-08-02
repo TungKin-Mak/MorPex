@@ -30,7 +30,7 @@
    → 签发 KnowledgeContextPackage 运行时凭证（Artifact 注册/演化晋升入口硬校验）
 
 4. L4 Cognition & Planning 认知与规划层 (纯认知，禁副作用)
-   BrainFacade (unified) + ReflectionEngine + MetaLearner + CrossDepartmentKnowledgeSynthesizer
+   BrainFacade (unified) + ReflectionEngine + LearningLoop（单一学习入口） + CrossDepartmentKnowledgeSynthesizer
    DeliveryPlanner + HierarchicalPlanner + CrossDepartmentArbitrationEngine
    (Plan 输出携带 ontologyRefs[] 引用 Trace；演化逻辑已剥离至 L7；L4 不得 import 可执行 Primitive / 演化实现)
 
@@ -199,7 +199,7 @@ npx vitest run           # 仅单元/集成
 | L1 Governance | `governance/`（含 `control-plane/`） | ControlPlane（Goal/Policy/Resource/Agent 4 Controller）+ PolicyEngine + ApprovalGate + RiskAnalyzer |
 | L2 Knowledge | `knowledge/` | SystemMetadataGraph + OntologyService + ArtifactRegistry + MemoryWiki/PersonalBrain + UnifiedEventStore |
 | L3 Gate | `gate/` | ForcedQueryGuard + runOntologyGroundedReasoning + context（KnowledgeContextPackage / TierWriteGuard） |
-| L4 Cognition & Planning | `cognition/` | BrainFacade + ReflectionEngine + MetaLearner + DeliveryPlanner/HierarchicalPlanner + Twins |
+| L4 Cognition & Planning | `cognition/` | BrainFacade + ReflectionEngine + LearningLoop（单一学习入口，程序性+声明性）+ DeliveryPlanner/HierarchicalPlanner + Twins |
 | L5 Execution | `execution/` | UnifiedExecutionEngine + MorPexRuntime + ExecutionFabric + harness + budget |
 | L6 Evaluation | `evaluation/` | EvaluationEngine（质量+本体合规+血缘健康三合一）+ QualityScorer |
 | L7 Evolution | `evolution/` | ActiveEvolutionTrigger + EvolutionSandbox + SelfImprovementLoop + KnowledgeGapListener |

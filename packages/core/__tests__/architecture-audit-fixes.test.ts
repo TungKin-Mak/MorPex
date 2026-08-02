@@ -12,7 +12,7 @@ import { ActiveEvolutionTrigger } from '../src/evolution/ActiveEvolutionTrigger.
 import { BrainFacade } from '../src/cognition/BrainFacade.js';
 import { ControlPlane } from '../src/governance/control-plane/ControlPlane.js';
 import { ReflectionEngine } from '../src/cognition/ReflectionEngine.js';
-import { MetaLearner } from '../src/cognition/MetaLearner.js';
+import { LearningLoop } from '../src/cognition/learning/LearningLoop.js';
 import { SelfImprovementLoop } from '../src/evolution/SelfImprovementLoop.js';
 import { CrossDepartmentKnowledgeSynthesizer } from '../src/cognition/CrossDepartmentKnowledgeSynthesizer.js';
 
@@ -29,17 +29,17 @@ describe('S22 架构审计修复', () => {
     expect((trigger as any).isReady()).toBe(true);
   });
 
-  it('L4: BrainFacade 注入 reflectionEngine/metaLearner 后字段非 null', () => {
+  it('L4: BrainFacade 注入 reflectionEngine/learningLoop 后字段非 null', () => {
     const bus = new EventBus();
     const brain = new BrainFacade(bus);
     const re = new ReflectionEngine(bus);
-    const ml = new MetaLearner(bus);
+    const ml = new LearningLoop(bus);
     brain.setReflectionEngine(re as any);
-    brain.setMetaLearner(ml as any);
+    brain.setLearningLoop(ml as any);
     const stats = brain.getStats();
-    // 反射/元学习注入后，reflect/learn 不应因缺引擎降级为空
+    // 反射/学习注入后，reflect/learn 不应因缺引擎降级为空
     expect((brain as any).reflectionEngine).toBe(re);
-    expect((brain as any).metaLearner).toBe(ml);
+    expect((brain as any).learningLoop).toBe(ml);
     expect(stats.systems.memoryActivation).toBeDefined();
   });
 

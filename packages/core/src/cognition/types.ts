@@ -1,7 +1,7 @@
 /**
  * brain/types.ts — Brain 层共享类型定义
  *
- * 集中管理 Brain 模块（CrossDepartmentKnowledgeSynthesizer、ReflectionEngine、MetaLearner 等）的类型定义，
+ * 集中管理 Brain 模块（CrossDepartmentKnowledgeSynthesizer、ReflectionEngine、LearningLoop 等）的类型定义，
  * 避免循环依赖和分散定义。
  *
  * @packageDocumentation

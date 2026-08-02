@@ -515,8 +515,8 @@ export type { UnifiedBootstrapResult } from './bootstrap-unified.js';
 // v13 增强模块
 // ═══════════════════════════════════════════════════════════════
 
-// ── Brain 增强: ReflectionEngine + MetaLearner (已合并到 cognition 层) ──
-export { ReflectionEngine, MetaLearner } from './cognition/index.js';
+// ── Brain 增强: ReflectionEngine + LearningLoop (单一 L4 学习入口，Wave 8c 合并 MetaLearner) ──
+export { ReflectionEngine, LearningLoop } from './cognition/index.js';
 export type {
   BrainReflectionState,
   BrainReflectionResult,
@@ -526,7 +526,6 @@ export type {
   TaskRecord,
   UserFeedback,
   LearningResult,
-  MetaLearnerLike,
 } from './cognition/index.js';
 
 // ── Planner 增强: HierarchicalPlanner (HTN) ──

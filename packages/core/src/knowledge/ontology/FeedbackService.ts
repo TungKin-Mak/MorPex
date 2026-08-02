@@ -77,7 +77,7 @@ export class FeedbackService {
   /**
    * listTestCases — 列出标记为测试用例的反馈
    *
-   * 用于 Evolution / MetaLearner 消费：分析失败模式、生成改进提案。
+   * 用于 Evolution / LearningLoop 消费：分析失败模式、生成改进提案。
    *
    * @param limit - 最大条数
    * @returns Ontology 对象列表

@@ -34,8 +34,8 @@ export type {
 export { ReflectionEngine } from './ReflectionEngine.js';
 export type { BrainReflectionState, BrainReflectionResult, ReflectionEngineLike } from './ReflectionEngine.js';
 
-export { MetaLearner } from './MetaLearner.js';
-export type { TaskRecord, UserFeedback, LearningResult, MetaLearnerLike } from './MetaLearner.js';
+export { LearningLoop } from './learning/LearningLoop.js';
+export type { TaskRecord, UserFeedback, LearningResult } from './learning/LearningLoop.js';
 
 export { SafetyMonitor } from './SafetyMonitor.js';
 export type { Observation } from './SafetyMonitor.js';
@@ -47,7 +47,6 @@ export type {
   MigrationResult,
   CrossDeptSynthesisStats,
   MemoryWikiQueryLike,
-  MetaLearnerPatternLike,
   BehaviorTwinCompareLike,
 } from './CrossDepartmentKnowledgeSynthesizer.js';
 

@@ -25,7 +25,7 @@
 import { EventBus } from '../infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../infrastructure/common/types.js';
 import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from './ReflectionEngine.js';
-import type { MetaLearnerLike, TaskRecord } from './MetaLearner.js';
+import type { TaskRecord, LearningResult } from './learning/LearningLoop.js';
 
 // ── Types ──
 
@@ -130,6 +130,9 @@ export interface LearningLoopLike {
   extractExperience(record: Record<string, unknown>): Promise<unknown>;
   evaluatePlan(plan: Record<string, unknown>): Promise<unknown>;
   optimize(insights: unknown[]): Promise<unknown>;
+  learnFromTask(task: TaskRecord, feedback?: unknown): Promise<LearningResult>;
+  getPreferenceModel(): Readonly<unknown>;
+  getDepartmentPattern(deptId: string): unknown;
   readonly name: string;
 }
 
@@ -171,9 +174,6 @@ export class BrainFacade {
 
   /** v13: ReflectionEngine — 主动反思分析 */
   private reflectionEngine: ReflectionEngineLike | null = null;
-
-  /** v13: MetaLearner — 元学习（从任务中学习偏好） */
-  private metaLearner: MetaLearnerLike | null = null;
 
   // ── S20 完整重包：聚合已直连运行时事件的能力 ──
   /** MemoryActivationEngine（S18：working 记忆激活，数据源统一到 MemoryAPI） */
@@ -284,11 +284,6 @@ export class BrainFacade {
     this.reflectionEngine = engine;
   }
 
-  /** v13: setMetaLearner — 注入 MetaLearner */
-  setMetaLearner(learner: MetaLearnerLike): void {
-    this.metaLearner = learner;
-  }
-
   /** S20 完整重包：注入 MemoryActivationEngine（working 记忆激活） */
   setMemoryActivationEngine(engine: MemoryActivationEngineLike): void {
     this.memoryActivationEngine = engine;
@@ -391,7 +386,7 @@ export class BrainFacade {
    * @param context - 上下文
    * @returns 反思结果和学习更新
    */
-  async processTask(task: string, context?: BrainContext): Promise<{ reflection: BrainReflectionResult; memoryUpdate: import('./MetaLearner.js').LearningResult | null }> {
+  async processTask(task: string, context?: BrainContext): Promise<{ reflection: BrainReflectionResult; memoryUpdate: LearningResult | null }> {
     const state: BrainReflectionState = {
       recentTasks: [],
       departmentId: context?.departmentId,
@@ -409,10 +404,10 @@ export class BrainFacade {
       reflection = { insights: [], risks: [], suggestions: [], confidence: 0.5 };
     }
 
-    let memoryUpdate: import('./MetaLearner.js').LearningResult | null = null;
-    if (this.metaLearner) {
+    let memoryUpdate: LearningResult | null = null;
+    if (this.learningLoop && typeof this.learningLoop.learnFromTask === 'function') {
       try {
-        memoryUpdate = await this.metaLearner.learnFromTask({
+        memoryUpdate = await this.learningLoop.learnFromTask({
           taskId: context?.taskId || `task_${Date.now()}`,
           goal: task,
           result: 'success',
@@ -420,7 +415,7 @@ export class BrainFacade {
           departmentId: context?.departmentId,
         });
       } catch (err) {
-        console.warn('[BrainFacade] MetaLearner 调用失败:', (err as Error).message);
+        console.warn('[BrainFacade] LearningLoop 调用失败:', (err as Error).message);
       }
     }
 
@@ -679,19 +674,19 @@ export class BrainFacade {
       }
     }
 
-    // 4.6. MetaLearner — 从任务中学习偏好（v13）
-    if (this.metaLearner) {
+    // 4.6. LearningLoop — 从任务中学习偏好/部门模式（声明性学习，原 MetaLearner）
+    if (this.learningLoop && typeof this.learningLoop.learnFromTask === 'function') {
       try {
-        this.metaLearner.learnFromTask({
+        this.learningLoop.learnFromTask({
           taskId: experience.taskId,
           goal: experience.goal,
           result: experience.result,
           duration: experience.duration,
           departmentId: experience.departmentId,
           capabilities: experience.capabilities,
-        }).catch(err => console.warn('[BrainFacade] MetaLearner 异步学习失败:', (err as Error).message));
+        }).catch(err => console.warn('[BrainFacade] LearningLoop 异步学习失败:', (err as Error).message));
       } catch (err) {
-        console.warn('[BrainFacade] MetaLearner 调用失败:', (err as Error).message);
+        console.warn('[BrainFacade] LearningLoop 调用失败:', (err as Error).message);
       }
     }
 

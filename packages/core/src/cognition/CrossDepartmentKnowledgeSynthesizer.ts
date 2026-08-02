@@ -14,7 +14,7 @@
  *   BrainFacade.processTask()
  *     → CrossDepartmentKnowledgeSynthesizer.synthesizeAcrossDepartments()
  *         → MemoryWiki.query(dept partitions)
- *         → MetaLearner + BehaviorTwin 融合
+ *         → LearningLoop + BehaviorTwin 融合
  *         → EventBus.emit('brain.knowledge.fused')
  *     → DeliveryPlanner / HierarchicalPlanner 使用融合结果
  *
@@ -98,19 +98,6 @@ export interface MemoryWikiQueryLike {
   }): Promise<Array<{ content: string; relevance: number; source: string }>>;
 }
 
-/** MetaLearner 模式匹配接口 */
-export interface MetaLearnerPatternLike {
-  comparePatterns(
-    sourceDept: DepartmentId,
-    targetDept: DepartmentId,
-  ): Promise<Array<{
-    patternType: string;
-    similarity: number;
-    sourcePattern: string;
-    targetPattern: string;
-  }>>;
-}
-
 /** BehaviorTwin 行为相似度接口 */
 export interface BehaviorTwinCompareLike {
   compareDepartments(
@@ -131,7 +118,6 @@ export class CrossDepartmentKnowledgeSynthesizer {
 
   private eventBus: EventBus;
   private memoryWiki: MemoryWikiQueryLike | null = null;
-  private metaLearner: MetaLearnerPatternLike | null = null;
   private behaviorTwin: BehaviorTwinCompareLike | null = null;
 
   private stats: CrossDeptSynthesisStats = {
@@ -165,10 +151,6 @@ export class CrossDepartmentKnowledgeSynthesizer {
 
   setMemoryWiki(wiki: MemoryWikiQueryLike): void {
     this.memoryWiki = wiki;
-  }
-
-  setMetaLearner(learner: MetaLearnerPatternLike): void {
-    this.metaLearner = learner;
   }
 
   setBehaviorTwin(twin: BehaviorTwinCompareLike): void {
@@ -447,18 +429,8 @@ export class CrossDepartmentKnowledgeSynthesizer {
           });
 
           for (const mem of memories) {
-            // 通过 MetaLearner 对比模式相似度
-            let patternSimilarity = similarity;
-            if (this.metaLearner) {
-              try {
-                const patterns = await this.metaLearner.comparePatterns(sourceDept, targetDept);
-                if (patterns.length > 0) {
-                  patternSimilarity = patterns.reduce((sum, p) => sum + p.similarity, 0) / patterns.length;
-                }
-              } catch {
-                // 降级使用部门相似度
-              }
-            }
+            // 部门相似度（MetaLearner 槽位已移除：comparePatterns 从未实现且未装配，直接使用部门相似度）
+            const patternSimilarity = similarity;
 
             const confidence = mem.relevance * 0.4 + patternSimilarity * 0.4 + similarity * 0.2;
 

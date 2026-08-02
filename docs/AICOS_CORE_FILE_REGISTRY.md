@@ -124,7 +124,7 @@
 | `gate/context.ts` | KnowledgeContextPackage — 运行时 Gate 上下文 + Tier 写入守卫 + 提案状态守卫（Wave 3b）。由 runOntologyGroundedReasoning 签发凭证；Artifact 注册/演化晋升入口硬校验（缺包抛 GateContextRequiredError）；TierWriteGuard：Tier-3 禁覆盖 Tier-0/1、Tier-2 仅 L7 晋升可写；ProposalStatusGuard：未审批只能是 pending | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 
 
-## `cognition/`（56 文件）
+## `cognition/`（55 文件）
 
 > 层边界规则：理解/推理/规划；禁副作用Primitive/不改知识/不触发演化
 
@@ -132,7 +132,6 @@
 |---|---|---|
 | `cognition/BrainFacade.ts` | BrainFacade — 统一大脑门面 Phase 4.5 / 架构打磨 — P1 修复 将 4 套重叠的大脑系统统一为一个入口： - PersonalBrain   (cognition/memory/) — 五层记忆，内存级 - MemoryWiki       (packages/memory/)   — SQLite 持久层（zvec 已废弃移除 S17） - LearningLoop     (learning/)          — 经验提取 + 策略优化 - EvolutionEngine  (e | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/CrossDepartmentKnowledgeSynthesizer.ts` | CrossDepartmentKnowledgeSynthesizer — 跨部门知识融合引擎 v16 Phase 4.7: 一人跨多领域虚拟公司的核心智能引擎。 将不同部门的经验、模式、知识进行对比和融合，自动迁移成功模式。 设计原则： - EventBus 是唯一通信通道 - 部门级数据隔离（所有查询带 deptId） - PiBridge 隔离底层 LLM - 真实执行，无 mock 数据流： BrainFacade.processTask() → CrossDepartmentKnowledgeSynthe | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/MetaLearner.ts` | MetaLearner — 元学习（任务记录 → 偏好/模式学习，纯学习无提案权） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/ReflectionEngine.ts` | ReflectionEngine — 反思引擎（任务后反思 → 洞察/建议，只读数据） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/SafetyMonitor.ts` | SafetyMonitor — 安全监控器 Phase 2: 持续观察系统状态，检测异常模式 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/decision/DecisionTwin.ts` | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne |
@@ -144,7 +143,7 @@
 | `cognition/goal/types.ts` | Goal Plane — 数据类型定义 Phase 1 / MorPex v8.5: 用户长期目标管理。 Goal 位于 Mission 之上: Life Goal → Objective → Project → Mission → Task GoalManager 管理 Goal 的完整生命周期, GoalGraph 维护层级关系, ObjectiveTracker 追踪关键结果 (OKR-style)。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/index.ts` | cognition — MorPex Cognitive Layer Barrel Phase 5-6 / MorPex v8: 认知层模块统一入口。 子模块： cognition/twin/    — Personal Twin Graph（用户孪生图谱） cognition/memory/  — Personal Brain（五层记忆体系） 后续 Phase 将在此进一步扩展： cognition/decision/   — Decision Twin（决策孪生） cognition/workflow/   — | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/ExperienceExtractor.ts` | ExperienceExtractor — 经验提取器 从执行记录中提取可复用的经验、模式和教训。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/learning/LearningLoop.ts` | learning/LearningLoop — 学习循环聚合实现（S22 审计补全） 背景：BrainFacade.setLearningLoop 的 learningEngine 容器从未赋值，LearningLoopLike 接口存在但无实现类。learning/ 目录的 ExperienceExtractor / PlanEvaluator / StrategyOptimizer 三件套也从未被装配（死代码）。 本类聚合三件套为完整学习管线，满足 BrainFacade.LearningLoopLike： e | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/learning/LearningLoop.ts` | learning/LearningLoop — L4 单一学习入口（Wave 8c 合并原 MetaLearner）：程序性（ExperienceExtractor→PlanEvaluator→StrategyOptimizer）+ 声明性（learnFromTask→偏好/部门模式/用户反馈）；不直接触发生产变更 | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/PlanEvaluator.ts` | PlanEvaluator — 计划评估器 评估计划的执行效果，生成评估报告和优化建议。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/StrategyOptimizer.ts` | StrategyOptimizer — 策略优化器 基于历史评估数据优化执行策略。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/learning/TemplateEvolutionEngine.ts` | TemplateEvolutionEngine — 模板进化引擎 基于经验反馈自动进化计划模板。 追踪模板使用效果，淘汰低效模板，推荐高效模板。 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
