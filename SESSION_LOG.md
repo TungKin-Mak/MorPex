@@ -55,6 +55,8 @@
 
 **✅ Phase 1 已实现并验证（2026-08-03）**：全部落点落地（含 ecommerce 插件 `rule-register.ts`、validate-architecture 白名单加 `/gate/rules/`）；tsc 0 / validate 100% / vitest 64 文件 614 通过（新增 4 测试文件 25 用例，原 589 零回归）；集成测试证明中断-重试-降级-转人工链路 + eventStore undefined 兼容（4 调用方）。实现中修复 2 个设计缺口：① 降级后违规内容会静默放行 → 补"降级后转人工"；② 重试温度统一 0.3 → 重试轮 0.2。剩余建议项（WARNING 事件冗余、缓存规则版本并入 key）归 Phase 2。
 
+**✅ 功能③ 全链路（2026-08-03）**：身份 ID 驱动 + 三分法聚焦（系统级必装/任务级按 taskRef/历史抽离）+ 抽离三级（完整快照入 EventStore + 摘要 + experienceMiner）+ ContextArchive.loadByTaskRef 按 ID 召回 + **mode 收敛**（ExecuteGoalOptions/RunOptions 移除执行 mode，统一规划前置 MorPexRuntime orchestrate 后，MissionRuntime FSM 复用 plan 防重复）+ **装配统一**（orchestrate 后装配，真实 missionId/taskRef）+ **真实 Provider**（goal_graph 读 OntologyService / mission_state 读 MissionController）。门禁：tsc 0 / validate 100% / vitest 74 文件 675 通过零回归（commit b6d2806）。
+
 **✅ Phase 2 第一批已实现（2026-08-03）**：C 检测器扩展（Detector 接口正式化 + ApiWhitelistDetector 白名单前缀，MCU `IOCP_` 场景钥匙）/ A 词法修正保守版（lexicalCorrection，allowedAction 可选微优化，安全兑底）/ D 缓存一致性（RuleRegistry.fingerprint 并入 groundingCache key，规则变更天然失效）。xjmcu 插件示例 `platform-rule.ts`（白名单规则 pending）。门禁 tsc 0 / validate 100% / vitest 66 文件 634 通过（零回归）。reviewer 终审有条件通过（无必须修；3 建议项入后续：白名单注释误判→结构层 AST 解决、前缀粒度粗、fingerprint 补 aliases/severity）。**Phase 2 剩余（第二批）：结构层 tsc/eslint 适配器 + L5 预算接线 + domain 上下文传递**。
 
 **✅ Phase 2 第一批已实现并验证（2026-08-03，commit f09fb3c + 12b32a4）**：
