@@ -1,4 +1,29 @@
-# MorPex v9.2 Monitoring Guide
+# MorPex Monitoring Guide
+
+> 2026-08 更新：**主监控入口 = 架构可观测面板**（`/api/observability/*`，S34-S36 交付）。
+
+## 架构可观测面板（首选）
+
+后端启动后（`:8080`）即可用，无需额外组件：
+
+```bash
+# 每层功能模块健康（online/ACTIVE/exercised + callCount）
+GET /api/observability/modules-v2
+# 真实执行事件链（8 层标注 L1-L8）
+GET /api/observability/observations
+GET /api/observability/span-tree/:taskId
+GET /api/observability/topology
+# 绕过检测（8 层契约：REQUIRED_MODULE_NEVER_CALLED = 绕过信号）
+GET /api/observability/audit
+# 执行回放
+GET /api/observability/replay/sessions
+# 测试/清理（同时清 traceBus + ObservationCollector）
+POST /api/observability/reset
+```
+
+完整运维手册：`SESSION_LOG.md §6`。
+
+---
 
 ## Metrics Endpoint
 
@@ -6,7 +31,7 @@ The Prometheus-formatted metrics endpoint aggregates all system and business met
 
 ```
 GET /metrics → Prometheus text format
-GET /health  → JSON health status
+GET /api/health  → JSON health status
 GET /metrics/v9 → JSON v9.2 metrics
 ```
 

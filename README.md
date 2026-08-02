@@ -198,13 +198,48 @@ See `docs/AICOS_CORE_ARCHITECTURE.md` for the detailed module inventory + layer 
 
 ## Quick Start
 
-```typescript
-import { bootstrapV15Integration } from './packages/core/src/bootstrap-v15-integration.js';
+### 启动后端（推荐）
 
-const { companyFacade } = await bootstrapV15Integration();
-const result = await companyFacade.executeGoal("设计产品并销售到 Amazon");
-// → Mission 创建, Team 组建, Artifact 生成, 评估报告
+```bash
+cp .env.example .env    # 设置 DEEPSEEK_API_KEY（记忆/cognee 需要）
+MEMORY_ENGINE=mock npm run studio:server   # 仅后端 API（无 cognee，mock 记忆）
+./scripts/run-all.sh                       # 全栈：cognee(:8001) + 后端(:8080)
+# 健康检查: http://localhost:8080/api/health
 ```
+
+### 程序化调用
+
+```typescript
+import { bootstrapUnified } from './packages/core/src/bootstrap-unified.js';
+const { companyFacade } = await bootstrapUnified();
+const result = await companyFacade.executeGoal("设计产品并销售到 Amazon");
+// → ControlPlane 门禁 → Ontology Gate → 规划 → Mission → 执行 → 产物 → 评估 → 演化
+```
+
+### 测试
+
+```bash
+npm run test:full        # 一键全部（25 步：tsc/架构/vitest 568 用例/生产/CLI）
+npm run test:quick       # 快速回归（~11s）
+npm run test:coverage    # 覆盖率报告（行覆盖 37%+，阈值防回退）
+npx vitest run           # 仅单元/集成
+```
+
+---
+
+## 测试体系与架构可观测（S22-S37）
+
+**测试**：568 用例 / 60 文件，覆盖矩阵 10 层 ❌ 清零；一键 `npm run test:full`（25 步 25/25 绿）；覆盖率行覆盖 37%+（vitest 阈值 34/27/32/36 防回退）。详见 `docs/TESTING_PLAN.md`。
+
+**架构可观测**（真实执行黑盒→可观测）：后端启动后访问 `/api/observability/*`——
+
+| 你想知道 | 端点 |
+|---------|------|
+| 整个架构怎么运行（每层事件链） | `/api/observability/observations` `/span-tree/:taskId` `/topology` |
+| 每层功能模块是否正常 | `/api/observability/modules-v2` `/heartbeats` `/exercise-status` |
+| 流程是否有绕过 | `/api/observability/audit`（8 层契约合规检测） |
+
+真实执行（`POST /api/chat/send`）产生 **L1 治理→L2 Gate→L3 规划→L5 执行→L6 评价→L7 知识→L8 演化** 全层事件链；/audit 全链 **0 error + 0 warn**，直连 `/api/execute`（绕过治理）会被检测。运维手册见 `SESSION_LOG.md §6`。
 
 ---
 
@@ -265,6 +300,10 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 | Event types | **28** (全域 Event Sourcing) |
 | Policy rules | **13** (统一 PolicyEngine) |
 | Capability nodes | **27** (4 domains) |
+| **测试用例** | **568**（vitest 60 文件，覆盖矩阵 ❌ 清零） |
+| **一键测试** | `npm run test:full`（25 步全绿） |
+| **行覆盖** | **37%+**（阈值 34/27/32/36 防回退） |
+| **架构可观测** | `/api/observability/*`（audit 绕过检测 + 8 层事件链） |
 
 ---
 

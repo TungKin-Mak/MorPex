@@ -177,9 +177,10 @@ CEO 层:       CompanyFacade (统一入口)
 npx tsc --noEmit -p tsconfig.json          # 编译 0 错误
 node scripts/validate-architecture.js      # 架构对齐（当前 100%，0/0）
 node scripts/production-check.cjs          # 生产就绪（8/8）
-npx vitest run packages/core/__tests__/ontology-gate-tiering.test.ts \
-  packages/core/__tests__/bounded-autonomy.test.ts \
-  packages/core/__tests__/feature-regression.test.ts   # 核心测试（16 用例）
+npx vitest run                             # 全量单元/集成（568 用例，S22-S37 已扩）
+# 完整门禁（推荐）：npm run test:full      # 25 步全绿（tsc/架构/vitest/生产/CLI）
+# 覆盖率：npm run test:coverage            # 行覆盖 37%+，阈值防回退
+# 可观测验证（后端启动后）：curl localhost:8080/api/observability/audit
 ```
 
 ## 13. 开发流水线

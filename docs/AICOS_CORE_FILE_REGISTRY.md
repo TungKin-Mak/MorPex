@@ -436,4 +436,28 @@
 
 
 ---
-**共 346 个文件。**
+
+## 补充：S22-S37 新增文件（测试体系 + 架构可观测）
+
+> 本注册表基线为 346 文件（S23 快照）。S22-S37 新增的核心文件：
+
+### 架构可观测（studio/observability，S34-S36）
+| 文件 | 功能 |
+|------|------|
+| `runtime-bridge.ts` | 核心 EventBus → ObservationCollector 桥接：真实执行 → 8 层标注事件链 + 全局运行时锚（消除 /audit 误报） |
+| `architecture-contract.ts` | 8 层架构契约（17 可观测模块，required=完整执行必须出现，绕过检测依据） |
+| `observability-api.ts` | /api/observability/* 端点（audit/replay/observations/modules-v2/topology/heartbeats） |
+
+### 核心可观测事件（S35 新增，安全增量）
+| 文件 | 事件 |
+|------|------|
+| `execution/runtime/MorPexRuntime.ts` | `runtime.started/completed`（L5 主驱动器）、`evaluation.completed`（L6）、`evolution.completed`（L8） |
+| `gate/runOntologyGroundedReasoning.ts` | `ontology.grounded`（L2 gate 成功时发，并修复调用未传 eventBus 的 bug） |
+
+### 测试体系（S22-S37，详见 `docs/TESTING_PLAN.md`）
+- 新增 **20+ 测试文件 / 568 用例**（vitest 60 文件），覆盖矩阵 10 层 ❌ 清零
+- 统一执行器 `scripts/run-everything.ts`（`npm run test:full` 25 步）+ 覆盖率（c8，阈值防回退）
+- 验证测试：`observability-bridge.test.ts`（/audit 绕过检测 + 全链 8 层可观测）
+
+---
+**当前文件数：约 370+（346 基线 + S22-S37 新增，以 `git ls-files | wc -l` 为准）。**
