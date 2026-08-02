@@ -17,6 +17,7 @@
 import type { OntologyProposal } from '../types.js';
 import type { RuleCheckResult, RuleEntity, RuleViolation } from './types.js';
 import { detectorRegistry } from './detectors.js';
+import { DetectorRegistry } from './DetectorRegistry.js';
 
 /**
  * check — 对 proposal 执行规则匹配
@@ -37,11 +38,16 @@ export function check(proposal: OntologyProposal, rules: RuleEntity[]): RuleChec
   for (const rule of sorted) {
     if (rule.status !== 'active') continue;
 
-    const detector = detectorRegistry[rule.ruleType];
+    // 分派：先查 core 内置检测器，再回退领域 DetectorRegistry（Phase 2 自定义检测器）
+    let detector = detectorRegistry[rule.ruleType as 'regex' | 'whitelist' | 'semantic'];
+    if (!detector) detector = DetectorRegistry.getDetector(rule.ruleType);
+
     if (!detector) {
       // semantic 等未注册检测器：不匹配（Phase 3 前不硬崩），仅提示一次
       if (rule.ruleType === 'semantic') {
         console.warn(`[RuleEnforcementGuard] ⚠️ ruleType='semantic' 检测器未注册（Phase 3），规则 ${rule.id} 跳过`);
+      } else {
+        console.warn(`[RuleEnforcementGuard] ⚠️ ruleType='${rule.ruleType}' 检测器未注册，规则 ${rule.id} 跳过（领域需先 DetectorRegistry.registerDetector）`);
       }
       continue;
     }

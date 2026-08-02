@@ -10,8 +10,8 @@
 /** 规则严重度：ERROR=硬中断（进入修正重试）；WARNING=记录+继续 */
 export type RuleSeverity = 'ERROR' | 'WARNING';
 
-/** 检测方式：regex=确定性正则（Phase 1）；whitelist=API 白名单前缀（Phase 2）；semantic=LLM 语义复核（Phase 3） */
-export type RuleType = 'regex' | 'whitelist' | 'semantic';
+/** 检测方式：regex=确定性正则（Phase 1）；whitelist=API 白名单前缀（Phase 2）；semantic=LLM 语义复核（Phase 3）；领域可经 DetectorRegistry 注册自定义类型（如 'custom:no-eval'） */
+export type RuleType = 'regex' | 'whitelist' | 'semantic' | (string & {});
 
 /** 规则状态：pending=提炼待人工确认（不参与匹配）；active=生效；disabled=人工关闭 */
 export type RuleStatus = 'pending' | 'active' | 'disabled';

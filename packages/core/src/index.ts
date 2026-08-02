@@ -592,6 +592,7 @@ export type { ComplianceResult } from './governance/index.js';
 
 // ── 功能②：规则中断更正（RuleEnforcementGuard）—— core 机制 + 领域插件注入内容 ──
 export { RuleRegistry } from './gate/rules/RuleRegistry.js';
+export { DetectorRegistry } from './gate/rules/DetectorRegistry.js';
 export { rulePersistence } from './gate/rules/rulePersistence.js';
 export { extractRule } from './gate/rules/RuleExtractor.js';
 export { normalizeText, normalizePattern } from './gate/rules/normalize.js';
@@ -600,6 +601,7 @@ export type { RuleDetector } from './gate/rules/detectors.js';
 export { lexicalCorrect } from './gate/rules/lexicalCorrection.js';
 export type { LexicalCorrectionResult } from './gate/rules/lexicalCorrection.js';
 export { check as ruleEnforcementCheck } from './gate/rules/RuleEnforcementGuard.js';
+export type { OntologyProposal } from './gate/types.js';
 export type {
   RuleEntity, RuleViolation, RuleSeverity, RuleStatus,
   RuleType, RuleTarget, RuleSource, RuleTier, RuleCheckResult,

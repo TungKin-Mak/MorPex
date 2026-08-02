@@ -6,6 +6,7 @@
 
 export * from './types.js';
 export { RuleRegistry } from './RuleRegistry.js';
+export { DetectorRegistry } from './DetectorRegistry.js';
 export { normalizeText, normalizePattern } from './normalize.js';
 export { check as ruleEnforcementCheck } from './RuleEnforcementGuard.js';
 export type { RuleCheckResult } from './types.js';
