@@ -63,7 +63,8 @@
 ## 当前状态
 
 - **仓库**：单一 8 层纯净架构；696 tracked / 306 core 源文件；与 origin/master 同步
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest 64 文件/614 通过 ｜ production runner 19/19
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest 64 文件/616 通过+5 skipped ｜ production runner 19/19
+- **功能② Phase 1 已交付**（commits 2d69672/2f76fc9/726a42e/33b6fbf/3888b7a）：gate/rules 7 文件 + runOntologyGroundedReasoning 挂载（中断/重试≤3/连续命中降级/domain 路由）+ objectTypes Rule 类型 + ecommerce 示例（pending）+ 4 测试文件 27 用例；reviewer 终审通过（2 个建议项入 Phase 2：WARNING 事件去重、ReDoS 限制）
 - **持续项**（非紧急）：覆盖率 37% 提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；真实 token 成本计费未接入
 
 ## 当前开放决策（会话 2 待定）
@@ -73,3 +74,4 @@
 3. ① 微信类型：企业微信 vs 个人微信（未讨论）
 4. ③ 上下文"优化"的具体方向（未讨论）
 5. ✅ ② Phase 1 实现已确认开工并完成（2026-08-03，验收全绿）
+   - **Phase 2 待办**（方案文档 §7）：确定性替换 allowedAction / 缓存规则版本入 key / L5 预算接线（重试计入 costTokens）/ 代码层 Detector 适配器（tsc/eslint）/ domain 上下文沿调用链传递 / ReDoS 限制 / WARNING 事件去重
