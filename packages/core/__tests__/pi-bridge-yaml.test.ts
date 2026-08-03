@@ -10,7 +10,7 @@ import { describe, it, expect } from 'vitest';
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
-import { parseYaml, loadMorpexConfig } from '../src/infrastructure/adapters/pi-bridge/yamlConfig.js';
+import { parseYaml, loadMorpexConfig, resolveEnvRefs } from '../src/infrastructure/adapters/pi-bridge/yamlConfig.js';
 import { PiBridge } from '../src/infrastructure/adapters/pi-bridge/PiBridge.js';
 
 // ═══════════════════════════════════════════════════════
@@ -72,6 +72,41 @@ describe('yamlConfig.loadMorpexConfig', () => {
   it('文件不存在 → 返回 null（不抛错）', () => {
     expect(loadMorpexConfig('/nonexistent/morpex.yaml')).toBeNull();
   });
+
+  it('${VAR} 环境变量引用 → 解析为 env 值', () => {
+    const old = process.env.TEST_MORPEX_API_KEY;
+    process.env.TEST_MORPEX_API_KEY = 'g2a_env_ref_ok';
+    try {
+      const dir = mkdtempSync(join(tmpdir(), 'morpex-yaml-env-'));
+      const file = join(dir, 'morpex.yaml');
+      writeFileSync(file, `llm:\n  enabled: true\n  apiKey: \${TEST_MORPEX_API_KEY}\n  baseUrl: http://localhost:8000/v1\n`);
+      try {
+        const cfg = loadMorpexConfig(file);
+        expect(cfg?.llm?.apiKey).toBe('g2a_env_ref_ok');
+      } finally {
+        rmSync(dir, { recursive: true, force: true });
+      }
+    } finally {
+      if (old === undefined) delete process.env.TEST_MORPEX_API_KEY;
+      else process.env.TEST_MORPEX_API_KEY = old;
+    }
+  });
+
+  it('resolveEnvRefs — 未设置变量 → 空串，已设置 → 替换', () => {
+    const old = process.env.MORPEX_UNSET_VAR;
+    delete process.env.MORPEX_UNSET_VAR;
+    try {
+      expect(resolveEnvRefs('${MORPEX_UNSET_VAR}')).toBe('');
+    } finally {
+      if (old !== undefined) process.env.MORPEX_UNSET_VAR = old;
+    }
+    process.env.MORPEX_SET_VAR = 'abc';
+    try {
+      expect(resolveEnvRefs('pre-${MORPEX_SET_VAR}-post')).toBe('pre-abc-post');
+    } finally {
+      delete process.env.MORPEX_SET_VAR;
+    }
+  });
 });
 
 // ═══════════════════════════════════════════════════════
@@ -103,8 +138,16 @@ describe('PiBridge 网关配置', () => {
   });
 
   it('PiBridge 无配置时 defaultModel 保持默认（deepseek）', () => {
-    // 仓库 config/morpex.yaml 存在但 enabled:false → 应走 deepseek 默认
-    const bridge = new PiBridge();
-    expect(bridge.defaultModel).toBe('deepseek/deepseek-v4-flash');
+    // 在无 config/morpex.yaml 的临时目录构造 → 无网关 → 保持 deepseek 默认
+    const dir = mkdtempSync(join(tmpdir(), 'morpex-nocfg-'));
+    const oldCwd = process.cwd();
+    try {
+      process.chdir(dir);
+      const bridge = new PiBridge();
+      expect(bridge.defaultModel).toBe('deepseek/deepseek-v4-flash');
+    } finally {
+      process.chdir(oldCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
   });
 });

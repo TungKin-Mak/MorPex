@@ -6,6 +6,7 @@
  *   - 2 层缩进嵌套（顶层对象 + 子层键值）
  *   - `#` 注释（行内/行首）
  *   - 布尔 / 数字自动转换
+ *   - 环境变量引用：值中 `${VAR}` → 从 process.env 读取（敏感值不写明文）
  *
  * 不引 js-yaml（仓库无该依赖），够用即可。若未来配置复杂度上升，
  * 再引入正式 YAML 解析库。
@@ -83,17 +84,40 @@ export function parseYaml(text: string): Record<string, unknown> {
 }
 
 /**
+ * resolveEnvRefs — 将字符串中的 `${VAR}` 环境变量引用替换为实际值
+ *
+ * 用法：apiKey: ${GROK2API_API_KEY} → 读 process.env.GROK2API_API_KEY
+ * 未设置的环境变量 → 替换为空串（调用方应校验缺失）
+ */
+export function resolveEnvRefs(value: string): string {
+  return value.replace(/\$\{([A-Za-z0-9_]+)\}/g, (_, name: string) => process.env[name] ?? '');
+}
+
+/**
  * loadMorpexConfig — 读取并解析 config/morpex.yaml
  *
  * @param path 配置文件路径（默认 config/morpex.yaml，相对项目根）
  * @returns 解析后的配置；文件不存在 / 解析失败 → null（不抛错）
+ *
+ * 解析后会对 llm 块的字符串字段应用 `${VAR}` 环境变量引用解析
+ * （敏感 apiKey 支持从环境变量读取，不要求明文写入 YAML）。
  */
 export function loadMorpexConfig(path?: string): MorpexConfig | null {
   const configPath = path ?? resolve(process.cwd(), 'config/morpex.yaml');
   try {
     const text = readFileSync(configPath, 'utf-8');
-    const parsed = parseYaml(text);
-    return parsed as MorpexConfig;
+    const parsed = parseYaml(text) as MorpexConfig;
+    // 环境变量引用解析（llm 块的字符串字段）
+    if (parsed.llm) {
+      const llm = parsed.llm;
+      for (const key of ['provider', 'baseUrl', 'apiKey', 'model'] as const) {
+        const v = llm[key];
+        if (typeof v === 'string' && v.includes('${')) {
+          llm[key] = resolveEnvRefs(v);
+        }
+      }
+    }
+    return parsed;
   } catch {
     return null;
   }

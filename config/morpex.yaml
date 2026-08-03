@@ -7,10 +7,10 @@
 #   apiKey 是 Grok2API Dashboard「客户端密钥」创建的 key（g2a_ 开头）
 #   model 填网关实际提供/代理的模型名（可登录 :8000 控制台或查 /v1/models 确认）
 llm:
-  enabled: false
-  provider: morpex-gateway      # 自定义 provider 标识（内部用）
+  enabled: false       # ← 跑 Grok2API 网关时改为 true（默认 false 保证测试/CI 稳定，走 deepseek）
+  provider: grok2api      # 自定义 provider 标识（内部用）
   baseUrl: http://localhost:8000/v1
-  apiKey: g2a_xxx               # ← 替换为你的 Grok2API 客户端密钥
-  model: grok-2                 # ← 替换为网关实际模型名
-  contextWindow: 128000
-  maxTokens: 32000
+  apiKey: ${GROK2API_API_KEY}   # ← 从环境变量 GROK2API_API_KEY 读取（值填 g2a_ 开头的真实客户端密钥）
+  model: grok-4.20-0309-reasoning   # ← 替换为网关实际模型名
+  contextWindow: 512000
+  maxTokens: 128000
