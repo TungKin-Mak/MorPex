@@ -83,7 +83,7 @@ export class SystemMetadataGraph {
     // EventStore 写入
     if (this.eventStore) {
       this.eventStore.append({
-        id: `evt_${id}_registered`,
+        id: `evt_${id}_registered_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         type: EventType.SYSTEM_ENTITY_REGISTERED,
         timestamp: Date.now(),
         executionId: id,
@@ -99,7 +99,7 @@ export class SystemMetadataGraph {
     // EventStore 写入
     if (this.eventStore) {
       this.eventStore.append({
-        id: `evt_${fromId}_to_${toId}_${Date.now()}`,
+        id: `evt_${fromId}_to_${toId}_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
         type: EventType.SYSTEM_RELATION_ADDED,
         timestamp: Date.now(),
         executionId: fromId,
