@@ -192,6 +192,12 @@ export class MorPexRuntime {
           };
         }
         console.warn(`[MorPexRuntime] ⚠️ 模拟不可行但继续执行 (soft mode): ${simResult.blockingIssues.join('; ')}`);
+        // ═══ 恢复回路接线：soft 模式决定继续 → 自动解除资源阻塞，恢复 Mission ACTIVE ═══
+        // （此前 Mission 保持 BLOCKED 无恢复入口；autoRecover 对非人工阻塞自动恢复）
+        const recovered = this.missionController.autoRecover(context.mission.missionId);
+        if (recovered.recovered) {
+          console.log(`[MorPexRuntime] 🔄 Mission 自动恢复 ACTIVE（${recovered.actions.join('; ')}）`);
+        }
       }
 
       // ── Phase 1.7: Ontology Grounded Reasoning（迭代4）──

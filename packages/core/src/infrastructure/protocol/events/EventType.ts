@@ -69,6 +69,7 @@ export enum EventType {
   MISSION_FAILED = 'mission.failed',
   /** Mission 被阻塞 */
   MISSION_BLOCKED = 'mission.blocked',
+  MISSION_RECOVERED = 'mission.recovered',
 
   // ── Planning Layer ──
   /** 计划创建 */

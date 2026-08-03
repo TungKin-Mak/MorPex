@@ -123,6 +123,53 @@ export class MissionController {
     m.timeline.push({ timestamp: Date.now(), event: `Block resolved: ${m.blocks[blockIndex].reason}` });
   }
 
+  /**
+   * autoRecover — 自动恢复非人工阻塞的 Mission（恢复回路接线）
+   *
+   * 复用 recover() 评估逻辑：对可自动恢复的阻塞（非 HUMAN_WAITING/COMPLIANCE_BLOCKED）
+   * 自动执行 resolveBlock 并恢复 ACTIVE；有人工阻塞（审批/合规）时返回 needsHuman=true
+   * 保持等待（不绕过审批）。
+   *
+   * @returns { recovered, recommended, needsHuman, actions }
+   */
+  autoRecover(missionId: string): { recovered: boolean; recommended: 'continue' | 'replan' | 'abort'; needsHuman: boolean; actions: string[] } {
+    const assessment = this.recover(missionId);
+    const m = this.missions.get(missionId);
+    if (!m) {
+      return { recovered: false, recommended: 'abort', needsHuman: true, actions: [] };
+    }
+
+    // 有人工阻塞（审批/合规）→ 不自动恢复，保持等待
+    const hasHuman = m.blocks.some(
+      (b) => !b.resolvedAt && (b.reason === 'HUMAN_WAITING' || b.reason === 'COMPLIANCE_BLOCKED'),
+    );
+    if (hasHuman) {
+      return { recovered: false, recommended: assessment.recommended, needsHuman: true, actions: assessment.actions };
+    }
+
+    // 无人工阻塞 → 解除所有未解决阻塞并恢复 ACTIVE
+    m.blocks.forEach((b, i) => {
+      if (!b.resolvedAt) this.resolveBlock(missionId, i);
+    });
+    m.status = 'ACTIVE';
+    m.timeline.push({ timestamp: Date.now(), event: 'autoRecover: 非人工阻塞已自动解除，Mission 恢复 ACTIVE' });
+    if (this.persistentStore) this.persistentStore.save(m);
+    this.eventBus?.emit({
+      id: `evt_${Date.now()}`,
+      type: EventType.MISSION_RECOVERED,
+      timestamp: Date.now(),
+      executionId: missionId,
+      source: 'mission-controller',
+      payload: { missionId, actions: assessment.actions, recommended: assessment.recommended },
+    });
+    return {
+      recovered: true,
+      recommended: assessment.recommended === 'abort' ? 'continue' : assessment.recommended,
+      needsHuman: false,
+      actions: assessment.actions,
+    };
+  }
+
   addRisk(missionId: string, description: string, severity: 'LOW'|'MEDIUM'|'HIGH', probability: number, mitigation?: string): void {
     const m = this.missions.get(missionId);
     if (!m) return;
