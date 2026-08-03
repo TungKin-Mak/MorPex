@@ -330,6 +330,21 @@ export class MorPexRuntime {
           if (assembled.focusedSummary) {
             focusedContext = assembled.focusedSummary;
             console.log(`[MorPexRuntime] 🧩 聚焦上下文已装配 (${assembled.focusedSummary.length} 字符, mission=${context.mission.missionId})`);
+            // context.assembled 真实 emit（装配统一在 orchestrate 后执行；旧 CompanyFacade 注入分支已废弃，
+            // 此事件此前成为死事件——模式收敛后装配移到此处，同步复活）
+            this.eventBus.emit({
+              id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+              type: 'context.assembled',
+              timestamp: Date.now(),
+              executionId: context.executionId,
+              source: 'morpex-runtime',
+              payload: {
+                missionId: context.mission.missionId,
+                goal: goal.substring(0, 80),
+                domain: context.goal.domain,
+                summaryLength: assembled.focusedSummary.length,
+              },
+            });
           }
         } catch (err) {
           console.warn('[MorPexRuntime] ⚠️ 上下文装配失败（非阻断，继续执行）:', (err as Error).message);
