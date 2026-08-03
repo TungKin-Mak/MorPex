@@ -1,66 +1,124 @@
 /**
- * real-providers.test.ts — 功能③ Phase 2 A：真实数据 Provider（goal_graph / mission_state）
+ * 功能③ T5：真实上下文 Provider 测试
  *
- * 验证：装配输入带 currentTask 时，Provider 挂真实 taskRef；数据源可用返回真实数据；
- * 数据源不可用（null/查询失败/未找到）返回保守占位且不抛错（装配非阻断）。
+ * 验证 4 个新增真实 Provider（ArtifactLineage/DecisionHistory/UserProfile/AgentStatus）：
+ *  - 数据源可用 → 返回真实数据（data.source='real'）+ taskRef 挂载
+ *  - 数据源 null / 查询失败 → 保守占位 fallback（不硬崩，装配非阻断）
  */
-import { describe, it, expect } from 'vitest';
-import { GoalGraphProvider, MissionStateProvider } from '../src/knowledge/context/providers/realProviders.js';
+import { describe, expect, it } from 'vitest';
+import {
+  ArtifactLineageProvider,
+  DecisionHistoryProvider,
+  UserProfileProvider,
+  AgentStatusProvider,
+  type ArtifactReader,
+  type DecisionEventReader,
+} from '../src/knowledge/context/providers/realProviders.js';
+import type { ContextAssemblyInput } from '../src/knowledge/context/ContextFragmentRegistry.js';
 
-const input = {
-  missionId: 'mis_real_1',
-  goal: '开发设备固件',
-  currentTask: { taskId: 'mis_real_1' },
+const baseInput: ContextAssemblyInput = {
+  missionId: 'mission_ts5',
+  currentTask: { taskId: 'mission_ts5' },
 };
 
-describe('GoalGraphProvider — 读真实 Goal', () => {
-  it('ontology 可用：返回真实 Goal + taskRef', async () => {
-    const ontology = {
-      queryObjects: async ({ type }: { type: string }) => [
-        { object: { id: 'goal_1', properties: { title: '开发固件' }, status: 'active' } },
+// ── ArtifactLineageProvider ──
+
+describe('ArtifactLineageProvider', () => {
+  it('数据源可用 → 返回真实产物 + source=real + taskRef', async () => {
+    const reader: ArtifactReader = {
+      getAll: () => [
+        { id: 'a1', name: '登录模块', type: 'code', status: 'approved', version: 3 },
+        { id: 'a2', name: '测试报告', type: 'report', status: 'draft', version: 1 },
       ],
-    } as any;
-    const provider = new GoalGraphProvider(ontology);
-    const frag = await provider.collect(input as any);
-    expect(frag.source).toBe('goal_graph');
-    expect(frag.taskRef).toBe('mis_real_1');
-    expect(frag.data.source).toBe('real');
-    expect((frag.data.goals as any[])[0].id).toBe('goal_1');
-    expect((frag.data.goals as any[])[0].title).toBe('开发固件');
+    };
+    const p = new ArtifactLineageProvider(reader);
+    const f = await p.collect(baseInput);
+    expect(f.source).toBe('artifact_lineage');
+    expect(f.taskRef).toBe('mission_ts5');
+    expect(f.data).toMatchObject({ totalCount: 2, source: 'real' });
+    expect((f.data as { recentArtifacts: unknown[] }).recentArtifacts).toHaveLength(2);
+    expect((f.data as { recentArtifacts: { name: string }[] }).recentArtifacts[0].name).toBe('登录模块');
   });
 
-  it('ontology 为 null / 查询失败：返回保守占位不抛错', async () => {
-    const provider = new GoalGraphProvider(null);
-    const frag = await provider.collect(input as any);
-    expect(frag.data.source).toBe('fallback');
-    expect(frag.taskRef).toBe('mis_real_1');
-
-    const failing = new GoalGraphProvider({ queryObjects: async () => { throw new Error('db down'); } } as any);
-    const frag2 = await failing.collect(input as any);
-    expect(frag2.data.source).toBe('fallback');
+  it('数据源 null → fallback 不崩', async () => {
+    const p = new ArtifactLineageProvider(null);
+    const f = await p.collect(baseInput);
+    expect(f.data).toMatchObject({ totalCount: 0, source: 'fallback' });
   });
 });
 
-describe('MissionStateProvider — 读真实 Mission 状态', () => {
-  it('mission 存在：返回真实状态 + taskRef', async () => {
-    const reader = { getMission: (id: string) => (id === 'mis_real_1' ? { status: 'ACTIVE', phase: 'EXECUTING', progress: 30, goalId: 'goal_1' } : undefined) };
-    const provider = new MissionStateProvider(reader);
-    const frag = await provider.collect(input as any);
-    expect(frag.source).toBe('mission_state');
-    expect(frag.taskRef).toBe('mis_real_1');
-    expect(frag.data.source).toBe('real');
-    expect(frag.data.phase).toBe('EXECUTING');
-    expect(frag.data.goalId).toBe('goal_1');
+// ── DecisionHistoryProvider ──
+
+describe('DecisionHistoryProvider', () => {
+  it('数据源可用 → 返回真实决策 + source=real', async () => {
+    const reader: DecisionEventReader = {
+      query: async () => [
+        { id: 'e1', type: 'governance.approval', timestamp: 1000 },
+        { id: 'e2', type: 'gate.rule.hit', timestamp: 2000 }, // 非决策类 → 过滤
+        { id: 'e3', type: 'decision.made', timestamp: 3000 },
+      ],
+    };
+    const p = new DecisionHistoryProvider(reader);
+    const f = await p.collect(baseInput);
+    expect(f.source).toBe('decision_history');
+    expect(f.taskRef).toBe('mission_ts5');
+    expect(f.data).toMatchObject({ source: 'real' });
+    const decisions = (f.data as { recentDecisions: { type: string }[] }).recentDecisions;
+    expect(decisions).toHaveLength(2); // governance + decision，过滤 gate
+    expect(decisions.map((d) => d.type)).toEqual(['governance.approval', 'decision.made']);
   });
 
-  it('mission 未找到 / reader 为 null：返回保守占位不抛错', async () => {
-    const provider = new MissionStateProvider(null);
-    const frag = await provider.collect(input as any);
-    expect(frag.data.source).toBe('fallback');
-    expect(frag.data.status).toBe('ACTIVE');
+  it('数据源 null → fallback 不崩', async () => {
+    const p = new DecisionHistoryProvider(null);
+    const f = await p.collect(baseInput);
+    expect(f.data).toMatchObject({ totalCount: 0, source: 'fallback' });
+  });
+});
 
-    const empty = new MissionStateProvider({ getMission: () => undefined });
-    const frag2 = await empty.collect(input as any);
-    expect(frag2.data.source).toBe('fallback');
+// ── UserProfileProvider ──
+
+describe('UserProfileProvider', () => {
+  it('数据源可用 → 返回真实用户画像 + source=real', async () => {
+    const ontology = {
+      queryObjects: async () => [
+        { object: { id: 'user_1', properties: { responseStyle: 'practical', language: 'zh-CN' }, status: 'active' } },
+      ],
+    } as never;
+    const p = new UserProfileProvider(ontology);
+    const f = await p.collect({ ...baseInput, userId: 'user_1' });
+    expect(f.source).toBe('user_profile');
+    expect(f.taskRef).toBe('mission_ts5');
+    expect(f.data).toMatchObject({ id: 'user_1', source: 'real' });
+    expect((f.data as { preferences: { responseStyle: string } }).preferences.responseStyle).toBe('practical');
+  });
+
+  it('数据源 null → fallback 不崩', async () => {
+    const p = new UserProfileProvider(null);
+    const f = await p.collect(baseInput);
+    expect(f.data).toMatchObject({ source: 'fallback' });
+  });
+});
+
+// ── AgentStatusProvider ──
+
+describe('AgentStatusProvider', () => {
+  it('input.teamAgents 可用 → 返回真实 Agent 状态 + source=real', async () => {
+    const p = new AgentStatusProvider();
+    const f = await p.collect({
+      ...baseInput,
+      teamAgents: [
+        { id: 'agent_1', role: 'executor', status: 'ACTIVE' },
+        { id: 'agent_2', role: 'reviewer', status: 'COMPLETED' },
+      ],
+    });
+    expect(f.source).toBe('agent_status');
+    expect(f.taskRef).toBe('mission_ts5');
+    expect(f.data).toMatchObject({ activeCount: 1, source: 'real' }); // COMPLETED 不计 active
+  });
+
+  it('无 teamAgents → fallback 不崩', async () => {
+    const p = new AgentStatusProvider();
+    const f = await p.collect(baseInput);
+    expect(f.data).toMatchObject({ activeCount: 0, source: 'fallback' });
   });
 });
