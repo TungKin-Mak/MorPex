@@ -19,12 +19,14 @@ function makeFacade(): { facade: ArtifactFacade; bus: EventBus } {
 }
 
 describe('ArtifactFacade — 生命周期状态机', () => {
-  it('create → status CREATED / version 1 / lineage 空 / 元数据保留', () => {
+  it('create → status CREATED / version 1 / lineage 含 generated_by（血缘接线）/ 元数据保留', () => {
     const { facade } = makeFacade();
     const art = facade.create('readme', 'document', 'task_1', { author: 'ceo' });
     expect(art.status).toBe('CREATED');
     expect(art.version).toBe(1);
-    expect(art.lineage).toHaveLength(0);
+    // 血缘接线（审计修复）：create 时 sourceTask 存在 → lineage 记录 generated_by
+    expect(art.lineage).toHaveLength(1);
+    expect(art.lineage[0]).toMatchObject({ from: 'task_1', relation: 'generated_by' });
     expect(art.sourceTask).toBe('task_1');
     expect(art.metadata.author).toBe('ceo');
     expect(art.id).toMatch(/^art_/);
@@ -65,8 +67,10 @@ describe('ArtifactFacade — 生命周期状态机', () => {
     const art = facade.create('doc', 'document', 't1');
     facade.transition(art.id, 'VALIDATING');
     const lineage = facade.getLineage(art.id);
-    expect(lineage).toHaveLength(1);
-    expect(lineage[0].relation).toContain('created_to_validating');
+    // create 已记录 generated_by（血缘接线）+ transition 1 条 = 2
+    expect(lineage).toHaveLength(2);
+    expect(lineage[0].relation).toBe('generated_by');
+    expect(lineage[1].relation).toContain('created_to_validating');
   });
 
   it('transition 不存在的 id → false', () => {
@@ -96,7 +100,10 @@ describe('ArtifactFacade — 查询与任务关联', () => {
       relation: 'referenced_by',
       timestamp: Date.now(),
     });
-    expect(facade.getLineage(art.id)).toHaveLength(1);
+    // create 的 generated_by + 追加的 referenced_by = 2
+    expect(facade.getLineage(art.id)).toHaveLength(2);
+    expect(facade.getLineage(art.id)[0].relation).toBe('generated_by');
+    expect(facade.getLineage(art.id)[1].relation).toBe('referenced_by');
   });
 
   it('createFromTask 委托 create 并携带 content', async () => {

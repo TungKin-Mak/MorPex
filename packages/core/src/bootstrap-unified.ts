@@ -470,6 +470,11 @@ export async function bootstrapUnified(options?: {
       brainFacade.setMemoryActivationEngine?.(globalActivationEngine as unknown as import('./cognition/BrainFacade.js').MemoryActivationEngineLike);
     }
     companyFacade.setBrainFacade(brainFacade);
+    // ═══ 治理接线：团队查询暴露（审计发现 TeamOrchestrator listTeams/getTeam 零消费）═══
+    companyFacade.setTeamOrchestrator({
+      listTeams: () => container.teamOrchestrator.listTeams(),
+      getTeam: (id: string) => container.teamOrchestrator.getTeam(id),
+    });
     // ═══ S22 审计修复：装配 CrossDepartmentKnowledgeSynthesizer（此前完全未接线）═══
     const { CrossDepartmentKnowledgeSynthesizer } = await import('./cognition/CrossDepartmentKnowledgeSynthesizer.js');
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');

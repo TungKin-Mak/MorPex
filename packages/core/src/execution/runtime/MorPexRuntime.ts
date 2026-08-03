@@ -469,6 +469,22 @@ export class MorPexRuntime {
         departmentId: context.team.departments[0],
       });
 
+      // ═══ 学习回路接线（审计发现 learnFromOutcome 零调用）：任务完成后结果学习 ═══
+      // CrossAgentLearningEngine 的 learnFromOutcome 此前无调用点——经验沉淀只走
+      // experienceMiner，学习引擎的"结果学习"能力未接主线。此处补接（非阻断）。
+      if (this.learningEngine) {
+        try {
+          const outcome = {
+            success: execResult.ok,
+            completedTasks: execResult.ok ? 1 : 0,
+            failedTasks: execResult.ok ? 0 : 1,
+          };
+          this.learningEngine.learnFromOutcome(context.mission.missionId, outcome, 'mission-runtime');
+        } catch (err) {
+          console.warn('[MorPexRuntime] learnFromOutcome 失败（非阻断）:', (err as Error).message);
+        }
+      }
+
       // ── Phase 6: Completion ──
       this.missionController.updateMission({
         missionId: context.mission.missionId,

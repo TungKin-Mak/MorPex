@@ -89,6 +89,7 @@ export class CompanyFacade {
   }
 
   private brainFacade: any = null;
+  private teamOrchestrator: { listTeams(): unknown[]; getTeam(id: string): unknown } | null = null;
 
   /** 功能③：上下文组装引擎（可选注入，无则跳过——零风险） */
   private contextAssemblyEngine: import('../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
@@ -210,6 +211,22 @@ export class CompanyFacade {
   async searchAcrossDepartments(_q: string, _o?: { limit?: number; departmentFilter?: string[] }): Promise<Array<{ content: string; departmentName?: string; relevance: number }>> { return []; }
 
   setBrainFacade(brain: any): void { this.brainFacade = brain; }
+
+  /** 治理：团队编排器注入（团队查询能力接线——审计发现 listTeams/getTeam 零消费） */
+  setTeamOrchestrator(t: { listTeams(): unknown[]; getTeam(id: string): unknown }): void {
+    this.teamOrchestrator = t;
+  }
+
+  /** 治理：列出全部团队（架构欠缺的团队查询能力，已接线） */
+  getTeams(): unknown[] {
+    return this.teamOrchestrator?.listTeams() ?? [];
+  }
+
+  /** 治理：按 ID 查团队 */
+  getTeam(teamId: string): unknown {
+    return this.teamOrchestrator?.getTeam(teamId) ?? null;
+  }
+
   setGoalIntelligenceFacade(_: any): void {}
   setFeedbackService(_: any): void {}
   setOntology(_o: any, _g: any, _p: any): void {}

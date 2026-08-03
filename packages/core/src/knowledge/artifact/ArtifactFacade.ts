@@ -97,7 +97,17 @@ export class ArtifactFacade {
       }).catch((err: Error) => console.warn('[ArtifactFacade] EventStore append failed:', err.message));
     }
     systemMetadataGraph.registerEntity(node.id, 'artifact', name, { type, sourceTask, version: 1 });
-    if (sourceTask) systemMetadataGraph.addRelation(sourceTask, node.id, 'generated_by');
+    if (sourceTask) {
+      systemMetadataGraph.addRelation(sourceTask, node.id, 'generated_by');
+      // ═══ 血缘接线（审计发现 addLineage 零调用）：产物节点 lineage 数组补录溯源 ═══
+      // addRelation 只写图关系，ArtifactNode.lineage 数组（addLineage 入口）此前从未填充
+      this.addLineage(node.id, {
+        from: sourceTask,
+        relation: 'generated_by',
+        timestamp: Date.now(),
+        detail: name,
+      });
+    }
     this.emit(EventType.ARTIFACT_CREATED, node);
     return node;
   }
