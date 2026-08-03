@@ -17,6 +17,9 @@ export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
 // pi-ai 导入（动态 + Record 类型避免编译时类型依赖）
 // ═══════════════════════════════════════════════════════════════════
 
+// YAML 配置（LLM 网关）
+import { loadMorpexConfig, type LlmGatewayConfig } from './yamlConfig.js';
+
 // ═══════════════════════════════════════════════════════════════════
 // pi-agent-core 运行时导入
 // ★★ PiBridge 是唯一直接导入 pi-agent-core 的文件 ★★
@@ -117,24 +120,105 @@ export class PiBridge {
   private models: Record<string, unknown> | null = null;
   private initialized = false;
   readonly defaultModel: string;
+  /** LLM 网关配置（config/morpex.yaml 的 llm 块；enabled=true 时生效） */
+  private gateway: LlmGatewayConfig | null = null;
 
   constructor(defaultModel = 'deepseek/deepseek-v4-flash') {
-    this.defaultModel = defaultModel;
+    // 读取 YAML 配置：有启用网关 → 默认模型指向网关 provider/model
+    const cfg = loadMorpexConfig();
+    if (cfg?.llm?.enabled && cfg.llm.provider && cfg.llm.model) {
+      this.gateway = cfg.llm;
+      this.defaultModel = `${cfg.llm.provider}/${cfg.llm.model}`;
+    } else {
+      this.gateway = null;
+      this.defaultModel = defaultModel;
+    }
   }
 
   // ── 初始化 ──
 
-  /** 初始化 Models 实例（注册所有内置 providers） */
+  /**
+   * init — 初始化 Models 实例
+   *
+   * - 配置了 LLM 网关（config/morpex.yaml llm.enabled=true）→ 用 pi-ai createProvider
+   *   注册自定义 OpenAI 兼容 provider（指向网关 baseUrl）
+   * - 未配置 → 注册所有内置 providers（builtinModels，现状）
+   */
   async init(): Promise<void> {
     if (this.initialized) return;
     try {
-      const mod = await import('@earendil-works/pi-ai/providers/all');
-      const fn = mod.builtinModels as unknown as () => Record<string, unknown>;
-      this.models = fn();
+      if (this.gateway) {
+        await this.initGateway(this.gateway);
+      } else {
+        const mod = await import('@earendil-works/pi-ai/providers/all');
+        const fn = mod.builtinModels as unknown as () => Record<string, unknown>;
+        this.models = fn();
+      }
       this.initialized = true;
     } catch (err) {
       console.warn('[PiBridge] 初始化失败:', err);
     }
+  }
+
+  /**
+   * initGateway — 用 pi-ai createProvider 注册自定义 OpenAI 兼容网关
+   *
+   * 参考 pi-ai README「createProvider()」：本地推理服务/代理/OpenAI 兼容端点。
+   * 模型走 openai-completions API，baseUrl 指向网关，apiKey 由 auth.resolve 提供。
+   */
+  private async initGateway(cfg: LlmGatewayConfig): Promise<void> {
+    const piAi = (await import('@earendil-works/pi-ai')) as unknown as {
+      createModels: () => {
+        setProvider: (p: unknown) => void;
+        getModel: (p: string, id: string) => Record<string, unknown> | undefined;
+        getModels: (p?: string) => Array<Record<string, unknown>>;
+      };
+      createProvider: (input: Record<string, unknown>) => unknown;
+    };
+    const apiMod = (await import('@earendil-works/pi-ai/api/openai-completions.lazy')) as unknown as {
+      openAICompletionsApi: () => unknown;
+    };
+
+    const providerId = cfg.provider ?? 'morpex-gateway';
+    const baseUrl = cfg.baseUrl ?? 'http://localhost:8000/v1';
+    const modelId = cfg.model ?? 'grok-2';
+    const apiKey = cfg.apiKey ?? '';
+
+    // 模型定义（openai-completions API）
+    const model = {
+      id: modelId,
+      name: modelId,
+      api: 'openai-completions',
+      provider: providerId,
+      baseUrl,
+      reasoning: false,
+      input: ['text'],
+      cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
+      contextWindow: cfg.contextWindow ?? 128000,
+      maxTokens: cfg.maxTokens ?? 32000,
+    };
+
+    // 自定义 provider（auth.resolve 提供 apiKey）
+    const provider = piAi.createProvider({
+      id: providerId,
+      name: `${providerId} (OpenAI-compatible gateway)`,
+      baseUrl,
+      auth: {
+        apiKey: {
+          name: providerId,
+          resolve: async () => ({ auth: { apiKey } }),
+        },
+      },
+      models: [model],
+      api: apiMod.openAICompletionsApi(),
+    });
+
+    // 创建 Models 集合并注入自定义 provider
+    const models = piAi.createModels();
+    models.setProvider(provider);
+    this.models = models as unknown as Record<string, unknown>;
+
+    console.log(`[PiBridge] ✅ 自定义 LLM 网关已配置: ${baseUrl} (${providerId}/${modelId})`);
   }
 
   get ready(): boolean {

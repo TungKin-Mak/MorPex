@@ -1,0 +1,16 @@
+# MorPex LLM 配置（可选）
+#
+# 配置了 llm 且 enabled: true → 使用自定义 OpenAI 兼容网关（如本地 Grok2API）
+# 未配置 / enabled: false    → 使用内置 provider（deepseek，读 DEEPSEEK_API_KEY）
+#
+# Grok2API 网关示例（http://localhost:8000）：
+#   apiKey 是 Grok2API Dashboard「客户端密钥」创建的 key（g2a_ 开头）
+#   model 填网关实际提供/代理的模型名（可登录 :8000 控制台或查 /v1/models 确认）
+llm:
+  enabled: false
+  provider: morpex-gateway      # 自定义 provider 标识（内部用）
+  baseUrl: http://localhost:8000/v1
+  apiKey: g2a_xxx               # ← 替换为你的 Grok2API 客户端密钥
+  model: grok-2                 # ← 替换为网关实际模型名
+  contextWindow: 128000
+  maxTokens: 32000
