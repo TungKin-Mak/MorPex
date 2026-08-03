@@ -236,9 +236,14 @@ export class OntologyService {
     /** vNext+ P2：事实置信度 0-1 */
     confidence?: number;
   }): Promise<OntologyObject> {
-    // 校验必填属性（P1.1）
+    // 校验必填属性（P1.1）——status 是 upsertObject 顶层参数（投影器/调用方惯用），
+    // 合并进 properties 参与校验（写入 metadata 时已合并 status，校验不应遗漏）
     if (this.typeRegistry) {
-      const errors = this.typeRegistry.validateProperties(input.type, input.properties);
+      const propsForValidation =
+        input.status !== undefined
+          ? { ...input.properties, status: input.status }
+          : input.properties;
+      const errors = this.typeRegistry.validateProperties(input.type, propsForValidation);
       if (errors.length > 0) {
         throw new Error(`[OntologyService] 类型 "${input.type}" 属性校验失败: ${errors.join('; ')}`);
       }
