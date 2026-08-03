@@ -191,14 +191,18 @@ export async function bootstrapUnified(options?: {
   // OntologyService 构造函数已调用 refreshCache()，加载了重建后的数据
   const forcedQueryGuard = new ForcedQueryGuard();
 
-  // 功能③：注册真实数据 Provider（goal_graph 读真实 Goal / mission_state 读真实 Mission，挂 taskRef）
+  // 功能③：注册真实数据 Provider（goal_graph 读真实 Goal / mission_state 读真实 Mission / 其余 4 种读真实数据，挂 taskRef）
   try {
-    const { GoalGraphProvider, MissionStateProvider } = await import('./knowledge/context/providers/realProviders.js');
+    const { GoalGraphProvider, MissionStateProvider, ArtifactLineageProvider, DecisionHistoryProvider, UserProfileProvider, AgentStatusProvider } = await import('./knowledge/context/providers/realProviders.js');
     container.registerRealProviders(
       new GoalGraphProvider(ontology),
       new MissionStateProvider(container.missionController),
+      new ArtifactLineageProvider(container.artifactFacade as never),
+      new DecisionHistoryProvider((container as any)._eventStore ?? null),
+      new UserProfileProvider(ontology),
+      new AgentStatusProvider(),
     );
-    console.log('[bootstrapUnified] ✅ 真实上下文 Provider 已注册（goal_graph/mission_state）');
+    console.log('[bootstrapUnified] ✅ 真实上下文 Provider 已注册（goal_graph/mission_state/artifact_lineage/decision_history/user_profile/agent_status）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ 真实 Provider 注册失败（非阻断）:', (err as Error).message);
   }

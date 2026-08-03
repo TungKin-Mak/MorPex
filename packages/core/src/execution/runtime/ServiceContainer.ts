@@ -246,11 +246,11 @@ export class ServiceContainer {
 
   /** 功能③：注册真实数据 Provider 到装配引擎（bootstrap 在 ontology 就绪后调用） */
   registerRealProviders(
-    goalProvider: import('../../knowledge/context/ContextFragmentRegistry.js').FragmentProvider,
-    missionProvider: import('../../knowledge/context/ContextFragmentRegistry.js').FragmentProvider,
+    ...providers: import('../../knowledge/context/ContextFragmentRegistry.js').FragmentProvider[]
   ): void {
-    this._contextAssemblyEngine?.getRegistry().register(goalProvider);
-    this._contextAssemblyEngine?.getRegistry().register(missionProvider);
+    const registry = this._contextAssemblyEngine?.getRegistry();
+    if (!registry) return;
+    for (const p of providers) registry.register(p);
   }
 
   private _contextAssemblyEngine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;

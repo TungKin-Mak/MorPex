@@ -318,6 +318,12 @@ export class MorPexRuntime {
             domain: context.goal.domain ?? (context.team.departments[0] as string | undefined),
             tags: context.team.departments[0] ? [context.team.departments[0]] : undefined,
             currentTask: { taskId: context.mission.missionId },
+            // AgentStatusProvider 读真实 team 概览（orchestrate 后 team 已创建）
+            teamAgents: (context.team?.members ?? []).map((m) => ({
+              id: m.agentId,
+              role: m.role,
+              status: m.status,
+            })),
           });
           if (assembled.focusedSummary) {
             focusedContext = assembled.focusedSummary;

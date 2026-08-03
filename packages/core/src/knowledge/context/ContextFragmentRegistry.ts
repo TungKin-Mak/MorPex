@@ -70,6 +70,8 @@ export interface ContextAssemblyInput {
    * 同会话多任务时，片段按 taskRef 归属过滤——只装当前任务材料，历史任务抽离需则召回。
    */
   currentTask?: { goalId?: string; planId?: string; taskId?: string }
+  /** 功能③：当前团队 Agent 概览（装配点传入，AgentStatusProvider 读真实数据；可选） */
+  teamAgents?: Array<{ id?: string; name?: string; role?: string; status?: string }>
 }
 
 // ── FragmentProvider — 片段提供者接口 ──
