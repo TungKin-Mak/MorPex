@@ -6,6 +6,14 @@
  *   npx tsx scripts/batch-run.ts --limit 3  # 只跑前 3 个（验证用）
  *   npx tsx scripts/batch-run.ts --only xjmcu  # 只跑指定行业
  *
+ * 容错参数（grok2api 限流/无响应）：
+ *   --delay <ms>      任务间限流退避延时（默认 3000）
+ *   --timeout <ms>    单任务 LLM 超时（默认 180000，无响应自动重试）
+ *   --retries <n>     自动重试次数（默认 2，超过后转人工介入）
+ *   --no-prompt       非交互模式：失败自动跳过继续（不等待人工输入）
+ *
+ * 人工介入：连续失败后提示「Enter=继续下一个 / r=重试 / q=退出」
+ *
  * 特性：
  *   - 所有人工审核环节由测试脚本自动决定（LLM 审核模拟）：
  *       · 审批（approval.wait_human）→ 自动 decide('APPROVED', 'llm-auto')
@@ -20,8 +28,9 @@ import { bootstrapUnified } from '../packages/core/src/bootstrap-unified.js';
 import { RuleRegistry } from '../packages/core/src/gate/rules/RuleRegistry.js';
 import { createTraceSession, renderCallChain, type TraceCall } from './tracing/TraceRecorder.js';
 import { TASKS, type BatchTask } from './batch-tasks.js';
-import { writeFileSync, mkdirSync } from 'node:fs';
-import { resolve } from 'node:path';
+import { mkdirSync, writeFileSync } from 'node:fs';
+import { join, resolve } from 'node:path';
+import { createInterface } from 'node:readline';
 
 // ── 参数解析 ──
 const args = process.argv.slice(2);
@@ -29,6 +38,44 @@ const limitIdx = args.indexOf('--limit');
 const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : TASKS.length;
 const onlyIdx = args.indexOf('--only');
 const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
+// grok2api 容错参数（限流/无响应处理）
+const delayIdx = args.indexOf('--delay');
+const delayMs = delayIdx >= 0 ? parseInt(args[delayIdx + 1], 10) : 3000; // 任务间限流退避
+const timeoutIdx = args.indexOf('--timeout');
+const timeoutMs = timeoutIdx >= 0 ? parseInt(args[timeoutIdx + 1], 10) : 180_000; // 单任务超时
+const autoRetryIdx = args.indexOf('--retries');
+const autoRetries = autoRetryIdx >= 0 ? parseInt(args[autoRetryIdx + 1], 10) : 2; // 自动重试次数
+const noPrompt = args.includes('--no-prompt'); // 非交互：失败自动继续
+
+/** 延时 */
+function sleep(ms: number): Promise<void> {
+  return new Promise((r) => setTimeout(r, ms));
+}
+
+/** 超时包装：LLM 无响应/挂起时抛错 */
+async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  let timer: NodeJS.Timeout | undefined;
+  const timeout = new Promise<never>((_, rej) => {
+    timer = setTimeout(() => rej(new Error(`${label} 超时(${ms}ms)——疑似 grok2api 无响应`)), ms);
+  });
+  try {
+    return await Promise.race([p, timeout]);
+  } finally {
+    if (timer) clearTimeout(timer);
+  }
+}
+
+/** 人工介入：等待用户输入决定（grok2api 限流/无响应时） */
+async function waitForUser(prompt: string): Promise<string> {
+  if (noPrompt) return 'enter'; // 非交互模式自动继续
+  const rl = createInterface({ input: process.stdin, output: process.stdout });
+  return new Promise((resolve) => {
+    rl.question(prompt, (ans) => {
+      rl.close();
+      resolve(ans.trim().toLowerCase() || 'enter');
+    });
+  });
+}
 
 const REPORT_DIR = resolve(process.cwd(), 'data/trace-reports');
 
@@ -133,16 +180,60 @@ async function main(): Promise<void> {
     let ok = false;
     let missionId: string | undefined;
     let error: string | undefined;
-    try {
-      const result = await companyFacade.executeGoal(task.goal, { departmentName: task.departmentName });
-      ok = result.ok;
-      missionId = result.missionId;
-      error = result.error;
-    } catch (err) {
-      error = (err as Error).message;
+
+    // ══ 执行（含 grok2api 容错：超时检测 + 自动退避重试 + 人工介入）══
+    let attempt = 0;
+    let abortBatch = false;
+    for (;;) {
+      try {
+        const result = await withTimeout(
+          companyFacade.executeGoal(task.goal, { departmentName: task.departmentName }),
+          timeoutMs,
+          `任务${num}`,
+        );
+        ok = result.ok;
+        missionId = result.missionId;
+        error = result.error;
+      } catch (err) {
+        error = (err as Error).message;
+      }
+
+      if (ok) break;
+
+      // 自动重试（限流/无响应退避）
+      if (attempt < autoRetries) {
+        const backoff = delayMs * 3;
+        console.log(`  ⚠️ 尝试 ${attempt + 1}/${autoRetries} 失败: ${(error ?? '').slice(0, 120)}`);
+        console.log(`     → 疑似 grok2api 限流/无响应，退避 ${(backoff / 1000).toFixed(1)}s 后重试...`);
+        await sleep(backoff);
+        attempt++;
+        continue;
+      }
+
+      // 人工介入：grok2api 持续无响应/限流时，由人决定
+      console.log(`  ⚠️ 任务 ${num} 失败/超时（连续 ${autoRetries + 1} 次）: ${(error ?? '').slice(0, 150)}`);
+      const ans = await waitForUser(
+        `  [人工介入] Enter=跳过继续下一个 ｜ r=重试本任务 ｜ q=退出批次: `,
+      );
+      if (ans === 'q') {
+        abortBatch = true;
+        break;
+      }
+      if (ans === 'r') {
+        attempt = 0;
+        await sleep(delayMs * 2);
+        continue;
+      }
+      break; // Enter → 跳过继续下一个
     }
     const durationMs = Date.now() - t0;
     const calls = trace.report();
+
+    if (abortBatch) {
+      console.log('\n⏹ 批次已由人工退出（未完成任务将在汇总中标为 skipped）');
+      results.push({ index: num, task, ok: false, missionId, durationMs, error: 'USER_ABORTED', calls, snapshot: undefined });
+      break;
+    }
 
     // 闭环验证：snapshot + 召回
     let snapshot: TaskResult['snapshot'];
@@ -169,6 +260,11 @@ async function main(): Promise<void> {
     console.log(`  ➜ ok=${ok} 耗时=${(durationMs / 1000).toFixed(1)}s 调用=${calls.length} ${missionId ? `mission=${missionId}` : ''}`);
     if (error) console.log(`  ⚠️ error: ${error.slice(0, 120)}`);
     console.log('');
+
+    // 限流退避：grok2api 有请求频率限制，任务间延时（即使成功也等，防触发限流）
+    if (i < tasks.length - 1) {
+      await sleep(delayMs);
+    }
   }
 
   // 6. 生成报告
