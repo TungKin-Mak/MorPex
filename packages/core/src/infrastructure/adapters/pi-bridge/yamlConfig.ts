@@ -14,6 +14,7 @@
 
 import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
+import { execSync } from 'node:child_process';
 
 /** LLM 网关配置（config/morpex.yaml 的 llm 块） */
 export interface LlmGatewayConfig {
@@ -84,13 +85,47 @@ export function parseYaml(text: string): Record<string, unknown> {
 }
 
 /**
+ * readEnv — 读取环境变量（多级兜底）
+ *
+ * 查找顺序：
+ *   1. process.env[name]（进程继承的 env，常规情况）
+ *   2. Windows 用户级/系统级环境变量（Git Bash / MSYS 等不继承 User 级 env 时，
+ *      仍能自动读取——用户把 key 设在 Windows「编辑环境变量」面板时，无需手动 export）
+ *
+ * 结果缓存（execSync 调 powershell 有开销，同一 key 只查一次）。
+ */
+const _winEnvCache = new Map<string, string | undefined>();
+
+export function readEnv(name: string): string | undefined {
+  if (process.env[name] !== undefined && process.env[name] !== '') return process.env[name];
+  // Windows 用户级/系统级兜底
+  if (process.platform === 'win32') {
+    if (_winEnvCache.has(name)) return _winEnvCache.get(name);
+    try {
+      const out = execSync(
+        `powershell -NoProfile -NonInteractive -Command "[Environment]::GetEnvironmentVariable('${name}','User')"`,
+        { encoding: 'utf-8', timeout: 5000, windowsHide: true },
+      )
+        .trim();
+      const val = out || undefined;
+      _winEnvCache.set(name, val);
+      return val;
+    } catch {
+      _winEnvCache.set(name, undefined);
+      return undefined;
+    }
+  }
+  return undefined;
+}
+
+/**
  * resolveEnvRefs — 将字符串中的 `${VAR}` 环境变量引用替换为实际值
  *
- * 用法：apiKey: ${GROK2API_API_KEY} → 读 process.env.GROK2API_API_KEY
+ * 用法：apiKey: ${GROK2API_API_KEY} → 读 GROK2API_API_KEY（process.env → Windows 用户级兜底）
  * 未设置的环境变量 → 替换为空串（调用方应校验缺失）
  */
 export function resolveEnvRefs(value: string): string {
-  return value.replace(/\$\{([A-Za-z0-9_]+)\}/g, (_, name: string) => process.env[name] ?? '');
+  return value.replace(/\$\{([A-Za-z0-9_]+)\}/g, (_, name: string) => readEnv(name) ?? '');
 }
 
 /**
