@@ -171,13 +171,13 @@ export async function bootstrapUnified(options?: {
 
   // ⬅️ 从 EventStore 重建状态源（使状态可事件溯源）
   try {
-    const es = (container as any)._eventStore as any;
+    const es = container.eventStore;
     if (es) {
       // 重建 SystemMetadataGraph
       await systemMetadataGraph.restoreFromEvents(es);
       // 重建 ArtifactFacade
-      if (typeof (container.artifactFacade as any).restoreFromEvents === 'function') {
-        await (container.artifactFacade as any).restoreFromEvents(es);
+      if (typeof container.artifactFacade.restoreFromEvents === 'function') {
+        await container.artifactFacade.restoreFromEvents(es);
       }
       // Ontology 由构造函数中的 refreshCache() 自动恢复
     }
@@ -197,8 +197,8 @@ export async function bootstrapUnified(options?: {
     container.registerRealProviders(
       new GoalGraphProvider(ontology),
       new MissionStateProvider(container.missionController),
-      new ArtifactLineageProvider(container.artifactFacade as never),
-      new DecisionHistoryProvider((container as any)._eventStore ?? null),
+      new ArtifactLineageProvider(container.artifactFacade),
+      new DecisionHistoryProvider(container.eventStore ?? null),
       new UserProfileProvider(ontology),
       new AgentStatusProvider(),
     );
@@ -220,10 +220,10 @@ export async function bootstrapUnified(options?: {
     const memoryEngine = createEngine();
     const memoryApi = createMemoryApi({ engine: memoryEngine });
     initializeCompanyMemory(memoryApi);
-    (container as any).companyMemoryApi = memoryApi;
-    (container as any).memoryApiBus = createMemoryApiBus(memoryApi);
+    // Studio 观测：记忆 API 挂到容器（类型安全字段，供 StudioServer 显式访问）
+    container.companyMemoryApi = memoryApi as unknown as import('../../memory/src/api/MemoryApi.js').MemoryApi;
     // 记忆收敛：学习闭环（BrainFacade.learn）落库走统一层
-    (container as any).brainFacade?.setMemoryApi?.(memoryApi);
+    // （brainFacade 在后续装配段才创建，此处访问恒为 undefined——原 `?.` 从不执行，删除死代码）
     // ── L7 深水区：MemoryActivationEngine working 数据源统一到 MemoryAPI（装配层注入）──
     const { MemoryActivationEngine } = await import('./knowledge/memory/MemoryActivationEngine.js');
     const { setGlobalActivationEngine } = await import('./knowledge/memory/activationRegistry.js');
@@ -233,7 +233,6 @@ export async function bootstrapUnified(options?: {
       console.log(`[bootstrapUnified] ✅ MemoryActivationEngine 已装配（source=MemoryAPI，首拉 ${r.loaded} 条，可用=${r.available}）`);
     });
     setGlobalActivationEngine(activationEngine);
-    (container as any).memoryActivationEngine = activationEngine;
     console.log('[bootstrapUnified] ✅ 公司知识记忆已接入（MemoryAPI + cognee 引擎，Ontology Gate 第5工具）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ 公司知识记忆接入失败（不阻断，QueryMiss 兜底）:', (err as Error).message);
@@ -280,7 +279,7 @@ export async function bootstrapUnified(options?: {
   FileOperationPrimitive.setConnectorExecutor(async (action: string, params: Record<string, unknown>) => {
     const deptId = String(params.departmentId ?? params.deptId ?? 'global');
     const writePath = action === 'fs.write' ? join('data', `deliverables-${deptId}`, String(params.path ?? 'deliverable.txt')) : String(params.path ?? '');
-    return connectorRegistry.execute({ action, params: { ...params, path: writePath }, executionId: 'layer6', timeout: 15000 } as never);
+    return connectorRegistry.execute({ action, params: { ...params, path: writePath }, executionId: 'layer6', timeout: 15000 });
   });
 
   // 4) ShellExecutionPrimitive → ConnectorRegistry (shell.exec)
@@ -290,7 +289,7 @@ export async function bootstrapUnified(options?: {
       params: { command: p.command, args: p.args ?? [], cwd: p.cwd, timeout: p.timeout },
       executionId: 'shell',
       timeout: p.timeout ?? 30000,
-    } as never),
+    }),
   );
 
   // 5) APICallPrimitive → 内置 fetch HTTP 执行器（Node20 全局 fetch；无第三方 HTTP connector）
@@ -456,20 +455,23 @@ export async function bootstrapUnified(options?: {
   // L4 全功能实现：BrainFacade 统一入口接入（executeGoal 完成后触发 learn 学习闭环）
   try {
     const { BrainFacade } = await import('./cognition/BrainFacade.js');
+    const { getGlobalActivationEngine } = await import('./knowledge/memory/activationRegistry.js');
     const brainFacade = new BrainFacade(eventBus);
     // ═══ S22 审计修复：注入 reflectionEngine/learningLoop（此前字段 null，聚合门面空转）═══
     brainFacade.setReflectionEngine(reflectionEngine);
     brainFacade.setLearningLoop(learningLoop);
     // P1 收敛：learningEngine 键归 CrossAgentLearningEngine（ServiceContainer L208），
     // LearningLoop 仅挂 BrainFacade 专用键 brainLearningLoop，避免覆盖冲突
-    (container as any).brainLearningLoop = learningLoop;
-    // S20 完整重包：聚合记忆激活引擎（S18 装配产物）
-    brainFacade.setMemoryActivationEngine?.((container as any).memoryActivationEngine);
+    // S20 完整重包：聚合记忆激活引擎（S18 装配产物经 activationRegistry 全局注册表读回，避免容器中转/跨作用域问题）
+    const globalActivationEngine = getGlobalActivationEngine();
+    if (globalActivationEngine) {
+      // ⚠️ 接口契约桥接：MemoryActivationEngineLike.activate 接受 Record，真实引擎要求 ActivationContext（参数逆变）——
+      // 属真实接口不匹配（Like 过宽）；类型适配 + 注释，接口对齐（Like 改用 ActivationContext）留后续。
+      brainFacade.setMemoryActivationEngine?.(globalActivationEngine as unknown as import('./cognition/BrainFacade.js').MemoryActivationEngineLike);
+    }
     companyFacade.setBrainFacade(brainFacade);
-    (container as any).brainFacade = brainFacade;
     // ═══ S22 审计修复：装配 CrossDepartmentKnowledgeSynthesizer（此前完全未接线）═══
     const { CrossDepartmentKnowledgeSynthesizer } = await import('./cognition/CrossDepartmentKnowledgeSynthesizer.js');
-    (container as any).crossDeptSynthesizer = new CrossDepartmentKnowledgeSynthesizer(eventBus);
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ BrainFacade 接入失败（不阻断）:', (err as Error).message);
@@ -487,15 +489,11 @@ export async function bootstrapUnified(options?: {
   const { SelfImprovementLoop } = await import('./evolution/SelfImprovementLoop.js');
   const selfImprovementLoop = new SelfImprovementLoop();
   activeEvolutionTrigger.setSelfImprovementLoop(selfImprovementLoop);
-  (container as any).selfImprovementLoop = selfImprovementLoop;
   console.log('[bootstrapUnified] ✅ SelfImprovementLoop 已注入 ActiveEvolutionTrigger（autoEvolve 激活）');
   const failureAnalyzer = new FailureAnalyzer();
   // vNext+ L8：演化安全沙箱（沙箱试跑 + 版本化 + 人工审批 + 回滚入口）
-  const evolutionSandbox = new EvolutionSandbox({ eventStore: (container as any)._eventStore ?? undefined });
+  const evolutionSandbox = new EvolutionSandbox({ eventStore: container.eventStore ?? undefined });
   activeEvolutionTrigger.setEvolutionSandbox(evolutionSandbox);
-  (container as any).activeEvolutionTrigger = activeEvolutionTrigger;
-  (container as any).failureAnalyzer = failureAnalyzer;
-  (container as any).evolutionSandbox = evolutionSandbox;
   console.log('[bootstrapUnified] ✅ L8 Evolution 已接通：ActiveEvolutionTrigger + EvolutionSandbox（沙箱/版本化/回滚）+ FailureAnalyzer');
 
   // L10: Observability（GovernanceDashboard 全量指标 + CostController 成本 + AlertEngine 告警）
@@ -503,8 +501,8 @@ export async function bootstrapUnified(options?: {
   const governanceDashboard = new GovernanceDashboard(eventBus);
   CostController.getInstance().init(eventBus);
   const alertEngine = new AlertEngine(eventBus);
-  (container as any).governanceDashboard = governanceDashboard;
-  (container as any).alertEngine = alertEngine;
+  // Studio 观测：治理面板挂到容器（类型安全字段，供 StudioServer 显式访问）
+  container.governanceDashboard = governanceDashboard;
   console.log('[bootstrapUnified] ✅ L10 Observability 已接通：GovernanceDashboard + CostController + AlertEngine');
 
   // ── 架构全功能实现：接通 L3 Planning（DeliveryPlanner → MissionRuntime 规划阶段）──
@@ -517,14 +515,12 @@ export async function bootstrapUnified(options?: {
     deliveryPlanner.setOntology(ontology);
     deliveryPlanner.setForcedQueryGuard(forcedQueryGuard);
     const hierarchicalPlanner = new HierarchicalPlanner(eventBus);
-    (hierarchicalPlanner as any).setPiBridge?.(piBridgeWrapper);
+    hierarchicalPlanner.setPiBridge(piBridgeWrapper);
     const arbitration = new CrossDepartmentArbitrationEngine(eventBus);
     const missionPlanner = new DeliveryPlannerAdapter(deliveryPlanner, { hierarchicalPlanner, arbitration });
     container.missionRuntime.setPlanner(missionPlanner);
     // 统一规划：规划前置到 MorPexRuntime orchestrate 后（同一实例，MissionRuntime FSM 复用已有 plan 防重复）
     container.runtime.setPlanner(missionPlanner);
-    (container as any).hierarchicalPlanner = hierarchicalPlanner;
-    (container as any).arbitrationEngine = arbitration;
     console.log('[bootstrapUnified] ✅ L3 Planning 已接通：DeliveryPlanner + HierarchicalPlanner(HTN replan) + CrossDepartmentArbitration');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ L3 Planning 接入失败（不阻断）:', (err as Error).message);

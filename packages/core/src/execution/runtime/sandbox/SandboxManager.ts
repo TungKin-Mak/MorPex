@@ -235,7 +235,7 @@ export class SandboxManager {
       } as ExecFileOptions, (err, stdout, stderr) => {
         const duration = Date.now() - t0;
         const killed = err?.killed || false;
-        const exitCode = err ? (err as any).code ?? 1 : 0;
+        const exitCode = err ? (err as { code?: number }).code ?? 1 : 0;
         resolve({
           success: !err && exitCode === 0,
           stdout: String(stdout || '').slice(0, 50000),

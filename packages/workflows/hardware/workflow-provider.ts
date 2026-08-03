@@ -15,27 +15,27 @@ const actions: WorkflowAction[] = [
   {
     name: 'hardware.generate_firmware',
     description: '生成固件 C 源码',
-    execute: async (p) => toResult(await generateAction({}, p as never)),
+    execute: async (p) => toResult(await generateAction({}, p as unknown as Parameters<typeof generateAction>[1])),
   },
   {
     name: 'hardware.compile_firmware',
     description: '编译固件（hex/xbin）',
-    execute: async (p) => toResult(await compileAction({}, p as never)),
+    execute: async (p) => toResult(await compileAction({}, p as unknown as Parameters<typeof compileAction>[1])),
   },
   {
     name: 'hardware.build_project',
     description: '端到端工程构建',
-    execute: async (p) => toResult(await buildProjectAction({}, p as never)),
+    execute: async (p) => toResult(await buildProjectAction({}, p as unknown as Parameters<typeof buildProjectAction>[1])),
   },
   {
     name: 'hardware.flash_firmware',
     description: '烧录固件到 MCU',
-    execute: async (p) => toResult(await flashAction({}, p as never)),
+    execute: async (p) => toResult(await flashAction({}, p as unknown as Parameters<typeof flashAction>[1])),
   },
   {
     name: 'hardware.debug_regs',
     description: '调试寄存器读取',
-    execute: async (p) => toResult(await debugAction({}, p as never)),
+    execute: async (p) => toResult(await debugAction({}, p as unknown as Parameters<typeof debugAction>[1])),
   },
 ];
 

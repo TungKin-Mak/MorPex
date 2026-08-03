@@ -569,14 +569,14 @@ export class PersonalBrain {
       }
     }
 
-    // 恢复 workflow 记忆
+    // 恢复 workflow 记忆（MemoryEntry[] → WorkflowMemoryEntry[] 形状适配）
     if (data.workflow) {
-      this.workflow.fromJSON(data.workflow as any);
+      this.workflow.fromJSON(data.workflow as unknown as import('./types.js').WorkflowMemoryEntry[]);
     }
 
-    // 恢复 decision 记忆
+    // 恢复 decision 记忆（MemoryEntry[] → DecisionMemoryEntry[] 形状适配）
     if (data.decision) {
-      this.decision.fromJSON(data.decision as any);
+      this.decision.fromJSON(data.decision as unknown as import('./types.js').DecisionMemoryEntry[]);
     }
   }
 

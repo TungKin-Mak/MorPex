@@ -26,17 +26,28 @@ export class BrainPersistor {
     if (memoryApi) {
       try {
         const layers = ['episodic', 'semantic', 'preference', 'workflow', 'decision'];
-        const data: Record<string, unknown[]> = {};
+        const data: Record<string, import('./types.js').MemoryEntry[]> = {};
         for (const layer of layers) {
           // 从统一层按层关键词召回（情景/语义层）
           const r = await memoryApi.query({ text: layer, limit: 20 });
           const items = r.hits
             .filter((h) => (h.metadata?.layer as string | undefined) === layer)
-            .map((h) => ({ id: h.id, content: h.content, metadata: h.metadata, layer }));
+            .map((h) => ({
+              id: h.id,
+              layer: layer as import('./types.js').MemoryLayer,
+              content: h.content,
+              metadata: h.metadata ?? {},
+              importance: 0.5,
+              confidence: 0.5,
+              createdAt: Date.now(),
+              lastAccessedAt: Date.now(),
+              accessCount: 1,
+              tags: [],
+            }));
           if (items.length > 0) data[layer] = items;
         }
-        if (Object.keys(data).length > 0 && typeof (brain as any).fromJSON === 'function') {
-          (brain as any).fromJSON(data);
+        if (Object.keys(data).length > 0 && typeof brain.fromJSON === 'function') {
+          brain.fromJSON(data);
         }
         return;
       } catch (err: any) {
@@ -61,7 +72,7 @@ export class BrainPersistor {
 
   static async persist(brain: PersonalBrain, sink?: PersistSink): Promise<void> {
     const { memoryApi, wiki } = normalizeSink(sink);
-    const data = typeof (brain as any).toJSON === 'function' ? (brain as any).toJSON() : {};
+    const data = typeof (brain as { toJSON?: () => Record<string, unknown> }).toJSON === 'function' ? (brain as { toJSON: () => Record<string, unknown> }).toJSON() : {};
     let count = 0;
 
     // 统一入口：经 MemoryAPI 持久化（SQLite 保存）
@@ -70,7 +81,7 @@ export class BrainPersistor {
         for (const [layer, entries] of Object.entries(data)) {
           if (!Array.isArray(entries)) continue;
           for (const entry of entries) {
-            const content = ((entry as any).content ?? '').substring(0, 2000);
+            const content = ((entry as { content?: string }).content ?? '').substring(0, 2000);
             if (!content) continue;
             await memoryApi.rememberEpisode(content, {
               source: 'brain',
@@ -93,9 +104,9 @@ export class BrainPersistor {
         if (!Array.isArray(entries)) continue;
         for (const entry of entries) {
           await wiki.remember({
-            id: 'brain:' + layer + ':' + (entry as any).id,
+            id: 'brain:' + layer + ':' + (entry as { id?: string }).id,
             type: 'brain_memory',
-            name: ((entry as any).content || '').substring(0, 200),
+            name: ((entry as { content?: string }).content || '').substring(0, 200),
             data: entry,
             relations: [],
           });

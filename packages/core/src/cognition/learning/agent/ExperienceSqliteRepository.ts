@@ -2,6 +2,7 @@
  * ExperienceSqliteRepository — 跨 Agent 学习经验 SQLite 持久化
  *
  * v9.2 Stage 2: 共享经验存储的 SQLite 实现。
+ * 说明：残余 `as any` 为 better-sqlite3 动态行桥接（prepare().get()/all() 返回 unknown 行）——库类型限制下的既定桥接。
  */
 import type Database from 'better-sqlite3';
 import type { GeneralizedExperience, ExperienceQuery } from './types.js';

@@ -251,7 +251,7 @@ export class BehaviorTwin {
     const collaborationStyle = this.inferCollaborationStyle(approvalObs);
 
     const durations = missionObs
-      .map(o => (o.data as any).duration as number)
+      .map(o => (o.data as { duration?: number }).duration)
       .filter((d): d is number => d != null && d > 0);
 
     const avgDuration = durations.length > 0
@@ -612,11 +612,11 @@ export class BehaviorTwin {
     let topDownCount = 0;
 
     for (const obs of observations) {
-      const plan = (obs.data as any).plan;
+      const plan = (obs.data as { plan?: { dependencies?: string[]; stepCount?: number } }).plan;
       if (!plan) continue;
 
-      const deps = (plan.dependencies as string[]) || [];
-      const stepCount = (plan.stepCount as number) || 0;
+      const deps = plan.dependencies || [];
+      const stepCount = plan.stepCount || 0;
 
       if (deps.length > stepCount * 1.5) {
         architectureCount++; // many parallel deps = architecture-first
@@ -642,8 +642,8 @@ export class BehaviorTwin {
     if (approvalObs.length === 0 && missionObs.length === 0) return 'medium'; // default
 
     // From approvals: approved/(approved+denied) ratio
-    const approved = approvalObs.filter(o => (o.data as any).approved === true).length;
-    const denied = approvalObs.filter(o => (o.data as any).approved === false).length;
+    const approved = approvalObs.filter(o => (o.data as { approved?: boolean }).approved === true).length;
+    const denied = approvalObs.filter(o => (o.data as { approved?: boolean }).approved === false).length;
     const totalDecisions = approved + denied;
 
     if (totalDecisions > 0) {
@@ -657,7 +657,7 @@ export class BehaviorTwin {
 
     // From missions: accepted risk levels
     const highRiskMissions = missionObs.filter(
-      o => (o.data as any).plan?.riskLevel === 'high'
+      o => (o.data as { plan?: { riskLevel?: string } }).plan?.riskLevel === 'high'
     ).length;
     const totalMissions = missionObs.length;
 
@@ -676,7 +676,7 @@ export class BehaviorTwin {
     }
 
     const hours = observations
-      .map(o => (o.data as any).hour as number)
+      .map(o => (o.data as { hour?: number }).hour)
       .filter(h => h != null)
       .sort((a, b) => a - b);
 
@@ -696,8 +696,8 @@ export class BehaviorTwin {
   private inferReviewHabit(observations: BehaviorObservation[]): BehaviorProfile['reviewHabit'] {
     if (observations.length === 0) return 'milestone'; // default
 
-    const thoughtfulReviews = observations.filter(o => (o.data as any).thoughtful === true).length;
-    const immediateReviews = observations.filter(o => (o.data as any).immediate === true).length;
+    const thoughtfulReviews = observations.filter(o => (o.data as { thoughtful?: boolean }).thoughtful === true).length;
+    const immediateReviews = observations.filter(o => (o.data as { immediate?: boolean }).immediate === true).length;
     const total = observations.length;
 
     // If most approvals are thoughtful (took >5min), user reviews carefully
@@ -711,7 +711,7 @@ export class BehaviorTwin {
     if (observations.length === 0) return 'moderate';
 
     const stepCounts = observations
-      .map(o => (o.data as any).plan?.stepCount as number)
+      .map(o => (o.data as { plan?: { stepCount?: number } }).plan?.stepCount)
       .filter((s): s is number => s != null);
 
     if (stepCounts.length === 0) return 'moderate';
@@ -732,7 +732,7 @@ export class BehaviorTwin {
     // From mission plans, collect unique agent types used
     const types = new Set<string>();
     for (const obs of observations) {
-      const plan = (obs.data as any).plan;
+      const plan = (obs.data as { plan?: { types?: string[] } }).plan;
       if (!plan) continue;
     }
     return [...types].length > 0 ? [...types] : ['coding'];
@@ -741,7 +741,7 @@ export class BehaviorTwin {
   private collectPreferredDomains(observations: BehaviorObservation[]): string[] {
     const domains = new Set<string>();
     for (const obs of observations) {
-      const plan = (obs.data as any).plan;
+      const plan = (obs.data as { plan?: { domains?: string[] } }).plan;
       if (!plan) continue;
     }
     return [...domains];

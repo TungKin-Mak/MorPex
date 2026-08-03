@@ -37,7 +37,7 @@ export const piModelRegistry = {
   /** List models for a provider */
   listModels(provider: string): ModelInfo[] {
     try {
-      const models = getModels(provider as never) as unknown as Array<{
+      const models = getModels(provider as unknown as Parameters<typeof getModels>[0]) as unknown as Array<{
         id: string; name: string; provider: { id: string } | string;
         api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
       }>;
@@ -92,7 +92,7 @@ export const piModelRegistry = {
   },
   getModels: (provider: string) => {
     try {
-      const models = getModels(provider as never) as unknown as Array<{
+      const models = getModels(provider as unknown as Parameters<typeof getModels>[0]) as unknown as Array<{
         id: string; name: string; provider: { id: string } | string;
         api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
       }>;

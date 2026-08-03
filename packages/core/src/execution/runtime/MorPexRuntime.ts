@@ -294,12 +294,14 @@ export class MorPexRuntime {
       //    DeliveryPlannerAdapter 内部发 planner.plan.started/completed；MissionRuntime FSM 复用已有 plan 防重复
       if (this.planner && !(context.mission as { plan?: unknown }).plan) {
         try {
-          // MissionState 无 goal/id 字段（字段为 objective/missionId）——构造 DeliveryPlannerAdapter 期望的 Mission 形状
+          // MissionState 无 goal/id 字段（字段为 objective/missionId）——构造 DeliveryPlannerAdapter 期望的 Mission 形状。
+          // ⚠️ 仅提供 adapter 实际消费的字段（id/goal/departmentId）；完整 Mission 由 MissionRuntime 持有时走正规 createPlan。
+          // （as unknown as Mission：形状适配，非 as never——字段名仍受 Mission 类型校验）
           const plan = await this.planner.createPlan({
             id: context.mission.missionId,
             goal: context.goal.objective,
             departmentId: context.team.departments[0],
-          } as never);
+          } as unknown as import('./mission/types.js').Mission);
           (context.mission as { plan?: unknown }).plan = plan;
           console.log(`[MorPexRuntime] 📋 统一规划完成: ${(plan as { steps?: unknown[] }).steps?.length ?? 0} 步`);
         } catch (err) {
@@ -364,10 +366,11 @@ export class MorPexRuntime {
       }
 
       // ── Phase 3: Artifact Creation（仅由 Runtime 创建，Engine 不再创建）──
+      const outObj = execResult.output as { text?: string; document?: string } | undefined;
       const outputText = typeof execResult.output === 'string'
         ? execResult.output
         : execResult.output && typeof execResult.output === 'object'
-          ? (execResult.output as any).text || (execResult.output as any).document || JSON.stringify(execResult.output, null, 2)
+          ? outObj?.text || String(outObj?.document ?? '') || JSON.stringify(execResult.output, null, 2)
           : String(execResult.output || '');
 
       const docArtifact = this.artifactFacade.create(
@@ -391,7 +394,8 @@ export class MorPexRuntime {
       // ── Phase 4: Verification + Compliance + Approval ──
       const allArtifacts: Artifact[] = context.artifacts.map(id => ({
         id, type: 'document', sourceTask: context.executionId, version: 1,
-        status: 'CREATED' as any, metadata: { output: outputText },
+        // ArtifactNode.status = ArtifactLifecycleStatus，'CREATED' 为合法值（artifact-lifecycle.ts）
+        status: 'CREATED', metadata: { output: outputText },
         createdAt: Date.now(), name: id, lineage: [], updatedAt: Date.now(),
       }));
       const verResult = await this.verificationEngine.verify(allArtifacts);
@@ -587,7 +591,7 @@ export class MorPexRuntime {
               // 召回时除摘要外可还原"当时发生了什么"（team 构成、用了哪些能力、跑了多久）
               team: {
                 departments: context.team?.departments ?? [],
-                agents: (context.team as any)?.agents?.length ?? 0,
+                members: context.team?.members?.length ?? 0,
               },
               capabilitiesCount: context.capabilities?.length ?? 0,
               startedAt: context.startedAt,

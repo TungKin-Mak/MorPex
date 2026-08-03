@@ -3,6 +3,7 @@
  *
  * 负责保存和加载执行快照，支持中断继续执行和失败恢复。
  * 支持双后端: 原有 JSONL（默认）+ SQLite（当传入 db）
+ * 说明：SQLite 分支的 `as any` 为 better-sqlite3 动态行桥接（库类型限制下的既定桥接）。
  *
  * v9.2 Phase 1 增强:
  *   - SQLite 后端 (checkpoints 表)

@@ -80,7 +80,7 @@ export function createAutoMemoryHook(
   return (event: AgentEvent) => {
     if (event.type !== 'agent_end') return;
 
-    const messages = (event as any).messages as AgentMessage[] | undefined;
+    const messages = (event as { messages?: AgentMessage[] }).messages;
     if (!messages || messages.length === 0) return;
 
     const userMsg = messages.find(m => m.role === 'user');
@@ -198,8 +198,8 @@ export function createActivationMemoryHook(
     onAgentEvent: async (event: AgentEvent) => {
       const ctx = contextBuilder(event);
       const memories = await activationEngine.activate(ctx as ActivationContext);
-      // Attach activated memories to event for downstream consumers
-      (event as any).__activatedMemories = memories;
+      // Attach activated memories to event for downstream consumers（运行时扩展字段）
+      (event as { __activatedMemories?: unknown }).__activatedMemories = memories;
     },
   };
 }

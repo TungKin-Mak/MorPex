@@ -33,7 +33,7 @@ export function resolveModel(
   // Try the requested provider
   if (isKnownProvider(provider)) {
     try {
-      return getModel(provider as never, modelId as never) as unknown as Record<string, unknown>;
+      return getModel(provider as unknown as Parameters<typeof getModel>[0], modelId as unknown as Parameters<typeof getModel>[1]) as unknown as Record<string, unknown>;
     } catch { /* fall through */ }
   }
 
@@ -45,7 +45,7 @@ export function resolveModel(
 
   for (const [fbProvider, fbModelId] of fallbacks) {
     try {
-      return getModel(fbProvider as never, fbModelId as never) as unknown as Record<string, unknown>;
+      return getModel(fbProvider as unknown as Parameters<typeof getModel>[0], fbModelId as unknown as Parameters<typeof getModel>[1]) as unknown as Record<string, unknown>;
     } catch { continue; }
   }
 

@@ -314,7 +314,7 @@ export class RiskAnalyzer {
     const matchedDomains = new Set<string>();
 
     for (const step of plan.steps) {
-      const domain = (step as any).domain || '';
+      const domain = step.domain || '';
       for (const sd of sensitiveDomains) {
         if (domain.toLowerCase().includes(sd.toLowerCase())) {
           matchedDomains.add(sd);
@@ -355,8 +355,8 @@ export class RiskAnalyzer {
     const matchedTools = new Set<string>();
 
     for (const step of plan.steps) {
-      const agentType = (step as any).agentType || '';
-      const description = (step as any).description || '';
+      const agentType = step.agentType || '';
+      const description = step.description || '';
 
       for (const st of sensitiveTools) {
         if (agentType.toLowerCase().includes(st.toLowerCase()) ||

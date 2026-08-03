@@ -365,9 +365,9 @@ export class EventBus {
    * @param event - 事件对象
    */
   emitToDomain(domainId: string, event: MorPexEvent): void {
-    // Phase 5.1: 自动注入 zone 元数据
-    (event as any).sourceZone = this.getCurrentDomain();
-    (event as any).targetZone = domainId;
+    // Phase 5.1: 自动注入 zone 元数据（zone 字段为跨域路由扩展，非 MorPexEvent 核心字段）
+    (event as MorPexEvent & { sourceZone?: string }).sourceZone = this.getCurrentDomain();
+    (event as MorPexEvent & { targetZone?: string }).targetZone = domainId;
 
     // 验证事件必须携带 executionId
     if (!event.executionId) {
@@ -456,9 +456,9 @@ export class EventBus {
    * @param event - 事件对象
    */
   broadcastCrossDomain(event: MorPexEvent): void {
-    // Phase 5.1: 自动注入 zone 元数据
-    (event as any).sourceZone = this.getCurrentDomain();
-    (event as any).targetZone = '*';
+    // Phase 5.1: 自动注入 zone 元数据（zone 字段为跨域路由扩展）
+    (event as MorPexEvent & { sourceZone?: string }).sourceZone = this.getCurrentDomain();
+    (event as MorPexEvent & { targetZone?: string }).targetZone = '*';
 
     // 先触发全局监听器
     this.emit(event);

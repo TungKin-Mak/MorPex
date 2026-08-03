@@ -191,13 +191,13 @@ export class CompactionService {
   }
 
   private getDbFileSize(): number {
-    const name = (this.db as any).name
+    const name = (this.db as { name?: string }).name
     if (!name || name === ':memory:') return 0
     try { return fs.statSync(name).size } catch { return 0 }
   }
 
   private getWalFileSize(): number {
-    const name = (this.db as any).name
+    const name = (this.db as { name?: string }).name
     if (!name || name === ':memory:') return 0
     try { return fs.statSync(name + '-wal').size } catch { return 0 }
   }

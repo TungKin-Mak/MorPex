@@ -140,7 +140,7 @@ export class EvolutionSandbox {
           executionId: record.id,
           source: 'evolution-sandbox',
           payload: { ...record, eventType: 'proposed' },
-        } as never);
+        } as unknown as Parameters<IEventStore['append']>[0]);
       } catch {
         // 持久化失败不阻断
       }
@@ -283,7 +283,7 @@ export class EvolutionSandbox {
           revertError: rec.revertError,
           verifyOutcome: rec.verifyOutcome,
         },
-      } as never);
+      } as unknown as Parameters<IEventStore['append']>[0]);
     } catch {
       // 忽略持久化失败
     }

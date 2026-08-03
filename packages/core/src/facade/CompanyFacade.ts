@@ -181,7 +181,7 @@ export class CompanyFacade {
             taskId: result.context?.executionId ?? `exec_${Date.now()}`,
             goal: goal,
             result: result.ok ? 'success' : 'failure',
-            output: result.ok ? (result.executionResult as any)?.output ?? undefined : undefined,
+            output: result.ok ? (result.executionResult as { output?: unknown })?.output ?? undefined : undefined,
             error: result.ok ? undefined : (result.errors?.[0] ?? undefined),
             duration: Date.now() - startTime,
             departmentId: runOpts.departmentId,

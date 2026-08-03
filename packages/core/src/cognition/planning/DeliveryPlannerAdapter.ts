@@ -114,7 +114,7 @@ export class DeliveryPlannerAdapter implements MissionPlanner {
         const dagPlan = await this.opts.hierarchicalPlanner.createPlan(mission.goal, {
           missionId: mission.id,
           originalGoal: mission.goal,
-        } as never);
+        } as unknown as import('./HierarchicalPlanner.js').PlanContext);
         const steps: PlanStep[] = (dagPlan.subGoals ?? []).map((s: { id: string; description: string; dependencies: string[] }, i: number) => ({
           id: s.id, name: (s.description || '').slice(0, 50),
           description: s.description, domain: 'general',

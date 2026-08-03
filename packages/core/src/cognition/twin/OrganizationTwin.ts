@@ -5,6 +5,7 @@
  */
 import { BehaviorTwin } from './BehaviorTwin.js';
 import { DecisionTwin } from '../decision/DecisionTwin.js';
+import { DecisionMemory } from '../memory/DecisionMemory.js';
 import { PreferenceModel } from './PreferenceModel.js';
 
 export interface OrgRole {
@@ -48,7 +49,7 @@ export class OrganizationTwin {
       this.addRole({
         roleId: `role_${r.title}`, title: r.title, department: r.department,
         preferences: { riskTolerance: r.riskTolerance, innovationPreference: r.innovationPreference },
-        twin: { behavior: new BehaviorTwin(), decisions: new DecisionTwin(null as any), preferences: new PreferenceModel() },
+        twin: { behavior: new BehaviorTwin(), decisions: new DecisionTwin(new DecisionMemory()), preferences: new PreferenceModel() },
       });
     }
   }

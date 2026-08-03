@@ -22,7 +22,7 @@ export interface ArchivedContext {
   domain?: string;
   result?: 'success' | 'failure';
   workflow?: unknown;
-  team?: { departments: string[]; agents: number };
+  team?: { departments: string[]; members: number };
   capabilitiesCount?: number;
   budget?: { allocated: number; spent: number };
   risk?: string;

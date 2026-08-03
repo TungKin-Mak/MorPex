@@ -23,14 +23,14 @@ import '../../infrastructure/adapters/pi-augmentations.js';
  * isMemoryHintMessage — 判断是否为记忆注入消息
  */
 export function isMemoryHintMessage(msg: AgentMessage): boolean {
-  return (msg as any).role === 'memoryHint' && Array.isArray((msg as any).memories);
+  return msg.role === 'memoryHint' && Array.isArray(msg.memories);
 }
 
 /**
  * isDagNodeStatusMessage — 判断是否为 DAG 节点状态消息
  */
 export function isDagNodeStatusMessage(msg: AgentMessage): boolean {
-  return (msg as any).role === 'dagNodeStatus' && typeof (msg as any).nodeId === 'string';
+  return msg.role === 'dagNodeStatus' && typeof msg.nodeId === 'string';
 }
 
 // ═══════════════════════════════════════════════════════════════
@@ -44,7 +44,7 @@ export function isDagNodeStatusMessage(msg: AgentMessage): boolean {
  * 将自定义的 memoryHint 消息转为 LLM 可理解的 user 消息格式。
  */
 export function convertMemoryHintToLlm(msg: AgentMessage): AgentMessage {
-  const hint = msg as any;
+  const hint = msg;
   if (hint.role !== 'memoryHint' || !Array.isArray(hint.memories)) {
     return msg;
   }
@@ -61,7 +61,7 @@ export function convertMemoryHintToLlm(msg: AgentMessage): AgentMessage {
  * 用于 AgentLoopConfig.convertToLlm 中。
  */
 export function convertDagNodeStatusToLlm(msg: AgentMessage): AgentMessage {
-  const dns = msg as any;
+  const dns = msg;
   if (dns.role !== 'dagNodeStatus') return msg;
 
   const statusEmoji: Record<string, string> = {
@@ -71,9 +71,10 @@ export function convertDagNodeStatusToLlm(msg: AgentMessage): AgentMessage {
     failed: '❌',
   };
 
+  const status = String(dns.status);
   return {
     role: 'user',
-    content: `[DAG 节点状态] ${statusEmoji[dns.status] ?? '❓'} ${dns.nodeId} (${dns.domain}) → ${dns.status}`,
+    content: `[DAG 节点状态] ${statusEmoji[status] ?? '❓'} ${dns.nodeId} (${dns.domain}) → ${status}`,
   } as AgentMessage;
 }
 

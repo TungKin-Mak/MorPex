@@ -64,7 +64,7 @@ export class XJMcuPipelineAction implements ActionPrimitive {
       r.steps.compile = { ok: false, err: String(e.message || e).slice(0, 100) };
     }
 
-    const xbin = (r.steps.compile as any)?.xbin;
+    const xbin = (r.steps.compile as { xbin?: string } | undefined)?.xbin;
     if (xbin) {
       try {
         execSync(`python -m astrocli freerun "${xbin}"`, { cwd: TC, timeout: 30000 });

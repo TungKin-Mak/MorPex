@@ -17,7 +17,7 @@ export class PersistentMissionStore {
     try {
       await this.store.init();
       const events = await this.store.query({ limit: 10000 });
-      for (const event of events) { this.apply(event as any); }
+      for (const event of events) { this.apply(event); }
       this.ready = true;
       console.log(`[PersistentMissionStore] ✅ 事件源就绪: ${events.length} 事件, ${this.missions.size} Mission`);
     } catch (err) {
@@ -29,7 +29,7 @@ export class PersistentMissionStore {
   async append(type: string, missionId: string, payload: Record<string, unknown>): Promise<void> {
     if (!this.ready) { this.applyDirect(missionId, type); return; }
     const base = { id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`, type, timestamp: Date.now(), executionId: missionId, source: 'event-store', payload };
-    await this.store.append(base as any);
+    await this.store.append(base as unknown as import('../../infrastructure/protocol/events/BaseEvent.js').BaseEvent);
     this.applyDirect(missionId, type);
   }
 

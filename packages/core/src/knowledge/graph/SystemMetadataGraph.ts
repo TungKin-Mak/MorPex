@@ -48,7 +48,7 @@ export class SystemMetadataGraph {
 
     const entityEvents = await eventStore.query({ type: EventType.SYSTEM_ENTITY_REGISTERED });
     for (const evt of entityEvents) {
-      const p = evt.payload as any;
+      const p = evt.payload as { entityId?: string; entityType?: string; name?: string; metadata?: Record<string, unknown>; createdAt?: number } | undefined;
       if (p?.entityId) {
         this.entities.set(p.entityId, {
           id: p.entityId,
@@ -62,7 +62,7 @@ export class SystemMetadataGraph {
 
     const relEvents = await eventStore.query({ type: EventType.SYSTEM_RELATION_ADDED });
     for (const evt of relEvents) {
-      const p = evt.payload as any;
+      const p = evt.payload as { fromId?: string; toId?: string; relationType?: string; weight?: number; createdAt?: number; metadata?: Record<string, unknown> } | undefined;
       if (p?.fromId && p?.toId) {
         this.relations.push({
           fromId: p.fromId,

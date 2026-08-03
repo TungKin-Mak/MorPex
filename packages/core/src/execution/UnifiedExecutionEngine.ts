@@ -507,7 +507,7 @@ export class UnifiedExecutionEngine {
 
         const status = this.missionRuntime.getStatus(missionId);
         if (!status) break;
-        const state = (status as any).state;
+        const state = (status as { state?: string }).state;
         // 终态判断
         if (state === 'COMPLETED' || state === 'completed') {
           const duration = Date.now() - startTime;
@@ -595,7 +595,7 @@ export class UnifiedExecutionEngine {
 
         const status = this.dagRuntime.getStatus(dagExecutionId);
         if (!status) break;
-        const state = (status as any).state;
+        const state = (status as { state?: string }).state;
         if (state === 'completed' || state === 'COMPLETED') {
           return {
             ok: true, executionId: dagExecutionId, mode: 'dag', status: 'completed',

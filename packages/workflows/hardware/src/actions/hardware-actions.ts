@@ -36,7 +36,7 @@ export class HardwareGenerateAction implements ActionPrimitive {
 
   async execute(params: Record<string, unknown>, _context?: { departmentId?: string }): Promise<ActionResult> {
     try {
-      return toResult(await generateAction({}, params as never));
+      return toResult(await generateAction({}, params as unknown as Parameters<typeof generateAction>[1]));
     } catch (e: any) {
       return { success: false, error: String(e.message || e) };
     }
@@ -63,7 +63,7 @@ export class HardwareCompileAction implements ActionPrimitive {
 
   async execute(params: Record<string, unknown>, _context?: { departmentId?: string }): Promise<ActionResult> {
     try {
-      return toResult(await compileAction({}, params as never));
+      return toResult(await compileAction({}, params as unknown as Parameters<typeof compileAction>[1]));
     } catch (e: any) {
       return { success: false, error: String(e.message || e) };
     }
@@ -90,7 +90,7 @@ export class HardwareBuildProjectAction implements ActionPrimitive {
 
   async execute(params: Record<string, unknown>, _context?: { departmentId?: string }): Promise<ActionResult> {
     try {
-      return toResult(await buildProjectAction({}, params as never));
+      return toResult(await buildProjectAction({}, params as unknown as Parameters<typeof buildProjectAction>[1]));
     } catch (e: any) {
       return { success: false, error: String(e.message || e) };
     }
@@ -116,7 +116,7 @@ export class HardwareFlashAction implements ActionPrimitive {
 
   async execute(params: Record<string, unknown>, _context?: { departmentId?: string }): Promise<ActionResult> {
     try {
-      return toResult(await flashAction({}, params as never));
+      return toResult(await flashAction({}, params as unknown as Parameters<typeof flashAction>[1]));
     } catch (e: any) {
       return { success: false, error: String(e.message || e) };
     }
@@ -141,7 +141,7 @@ export class HardwareDebugAction implements ActionPrimitive {
 
   async execute(params: Record<string, unknown>, _context?: { departmentId?: string }): Promise<ActionResult> {
     try {
-      return toResult(await debugAction({}, params as never));
+      return toResult(await debugAction({}, params as unknown as Parameters<typeof debugAction>[1]));
     } catch (e: any) {
       return { success: false, error: String(e.message || e) };
     }

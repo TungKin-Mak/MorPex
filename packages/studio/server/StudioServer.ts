@@ -119,7 +119,7 @@ export class StudioServer {
     });
 
     this.app.get('/api/status', (_req, res) => {
-      const gov = (container as any).governanceDashboard;
+      const gov = container.governanceDashboard;
       res.json({
         phase: 'ideal-aligned',
         departments: companyFacade.listDepartments().length,
@@ -138,7 +138,7 @@ export class StudioServer {
 
     // ── 治理（L1）──
     this.app.get('/api/governance', (_req, res) => {
-      const gov = (container as any).governanceDashboard;
+      const gov = container.governanceDashboard;
       res.json({
         ok: true,
         health: gov?.getSystemHealth?.() ?? null,
@@ -224,7 +224,7 @@ export class StudioServer {
 
     // ── 记忆（L7 MemoryAPI）──
     this.app.get('/api/memory/recall', async (req, res) => {
-      const mem = (container as any).companyMemoryApi;
+      const mem = container.companyMemoryApi;
       if (!mem) return res.json({ ok: false, error: 'memory not initialized' });
       try {
         const r = await mem.query({ text: String(req.query.q ?? ''), limit: 10 });
@@ -234,7 +234,7 @@ export class StudioServer {
       }
     });
     this.app.post('/api/memory/remember', async (req, res) => {
-      const mem = (container as any).companyMemoryApi;
+      const mem = container.companyMemoryApi;
       if (!mem) return res.status(400).json({ ok: false, error: 'memory not initialized' });
       try {
         await mem.rememberEpisode(String(req.body?.content), { source: req.body?.source ?? 'api' });
@@ -285,7 +285,7 @@ export class StudioServer {
     }
     const boot = this.boot;
     if (boot) {
-      (boot.container as any).companyMemoryApi?.close?.();
+      boot.container.companyMemoryApi?.close?.();
     }
     console.log('[Studio] ✅ stopped');
   }

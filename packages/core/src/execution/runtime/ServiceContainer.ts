@@ -173,6 +173,17 @@ export class ServiceContainer {
   readonly controlPlane: ControlPlane;
   readonly learningEngine: CrossAgentLearningEngine;
   private _eventStore?: import('../../infrastructure/protocol/events/store/IEventStore.js').IEventStore;
+
+  /** 公开访问器：EventStore（替代外部 (container as any)._eventStore 绕过） */
+  get eventStore(): import('../../infrastructure/protocol/events/store/IEventStore.js').IEventStore | undefined {
+    return this._eventStore;
+  }
+
+  /** 治理观测面板（bootstrap 挂载，供 StudioServer 显式访问） */
+  governanceDashboard?: { getSystemHealth(): unknown; getCostReport(): unknown; getDeliveryMetrics(): unknown };
+
+  /** 公司记忆 API（bootstrap 挂载，供 StudioServer 显式访问） */
+  companyMemoryApi?: import('../../../../memory/src/api/MemoryApi.js').MemoryApi;
   private _ready: Promise<void>;
 
   constructor() {
@@ -197,7 +208,7 @@ export class ServiceContainer {
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
     // 连接 EventStore 作为真相源（异步初始化，通过 ready 等待）
     this._ready = this.initEventStore();
-    this.artifactFacade.setPersistentStore({ save: (a: any) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as any) });
+    this.artifactFacade.setPersistentStore({ save: (a: unknown) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as unknown as import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactStatus) });
     this.controlPlane = new ControlPlane();
 
     // 初始化跨 Agent 学习引擎
@@ -239,8 +250,8 @@ export class ServiceContainer {
   /** setContextAssemblyEngine — 注入上下文装配引擎到 MorPexRuntime（功能③ 聚焦装配，orchestrate 后调用） */
   setContextAssemblyEngine(engine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null): void {
     this._contextAssemblyEngine = engine;
-    if (typeof (this.runtime as any).setContextAssemblyEngine === 'function') {
-      (this.runtime as any).setContextAssemblyEngine(engine);
+    if (typeof this.runtime.setContextAssemblyEngine === 'function') {
+      this.runtime.setContextAssemblyEngine(engine);
     }
   }
 
@@ -289,14 +300,14 @@ export class ServiceContainer {
         console.log('[ServiceContainer] 🔒 EventStore 严格模式已启用 (MORPEX_STRICT_EVENTSTORE=1)');
       }
       this.missionController.setEventStore(this._eventStore);
-      if (typeof (this.artifactFacade as any).setEventStore === 'function') {
-        (this.artifactFacade as any).setEventStore(this._eventStore);
+      if (typeof this.artifactFacade.setEventStore === 'function') {
+        this.artifactFacade.setEventStore(this._eventStore);
       }
       // 接入 SystemMetadataGraph
       systemMetadataGraph.setEventStore(this._eventStore);
       // 功能③：历史抽离完整快照入 EventStore（MorPexRuntime 按 taskRef 召回精确还原）
-      if (typeof (this.runtime as any).setEventStore === 'function') {
-        (this.runtime as any).setEventStore(this._eventStore);
+      if (typeof this.runtime.setEventStore === 'function') {
+        this.runtime.setEventStore(this._eventStore);
       }
       console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade + SystemMetadataGraph + MorPexRuntime');
     } catch (err) {
@@ -387,12 +398,13 @@ export class ServiceContainer {
 
         try {
           const result = await realRuntime.run(dag, context || {});
-          const failed = (result as any)?.failedNodes?.length > 0 || (result as any)?.success === false;
+          // ⚠️ 修正：DAGResult.failedNodes 为 number（非数组）——原 `(result as any)?.failedNodes?.length` 恒 false（as any 掩盖的 bug）
+          const failed = result.failedNodes > 0 || result.success === false;
           statusMap.set(dagId, {
             state: failed ? 'failed' : 'completed',
             dagId,
             result,
-            error: failed ? String((result as any)?.error ?? 'node failure') : undefined,
+            error: failed ? String(result.errors?.[0]?.error ?? 'node failure') : undefined,
           });
           return { executionId: dagId, ...result };
         } catch (err) {

@@ -279,7 +279,7 @@ export class UserProfileProvider implements FragmentProvider {
       };
     }
     try {
-      const facts = await this.ontology.queryObjects({ type: 'User', limit: 10 } as never);
+      const facts = await this.ontology.queryObjects({ type: 'User', limit: 10 } as unknown as Parameters<import('../../ontology/OntologyService.js').OntologyService['queryObjects']>[0]);
       const target =
         (input.userId ? facts.find((f) => f.object.id === input.userId) : undefined) ?? facts[0];
       if (target) {

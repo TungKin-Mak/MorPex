@@ -87,11 +87,11 @@ export class ToolExecutionProxy {
       worker.on('message', (msg: Record<string, unknown>) => {
         switch (msg.type) {
           case 'progress':
-            onProgress?.(msg.partial as any);
+            onProgress?.(msg.partial as unknown as AgentToolResultAny);
             break;
           case 'completed':
             this.cleanup(toolCallId, timeoutId, memMonitor);
-            resolve(msg.result as any);
+            resolve(msg.result as unknown as Record<string, unknown>);
             break;
           case 'error':
             this.cleanup(toolCallId, timeoutId, memMonitor);

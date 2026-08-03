@@ -16,6 +16,12 @@
 import type { MissionPlanner } from '../MissionRuntime.js';
 import type { Mission, MissionPlan } from '../types.js';
 
+/** MetaPlanner 最小接口（弱耦合：接受任意含 orchestrate/wrapOrchestrate 的对象或 null） */
+interface MetaPlannerLike {
+  wrapOrchestrate?: (mission: unknown, context?: Record<string, unknown>) => Promise<unknown>;
+  orchestrate?: (mission: unknown, context?: Record<string, unknown>) => Promise<unknown>;
+}
+
 /** Twin 约束接口（与 PlannerConstraint 兼容） */
 interface PlannerConstraintShape {
   avoidDomains?: string[];
@@ -26,16 +32,16 @@ interface PlannerConstraintShape {
 }
 
 export class MetaPlannerAdapter implements MissionPlanner {
-  /** MetaPlanner 实例（通过 any 接口避免类型依赖） */
-  private metaPlanner: any;
+  /** MetaPlanner 最小接口（弱耦合：避免强依赖具体 MetaPlanner 实现；orchestrate/wrapOrchestrate 可选） */
+  private metaPlanner: MetaPlannerLike | null;
 
   /** 适配器就绪状态 */
   private _ready = false;
 
   /**
-   * @param metaPlanner - MetaPlanner 实例（any 类型，接受 MetaPlanner 或 null）
+   * @param metaPlanner - MetaPlanner 实例（窄接口，接受任意含 orchestrate/wrapOrchestrate 的对象或 null）
    */
-  constructor(metaPlanner: any) {
+  constructor(metaPlanner: MetaPlannerLike | null) {
     this.metaPlanner = metaPlanner;
     this._ready = metaPlanner != null;
   }
@@ -66,12 +72,12 @@ export class MetaPlannerAdapter implements MissionPlanner {
     }
 
     try {
-      // 尝试调用 MetaPlanner 的 orchestrate 方法
+      // 尝试调用 MetaPlanner 的 orchestrate 方法（窄接口方法存在性守卫）
       const orchestrateFn =
-        typeof (this.metaPlanner as any).wrapOrchestrate === 'function'
-          ? (this.metaPlanner as any).wrapOrchestrate.bind(this.metaPlanner)
-          : typeof (this.metaPlanner as any).orchestrate === 'function'
-            ? (this.metaPlanner as any).orchestrate.bind(this.metaPlanner)
+        typeof this.metaPlanner?.wrapOrchestrate === 'function'
+          ? this.metaPlanner.wrapOrchestrate.bind(this.metaPlanner)
+          : typeof this.metaPlanner?.orchestrate === 'function'
+            ? this.metaPlanner.orchestrate.bind(this.metaPlanner)
             : null;
 
       if (!orchestrateFn) {
@@ -99,7 +105,7 @@ export class MetaPlannerAdapter implements MissionPlanner {
       const metaResult = await orchestrateFn({
         goal: mission.goal,
         context,
-      });
+      }) as { riskLevel?: string; estimatedDuration?: number; reasoning?: string; dag?: { nodes?: unknown[] }; nodes?: unknown[] } | null | undefined;
 
       // 从 MetaPlanner 结果中提取节点/DAG
       const nodes = metaResult?.dag?.nodes || metaResult?.nodes || [];
@@ -120,8 +126,9 @@ export class MetaPlannerAdapter implements MissionPlanner {
         priority: node.priority || (idx + 1),
       }));
 
-      // 评估风险等级
-      const riskLevel = metaResult?.riskLevel
+      // 评估风险等级（收窄为 MissionPlan 合法字面量）
+      const riskLevel: 'low' | 'medium' | 'high' =
+        (metaResult?.riskLevel as 'low' | 'medium' | 'high' | undefined)
         || this.evaluateRisk(steps)
         || 'low';
 

@@ -56,7 +56,7 @@ export class GoalController {
       // 构造简化的 Mission + Plan 供风险分析
       const plan = {
         steps: [{ id: 'step_1', name: rawGoal, domain: context.domain || 'general', deps: [], description: rawGoal, estimatedDuration: 3600000 }],
-        riskLevel: context.riskLevel || 'LOW',
+        riskLevel: context.riskLevel || 'low',
         estimatedDuration: 3600000,
         reasoning: context.objective || rawGoal,
       };
@@ -72,9 +72,11 @@ export class GoalController {
         metadata: {},
       };
 
+      // 形状适配：局部构造的 mission/plan 覆盖 assessMission 消费字段（goal/owner/state/steps/riskLevel），
+      // 非完整 Mission/MissionPlan 字面量（缺类型必填的次要字段）——as unknown as 明确适配，非 as never
       const assessment = this.riskAnalyzer.assessMission(
-        mission as any,
-        plan as any,
+        mission as unknown as import('../../execution/runtime/mission/types.js').Mission,
+        plan as unknown as import('../../execution/runtime/mission/types.js').MissionPlan,
       );
 
       // 高风险 → 需要审批
@@ -116,7 +118,7 @@ export class GoalController {
       return {
         approved: true,
         context,
-        riskLevel: (context.riskLevel as any) || 'LOW',
+        riskLevel: (context.riskLevel as RiskLevel | undefined) || 'low',
       };
     }
   }

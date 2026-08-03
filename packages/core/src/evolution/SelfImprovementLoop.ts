@@ -77,7 +77,7 @@ export class SelfImprovementLoop {
       let simulationResult = null;
       if (this.simulator) {
         try {
-          simulationResult = await this.simulator.simulate(proposal, metrics as any);
+          simulationResult = await this.simulator.simulate(proposal, metrics as unknown as Parameters<typeof this.simulator.simulate>[1]);
         } catch { /* 降级 */ }
       }
       this.transition('evaluation');

@@ -21,7 +21,7 @@ export class ArtifactFacade {
     this.eventBus = eventBus;
   }
 
-  setPersistentStore(store: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean }): void {
+  setPersistentStore(store: { save: (artifact: ArtifactNode) => void; transition: (id: string, to: string) => boolean }): void {
     this.store = store;
   }
 
@@ -41,7 +41,7 @@ export class ArtifactFacade {
 
     const createdEvents = await eventStore.query({ type: EventType.ARTIFACT_CREATED });
     for (const evt of createdEvents) {
-      const p = evt.payload as any;
+      const p = evt.payload as { artifactId?: string; type?: string; name?: string; version?: number; sourceTask?: string } | undefined;
       if (p?.artifactId) {
         const node: ArtifactNode = {
           id: p.artifactId,
@@ -63,7 +63,7 @@ export class ArtifactFacade {
     const updatedEvents = await eventStore.query({ type: EventType.ARTIFACT_UPDATED });
     updatedEvents.sort((a, b) => a.timestamp - b.timestamp);
     for (const evt of updatedEvents) {
-      const p = evt.payload as any;
+      const p = evt.payload as { artifactId?: string; status?: import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactLifecycleStatus } | undefined;
       if (p?.artifactId) {
         const art = this.artifacts.get(p.artifactId);
         if (art) {
@@ -164,7 +164,7 @@ export class ArtifactFacade {
     this.eventBus!.emit({
       id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 4)}`,
       type, timestamp: Date.now(),
-      executionId: (payload as any)?.sourceTask || 'artifact',
+      executionId: (payload as { sourceTask?: string })?.sourceTask || 'artifact',
       source: 'artifact-facade',
       payload,
     });

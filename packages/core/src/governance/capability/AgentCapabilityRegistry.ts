@@ -9,6 +9,11 @@ export interface CapabilityNode {
   totalRuns: number;
 }
 
+/** 能力树节点（children 为子树节点；与注册表 CapabilityNode.children(string[]) 分离，getTree 专用） */
+export interface CapabilityTreeNode extends Omit<CapabilityNode, 'children'> {
+  children: CapabilityTreeNode[];
+}
+
 export interface AgentDeclaration {
   agentId: string;
   name: string;
@@ -47,14 +52,14 @@ export class AgentCapabilityRegistry {
 
   static getChildren(parentName: string): CapabilityNode[] {
     const parent = AgentCapabilityRegistry.graph.get(parentName);
-    return parent ? parent.children.map(c => AgentCapabilityRegistry.graph.get(c)).filter(Boolean) as CapabilityNode[] : [];
+    return parent ? parent.children.map(c => AgentCapabilityRegistry.graph.get(c)).filter((x): x is CapabilityNode => x !== undefined) : [];
   }
 
-  static getTree(rootName: string): CapabilityNode | undefined {
+  static getTree(rootName: string): CapabilityTreeNode | undefined {
     const root = AgentCapabilityRegistry.graph.get(rootName);
     if (!root) return undefined;
-    const build = (n: CapabilityNode): CapabilityNode => ({
-      ...n, children: n.children.map(c => { const ch = AgentCapabilityRegistry.graph.get(c); return ch ? build(ch) : null; }).filter(Boolean) as any,
+    const build = (n: CapabilityNode): CapabilityTreeNode => ({
+      ...n, children: n.children.map(c => { const ch = AgentCapabilityRegistry.graph.get(c); return ch ? build(ch) : null; }).filter((x): x is CapabilityTreeNode => x !== null),
     });
     return build(root);
   }

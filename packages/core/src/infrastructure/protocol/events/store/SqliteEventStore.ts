@@ -1,6 +1,10 @@
 /**
  * SqliteEventStore — SQLite 后端事件存储
  *
+ * 说明：本文件残余 `as any` 均为 better-sqlite3 动态行桥接（prepare().all()/get() 返回 unknown
+ * 行，转业务行类型）；此类转换属库类型限制下的既定桥接，非类型捷径。可辨识字段的访问
+ * （如 event.aggregateId）已用窄接口 `as { field?: T }` 替代。
+ *
  * v9.2 Stage 0: 替代 JSONL 事件存储，提供：
  *   - WAL 模式（并发读安全）
  *   - 事务批量写入
@@ -474,8 +478,8 @@ export class SqliteEventStore implements IEventStore {
       event.executionId,
       event.source ?? '',
       payload,
-      (event as any).aggregateId ?? null,
-      (event as any).version ?? 1
+      (event as { aggregateId?: string }).aggregateId ?? null,
+      (event as { version?: number }).version ?? 1
     );
   }
 
@@ -498,8 +502,8 @@ export class SqliteEventStore implements IEventStore {
           event.executionId,
           event.source ?? '',
           payload,
-          (event as any).aggregateId ?? null,
-          (event as any).version ?? 1
+          (event as { aggregateId?: string }).aggregateId ?? null,
+          (event as { version?: number }).version ?? 1
         );
       }
     });
