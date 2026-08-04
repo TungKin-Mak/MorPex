@@ -580,7 +580,7 @@ export class DeliveryPlanner {
 能力可选: analyze/design/code/test/write/research/review/deploy
 规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
 
-        const result = await piBridgeForQuick.generateText({ prompt, maxTokens: 300, temperature: 0.2 });
+        const result = await piBridgeForQuick.generateText({ prompt, temperature: 0.2 });
         const steps = this.parseQuickSteps(result.text, planId);
 
         if (steps.length > 0) {

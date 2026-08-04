@@ -154,7 +154,7 @@ export class ToolFactory {
 只返回 JSON，不要其他内容。`;
 
     try {
-      const response = await this.llmCaller!.generateText({ prompt, maxTokens: 500, temperature: 0.2 });
+      const response = await this.llmCaller!.generateText({ prompt, temperature: 0.2 });
       const jsonMatch = response.text.match(/\{[\s\S]*\}/);
       if (jsonMatch) {
         return JSON.parse(jsonMatch[0]) as ToolSchema;

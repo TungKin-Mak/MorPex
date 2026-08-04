@@ -116,7 +116,7 @@ ${taskSummary || '(无)'}
 }`;
 
     try {
-      const response = await this.llmCaller!.generateText({ prompt, maxTokens: 800, temperature: 0.3 });
+      const response = await this.llmCaller!.generateText({ prompt, temperature: 0.3 });
       const result = this.parseLLMResponse(response.text);
       if (result && result.insights.length > 0) {
         return result;

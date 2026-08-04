@@ -496,7 +496,7 @@ export class ServiceContainer {
 4. 前后端完整实现
 
 输出结果:`;
-            const result = await self.piBridge.generateText({ prompt, maxTokens: 2000 });
+            const result = await self.piBridge.generateText({ prompt });
             const outputText = result.text || '';
             return {
               success: true,
