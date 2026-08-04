@@ -87,8 +87,8 @@
 
 - **仓库**：单一 8 层纯净架构；696 tracked / 306 core 源文件；与 origin/master 同步
 - **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件/727 通过+5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
-- **✅ 会话 4 多 Agent 编排框架已交付**（P0+P1+P2）：总大脑（OrchestratorAgent 审计循环）+ step-agent（agentSpawner + 原语工具）+ DAG 上游传递；生成类任务主路径从 executeViaMission（嵌套卡死）切到 orchestrator；修复 3 个隐藏根因（DAGRuntime 构造器丢 nodeHandler、PiBridge 不传 models/丢工具 execute、yaml CRLF 注释解析）；e2e 实测 GLM 交付完整架构文档
-- **持续项**（非紧急）：覆盖率提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；真实 token 成本计费未接入（orchestrator onTokenUsage 钩子已预留）
+- **✅ 会话 4 多 Agent 编排框架已交付**（提交区间 `aa72aff..f770603`，6 提交）：总大脑（OrchestratorAgent 审计循环）+ step-agent（agentSpawner + 原语工具）+ DAG 上游传递；生成类任务主路径从 executeViaMission（嵌套卡死）切到 orchestrator；修复 3 个隐藏根因（DAGRuntime 构造器丢 nodeHandler、PiBridge 不传 models/丢工具 execute、yaml CRLF 注释解析）+ 审查轮必修（工具参数丢弃假阳性）+ 优化轮（onTokenUsage 真实 token / step-agent 显式超时）；e2e 实测 GLM 交付完整架构文档
+- **持续项**（非紧急）：覆盖率提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；CostController 全链路计费未接（onTokenUsage hook 精度已修）；总大脑/step-agent Session 化（跨会话讨论）未做（当前进程内编排）；① 微信接入、②③ Phase 2 第二批仍开放
 
 ## 当前开放决策（会话 2 待定）
 
@@ -273,7 +273,7 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 
 ---
 
-### ═══════ 会话 4 优化轮（2026-08-04，commit 待记录）═══════
+### ═══════ 会话 4 优化轮（2026-08-04，commit f83e102）═══════
 
 实现轮（aa72aff）之后的强制优化阶段，两处真实修复 + 测试补强：
 
@@ -297,7 +297,7 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 
 ---
 
-### ═══════ 会话 4 审查轮补：e2e 预算 flaky 修复（2026-08-05，commit 待记录）═══════
+### ═══════ 会话 4 审查轮补：e2e 预算 flaky 修复（2026-08-05，commit f770603）═══════
 
 审查轮把 SSE/observability e2e 预算 180s→300s 后，独立复跑发现**仍 flaky**：
 
