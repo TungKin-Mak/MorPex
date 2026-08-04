@@ -84,12 +84,15 @@ export default {
     },
 
     /* ── evaluation may depend on ontology ── */
+    // ⚠️ 2026-08-05 修复：白名单路径为重构前旧目录（ontology//metadata//protocol/ 不存在）。
+    // 8 层布局下 ontology/artifact 归 L2 knowledge/，事件类型归 L8 infrastructure/protocol/——
+    // L6 evaluation 读 L2 知识做合规评分 + 发标准审计事件，与架构文档/代码注释意图一致（非规避）。
     {
       name: 'eval-ontology-allowed',
-      comment: 'evaluation/ may depend on ontology/ for compliance scoring',
+      comment: 'evaluation/ may depend on L2 knowledge (ontology/artifact) + infrastructure/protocol for compliance scoring & audit events',
       severity: 'error',
       from: { path: 'packages/core/src/evaluation/' },
-      to: { pathNot: ['packages/core/src/evaluation/', 'packages/core/src/ontology/', 'packages/core/src/metadata/', 'packages/core/src/protocol/', 'node_modules'] },
+      to: { pathNot: ['packages/core/src/evaluation/', 'packages/core/src/knowledge/', 'packages/core/src/infrastructure/protocol/', 'node_modules'] },
     },
 
     /* ── No circular dependencies between packages ── */
