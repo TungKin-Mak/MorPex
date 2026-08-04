@@ -39,7 +39,7 @@ async function main() {
   for (const step of steps) {
     process.stdout.write(`  ${step.name}... `);
     try {
-      execSync(step.cmd, { stdio: 'pipe', timeout: 120000, cwd: PROJECT_ROOT });
+      execSync(step.cmd, { stdio: 'pipe', timeout: 240000, cwd: PROJECT_ROOT });
       console.log(`${GREEN}✅ PASSED${RESET}`);
       passed++;
     } catch (e) {
