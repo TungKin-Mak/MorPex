@@ -43,6 +43,8 @@ const timeoutIdx = args.indexOf('--timeout');
 const timeoutMs = timeoutIdx >= 0 ? parseInt(args[timeoutIdx + 1], 10) : 180_000; // 单任务超时
 const autoRetryIdx = args.indexOf('--retries');
 const autoRetries = autoRetryIdx >= 0 ? parseInt(args[autoRetryIdx + 1], 10) : 2; // 429/5XX 自动重试次数
+const concurrencyIdx = args.indexOf('--concurrency');
+const concurrency = concurrencyIdx >= 0 ? parseInt(args[concurrencyIdx + 1], 10) : 5; // 并发数
 
 /** 延时 */
 function sleep(ms: number): Promise<void> {
@@ -150,12 +152,12 @@ async function main(): Promise<void> {
   const tasks = TASKS.filter((t) => (only ? t.departmentName === only : true)).slice(0, limit);
   console.log(`[run] 任务数: ${tasks.length}\n`);
 
+  // 5. 单任务执行（抽取为函数，支持并发）
+  async function runOneTask(num: number, task: BatchTask): Promise<TaskResult> {
   // 5. 循环执行
   const results: TaskResult[] = [];
   const startAll = Date.now();
-  for (let i = 0; i < tasks.length; i++) {
-    const task = tasks[i];
-    const num = i + 1;
+
     console.log(`─── 任务 ${num}/${tasks.length} ───`);
     console.log(`  [${task.departmentName}] ${task.goal.slice(0, 60)}…`);
 
@@ -245,17 +247,25 @@ async function main(): Promise<void> {
       }
     }
 
-    results.push({ index: num, task, ok, missionId, durationMs, error, calls, snapshot });
     console.log(`  ➜ ok=${ok} 耗时=${(durationMs / 1000).toFixed(1)}s 调用=${calls.length} ${missionId ? `mission=${missionId}` : ''}`);
     if (error) console.log(`  ⚠️ error: ${error.slice(0, 120)}`);
     console.log('');
+    return { index: num, task, ok, missionId, durationMs, error, calls, snapshot };
+  };
 
-    // 限流退避：grok2api 有请求频率限制，任务间延时（即使成功也等，防触发限流）
-    if (i < tasks.length - 1) {
-      await sleep(delayMs);
-    }
+
+
+
+  // 5'. 并发执行（默认 5 并发；每批 Promise.all）
+  const results: TaskResult[] = [];
+  const startAll = Date.now();
+  for (let i = 0; i < tasks.length; i += concurrency) {
+    const batch = tasks.slice(i, i + concurrency);
+    const batchResults = await Promise.all(
+      batch.map((task, j) => runOneTask(i + j + 1, task)),
+    );
+    results.push(...batchResults);
   }
-
   // 6. 生成报告
   mkdirSync(REPORT_DIR, { recursive: true });
   for (const r of results) {
@@ -321,7 +331,8 @@ function escapeMd(s: string): string {
 }
 
 // 仅直接运行时执行（import 供测试时不启动批次）
-if (import.meta.url === new URL(process.argv[1] ?? '', 'file:').href) {
+import { pathToFileURL } from 'node:url';
+if (import.meta.url === pathToFileURL(process.argv[1] ?? '').href) {
   main().catch((err) => {
     console.error('❌ 批量运行失败:', err);
     process.exit(1);
