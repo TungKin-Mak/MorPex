@@ -500,3 +500,33 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 2. **Session 治理前端/UI**（agent-sessions 读取 API 已就绪，UI 未做）
 3. **结构修正器 AST/tsc 适配器增强**（eslint 已验，tsc 型校验未接）
 4. 中文关键词风险分级（defaultRiskGrader 当前英文-only，中文 goal 落 low）
+
+---
+
+## ═════════ 会话 8：结构修正 AST/tsc 适配器（2026-08-05，commit 06f836c）═════════
+
+### 交付内容（功能② Phase 2 第二批增强——eslint 之后补 AST + tsc 两级）
+1. **ast-utils.ts**（新，workflows/software/src/rules）——TypeScript Compiler API 工具：
+   - `typeCheck`：内存内 TS Program 类型检查（自定义 CompilerHost 虚拟文件 + typescript 自带 lib.d.ts，零磁盘写入，自包含单文件；>100KB 跳过不误报）
+   - `findVarDeclarations`：AST 识别 var（`variable`/`var2` 标识符零误报）
+   - `findEvalCalls`：裸 eval()/Function()/new Function() 调用（`foo.eval()`/`obj.Function()` 成员访问零误报 = "区分声明/调用/成员访问"）
+   - `fixVarToLetConst`：AST 变换 var→const/let（**const 推断**：有初始化且未重赋值→const，否则→let——优于 eslint no-var 恒转 let；覆盖 VariableStatement + For 初始化）
+2. **structural-ast-tsc.ts**（新）——三个组件 + 注册：
+   - `ASTDetector`（ruleType='ast'）：规则 no-var-ast / no-eval-call（AST 级，无文本误报）
+   - `TscTypeCheckDetector`（ruleType='tsc'）：规则 tsc-type-check——生成代码须通过内存内 tsc 类型校验（语法+语义诊断清零）
+   - `TscStructuralCorrector`（type='tsc'）：canHandle tsc 规则 + no-var-ast；机械修 var→const/let，不可修的类型错误以 note 报告（信息经违规 matchedText 传给 LLM 重试路径）
+3. **bootstrap** 接线（3 规则默认 pending 待人工确认）+ **13 新用例**（全程无 LLM，纯确定性）
+
+### 关键设计决策
+- canHandle 覆盖 no-var-ast：var 不是类型错误（tsc 接受 var），但 AST 检测命中 var 后需修正器机械修——故 tsc 修正器同时处理 'tsc' 与 'no-var-ast' 规则；'no-eval-call' 无机械修法（移除 eval 不安全）→ 不匹配 → 升级 LLM 重试，不静默放行（已测）
+- correctedCount=0 时 core 的 applyStructuralCorrection 不收集修正器 note（信息经违规 matchedText 承载，测试已按此契约断言）
+- TS 版本坑：`ts.factory.updateVariableDeclarationList` 只保留原 flags，改 let/const 需 `createVariableDeclarationList(decls, newFlags)`；transformer 返回类型需显式断言 SourceFile
+
+### 门禁（全部亲测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 violations（604 模块 1191 依赖）｜ ✅ 全量 vitest **91 文件 / 803 通过 + 5 skipped 零失败** ｜ ✅ 工作树干净、无 e2e 污染
+
+### 遗留（下一会话候选）
+1. **微信接入**（企业微信 vs 个人微信待决策，用户跳过）
+2. **Session 治理前端/UI**（agent-sessions 读取 API 已就绪，UI 未做）
+3. **中文关键词风险分级增强**（defaultRiskGrader 英文-only，中文 goal 落 low）
+4. AST/tsc 修正器增强：`var x: number = "str"` 类类型错误当前不可机械修（依赖 LLM 重试）；完整 AST 重写（import 补全/类型推断）为后续
