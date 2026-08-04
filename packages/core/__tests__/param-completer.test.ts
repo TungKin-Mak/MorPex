@@ -34,7 +34,7 @@ describe('paramCompleter', () => {
 
   it('buildExtractPrompt 无缺失 → 基础 prompt；有缺失 → 带补全提示', () => {
     const base = buildExtractPrompt('生成报告', 'artifact_generation', '{"required":["type"]}');
-    expect(base).toContain('输出 JSON:');
+    expect(base).toContain('直接输出纯 JSON');
     expect(base).not.toContain('缺失');
 
     const withMissing = buildExtractPrompt('生成报告', 'artifact_generation', '{"required":["type"]}', ['type']);
