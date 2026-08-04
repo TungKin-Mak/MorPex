@@ -23,5 +23,5 @@ export type { ContextAssemblyConfig } from './ContextAssemblyEngine.js'
 
 export { ContextPersistence } from './ContextPersistence.js'
 
-export { loadByTaskRef, listTaskRefs } from './ContextArchive.js'
-export type { ArchivedContext } from './ContextArchive.js'
+export { loadByTaskRef, listTaskRefs, loadMerged } from './ContextArchive.js'
+export type { ArchivedContext, MergedTaskContext } from './ContextArchive.js'

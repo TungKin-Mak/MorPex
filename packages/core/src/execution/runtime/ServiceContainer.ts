@@ -15,6 +15,7 @@ import { DAGRuntime } from './dag/DAGRuntime.js';
 import { StepAgentExecutor } from './dag/StepAgentExecutor.js';
 import { OrchestratorAgent } from '../orchestration/OrchestratorAgent.js';
 import { AgentSessionStore } from '../orchestration/AgentSessionStore.js';
+import { ContextPersistence } from '../../knowledge/context/ContextPersistence.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../../governance/control-plane/ControlPlane.js';
@@ -186,6 +187,33 @@ export class ServiceContainer {
     return this._eventStore;
   }
 
+  // ═══════════════════════════════════════════════════════════════
+  // 功能③ Phase 2：统一召回接口（ContextPersistence 装配快照 + EventStore 权威快照）
+  // ═══════════════════════════════════════════════════════════════
+
+  private _contextPersistence: import('../../knowledge/context/ContextPersistence.js').ContextPersistence | null = null;
+
+  /**
+   * getContextPersistence — 惰性构造装配快照持久化（共享 EventStore 的 SQLite db）
+   * EventStore 非 SqliteEventStore（无 getDatabase）→ 返回 null（统一召回退化为仅 EventStore 侧）。
+   */
+  getContextPersistence(): import('../../knowledge/context/ContextPersistence.js').ContextPersistence | null {
+    if (this._contextPersistence) return this._contextPersistence;
+    if (!this._eventStore) return null;
+    const db = (this._eventStore as unknown as { getDatabase?: () => unknown }).getDatabase?.();
+    if (!db) return null;
+    this._contextPersistence = new ContextPersistence(db as never);
+    return this._contextPersistence;
+  }
+
+  /**
+   * recallTaskContext — 统一召回：按任务身份 ID 合并两存储快照（EventStore 权威 + 装配快照）
+   */
+  async recallTaskContext(taskRef: string): Promise<import('../../knowledge/context/ContextArchive.js').MergedTaskContext> {
+    const { loadMerged } = await import('../../knowledge/context/ContextArchive.js');
+    return loadMerged(this._eventStore, this.getContextPersistence(), taskRef);
+  }
+
   /** 治理观测面板（bootstrap 挂载，供 StudioServer 显式访问） */
   governanceDashboard?: { getSystemHealth(): unknown; getCostReport(): unknown; getDeliveryMetrics(): unknown };
 
@@ -310,8 +338,7 @@ export class ServiceContainer {
   private async initEventStore(): Promise<void> {
     try {
       const { UnifiedEventStore } = await import('../../infrastructure/protocol/events/store/UnifiedEventStore.js');
-      this._eventStore = new UnifiedEventStore();
-      // 严格模式包装
+      this._eventStore = new UnifiedEventStore();      // 严格模式包装
       if (process.env.MORPEX_STRICT_EVENTSTORE === '1') {
         console.log('[ServiceContainer] 🔒 EventStore 严格模式已启用 (MORPEX_STRICT_EVENTSTORE=1)');
       }
