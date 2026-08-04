@@ -311,7 +311,7 @@ export async function bootstrapUnified(options?: {
   // 6) 注入 LLM 生成器 + 文件写入器（文件经 FileOperationPrimitive 落盘）
   const fileOpPrimitive = new FileOperationPrimitive();
   ArtifactGenerationPrimitive.setLLMCaller((prompt: string) =>
-    piBridgeWrapper.generateText({ prompt, maxTokens: 2000 }).then((r) => r.text),
+    piBridgeWrapper.generateText({ prompt, maxTokens: 32000 }).then((r) => r.text),
   );
   ArtifactGenerationPrimitive.setFileWriter(async (path: string, content: string, deptId: string, gateContext?) =>
     fileOpPrimitive.execute({ operation: 'write', path, content }, { departmentId: deptId, gateContext }),
