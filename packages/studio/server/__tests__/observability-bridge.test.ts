@@ -8,7 +8,13 @@
  *   - /topology 反映真实调用边
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { StudioServer } from '../StudioServer.js';
+
+// ⚠️ 长执行 HTTP 客户端：/api/execute、/api/chat/send 在服务端完整执行（deepseek 下实测 ~277s）
+//    后才返回 headers，undici 全局 fetch 默认 headersTimeout=300s 会提前中断（实测 SSE 测试发生
+//    UND_ERR_HEADERS_TIMEOUT）→ 显式 dispatcher 拉长到 600s，消除延迟波动下的 flaky。
+const longRequestDispatcher = new Agent({ headersTimeout: 600000, bodyTimeout: 600000 });
 
 let server: StudioServer;
 let baseUrl: string;
@@ -51,11 +57,12 @@ describe('架构可观测 — 服务接线', () => {
   });
 });
 
-describe('架构可观测 — 真实执行产生观测', { timeout: 300000 }, () => {
+describe('架构可观测 — 真实执行产生观测', { timeout: 420000 }, () => {
   it('POST /api/execute 真实执行 → observations 记录调用链 + 执行 ID 可查', async () => {
-    const execRes = await fetch(`${baseUrl}/api/execute`, {
+    const execRes = await undiciFetch(`${baseUrl}/api/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal: '写一个 todo 应用的代码实现' }),
+      dispatcher: longRequestDispatcher,
     });
     const execBody = await execRes.json();
     expect(execRes.status).toBe(200);
@@ -69,7 +76,9 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 300000 }, ()
     expect(mine.length).toBeGreaterThanOrEqual(2); // started + completed
     // 层标注正确（L5-execution 执行引擎）
     expect(mine.some((o: any) => o.source.layer === 'L5-execution')).toBe(true);
-  }, 300000);
+    // ⚠️ 预算：deepseek（enabled=false）下真实执行实测 ~277s（step-agent 180s 超时 → fallback 完成），
+    //    300s 预算在延迟波动下超时（实测 300007ms 失败）→ 420s（实测×1.5 安全余量）。生产 GLM 快得多。
+  }, 420000);
 
   it('span-tree 返回该执行的 span 链（含 parentId 父子关系）', async () => {
     const { status, body } = await getJson(`/api/observability/span-tree/${execId}`);
@@ -106,12 +115,13 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 300000 }, ()
   });
 });
 
-describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', { timeout: 300000 }, () => {
+describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', { timeout: 420000 }, () => {
   it('chat/send 全管线 → 观测面出现 L1-L8 各层事件（架构怎么运行可见）', async () => {
     await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
-    const res = await fetch(`${baseUrl}/api/chat/send`, {
+    const res = await undiciFetch(`${baseUrl}/api/chat/send`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ message: '写一个 hello 程序' }),
+      dispatcher: longRequestDispatcher,
     });
     expect(res.status).toBe(200);
 
@@ -125,7 +135,8 @@ describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade �
     expect(layers.has('L6-evaluation')).toBe(true);
     expect(layers.has('L7-knowledge')).toBe(true);
     expect(layers.has('L8-evolution')).toBe(true);
-  }, 300000);
+    // ⚠️ 预算：同上——deepseek 真实执行 ~277s，420s 保底（生产 GLM 快得多）。
+  }, 420000);
 
   it('全链执行后 /audit 无必需模块未调用错误 + 无调用者缺失警告（有真实调用链依据）', async () => {
     const { body } = await getJson('/api/observability/audit?strict=false');

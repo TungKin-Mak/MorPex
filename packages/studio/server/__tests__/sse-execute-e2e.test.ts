@@ -10,7 +10,13 @@
  *    否则 started 事件可能在订阅建立前被发出而丢失。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import { Agent, fetch as undiciFetch } from 'undici';
 import { StudioServer } from '../StudioServer.js';
+
+// ⚠️ 长执行 HTTP 客户端：/api/execute 在服务端完整执行（deepseek 下实测 ~277s）后才返回 headers，
+//    undici 全局 fetch 默认 headersTimeout=300s 会提前中断（UND_ERR_HEADERS_TIMEOUT，实测发生）
+//    → 用显式 dispatcher 拉长 headers/body 超时到 600s。
+const longRequestDispatcher = new Agent({ headersTimeout: 600000, bodyTimeout: 600000 });
 
 let server: StudioServer;
 let baseUrl: string;
@@ -100,10 +106,11 @@ describe('SSE + /api/execute 闭环', () => {
 
     // 2. 触发执行（不 await：started 事件在 engine.execute 开头同步发射，
     //    此时执行可能持续数秒（多 Agent 编排多轮 LLM），SSE 应实时先收到）
-    const execPromise = fetch(`${baseUrl}/api/execute`, {
+    const execPromise = undiciFetch(`${baseUrl}/api/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal: '写一个 todo 应用的代码实现' }),
+      dispatcher: longRequestDispatcher,
     });
 
     // 3. SSE 应命中 started 事件（闭环：HTTP 执行 → 事件流透传）
@@ -122,7 +129,8 @@ describe('SSE + /api/execute 闭环', () => {
     }
     // ⚠️ 预算说明：生成类任务走多 Agent 编排，step-agent 工具调用（knowledge_query 两阶段
     //    Gate LLM 推理）在 deepseek（enabled=false）下显著变慢——会话 4 审查修复
-    //    （工具参数不再被丢弃）后真实执行工具链路，单次执行可达 200s+。生产用 GLM 更快，
-    //    180s 足够；deepseek 开发配置需 300s。
-  }, 300000);
+    //    （工具参数不再被丢弃）后真实执行工具链路，实测单次 ~277s（2026-08-05 探针）。
+    //    300s 预算在延迟波动下超时（实测 300007ms 失败）→ 420s（实测×1.5 余量）。
+    //    生产用 GLM 更快，180s 足够；deepseek 开发配置需 420s。
+  }, 420000);
 });

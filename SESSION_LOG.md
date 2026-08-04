@@ -86,7 +86,7 @@
 ## 当前状态
 
 - **仓库**：单一 8 层纯净架构；696 tracked / 306 core 源文件；与 origin/master 同步
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **82 文件/723 通过+5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件/727 通过+5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
 - **✅ 会话 4 多 Agent 编排框架已交付**（P0+P1+P2）：总大脑（OrchestratorAgent 审计循环）+ step-agent（agentSpawner + 原语工具）+ DAG 上游传递；生成类任务主路径从 executeViaMission（嵌套卡死）切到 orchestrator；修复 3 个隐藏根因（DAGRuntime 构造器丢 nodeHandler、PiBridge 不传 models/丢工具 execute、yaml CRLF 注释解析）；e2e 实测 GLM 交付完整架构文档
 - **持续项**（非紧急）：覆盖率提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；真实 token 成本计费未接入（orchestrator onTokenUsage 钩子已预留）
 
@@ -285,7 +285,7 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 
 ---
 
-### ═══════ 会话 4 审查轮（2026-08-04，commit f552089）═══════
+### ═══════ 会话 4 审查轮（2026-08-04，commit f20fff3 + b1ac441）═══════
 
 **审查发现 1 个必修 bug + 修复 + 回归测试 + e2e 预算调整**：
 
@@ -294,6 +294,18 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 3. **⚠️ 教训：e2e 测试污染**——step-agent 的 file/shell 工具以进程 CWD（=仓库根）写文件（hello.py/todo-app.html/probe.txt 等）→ 提交时被 `git add -A` 扫进 commit；已剔除并删除，后续 e2e 前注意 git status。
 
 **门禁实测**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件 727 通过 + 5 skipped（零失败）**。
+
+---
+
+### ═══════ 会话 4 审查轮补：e2e 预算 flaky 修复（2026-08-05，commit 待记录）═══════
+
+审查轮把 SSE/observability e2e 预算 180s→300s 后，独立复跑发现**仍 flaky**：
+
+1. **根因 ①（测试级超时）**：deepseek 下真实执行探针实测 **276.8s**（step-agent 180s 超时 → fallback 完成），300s 预算在 LLM 延迟波动下超时（实测 300007ms 失败）→ **420s**（实测×1.5 余量），span-tree/modules-v2/exercise-status 的失败全是同一 POST 超时的级联。
+2. **根因 ②（客户端 headersTimeout）**：`/api/execute` 在服务端完整执行后才返回 headers，undici 全局 fetch 默认 `headersTimeout=300s` 会提前中断（`UND_ERR_HEADERS_TIMEOUT`）→ 新增 devDependency `undici`，用 `new Agent({ headersTimeout: 600000, bodyTimeout: 600000 })` 作 dispatcher 传入长 POST（observability 的 /api/execute + /api/chat/send、SSE 的 /api/execute 三处）。
+3. **e2e 污染复现**：真实工具执行在仓库根留下 f2.txt/hello.py/todo-app.html 等产物（进程 CWD=仓库根）——已删除，复跑前 git status 自查。
+
+**门禁实测（最终）**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件 727 通过 + 5 skipped（零失败）**，工作树干净。
 
 ---
 
