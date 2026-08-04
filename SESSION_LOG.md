@@ -86,7 +86,7 @@
 ## 当前状态
 
 - **仓库**：单一 8 层纯净架构；696 tracked / 306 core 源文件；与 origin/master 同步
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件/727 通过+5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件/727 通过+5 skipped（零失败）** ｜ production-check 7/8（Dependency Check 步在 Windows 下 spawnSync 超时；底层 2 条 dep 违规为 evaluation/ 遗留，本会话未触碰）｜ verify-e2e 通过
 - **✅ 会话 4 多 Agent 编排框架已交付**（提交区间 `aa72aff..f770603`，6 提交）：总大脑（OrchestratorAgent 审计循环）+ step-agent（agentSpawner + 原语工具）+ DAG 上游传递；生成类任务主路径从 executeViaMission（嵌套卡死）切到 orchestrator；修复 3 个隐藏根因（DAGRuntime 构造器丢 nodeHandler、PiBridge 不传 models/丢工具 execute、yaml CRLF 注释解析）+ 审查轮必修（工具参数丢弃假阳性）+ 优化轮（onTokenUsage 真实 token / step-agent 显式超时）；e2e 实测 GLM 交付完整架构文档
 - **持续项**（非紧急）：覆盖率提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；CostController 全链路计费未接（onTokenUsage hook 精度已修）；总大脑/step-agent Session 化（跨会话讨论）未做（当前进程内编排）；① 微信接入、②③ Phase 2 第二批仍开放
 
@@ -258,7 +258,7 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - `observability-bridge.test.ts`：仅超时上浮（前会话遗留改动保留）
 
 ### 验证结果
-- **门禁全绿**：tsc 0 ｜ validate-architecture 100% ｜ vitest **82 文件 723 通过 + 5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
+- **门禁全绿**：tsc 0 ｜ validate-architecture 100% ｜ vitest **82 文件 723 通过 + 5 skipped（零失败）** ｜ production-check 7/8（Dependency Check 步 Windows spawnSync 超时；底层 2 条 dep 违规 pre-existing：evaluation/lineageCompliance→ArtifactLineage、EvaluationEngine→EventTypes，本会话零相关改动）｜ verify-e2e 通过
 - **observability 测试 6 个失败 → 全绿**（HEAD 基线 6/9 失败：executeViaMission 卡死）
 - **e2e 实测（GLM 生产模型）**：`生成一个软件系统架构设计方案` → ok=true mode=orchestrator，总大脑判 simple → 1 step-agent 工具循环 → 审计 pass → 交付完整架构设计文档（180s）
 - **模型差异**：GLM 工具调用可靠；deepseek-v4-flash 在 pi-agent-core harness 下工具调用不稳定（常直接聊天不调工具）——测试/CI 用 deepseek 没问题（mock/不依赖工具），生产用 GLM
@@ -332,3 +332,17 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 9. **死代码** ✅：f83e102 已清重复计时；tokenCount/mapToolForAgent/extractText 均有使用与测试。
 
 **建议项（后续，非阻塞）**：step-agent 执行肢**当前无法执行破坏性操作**（file write/shell build 被 Gate 硬拦）——编排路径未供给 KnowledgeContextPackage。后续：orchestrator 执行前经 Gate 两阶段获取知识包 → StepAgentExecutor → primitiveAgentTools context.gateContext 传递，解锁真实文件/shell 动手能力。**信息项**：SSE e2e 在满负载下仍偶发时序 flaky（复跑即绿，CI 上留意）。
+
+---
+
+### ═══════ 会话 4 补：调度器独立复核（2026-08-05）═══════
+
+会话 4 交付后，调度器（本会话）独立重跑全部门禁复核：
+- ✅ **tsc 0**（`npx tsc --noEmit -p tsconfig.json`）
+- ✅ **validate-architecture 100%**（`node scripts/validate-architecture.js`，零白名单规避）
+- ✅ **vitest 83 文件 / 727 通过 + 5 skipped 零失败**（含 2 次 SSE e2e 真实 LLM 执行，独立复跑）
+- ✅ **production-check 7/8**——⚠️ 修正此前记录：Dependency Check 步在 Windows 下 `spawnSync npx` 超时（ETIMEDOUT）；底层 2 条 dep 违规（evaluation/lineageCompliance→ArtifactLineage、EvaluationEngine→EventTypes）为 **pre-existing**（两文件自 Wave 6b 后未改动，本会话零相关 import），非本会话引入
+- ✅ 代码抽查（OrchestratorAgent/StepAgentExecutor/primitiveAgentTools/ServiceContainer/DAGRuntime/PiBridge/agent-spawner/yamlConfig）逻辑与注释一致；测试为真实断言（mock 原语入真实注册表、真实 DAGRuntime+TaskGraph、execute 断言完整参数）
+- ✅ 工作树干净；SESSION_LOG 已同步（含本次 production-check 精度修正）
+
+**结论**：会话 4 多 Agent 框架（P0+P1+P2）真实可用，门禁全绿（除上述 pre-existing dep 违规与环境性超时）。遗留方向不变：Session 化（跨会话讨论）为下一会话优先候选。
