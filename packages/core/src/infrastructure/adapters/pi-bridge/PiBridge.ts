@@ -28,6 +28,7 @@ import { loadMorpexConfig, type LlmGatewayConfig } from './yamlConfig.js';
 import {
   AgentHarness as _AgentHarness,
   InMemorySessionRepo as _InMemorySessionRepo,
+  JsonlSessionRepo as _JsonlSessionRepo,
   uuidv7 as _uuidv7,
 } from '@earendil-works/pi-agent-core';
 import { NodeExecutionEnv as _NodeExecutionEnv } from '@earendil-works/pi-agent-core/node';
@@ -53,6 +54,8 @@ export type AgentTool = _AgentTool;
 export type AgentToolResult = _AgentToolResult;
 export type AgentMessage = _AgentMessage;
 export type AgentEvent = _AgentEvent;
+/** 会话 4：JSONL 持久化 Session 仓库类型（pi-agent-core JsonlSessionRepo 实例类型） */
+export type AgentSessionRepo = InstanceType<typeof _JsonlSessionRepo>;
 export type AgentExecutionEnv = _ExecutionEnv;
 export type AgentHarness = _AgentHarnessType;
 // AgentSession 使用下方简化接口定义
@@ -91,6 +94,11 @@ export interface AgentConfig {
   systemPrompt: string;
   model?: string;
   sessionId?: string;
+  /**
+   * 会话 4 补充（Session 化）：注入的 pi-agent-core Session 实例（JsonlSessionRepo 持久化会话）。
+   * 提供时直接使用（AgentHarness 自动把对话/工具调用写入该 session），否则默认 InMemorySessionRepo。
+   */
+  session?: unknown;
 }
 
 export interface AgentToolDescriptor {
@@ -350,10 +358,16 @@ export class PiBridge {
     }
 
     const env = new _NodeExecutionEnv({ cwd: process.cwd() });
-    const repo = new _InMemorySessionRepo();
-    const session = await repo.create({
-      id: config.sessionId ?? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
-    });
+    // ⬅️ Session 化（会话 4）：注入持久化 session 时直接使用（对话自动落盘），否则回退内存 repo
+    let session: unknown;
+    if (config.session) {
+      session = config.session;
+    } else {
+      const repo = new _InMemorySessionRepo();
+      session = await repo.create({
+        id: config.sessionId ?? `agent_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      });
+    }
 
     const tools: _AgentTool[] = config.tools.map(t => ({
       name: t.name,
@@ -399,6 +413,17 @@ export class PiBridge {
    */
   createAgentSessionId(prefix = 'sess'): string {
     return `${prefix}_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`;
+  }
+
+  /**
+   * createJsonlSessionRepo — 创建 JSONL 持久化 Session 仓库（会话 4 Session 化）
+   *
+   * 落盘布局：root/<encodeCwd(cwd)>/<ISO时间戳>_<sessionId>.jsonl
+   * （cwd 作为组件分组维度：'orchestrator' | 'step-agent' | 'executor'）
+   */
+  static createJsonlSessionRepo(root: string): _JsonlSessionRepo {
+    const env = new _NodeExecutionEnv({ cwd: process.cwd() });
+    return new _JsonlSessionRepo({ fs: env, sessionsRoot: root });
   }
 
   /**

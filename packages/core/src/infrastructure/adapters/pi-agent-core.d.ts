@@ -68,6 +68,39 @@ declare module '@earendil-works/pi-agent-core' {
     }): Promise<Session>;
   }
 
+  /**
+   * 会话 4（Session 化）：JsonlSessionRepo（运行时导出，缺类型声明——此处补齐窄接口）
+   * 落盘布局：root/<encodeCwd(cwd)>/<ISO时间戳>_<sessionId>.jsonl
+   */
+  export class JsonlSessionRepo {
+    constructor(options: { fs: any; sessionsRoot: string });
+    create(options: {
+      id?: string;
+      cwd: string;
+      parentSessionPath?: string;
+      metadata?: Record<string, unknown>;
+    }): Promise<Session>;
+    open(metadata: { path: string }): Promise<Session>;
+    list(options?: { cwd?: string }): Promise<Array<{
+      id: string;
+      path: string;
+      createdAt: string;
+      cwd: string;
+      parentSessionPath?: string;
+      metadata?: Record<string, unknown>;
+    }>>;
+    delete(metadata: { path: string }): Promise<void>;
+    fork(
+      source: { path: string },
+      options: {
+        cwd: string;
+        id?: string;
+        parentSessionPath?: string;
+        metadata?: Record<string, unknown>;
+      },
+    ): Promise<Session>;
+  }
+
   export function uuidv7(): string;
 
   // ── Runtime event type ──

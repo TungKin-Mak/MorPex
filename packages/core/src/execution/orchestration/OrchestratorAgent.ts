@@ -20,6 +20,7 @@
 
 import type { DAGRuntimeLike } from '../UnifiedExecutionEngine.js';
 import { StepAgentExecutor } from '../runtime/dag/StepAgentExecutor.js';
+import type { AgentSessionStore, AgentSessionHandle } from './AgentSessionStore.js';
 
 // ── 类型 ──
 
@@ -61,6 +62,8 @@ export interface OrchestratorOptions {
   maxIterations?: number;
   /** token 用量回调（可选，接入 CostController） */
   onTokenUsage?: (tokens: number) => void;
+  /** 会话 4（Session 化）：组件会话仓库——总大脑/step-agent 独立持久化会话 */
+  sessionStore?: AgentSessionStore;
 }
 
 export interface OrchestrationResult {
@@ -72,6 +75,11 @@ export interface OrchestrationResult {
   auditLog: Array<{ iteration: number; pass: boolean; issues: string[]; reasoning: string }>;
   /** 各步骤原始成果（nodeName → output） */
   stepResults: Map<string, unknown>;
+  /** 会话 4：各步骤持久化会话路径（stepName → sessionPath；跨会话讨论锚点） */
+  stepSessions: Map<string, string>;
+  /** 会话 4：总大脑会话 ID/路径 */
+  sessionId?: string;
+  sessionPath?: string;
   error?: string;
   duration: number;
 }
@@ -100,6 +108,18 @@ function extractJsonObject(text: string): Record<string, unknown> | null {
 
 function toStringList(v: unknown): string[] {
   return Array.isArray(v) ? v.filter((x): x is string => typeof x === 'string') : [];
+}
+
+/** 会话 ID 清洗（与 StepAgentExecutor 一致） */
+function sanitizeSessionId(raw: string): string {
+  return raw.replace(/[^A-Za-z0-9_-]/g, '_').slice(0, 40) || 'unknown';
+}
+
+/** 输出预览截断（防巨型 JSONL） */
+function previewText(v: unknown, max = 2000): string {
+  if (v === undefined || v === null) return '';
+  const s = typeof v === 'string' ? v : JSON.stringify(v);
+  return s.length > max ? `${s.slice(0, max)}…[截断]` : s;
 }
 
 /** 解析总大脑拆解结果（容错：解析失败 → 单 step 直跑） */
@@ -189,6 +209,24 @@ export class OrchestratorAgent {
     const maxIterations = this.opts.maxIterations ?? 3;
     const auditLog: OrchestrationResult['auditLog'] = [];
     const stepResults = new Map<string, unknown>();
+    const stepSessions = new Map<string, string>();
+
+    // ═══ 会话 4（Session 化）：总大脑会话 ═══
+    let orchSession: AgentSessionHandle | null = null;
+    if (this.opts.sessionStore) {
+      try {
+        orchSession = await this.opts.sessionStore.createSession({
+          component: 'orchestrator',
+          id: `orch_${Date.now()}`,
+          goal,
+          departmentId: opts.departmentId,
+          metadata: { goal, departmentId: opts.departmentId },
+        });
+        await this.opts.sessionStore.appendSessionName(orchSession.session, goal.slice(0, 60));
+      } catch (err) {
+        console.warn(`[OrchestratorAgent] ⚠️ 总大脑会话创建失败（不影响执行）: ${(err as Error).message}`);
+      }
+    }
 
     // ── ① 编排：分析复杂度 + 拆解 ──
     let analysis: OrchestratorAnalysis;
@@ -198,6 +236,13 @@ export class OrchestratorAgent {
       analysis = parseAnalysis(res ? extractJsonObject(res.text) : null, goal, !!this.llm);
     } catch {
       analysis = { complexity: 'simple', steps: [{ name: goal.slice(0, 50), description: goal, deps: [] }], reasoning: 'analysis_failed' };
+    }
+    if (orchSession && this.opts.sessionStore) {
+      await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.analysis', {
+        complexity: analysis.complexity,
+        steps: analysis.steps,
+        reasoning: analysis.reasoning,
+      });
     }
 
     let steps = analysis.steps;
@@ -209,14 +254,15 @@ export class OrchestratorAgent {
       iterations++;
 
       // 执行本轮步骤（简单 → 单 step-agent；复杂 → DAG 工具）
-      const roundResults = await this.executeSteps(goal, steps, opts.departmentId);
-      for (const [k, v] of roundResults) stepResults.set(k, v);
-      stepsExecuted += roundResults.size;
+      const round = await this.executeSteps(goal, steps, opts.departmentId);
+      for (const [k, v] of round.results) stepResults.set(k, v);
+      for (const [k, v] of round.sessions) stepSessions.set(k, v);
+      stepsExecuted += round.results.size;
 
       // 审计
       let audit: AuditResult;
       try {
-        const resultsText = this.formatResults(roundResults);
+        const resultsText = this.formatResults(round.results);
         const res = await this.llm?.generateText({ prompt: AUDIT_PROMPT(goal, resultsText), temperature: 0 });
         this.opts.onTokenUsage?.(tokenCount(res));
         const json = res ? extractJsonObject(res.text) : null;
@@ -241,6 +287,15 @@ export class OrchestratorAgent {
       }
 
       auditLog.push({ iteration: iterations, pass: audit.pass, issues: audit.issues, reasoning: audit.reasoning });
+      if (orchSession && this.opts.sessionStore) {
+        await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.audit', {
+          iteration: iterations,
+          pass: audit.pass,
+          issues: audit.issues,
+          supplementaryTasks: audit.supplementaryTasks,
+          reasoning: audit.reasoning,
+        });
+      }
 
       if (audit.pass || audit.supplementaryTasks.length === 0) break;
       steps = audit.supplementaryTasks; // fail → 补充任务再分发
@@ -256,6 +311,11 @@ export class OrchestratorAgent {
     } catch {
       finalOutput = this.formatResults(stepResults);
     }
+    if (orchSession && this.opts.sessionStore) {
+      await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.synthesis', {
+        outputPreview: previewText(finalOutput),
+      });
+    }
 
     const failed = [...stepResults.values()].length === 0;
     return {
@@ -265,6 +325,9 @@ export class OrchestratorAgent {
       stepsExecuted,
       auditLog,
       stepResults,
+      stepSessions,
+      sessionId: orchSession?.sessionId,
+      sessionPath: orchSession?.path,
       error: failed ? '所有步骤均未产出成果' : undefined,
       duration: Date.now() - start,
     };
@@ -276,31 +339,54 @@ export class OrchestratorAgent {
     goal: string,
     steps: OrchestratorStep[],
     departmentId?: string,
-  ): Promise<Map<string, unknown>> {
+  ): Promise<{ results: Map<string, unknown>; sessions: Map<string, string> }> {
     const results = new Map<string, unknown>();
+    const sessions = new Map<string, string>();
+
+    // 会话 4：预创建本步骤会话（parentSessionPath = 第一个依赖步骤的会话路径）
+    const ensureStepSession = async (step: OrchestratorStep): Promise<{ session?: unknown; sessionPath?: string }> => {
+      if (!this.opts.sessionStore) return {};
+      const parentPath = (step.deps || []).map(d => sessions.get(d)).find(Boolean);
+      const handle = await this.opts.sessionStore.createSession({
+        component: 'step-agent',
+        id: `step_${sanitizeSessionId(step.name)}_${Date.now()}`,
+        goal,
+        departmentId,
+        parentSessionPath: parentPath,
+        metadata: { stepName: step.name, deps: step.deps || [] },
+      });
+      sessions.set(step.name, handle.path);
+      return { session: handle.session, sessionPath: handle.path };
+    };
 
     // 简单任务：单 step-agent 直跑（会话 3：简单任务不走 DAG）
     if (steps.length === 1 && this.opts.stepExecutor) {
       const step = steps[0];
+      const sess = await ensureStepSession(step);
       const r = await this.opts.stepExecutor.executeStep(
         { id: step.name, name: step.name, description: step.description, agentType: 'general' },
         new Map<string, unknown>(),
+        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions: new Map() },
       );
       results.set(step.name, r.success ? r.output : { error: r.error });
-      return results;
+      return { results, sessions };
     }
 
     // 复杂任务：DAG 工具分发（nodeHandler 已接 step-agent + 上游成果注入）
     if (this.opts.dagRuntime && steps.length > 1) {
       try {
+        // 会话 4：预创建所有 step 会话（parentSessionPath 按依赖链），经 ctx 传给 nodeHandler
+        const handles = new Map<string, { session: unknown; sessionPath: string }>();
+        for (const s of steps) {
+          const h = await ensureStepSession(s);
+          if (h.sessionPath) handles.set(s.name, { session: h.session, sessionPath: h.sessionPath });
+        }
         const dagResult = await this.opts.dagRuntime.execute(
           goal,
           steps.map(s => ({ name: s.name, description: s.description, deps: s.deps })),
-          { goal, departmentId },
+          { goal, departmentId, stepSessions: handles },
         );
         // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
-        // ⚠️ ServiceContainer DAG wrapper 的节点 id 形如 `node_{i}_{ts}`（非步骤名），
-        //    按名称匹配会全落 nodes[0]；正确做法：优先解析节点索引回填。
         const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
         if (raw) {
           const nodes = steps.map(s => ({ id: s.name, name: s.name, description: s.description, deps: s.deps }));
@@ -313,7 +399,7 @@ export class OrchestratorAgent {
             results.set(step?.id ?? nodeId, out);
           }
         }
-        return results;
+        return { results, sessions };
       } catch (err) {
         console.warn(`[OrchestratorAgent] ⚠️ DAG 执行失败: ${(err as Error).message}，降级逐节点直跑`);
       }
@@ -322,16 +408,20 @@ export class OrchestratorAgent {
     // 降级：无 DAG 工具或 DAG 失败 → 逐节点 step-agent 直跑（依赖注入上游成果）
     for (const step of steps) {
       const upstream = new Map<string, unknown>();
-      for (const dep of step.deps) {
+      const upstreamSessions = new Map<string, string>();
+      for (const dep of step.deps || []) {
         if (results.has(dep)) upstream.set(dep, results.get(dep));
+        if (sessions.has(dep)) upstreamSessions.set(dep, sessions.get(dep)!);
       }
+      const sess = await ensureStepSession(step);
       const r = await this.opts.stepExecutor.executeStep(
         { id: step.name, name: step.name, description: step.description, agentType: 'general' },
         upstream,
+        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions },
       );
       results.set(step.name, r.success ? r.output : { error: r.error });
     }
-    return results;
+    return { results, sessions };
   }
 
   private formatResults(results: Map<string, unknown>): string {

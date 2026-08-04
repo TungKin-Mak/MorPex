@@ -14,6 +14,7 @@ export type {
   AgentMessage,
   AgentEvent,
   AgentSession,
+  AgentSessionRepo,
   AgentExecutionEnv,
   AgentHarness,
 } from './PiBridge.js';

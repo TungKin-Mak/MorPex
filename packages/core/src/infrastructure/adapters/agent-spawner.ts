@@ -25,6 +25,11 @@ export interface SpawnParams {
   provider?: string;
   modelId?: string;
   domainId?: string;
+  /**
+   * 会话 4（Session 化）：注入的持久化 Session（JsonlSessionRepo 创建）。
+   * 提供时 agent 对话/工具调用自动写入该会话；否则默认内存会话。
+   */
+  session?: unknown;
 }
 
 /**
@@ -78,6 +83,10 @@ export const agentSpawner = {
     };
     if (params.provider && params.modelId) {
       config.model = `${params.provider}/${params.modelId}`;
+    }
+    // ⬅️ Session 化：透传持久化会话（AgentHarness 自动把对话写入注入 session）
+    if (params.session) {
+      (config as { session?: unknown }).session = params.session;
     }
 
     return bridge.createAgentHarness(config);

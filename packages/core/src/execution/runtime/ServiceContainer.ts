@@ -14,6 +14,7 @@ import { MissionRuntime } from './mission/MissionRuntime.js';
 import { DAGRuntime } from './dag/DAGRuntime.js';
 import { StepAgentExecutor } from './dag/StepAgentExecutor.js';
 import { OrchestratorAgent } from '../orchestration/OrchestratorAgent.js';
+import { AgentSessionStore } from '../orchestration/AgentSessionStore.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../../governance/control-plane/ControlPlane.js';
@@ -163,6 +164,8 @@ export class ServiceContainer {
   readonly executionEngine: UnifiedExecutionEngine;
   /** 会话 3 多 Agent 框架：总大脑（编排 + 审计循环） */
   readonly orchestratorAgent: OrchestratorAgent;
+  /** 会话 4（Session 化）：编排组件持久化会话仓库（总大脑/step-agent 独立 Session） */
+  readonly agentSessionStore: AgentSessionStore;
   readonly artifactFacade: ArtifactFacade;
   readonly verificationEngine: VerificationEngine;
   readonly complianceChecker: ComplianceChecker;
@@ -199,6 +202,8 @@ export class ServiceContainer {
     const dagRuntime = this.createDAGRuntime();
     this.executionEngine.setDAGRuntime(dagRuntime);
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
+    // 会话 4（Session 化）：共享组件会话仓库（总大脑 + step-agent 持久化会话）
+    this.agentSessionStore = new AgentSessionStore();
     // 会话 3：总大脑接线（生成类任务主路径；审计循环 + step-agent 执行肢）
     this.orchestratorAgent = this.createOrchestratorAgent(dagRuntime);
     this.executionEngine.setOrchestratorAgent(this.orchestratorAgent);
@@ -331,6 +336,8 @@ export class ServiceContainer {
   private createOrchestratorAgent(dagRuntime: DAGRuntimeLike): OrchestratorAgent {
     const self = this;
     const stepExecutor = new StepAgentExecutor({
+      // 会话 4（Session 化）：step-agent 独立持久化会话
+      sessionStore: this.agentSessionStore,
       fallbackExecutor: async (n, upstreamText) => {
         const fabric = self.createExecutionFabric();
         const r = await fabric.execute(n.agentType || 'execute', n.description || n.name, {
@@ -352,6 +359,8 @@ export class ServiceContainer {
       dagRuntime,
       stepExecutor,
       maxIterations: 3,
+      // 会话 4（Session 化）：总大脑会话 + step 会话追踪
+      sessionStore: this.agentSessionStore,
     });
   }
 
@@ -391,6 +400,8 @@ export class ServiceContainer {
         const executor = new StepAgentExecutor({
           departmentId,
           goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
+          // 会话 4（Session 化）：DAG 节点 step-agent 会话也持久化（未预建时自行创建）
+          sessionStore: this.agentSessionStore,
           fallbackExecutor: async (n, upstreamText) => {
             const fabric = this.createExecutionFabric();
             const cap = n.agentType || 'execute';
@@ -404,9 +415,13 @@ export class ServiceContainer {
             return result.data;
           },
         });
+        // 会话 4：总大脑预建的 step 会话（按节点名匹配，nodeHandler 复用同一会话）
+        const stepSessions = (ctxObj.stepSessions instanceof Map ? ctxObj.stepSessions : new Map<string, { session: unknown; sessionPath: string }>());
+        const handle = stepSessions.get(node.name) as { session?: unknown; sessionPath?: string } | undefined;
         const result = await executor.executeStep(
           { id: node.id, name: node.name, description: node.description, agentType: node.agentType },
           upstream,
+          { session: handle?.session, sessionPath: handle?.sessionPath },
         );
         if (!result.success) throw new Error(result.error || '节点执行失败');
         return result.output;
