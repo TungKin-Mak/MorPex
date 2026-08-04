@@ -424,3 +424,40 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - ✅ 工作树干净、零测试污染（data/ 已 gitignore）；SESSION_LOG 记录与实测数字完全一致
 
 **结论**：五项升级（Session 化 / 执行肢 Gate 凭证 / 规则 P2 第二批 / 上下文 P2 / CostController 计费）真实交付且门禁全绿，可交接。遗留方向不变。
+
+---
+
+## ═════════ 会话 6：四任务续执行（2026-08-05，微信接入除外）═════════
+
+调度器直接实施（fork 无结果，任务转回主线程）。提交区间 `b1d13da..64f0065`（5 提交，+2 测试文件）。
+
+### ② ✅ Session 化治理读取端点（feat bc9a1c0）
+- `AgentSessionStore.readEntries(path)`：repo.open + session.getEntries → 归一化纯对象（message→role/content 文本、custom→customType/data、custom_message/thinking_level_change/model_change/... 按类型提取）；失败返回 [] 不抛
+- `StudioServer`：`GET /api/agent-sessions`（?component=orchestrator|step-agent|executor 过滤，非法 400）+ `GET /api/agent-sessions/entries?path=`（缺 path 400，不存在路径 → ok+[] 容错）
+- 测试：agent-session-store +2（归一化/容错）、新 agent-session-api.test.ts 6 用例（真实 JsonlSessionRepo 临时目录，仅 HTTP 读取层不触发 LLM）
+
+### ⑤ ✅ dep 违规清理（fix b1d13da + 64f0065）
+- **根因**：`.dependency-cruiser.js` `eval-ontology-allowed` 白名单是重构前旧目录（ontology//metadata//protocol/ 在 8 层布局不存在）→ 2 条假违规（evaluation→knowledge/artifact、evaluation→infrastructure/protocol/events）
+- 修复：白名单对齐 8 层意图（evaluation 读 L2 knowledge 合规评分 + infrastructure/protocol 发审计事件）→ **depcheck 2→0 violations**
+- 连带：production-check Dependency Check 步 Windows 下 120s execSync 超时（npx depcheck 全量巡航 601 模块）→ 240s → **production-check 8/8 全绿（本环境首次）**
+
+### ③ ✅ 结构修正器全量验证（test 617620f）
+- 新 rule-structural-e2e.test.ts 4 用例（无 LLM）：①真实 ruleEnforcementCheck 闭环（命中→修正→重检无 ERROR）②真实 software eslint 适配器全链路（registerSoftwareStructuralCorrector + DetectorRegistry eslint 检测器 + active no-var → Linter.verifyAndFix → `var x`→`let x` → 重检合规）③eslint 无违规不触碰 ④maxPasses 防抖（sticky corrector 2 轮停止）
+- **实测发现**：no-var 的 eslint 正确输出是 `let` 而非 `const`（const 推断属 prefer-const 另一条规则）——修正器行为正确，断言按 eslint 语义修正
+- 测试还暴露：ruleEnforcementCheck 先规范化（NFKC+去空白），`var x`→`varx`，regex 模式须匹配规范化后文本（`var\w*` 而非 `var\s+\w+`）
+
+### ④ ✅ 上下文 Provider 归属标记（feat 23ca140）
+- `ContextFragment.attribution?: { providerType: 'registered'|'fallback' }`（可选，向后兼容）
+- `ExecutionContext.providerAttribution?: Array<{ source, providerType, collectedAt }>`（装配层汇总）
+- assemble()：兜底来源（missingFragments）→ fallback，其余 → registered；随快照持久化
+- 测试 +2（全 registered / 缺失来源 fallback 区分）
+
+### 门禁（本会话全量实测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck **0 violations** ｜ ✅ vitest **90 文件 / 778 通过 + 5 skipped 零失败**（含 studio 真实 LLM e2e）｜ ✅ **production-check 8/8**
+- ⚠️ e2e 污染复现并清理：全量 vitest 真实 LLM e2e 的 step-agent 工具在仓库根写 hello.py/hello_run.js（已删，tree clean）
+
+### 遗留（下一会话候选）
+1. **微信接入**（企业微信 vs 个人微信，用户跳过待决策）
+2. agent-sessions 治理前端/面板消费端点（读取 API 已就绪，UI 未做）
+3. 上下文近期摘要消费端拼接、风险分级（标记可延后）
+4. 结构修正器 AST/tsc 适配器增强（eslint 已验，tsc 型校验未接）
