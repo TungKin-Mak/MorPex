@@ -311,7 +311,7 @@ export async function bootstrapUnified(options?: {
   // 6) 注入 LLM 生成器 + 文件写入器（文件经 FileOperationPrimitive 落盘）
   const fileOpPrimitive = new FileOperationPrimitive();
   ArtifactGenerationPrimitive.setLLMCaller((prompt: string) =>
-    piBridgeWrapper.generateText({ prompt, maxTokens: 32000 }).then((r) => r.text),
+    piBridgeWrapper.generateText({ prompt }).then((r) => r.text),
   );
   ArtifactGenerationPrimitive.setFileWriter(async (path: string, content: string, deptId: string, gateContext?) =>
     fileOpPrimitive.execute({ operation: 'write', path, content }, { departmentId: deptId, gateContext }),
@@ -333,7 +333,7 @@ export async function bootstrapUnified(options?: {
       // ═══ 参数补全层（50 任务实测：LLM 提取常缺必填字段 → 二次提取补全）═══
       const extract = async (missing?: string[]) => {
         const prompt = buildExtractPrompt(goal, primitiveName, schemaJson, missing);
-        const res = await piBridgeWrapper.generateText({ prompt, maxTokens: 32000, temperature: 0 });
+        const res = await piBridgeWrapper.generateText({ prompt, temperature: 0 });
         const match = res.text.match(/\{[\s\S]*\}/);
         return match ? JSON.parse(match[0]) : {};
       };
@@ -438,7 +438,7 @@ export async function bootstrapUnified(options?: {
   const reflectionEngine = new ReflectionEngine(eventBus);
   reflectionEngine.setLLMCaller({
     generateText: async (opts: { prompt: string; maxTokens?: number; temperature?: number }) =>
-      piBridgeWrapper.generateText({ prompt: opts.prompt, maxTokens: opts.maxTokens ?? 500, temperature: opts.temperature ?? 0.3 }),
+      piBridgeWrapper.generateText({ prompt: opts.prompt, maxTokens: opts.maxTokens, temperature: opts.temperature ?? 0.3 }),
   });
   const learningLoop = new LearningLoop(eventBus);
   const brainSubscribe = (type: string, result: 'success' | 'failure') => {
