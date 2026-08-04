@@ -98,3 +98,61 @@
 4. ③ 上下文"优化"的具体方向（未讨论）
 5. ✅ ② Phase 1 实现已确认开工并完成（2026-08-03，验收全绿）
    - **Phase 2 待办**（方案文档 §7）：确定性替换 allowedAction / 缓存规则版本入 key / L5 预算接线（重试计入 costTokens）/ 代码层 Detector 适配器（tsc/eslint）/ domain 上下文沿调用链传递 / ReDoS 限制 / WARNING 事件去重
+
+---
+
+## ═════════ 会话 3 架构决策：多 Agent 编排执行框架（2026-08-04）═════════
+
+### 决策背景
+- 真实任务审计（99 任务）发现：生成类任务走 executeAuto（参数提取不稳）或 executeViaMission（嵌套 Mission + DAG 无 Agent 能力 → 卡死）均失败
+- 根因：Mission 路径 DAG 节点依赖 ExecutionFabric（**无通用 Agent 能力注册**，cap='execute' 无匹配 → 空转）；嵌套 = MorPexRuntime 与 MissionRuntime 两层 Mission
+- 用户定稿新架构（**多 Agent 编排，Session 化**）
+
+### 架构定稿（用户确认）
+
+```
+用户输入
+  → [Session 总大脑]（双职责）
+  │    ├─ 开始：分析复杂度 → 编排
+  │    │    简单 → 创建 1 个 step-agent
+  │    │    复杂 → 调用【DAG 工具】创建 N 个 step-agent
+  │    └─ 后期：汇总所有 step 成果 → LLM 审计
+  │          pass → 生成最终交付物 ｜ fail → 生成补充任务 → 再调 DAG 分发（迭代）
+  → 【DAG 工具】（非 Session，调度/分发工具：拓扑排序、创建 step-agent、传上游成果）
+  → [Session Step-Agent i]（每节点一个：接收职责+上游成果，可跨会话讨论，决策执行方案）
+  → [Session 执行肢 i]（独立 Session，每 step 一个：调原语工具 knowledge/file/shell/api/artifact，产出结果报告给 step-agent）
+```
+
+### 关键设计点
+1. **总大脑不只规划**——双职责（任务开始分析复杂度编排 + 后期汇总审计 pass/fail）
+2. **DAG 是工具不是 Session**——只做调度/分发/传依赖，创建 step-agent
+3. **step-agent 可跨会话讨论**——交流成果/方案（DAG 依赖传递 + 讨论）
+4. **执行肢是独立 Session**——调原语工具（动手），报告给 step-agent
+5. **简单任务走单 step-agent**（不走 DAG）
+6. **每个组件独立 Session**（总大脑 / step-agent / 执行肢）
+
+### Session 统计（实际创建）
+- 复杂任务：1 总大脑 + N step-agent + N 执行肢 = **2N+1**（例：DAG 4 step → 9 Session）
+- 简单任务：1 总大脑 + 1 step-agent + 1 执行肢 = **3**
+- 迭代（fail）：总大脑审计 → 补充任务 → **新增 step-agent + 执行肢**
+
+### 与现有差距（实施计划）
+| 预想 | 现有 | 差距 |
+|---|---|---|
+| 总大脑规划+审计 | DeliveryPlanner（只规划）| ✅规划有；❌审计循环需新增 |
+| DAG 工具 | DAGRuntime/计划 | ✅ 框架有 |
+| step-agent 执行 | DAG 节点→ExecutionFabric（无 Agent）| ❌ **核心缺口**：需 AgentHarness（pi-agent-core）执行 step 职责 |
+| 跨会话讨论 | 无 | ❌ 需 DAG 依赖传递 + agent 交流 |
+| 审计循环 pass/fail | 无 | ❌ 需新增评估 Agent + 迭代分发 |
+| 简单任务单 agent | executeAuto（原语）| ⚠️ 需单 Agent 路径（LLM 而非原语提取）|
+
+### 实施优先级
+- P0：DAG 节点 nodeHandler：ExecutionFabric → **AgentHarness**（step-agent 执行肢）
+- P1：跨会话交流（上游 output → 下游 context + step-agent 讨论）
+- P2：总大脑审计循环（pass/fail + 迭代分发）
+- P3：简单任务单 Agent 路径
+
+### 本会话已做（相关积累）
+- batch-run 5 并发 + GLM 限流容错 + 参数补全层（maxTokens 不设限）+ 路径分配探索（生成类走 Mission 实测嵌套失败，回退待定）
+- 生成类走 Mission 实测：嵌套 Mission（MorPexRuntime + MissionRuntime 双层）+ 内层 DAG 无 Agent 能力 → 300s 超时 —— **教训：Mission 执行层依赖未实现的 Agent 能力池**
+- 后续实现：在另一个会话继续（本会话只讨论定稿 + 记录）
