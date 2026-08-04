@@ -27,6 +27,33 @@ export interface SpawnParams {
   domainId?: string;
 }
 
+/**
+ * mapToolForAgent — 将 AgentTool（pi-agent-core 契约）映射为 AgentToolDescriptor
+ *
+ * ⚠️ 会话 4 审查修复：AgentTool.execute 签名是 (toolCallId, params, signal?, onUpdate?)，
+ * 此前适配器单参调用 `t.execute(p)` → p 落到 toolCallId、params=undefined →
+ * step-agent 的工具调用参数全部被丢弃（原语以空参执行，e2e 成功是假阳性）。
+ * 修复：显式双参调用，toolCallId 用空串（PiBridge 包装层不消费它）。
+ */
+export function mapToolForAgent(t: AgentTool): {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+  execute?: (p: Record<string, unknown>) => Promise<unknown>;
+} {
+  return {
+    name: t.name,
+    description: t.description,
+    parameters: t.parameters ?? {},
+    execute: t.execute
+      ? async (p: Record<string, unknown>) => {
+          // 保留原契约参数：toolCallId 由执行框架生成，此处不消费，传空串占位
+          return (t.execute as unknown as (toolCallId: string, params: Record<string, unknown>) => Promise<unknown>)('', p);
+        }
+      : undefined,
+  };
+}
+
 export const agentSpawner = {
   async spawn(params: SpawnParams): Promise<{
     prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
@@ -45,18 +72,7 @@ export const agentSpawner = {
       model?: string;
       sessionId: string;
     } = {
-      tools: params.tools.map(t => ({
-        name: t.name,
-        description: t.description,
-        parameters: t.parameters ?? {},
-        // ⬅️ 会话 3：透传 execute——step-agent 执行肢的工具必须真正可调用（此前被丢弃）
-        // 适配签名：AgentTool.execute(toolCallId, params, signal, onUpdate) → AgentToolDescriptor.execute(params)
-        execute: t.execute
-          ? async (p: Record<string, unknown>) => {
-              return (t.execute as unknown as (params: Record<string, unknown>) => Promise<unknown>)(p);
-            }
-          : undefined,
-      })),
+      tools: params.tools.map(mapToolForAgent),
       systemPrompt: params.systemPrompt,
       sessionId: `agent_${params.ring}_${params.domainId ?? 'generic'}_${Date.now()}`,
     };

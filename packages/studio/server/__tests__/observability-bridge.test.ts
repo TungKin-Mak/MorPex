@@ -26,7 +26,7 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${server.getPort()}`;
   // 清空旧观测，保证确定性
   await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
-}, 180000);
+}, 300000);
 
 afterAll(async () => {
   await server?.stop();
@@ -51,7 +51,7 @@ describe('架构可观测 — 服务接线', () => {
   });
 });
 
-describe('架构可观测 — 真实执行产生观测', { timeout: 180000 }, () => {
+describe('架构可观测 — 真实执行产生观测', { timeout: 300000 }, () => {
   it('POST /api/execute 真实执行 → observations 记录调用链 + 执行 ID 可查', async () => {
     const execRes = await fetch(`${baseUrl}/api/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -69,7 +69,7 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 180000 }, ()
     expect(mine.length).toBeGreaterThanOrEqual(2); // started + completed
     // 层标注正确（L5-execution 执行引擎）
     expect(mine.some((o: any) => o.source.layer === 'L5-execution')).toBe(true);
-  }, 180000);
+  }, 300000);
 
   it('span-tree 返回该执行的 span 链（含 parentId 父子关系）', async () => {
     const { status, body } = await getJson(`/api/observability/span-tree/${execId}`);
@@ -106,7 +106,7 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 180000 }, ()
   });
 });
 
-describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', { timeout: 180000 }, () => {
+describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade 全管线）', { timeout: 300000 }, () => {
   it('chat/send 全管线 → 观测面出现 L1-L8 各层事件（架构怎么运行可见）', async () => {
     await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
     const res = await fetch(`${baseUrl}/api/chat/send`, {
@@ -125,7 +125,7 @@ describe('架构可观测 — 完整 8 层链路（chat/send 走 CompanyFacade �
     expect(layers.has('L6-evaluation')).toBe(true);
     expect(layers.has('L7-knowledge')).toBe(true);
     expect(layers.has('L8-evolution')).toBe(true);
-  }, 180000);
+  }, 300000);
 
   it('全链执行后 /audit 无必需模块未调用错误 + 无调用者缺失警告（有真实调用链依据）', async () => {
     const { body } = await getJson('/api/observability/audit?strict=false');

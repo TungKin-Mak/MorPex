@@ -120,5 +120,9 @@ describe('SSE + /api/execute 闭环', () => {
     } finally {
       await closeSession(s);
     }
-  }, 180000);
+    // ⚠️ 预算说明：生成类任务走多 Agent 编排，step-agent 工具调用（knowledge_query 两阶段
+    //    Gate LLM 推理）在 deepseek（enabled=false）下显著变慢——会话 4 审查修复
+    //    （工具参数不再被丢弃）后真实执行工具链路，单次执行可达 200s+。生产用 GLM 更快，
+    //    180s 足够；deepseek 开发配置需 300s。
+  }, 300000);
 });

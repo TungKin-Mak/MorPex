@@ -12,6 +12,7 @@ import { describe, it, expect, beforeEach } from 'vitest';
 import { DomainPrimitiveRegistry } from '../src/infrastructure/tools/DomainPrimitiveRegistry.js';
 import type { ActionPrimitive } from '../src/infrastructure/tools/primitives/types.js';
 import { createPrimitiveAgentTools } from '../src/infrastructure/tools/primitiveAgentTools.js';
+import { mapToolForAgent } from '../src/infrastructure/adapters/agent-spawner.js';
 import { StepAgentExecutor, extractText } from '../src/execution/runtime/dag/StepAgentExecutor.js';
 import { DAGRuntime } from '../src/execution/runtime/dag/DAGRuntime.js';
 import type { ExecutionDAG } from '../src/execution/runtime/dag/types.js';
@@ -63,6 +64,24 @@ describe('primitiveAgentTools — 原语 → AgentTool 桥', () => {
     (DomainPrimitiveRegistry as unknown as { primitives: Map<string, unknown> }).primitives.delete('api_call');
     const tools = createPrimitiveAgentTools();
     expect(tools.map(t => t.name)).not.toContain('api');
+  });
+
+  it('mapToolForAgent 保留工具调用参数（会话 4 审查修复：防参数丢弃回归）', async () => {
+    const tools = createPrimitiveAgentTools({ departmentId: 'software' });
+    const knowledgeTool = tools.find(t => t.name === 'knowledge')!;
+
+    // 模拟完整链：AgentTool → mapToolForAgent（agent-spawner 内部映射）→ 单参调用
+    const mapped = mapToolForAgent(knowledgeTool);
+    expect(mapped.name).toBe('knowledge');
+    expect(mapped.execute).toBeDefined();
+
+    // AgentToolDescriptor.execute(params) 单参调用 → 原语必须收到完整 params
+    const raw = await mapped.execute!({ query: '架构文档' });
+    const text = typeof raw === 'string' ? raw : JSON.stringify(raw);
+    const parsed = JSON.parse(text) as { content: Array<{ text?: string }> };
+    const inner = JSON.parse(parsed.content[0].text as string) as { found: boolean; query: string };
+    expect(inner.found).toBe(true);
+    expect(inner.query).toBe('架构文档');
   });
 });
 
