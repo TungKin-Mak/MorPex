@@ -26,7 +26,7 @@ export const ARCHITECTURE_CONTRACT: ModuleContract[] = [
   // L3 规划
   { name: 'delivery-planner', required: true, expectedCallers: [], expectedCallees: [], activation: 'always', layer: 'L3-planning', description: '交付规划器（plan.started/completed）' },
   // L4 认知与大脑（on-demand）
-  { name: 'brain-facade', required: false, expectedCallers: ['company-facade'], expectedCallees: [], activation: 'on-demand', layer: 'L4-cognition', description: '大脑门面（学习闭环）' },
+  { name: 'brain-facade', required: false, expectedCallers: ['morpex-runtime'], expectedCallees: [], activation: 'on-demand', layer: 'L4-cognition', description: '大脑门面（学习闭环）' },
   { name: 'learning-loop', required: false, expectedCallers: ['brain-facade'], expectedCallees: [], activation: 'on-demand', layer: 'L4-cognition', description: '学习闭环' },
   // L5 执行
   { name: 'morpex-runtime', required: true, expectedCallers: ['company-facade'], expectedCallees: ['unified-execution-engine', 'artifact-facade', 'evaluation-engine', 'evolution-sandbox'], activation: 'always', layer: 'L5-execution', description: 'MorPexRuntime 主执行管线（runtime.started）' },

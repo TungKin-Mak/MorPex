@@ -359,11 +359,29 @@ export class PiBridge {
       name: t.name,
       description: t.description,
       parameters: t.parameters,
+      // ⬅️ 多 Agent 框架（会话 3）：透传 execute——之前只传 name/description/parameters，
+      //    pi-agent-core Agent 声明的工具没有执行函数 → 工具调用循环空转（DAG 节点卡死根因之一）。
+      execute: t.execute
+        ? async (toolCallId: string, params: unknown) => {
+            try {
+              const raw = await (t.execute as (p: Record<string, unknown>) => Promise<unknown>)((params ?? {}) as Record<string, unknown>);
+              const text = typeof raw === 'string' ? raw : JSON.stringify(raw ?? null);
+              return { content: [{ type: 'text', text }], isError: false } as _AgentToolResult;
+            } catch (err) {
+              const msg = err instanceof Error ? err.message : String(err);
+              return { content: [{ type: 'text', text: `[tool error] ${msg}` }], isError: true } as _AgentToolResult;
+            }
+          }
+        : undefined,
     } as _AgentTool));
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const harness = new (_AgentHarness as any)({
       env,
+      // ⬅️ 会话 3 修复：pi-agent-core AgentHarness 构造函数要求 options.models（Models 实例，
+      //    含 streamSimple）——此前未传 → this.models=undefined → "Cannot read properties of undefined
+      //    (reading 'streamSimple')" → agent 4ms 返回空内容（step-agent 空转根因）。
+      models: this.models,
       model,
       session,
       tools,

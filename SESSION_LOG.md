@@ -86,9 +86,9 @@
 ## 当前状态
 
 - **仓库**：单一 8 层纯净架构；696 tracked / 306 core 源文件；与 origin/master 同步
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest 64 文件/616 通过+5 skipped ｜ production runner 19/19
-- **功能② Phase 1 已交付**（commits 2d69672/2f76fc9/726a42e/33b6fbf/3888b7a）：gate/rules 7 文件 + runOntologyGroundedReasoning 挂载（中断/重试≤3/连续命中降级/domain 路由）+ objectTypes Rule 类型 + ecommerce 示例（pending）+ 4 测试文件 27 用例；reviewer 终审通过（2 个建议项入 Phase 2：WARNING 事件去重、ReDoS 限制）
-- **持续项**（非紧急）：覆盖率 37% 提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；真实 token 成本计费未接入
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ vitest **82 文件/723 通过+5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
+- **✅ 会话 4 多 Agent 编排框架已交付**（P0+P1+P2）：总大脑（OrchestratorAgent 审计循环）+ step-agent（agentSpawner + 原语工具）+ DAG 上游传递；生成类任务主路径从 executeViaMission（嵌套卡死）切到 orchestrator；修复 3 个隐藏根因（DAGRuntime 构造器丢 nodeHandler、PiBridge 不传 models/丢工具 execute、yaml CRLF 注释解析）；e2e 实测 GLM 交付完整架构文档
+- **持续项**（非紧急）：覆盖率提升；L6 未来功能（人工覆盖评分/Performance Profile）；bootstrap-unified.ts 拆分；真实 token 成本计费未接入（orchestrator onTokenUsage 钩子已预留）
 
 ## 当前开放决策（会话 2 待定）
 
@@ -233,3 +233,47 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 2. DAG 节点 ExecutionFabric 无 Agent 能力 → 空转（新框架用 agentSpawner/AgentHarness 执行）
 3. 参数提取不稳（GLM JSON）→ 生成类用 LLM 自然生成（step-agent 输出），不强制提取
 4. 成本：maxTokens 不设限 → 靠 onTokenUsage/CostController 控
+
+---
+
+## ═════════ 会话 4：多 Agent 编排框架已实现并全链路验证（2026-08-04）═════════
+
+### 交付内容（P0+P1+P2 全部落地 + 3 个隐藏根因修复）
+
+**新增文件**：
+- `execution/orchestration/OrchestratorAgent.ts` —— 总大脑（P2 审计循环：分析复杂度→单 step-agent 或 DAG 分发→LLM 审计 pass/fail→fail 生成补充任务再分发（上限 3 轮）→LLM 汇总交付物；LLM 不可用/解析失败自动降级单 step 直跑）
+- `execution/runtime/dag/StepAgentExecutor.ts` —— step-agent 执行器（agentSpawner + 原语工具循环；上游成果注入 prompt；失败降级 fallback）
+- `infrastructure/tools/primitiveAgentTools.ts` —— 原语→AgentTool 桥（knowledge/file/shell/api/artifact 5 工具，execute 真正调原语）
+- `__tests__/multi-agent-orchestration.test.ts` —— 13 用例（桥/执行器/DAG 上游传递/审计迭代/降级）
+
+**修改文件**：
+- `UnifiedExecutionEngine.ts`：ExecutionMode 增 'orchestrator'；setOrchestratorAgent + executeViaOrchestrator；生成类任务优先走总大脑（不依赖原语匹配置信度，覆盖 medium/complex 生成类），取代 executeViaMission 嵌套路径（fcab3e7 的卡死路径）
+- `ServiceContainer.ts`：构造器接总大脑（createOrchestratorAgent，LLM=PiBridge 网关 + DAG 工具 + stepExecutor）；DAG nodeHandler：ExecutionFabric → StepAgentExecutor（fabric 降级 fallback）
+- `DAGRuntime.ts`：① 构造器不再丢弃 nodeHandler（此前传入即丢 → 节点无 handler 直接 success output=null——**DAG 空转真正根因**）② P1 上游成果注入：handler context 加 upstreamResults（Map<depId, output>）
+- `pi-bridge/PiBridge.ts`：createAgentHarness 三修复——①透传工具 execute（此前丢弃 → 声明的工具不可调用）②传 models（此前不传 → this.models=undefined → 'Cannot read properties of undefined (reading streamSimple)' → agent 4ms 返回空）③工具结果规范化 AgentToolResult
+- `agent-spawner.ts`：未指定 provider/modelId 时不硬编码 deepseek（网关启用时 deepseek 不在注册表 → model.provider=undefined → 'Unknown provider: undefined'）
+- `pi-bridge/yamlConfig.ts`：**CRLF 注释解析 bug**——JS 正则 `.` 不匹配 `\r`，CRLF 文件里 `/\s*#.*$/` 永不匹配 → 注释残留进值（enabled 变真值字符串、apiKey/baseUrl 带中文注释 → Agent 请求 ByteString 报错）；修复：先 CRLF→LF 规范化
+- `observability/architecture-contract.ts`：brain-facade expectedCallers 'company-facade'→'morpex-runtime'（company-facade 不发事件，实际 span 父=运行时锚；链路修通后暴露的潜伏契约错位）
+- `sse-execute-e2e.test.ts`：SSE 闭环测试改为不阻塞 POST 完成（先读 SSE started 事件再 await POST），超时 45s→180s，afterAll 15s→60s（多 Agent 编排多轮 LLM，POST 在完整执行后返回）
+- `observability-bridge.test.ts`：仅超时上浮（前会话遗留改动保留）
+
+### 验证结果
+- **门禁全绿**：tsc 0 ｜ validate-architecture 100% ｜ vitest **82 文件 723 通过 + 5 skipped（零失败）** ｜ production-check 8/8 ｜ verify-e2e 通过
+- **observability 测试 6 个失败 → 全绿**（HEAD 基线 6/9 失败：executeViaMission 卡死）
+- **e2e 实测（GLM 生产模型）**：`生成一个软件系统架构设计方案` → ok=true mode=orchestrator，总大脑判 simple → 1 step-agent 工具循环 → 审计 pass → 交付完整架构设计文档（180s）
+- **模型差异**：GLM 工具调用可靠；deepseek-v4-flash 在 pi-agent-core harness 下工具调用不稳定（常直接聊天不调工具）——测试/CI 用 deepseek 没问题（mock/不依赖工具），生产用 GLM
+
+### 遗留/后续（下一会话）
+- P3 简单任务单 Agent 路径已隐含实现（OrchestratorAgent simple 分支），但 executeAuto 的简单操作类任务仍走原语参数提取（未改）
+- 总大脑/step-agent 会话化（独立 Session 持久化）未做——当前为进程内编排（Session 化是后续增强）
+- step-agent 无显式超时（PiBridge.generateText 无 timeout 参数）——batch-run 式超时需接线
+- 精确 token 计费未接（onTokenUsage 钩子已在 OrchestratorAgent 预留）
+- deepseek 工具调用不稳定（pi-agent-core harness + deepseek-v4-flash）——若需 deepseek 工具链路可查 thinking 配置
+- config/morpex.yaml 默认 enabled=false（deepseek），生产切 GLM 需手动改
+
+---
+
+### 会话 3 遗留任务（未做，继续开放）
+- ① 微信接入：企业微信 vs 个人微信未决策
+- ② Phase 2 第二批：结构层 tsc/eslint 适配器、schema/AST 检测器、L5 精确计费、domain 沿调用链传递
+- ③ 上下文 Phase 2：Provider 归属标记、统一召回接口、Planner/Primitive domain 传递

@@ -56,7 +56,7 @@ function inferArtifactType(goal: string): string {
 
 // ── Types ──
 
-export type ExecutionMode = 'mission' | 'dag' | 'fabric' | 'auto';
+export type ExecutionMode = 'mission' | 'dag' | 'fabric' | 'auto' | 'orchestrator';
 export type ExecutionStatus = 'pending' | 'running' | 'completed' | 'failed' | 'cancelled';
 
 export interface ExecutionRequest {
@@ -130,6 +130,21 @@ export interface ActionExecutorLike {
   execute(params: Record<string, unknown>, context?: { departmentId?: string }): Promise<{ success: boolean; data?: unknown; error?: string; duration: number }>;
 }
 
+/** OrchestratorAgentLike — 多 Agent 总大脑（会话 3）：编排 → 执行 → 审计（迭代）→ 汇总 */
+export interface OrchestratorAgentLike {
+  readonly name: string;
+  run(goal: string, opts?: { departmentId?: string }): Promise<{
+    success: boolean;
+    output?: unknown;
+    iterations: number;
+    stepsExecuted: number;
+    auditLog: Array<{ iteration: number; pass: boolean; issues: string[]; reasoning: string }>;
+    stepResults: Map<string, unknown>;
+    error?: string;
+    duration: number;
+  }>;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // UnifiedExecutionEngine
 // ═══════════════════════════════════════════════════════════════════
@@ -164,6 +179,9 @@ export class UnifiedExecutionEngine {
   /** v14: ArtifactFacade 引用 */
   private artifactFacade: { createFromTask: (taskId: string, content: unknown, type: string) => Promise<unknown>; } | null = null;
 
+  /** 会话 3 多 Agent 框架：总大脑（OrchestratorAgent），生成类任务主路径 */
+  private orchestrator: OrchestratorAgentLike | null = null;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[UnifiedExecutionEngine] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -188,6 +206,11 @@ export class UnifiedExecutionEngine {
    */
   setExecutionFabric(fabric: ExecutionFabricLike): void {
     this.executionFabric = fabric;
+  }
+
+  /** 会话 3：注入总大脑（OrchestratorAgent） */
+  setOrchestratorAgent(orchestrator: OrchestratorAgentLike): void {
+    this.orchestrator = orchestrator;
   }
 
   /**
@@ -484,6 +507,53 @@ export class UnifiedExecutionEngine {
   }
 
   /**
+   * executeViaOrchestrator — 通过总大脑（多 Agent 编排）执行（会话 3）
+   *
+   * 生成类任务主路径：总大脑分析复杂度 → 单 step-agent 或 DAG 分发 → LLM 审计（迭代）→ 汇总交付物。
+   * 取代原先 executeViaMission 嵌套路径（外层 Mission + 内层 DAG 无 Agent 能力 → 卡死）。
+   */
+  private async executeViaOrchestrator(request: ExecutionRequest, executionId: string): Promise<ExecutionResult> {
+    if (!this.orchestrator) {
+      return {
+        ok: false, executionId, mode: 'auto', status: 'failed',
+        error: 'OrchestratorAgent 未注入', duration: 0,
+      };
+    }
+
+    const startTime = Date.now();
+    request.onProgress?.(makeProgressEvent('task.progress', `生成类任务 → 多 Agent 编排（总大脑 + step-agent）`, 10, {
+      taskId: executionId, departmentId: request.departmentId,
+    }));
+
+    try {
+      const result = await this.orchestrator.run(request.goal, {
+        departmentId: request.departmentId,
+      });
+
+      return {
+        ok: result.success,
+        executionId,
+        mode: 'orchestrator',
+        status: result.success ? 'completed' : 'failed',
+        output: result.output,
+        error: result.error,
+        duration: result.duration || (Date.now() - startTime),
+        metrics: {
+          iterations: result.iterations,
+          stepsExecuted: result.stepsExecuted,
+          audit: result.auditLog,
+        },
+      };
+    } catch (err) {
+      const msg = err instanceof Error ? err.message : String(err);
+      return {
+        ok: false, executionId, mode: 'orchestrator', status: 'failed',
+        error: msg, duration: Date.now() - startTime,
+      };
+    }
+  }
+
+  /**
    * executeViaMission — 通过 MissionRuntime 执行
    *
    * ⭐ P0 修复：等待 Mission 完整生命周期，而非直接返回 status:'running'
@@ -716,6 +786,20 @@ export class UnifiedExecutionEngine {
 
     const complexity = this.analyzeComplexity(request);
 
+    // ═══ 会话 3 多 Agent 框架：生成类任务优先走总大脑（不依赖原语匹配置信度）═══
+    // 覆盖 medium/complex 生成类任务——原先这些任务落 executeViaMission（嵌套 Mission 卡死）。
+    // 总大脑分析复杂度 → 单 step-agent 或 DAG 分发（step-agent 工具循环）→ 审计 → 汇总。
+    if (this.orchestrator) {
+      const genMatch = DomainPrimitiveRegistry.matchBest(request.goal);
+      if (genMatch && isGenerativePrimitive(genMatch.primitive.name)) {
+        request.onProgress?.(makeProgressEvent('task.progress', `生成类任务 → 多 Agent 编排（总大脑）`, 10, {
+          taskId: executionId, departmentId: request.departmentId,
+          metadata: { primitive: genMatch.primitive.name, complexity },
+        }));
+        return this.executeViaOrchestrator(request, executionId);
+      }
+    }
+
     // vNext+ 全功能实现：第 6 层原语注册中心兜底（仅 simple 任务，避免复杂任务被通用原语误截）
     if (complexity === 'simple') {
       const primMatch = DomainPrimitiveRegistry.matchBest(request.goal);
@@ -731,15 +815,16 @@ export class UnifiedExecutionEngine {
         // 操作类（file/shell/api/knowledge）保留参数提取（需明确 path/command/url/query）。
         const primName = primMatch.primitive.name;
         if (isGenerativePrimitive(primName)) {
-          // ═══ 生成类任务整体走 Mission 流程（方案 A+B 综合）═══
-          // 生成类（做报表/写代码/生成文档）需要：Gate 两阶段推理（知识凭证）+ LLM 自然生成。
-          // executeAuto 不携带 KnowledgeContextPackage（破坏性原语缺凭证→Gate 硬拦截），
-          // 且 paramExtractor 提取 type/specification 不稳定。
-          // 因此生成类任务跳过 executeAuto 原语执行，走 Mission FSM（Gate 查询→规划→执行→产物）。
-          request.onProgress?.(makeProgressEvent('task.progress', `生成类任务 → Mission 流程（Gate + LLM 自然生成）`, 10, {
+          // ═══ 生成类任务 → 多 Agent 编排（会话 3 定稿，取代 executeViaMission 嵌套路径）═══
+          // 生成类（做报表/写代码/生成文档）需要：总大脑拆解 + step-agent 工具循环（知识查询+落盘）。
+          // 原先走 executeViaMission 嵌套 Mission（外层 MorPexRuntime + 内层 MissionRuntime 双层）
+          // + 内层 DAG 无 Agent 能力 → 300s 超时卡死（会话 3 实测教训）。
+          request.onProgress?.(makeProgressEvent('task.progress', `生成类任务 → 多 Agent 编排（总大脑 + step-agent）`, 10, {
             taskId: executionId, departmentId: request.departmentId,
             metadata: { primitive: primName },
           }));
+          if (this.orchestrator) return this.executeViaOrchestrator(request, executionId);
+          // 无总大脑时回退：Mission（旧路径，尽力而为）
           if (this.missionRuntime) return this.executeViaMission(request, executionId);
         } else if (this.paramExtractor) {
           try {

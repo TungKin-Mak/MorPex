@@ -1,0 +1,365 @@
+/**
+ * 多 Agent 编排框架测试（会话 3 定稿实施）
+ *
+ * 覆盖：
+ *   1. primitiveAgentTools：原语 → AgentTool 桥（execute 真正调用原语）
+ *   2. StepAgentExecutor：step-agent 执行（fallback 降级 / 上游成果注入 / 输出提取）
+ *   3. DAGRuntime P1：上游成果传递（下游节点 handler 收到依赖节点 output）
+ *   4. OrchestratorAgent P2：总大脑（简单直跑 / 复杂 DAG / 审计迭代 / LLM 不可用降级）
+ */
+
+import { describe, it, expect, beforeEach } from 'vitest';
+import { DomainPrimitiveRegistry } from '../src/infrastructure/tools/DomainPrimitiveRegistry.js';
+import type { ActionPrimitive } from '../src/infrastructure/tools/primitives/types.js';
+import { createPrimitiveAgentTools } from '../src/infrastructure/tools/primitiveAgentTools.js';
+import { StepAgentExecutor, extractText } from '../src/execution/runtime/dag/StepAgentExecutor.js';
+import { DAGRuntime } from '../src/execution/runtime/dag/DAGRuntime.js';
+import type { ExecutionDAG } from '../src/execution/runtime/dag/types.js';
+import { OrchestratorAgent, type OrchestratorStep } from '../src/execution/orchestration/OrchestratorAgent.js';
+
+// ── 测试原语（模拟 5 个通用原语）──
+
+function mockPrimitive(name: string, description: string, handler: (params: Record<string, unknown>) => unknown): ActionPrimitive {
+  return {
+    name,
+    description,
+    inputSchema: { type: 'object', properties: { query: { type: 'string' } } },
+    canHandle: () => 0,
+    execute: async (params) => ({ success: true, data: handler(params) }),
+  };
+}
+
+beforeEach(() => {
+  // 清理 + 注册测试原语（覆盖真实注册名，避免污染）
+  for (const name of ['knowledge_query', 'file_operation', 'shell_execution', 'api_call', 'artifact_generation']) {
+    (DomainPrimitiveRegistry as unknown as { primitives: Map<string, unknown> }).primitives.delete(name);
+  }
+  DomainPrimitiveRegistry.register(mockPrimitive('knowledge_query', '查询知识', (p) => ({ found: true, query: p.query })));
+  DomainPrimitiveRegistry.register(mockPrimitive('file_operation', '文件操作', (p) => ({ wrote: p.path })));
+  DomainPrimitiveRegistry.register(mockPrimitive('shell_execution', '执行命令', (p) => ({ cmd: p.command })));
+  DomainPrimitiveRegistry.register(mockPrimitive('api_call', 'HTTP 调用', (p) => ({ url: p.url })));
+  DomainPrimitiveRegistry.register(mockPrimitive('artifact_generation', '产物生成', (p) => ({ spec: p.specification })));
+});
+
+describe('primitiveAgentTools — 原语 → AgentTool 桥', () => {
+  it('将 5 个通用原语包装为可调用的 AgentTool', async () => {
+    const tools = createPrimitiveAgentTools({ departmentId: 'software' });
+    expect(tools.length).toBe(5);
+    expect(tools.map(t => t.name)).toEqual(['knowledge', 'file', 'shell', 'api', 'artifact']);
+    expect(tools[0].description).toContain('知识');
+  });
+
+  it('AgentTool.execute 真正调用原语并规范化结果', async () => {
+    const tools = createPrimitiveAgentTools({ departmentId: 'software' });
+    const knowledgeTool = tools.find(t => t.name === 'knowledge')!;
+    const res = await knowledgeTool.execute('tc_1', { query: '架构文档' });
+    expect(res.isError).toBe(false);
+    const parsed = JSON.parse(res.content[0].text as string) as { found: boolean; query: string };
+    expect(parsed.found).toBe(true);
+    expect(parsed.query).toBe('架构文档');
+  });
+
+  it('未注册的原语被跳过（不产生空壳工具）', () => {
+    (DomainPrimitiveRegistry as unknown as { primitives: Map<string, unknown> }).primitives.delete('api_call');
+    const tools = createPrimitiveAgentTools();
+    expect(tools.map(t => t.name)).not.toContain('api');
+  });
+});
+
+describe('StepAgentExecutor — step-agent 执行器', () => {
+  it('agentDisabled → 走 fallback 执行器（含上游成果文本）', async () => {
+    let receivedUpstream = '';
+    const executor = new StepAgentExecutor({
+      agentDisabled: true,
+      fallbackExecutor: async (node, upstreamText) => {
+        receivedUpstream = upstreamText;
+        return { fallback: true, node: node.name };
+      },
+    });
+    const upstream = new Map([['step_a', '上游成果 A']]);
+    const res = await executor.executeStep(
+      { id: 'step_b', name: 'step_b', description: '做 B', agentType: 'general' },
+      upstream,
+    );
+    expect(res.success).toBe(true);
+    expect(res.mode).toBe('fallback');
+    expect(receivedUpstream).toContain('上游成果 A');
+    expect((res.output as { fallback: boolean }).fallback).toBe(true);
+  });
+
+  it('agent 不可用且无 fallback → 返回失败', async () => {
+    const executor = new StepAgentExecutor({ agentDisabled: true });
+    const res = await executor.executeStep(
+      { id: 's', name: 's', description: 'x', agentType: 'general' },
+    );
+    expect(res.success).toBe(false);
+    expect(res.error).toContain('fallbackExecutor');
+  });
+
+  it('无上游成果时 upstream 文本为空（不注入垃圾上下文）', async () => {
+    let receivedUpstream = '未调用';
+    const executor = new StepAgentExecutor({
+      agentDisabled: true,
+      fallbackExecutor: async (_node, upstreamText) => { receivedUpstream = upstreamText; return {}; },
+    });
+    await executor.executeStep({ id: 's', name: 's', description: 'x', agentType: 'general' });
+    expect(receivedUpstream).toBe('');
+  });
+
+  it('extractText 从 content 提取文本', () => {
+    expect(extractText([{ type: 'text', text: 'hello' }, { type: 'text', text: ' world' }])).toBe('hello\n world');
+    expect(extractText(undefined)).toBe('');
+  });
+});
+
+describe('DAGRuntime — P1 上游成果传递', () => {
+  it('下游节点 handler 收到依赖节点的 output（Map<nodeId, output>）', async () => {
+    const received: Array<{ nodeId: string; upstreamKeys: string[] }> = [];
+    const runtime = new DAGRuntime({
+      maxParallel: 4,
+      enablePriority: true,
+      continueOnFailure: true,
+      nodeHandler: async (node, ctx) => {
+        const ctxObj = (ctx ?? {}) as { upstreamResults?: Map<string, unknown> };
+        received.push({
+          nodeId: node.id,
+          upstreamKeys: ctxObj.upstreamResults ? [...ctxObj.upstreamResults.keys()] : [],
+        });
+        return { done: node.id };
+      },
+    });
+
+    const dag: ExecutionDAG = {
+      id: 'dag_test_upstream',
+      nodes: [
+        { id: 'a', name: 'A', agentType: 'general', description: 'A', deps: [], status: 'pending', priority: 1, retryCount: 0, maxRetries: 0 },
+        { id: 'b', name: 'B', agentType: 'general', description: 'B', deps: ['a'], status: 'pending', priority: 1, retryCount: 0, maxRetries: 0 },
+      ],
+      edges: [{ from: 'a', to: 'b', weight: 1 }],
+      status: { totalNodes: 2, totalEdges: 1, mutations: 0, isCyclic: false, canRollback: false, isComplete: false },
+      createdAt: Date.now(),
+    };
+
+    const result = await runtime.run(dag, { goal: 'test' });
+
+    expect(result.success).toBe(true);
+    const bEntry = received.find(r => r.nodeId === 'b');
+    expect(bEntry).toBeDefined();
+    expect(bEntry!.upstreamKeys).toContain('a');
+    const aEntry = received.find(r => r.nodeId === 'a');
+    expect(aEntry!.upstreamKeys).toEqual([]);
+  });
+});
+
+describe('OrchestratorAgent — 总大脑（P2 审计循环）', () => {
+  function mockLlm(script: Array<{ match: string; reply: string | (() => string) }>) {
+    let idx = 0;
+    return {
+      generateText: async ({ prompt }: { prompt: string }) => {
+        for (const s of script) {
+          if (prompt.includes(s.match)) return { text: typeof s.reply === 'function' ? s.reply() : s.reply };
+        }
+        // 兜底：返回脚本最后一条
+        const last = script[Math.min(idx, script.length - 1)];
+        idx++;
+        return { text: typeof last.reply === 'function' ? last.reply() : last.reply };
+      },
+    };
+  }
+
+  function mockStepExecutor(output: string) {
+    return {
+      executeStep: async () => ({ success: true, mode: 'agent' as const, output: { text: output }, duration: 1 }),
+    };
+  }
+
+  function mockDagRuntime(results: Record<string, unknown>) {
+    return {
+      name: 'mock-dag',
+      execute: async (_goal: string, _tasks: unknown[], _ctx?: Record<string, unknown>) => ({
+        executionId: 'dag_mock',
+        nodeResults: new Map(Object.entries(results)),
+      }),
+      getStatus: async () => ({ state: 'completed' }),
+      cancel: async () => {},
+    };
+  }
+
+  it('复杂任务：DAG 分发 → 审计 pass → 汇总交付物', async () => {
+    const llm = mockLlm([
+      {
+        match: '总大脑（编排 Agent）',
+        reply: JSON.stringify({
+          complexity: 'complex',
+          steps: [
+            { name: '调研', description: '调研需求', deps: [] },
+            { name: '实现', description: '实现功能', deps: ['调研'] },
+          ],
+          reasoning: '两步',
+        }),
+      },
+      { match: '审计 Agent', reply: JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' }) },
+      { match: '汇总', reply: '最终交付物：完整实现' },
+    ]);
+
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      dagRuntime: mockDagRuntime({ 调研: { text: '调研成果' }, 实现: { text: '实现成果' } }),
+      stepExecutor: mockStepExecutor('x'),
+      maxIterations: 3,
+    });
+
+    const res = await orchestrator.run('生成一个软件系统', { departmentId: 'software' });
+
+    expect(res.success).toBe(true);
+    expect(res.iterations).toBe(1);
+    expect(res.stepsExecuted).toBe(2);
+    expect(res.output).toBe('最终交付物：完整实现');
+    expect(res.auditLog[0].pass).toBe(true);
+    // DAG 结果合并：实现节点输出
+    expect(res.stepResults.get('实现')).toEqual({ text: '实现成果' });
+  });
+
+  it('复杂任务：DAG 节点 id 为 node_{i}_{ts}（ServiceContainer wrapper 格式）时按索引正确回填', async () => {
+    const llm = mockLlm([
+      {
+        match: '总大脑（编排 Agent）',
+        reply: JSON.stringify({
+          complexity: 'complex',
+          steps: [
+            { name: '调研', description: '调研需求', deps: [] },
+            { name: '实现', description: '实现功能', deps: ['调研'] },
+            { name: '验证', description: '验证结果', deps: ['实现'] },
+          ],
+          reasoning: '三步',
+        }),
+      },
+      { match: '审计 Agent', reply: JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' }) },
+      { match: '汇总', reply: '汇总' },
+    ]);
+
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      dagRuntime: mockDagRuntime({
+        'node_0_1785000000000': { text: '调研成果' },
+        'node_1_1785000000000': { text: '实现成果' },
+        'node_2_1785000000000': { text: '验证成果' },
+      }),
+      stepExecutor: mockStepExecutor('x'),
+      maxIterations: 3,
+    });
+
+    const res = await orchestrator.run('生成系统');
+    expect(res.success).toBe(true);
+    expect(res.stepsExecuted).toBe(3);
+    expect(res.stepResults.get('调研')).toEqual({ text: '调研成果' });
+    expect(res.stepResults.get('实现')).toEqual({ text: '实现成果' });
+    expect(res.stepResults.get('验证')).toEqual({ text: '验证成果' });
+  });
+
+  it('审计 fail → 补充任务再分发 → 第二轮 pass（迭代上限内）', async () => {
+    let auditCount = 0;
+    const llm = mockLlm([
+      {
+        match: '总大脑（编排 Agent）',
+        reply: JSON.stringify({
+          complexity: 'simple',
+          steps: [{ name: '生成', description: '生成报告', deps: [] }],
+          reasoning: '单步',
+        }),
+      },
+      {
+        match: '审计 Agent',
+        reply: () => {
+          auditCount++;
+          if (auditCount === 1) {
+            return JSON.stringify({
+              pass: false,
+              issues: ['缺少验证'],
+              supplementaryTasks: [{ name: '验证', description: '补充验证', deps: [] }],
+              reasoning: '需要验证',
+            });
+          }
+          return JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' });
+        },
+      },
+      { match: '汇总', reply: '最终交付物' },
+    ]);
+
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      stepExecutor: mockStepExecutor('成果'),
+      maxIterations: 3,
+    });
+
+    const res = await orchestrator.run('生成报告');
+
+    expect(res.iterations).toBe(2);
+    expect(res.auditLog.length).toBe(2);
+    expect(res.auditLog[0].pass).toBe(false);
+    expect(res.auditLog[1].pass).toBe(true);
+    expect(res.output).toBe('最终交付物');
+    expect(res.stepsExecuted).toBe(2); // 第一轮 1 + 补充 1
+  });
+
+  it('简单任务：单 step-agent 直跑（不走 DAG）', async () => {
+    let dagCalled = false;
+    const llm = mockLlm([
+      {
+        match: '总大脑（编排 Agent）',
+        reply: JSON.stringify({ complexity: 'simple', steps: [{ name: '查询', description: '查询知识', deps: [] }], reasoning: '一步' }),
+      },
+      { match: '审计 Agent', reply: JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' }) },
+      { match: '汇总', reply: '查询结果汇总' },
+    ]);
+
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      dagRuntime: {
+        name: 'mock-dag',
+        execute: async () => { dagCalled = true; return { executionId: 'x', nodeResults: new Map() }; },
+        getStatus: async () => ({ state: 'completed' }),
+        cancel: async () => {},
+      },
+      stepExecutor: mockStepExecutor('知识结果'),
+      maxIterations: 3,
+    });
+
+    const res = await orchestrator.run('查询知识');
+    expect(dagCalled).toBe(false);
+    expect(res.success).toBe(true);
+    expect(res.stepsExecuted).toBe(1);
+  });
+
+  it('LLM 不可用 → 降级：单 step-agent 直跑 + 审计默认 pass', async () => {
+    const orchestrator = new OrchestratorAgent({
+      llm: undefined,
+      stepExecutor: mockStepExecutor('降级成果'),
+      maxIterations: 3,
+    });
+    const res = await orchestrator.run('生成文档');
+    expect(res.success).toBe(true);
+    expect(res.iterations).toBe(1);
+    expect(res.auditLog[0].pass).toBe(true);
+    expect(res.auditLog[0].reasoning).toContain('llm_unavailable');
+  });
+
+  it('LLM 拆解返回非法 JSON → 回退单 step 直跑', async () => {
+    const llm = mockLlm([
+      { match: '总大脑（编排 Agent）', reply: '抱歉，无法解析' },
+      { match: '审计 Agent', reply: JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' }) },
+      { match: '汇总', reply: '汇总结果' },
+    ]);
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      stepExecutor: mockStepExecutor('成果'),
+      maxIterations: 3,
+    });
+    const res = await orchestrator.run('生成文档');
+    expect(res.success).toBe(true);
+    expect(res.iterations).toBe(1);
+    expect(res.stepsExecuted).toBe(1);
+    // 非法 JSON → 回退单 step 直跑（不走 DAG，不空转）
+    expect([...res.stepResults.keys()]).toHaveLength(1);
+  });
+});

@@ -20,12 +20,12 @@ beforeAll(async () => {
   server = new StudioServer({ port: 0, sessionsRoot: undefined });
   await server.start();
   baseUrl = `http://127.0.0.1:${server.getPort()}`;
-}, 60000);
+}, 180000);
 
 afterAll(async () => {
   await server?.stop();
   delete process.env.MEMORY_ENGINE;
-}, 15000);
+}, 60000);
 
 interface SseSession {
   controller: AbortController;
@@ -98,21 +98,27 @@ describe('SSE + /api/execute 闭环', () => {
     // 1. 建立 SSE 连接并确保订阅就绪（读到 connected）
     const s = await openSseAndWaitConnected();
 
-    // 2. 触发执行（此刻 started 事件必然可被 SSE 捕获）
-    const execRes = await fetch(`${baseUrl}/api/execute`, {
+    // 2. 触发执行（不 await：started 事件在 engine.execute 开头同步发射，
+    //    此时执行可能持续数秒（多 Agent 编排多轮 LLM），SSE 应实时先收到）
+    const execPromise = fetch(`${baseUrl}/api/execute`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify({ goal: '写一个 todo 应用的代码实现' }),
     });
-    expect(execRes.status).toBe(200);
-    const execBody = await execRes.json();
-    expect(execBody.executionId).toBeTruthy();
 
     // 3. SSE 应命中 started 事件（闭环：HTTP 执行 → 事件流透传）
-    const hit = await readUntilType(s, 'execution.engine.started', 20000);
-    expect(hit).toBe(true);
-    expect(s.frames.some(f => f.includes('execution.engine.started'))).toBe(true);
+    try {
+      const hit = await readUntilType(s, 'execution.engine.started', 30000);
+      expect(hit).toBe(true);
+      expect(s.frames.some(f => f.includes('execution.engine.started'))).toBe(true);
 
-    await closeSession(s);
-  }, 45000);
+      // 4. 等待执行完成，校验响应契约
+      const execRes = await execPromise;
+      expect(execRes.status).toBe(200);
+      const execBody = await execRes.json();
+      expect(execBody.executionId).toBeTruthy();
+    } finally {
+      await closeSession(s);
+    }
+  }, 180000);
 });

@@ -57,6 +57,9 @@ export class DAGRuntime {
       enablePriority: config?.enablePriority ?? true,
       continueOnFailure: config?.continueOnFailure ?? true,
       eventBus: config?.eventBus,
+      // ⬅️ 会话 3 修复：此前构造器丢弃 nodeHandler → 节点无 handler 直接成功（output=null），
+      //    DAG 执行“空转”的真正根因（ServiceContainer 传入的 ExecutionFabric/step-agent 执行器从未生效）。
+      nodeHandler: config?.nodeHandler,
     };
   }
 
@@ -77,7 +80,20 @@ export class DAGRuntime {
     const defaultHandler = this.config.nodeHandler;
     if (defaultHandler) {
       for (const node of graph.nodes) {
-        node.setHandler((n, ctx) => defaultHandler(n, ctx));
+        node.setHandler((n, ctx) => {
+          // ═══ P1（会话 3 多 Agent 框架）：上游成果传递 ═══
+          // 每个节点执行前，从 graph 收集其依赖节点的 output，注入 handler context，
+          // 使 step-agent 能看到上游 step 的成果（跨节点交流的基础）。
+          const upstream = new Map<string, unknown>();
+          for (const depId of n.deps) {
+            const dep = graph.getNode(depId);
+            if (dep?.result?.output !== undefined) upstream.set(depId, dep.result.output);
+          }
+          const baseCtx = (ctx !== null && typeof ctx === 'object')
+            ? { ...(ctx as Record<string, unknown>) }
+            : {};
+          return defaultHandler(n, { ...baseCtx, upstreamResults: upstream } as unknown);
+        });
       }
     }
     const resolver = new DependencyResolver(graph);

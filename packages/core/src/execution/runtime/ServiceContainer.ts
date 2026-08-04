@@ -12,6 +12,8 @@ import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { MorPexRuntime } from './MorPexRuntime.js';
 import { MissionRuntime } from './mission/MissionRuntime.js';
 import { DAGRuntime } from './dag/DAGRuntime.js';
+import { StepAgentExecutor } from './dag/StepAgentExecutor.js';
+import { OrchestratorAgent } from '../orchestration/OrchestratorAgent.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../../governance/control-plane/ControlPlane.js';
@@ -159,6 +161,8 @@ export class ServiceContainer {
   readonly missionController: MissionController;
   readonly teamOrchestrator: DynamicTeamOrchestrator;
   readonly executionEngine: UnifiedExecutionEngine;
+  /** 会话 3 多 Agent 框架：总大脑（编排 + 审计循环） */
+  readonly orchestratorAgent: OrchestratorAgent;
   readonly artifactFacade: ArtifactFacade;
   readonly verificationEngine: VerificationEngine;
   readonly complianceChecker: ComplianceChecker;
@@ -192,8 +196,12 @@ export class ServiceContainer {
     this.teamOrchestrator = new DynamicTeamOrchestrator();
     this.executionEngine = new UnifiedExecutionEngine(this.eventBus);
     this.executionEngine.setMissionRuntime(this.createMissionRuntime());
-    this.executionEngine.setDAGRuntime(this.createDAGRuntime());
+    const dagRuntime = this.createDAGRuntime();
+    this.executionEngine.setDAGRuntime(dagRuntime);
     this.executionEngine.setExecutionFabric(this.createExecutionFabric());
+    // 会话 3：总大脑接线（生成类任务主路径；审计循环 + step-agent 执行肢）
+    this.orchestratorAgent = this.createOrchestratorAgent(dagRuntime);
+    this.executionEngine.setOrchestratorAgent(this.orchestratorAgent);
     this.artifactFacade = new ArtifactFacade(this.eventBus);
     this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine(this.eventBus);
@@ -315,6 +323,38 @@ export class ServiceContainer {
     }
   }
 
+  /**
+   * createOrchestratorAgent — 总大脑（会话 3 多 Agent 框架）
+   *
+   * 接线：LLM（PiBridge 网关）+ DAG 工具（dagRuntime，nodeHandler 已接 step-agent）+ step-agent 执行器。
+   */
+  private createOrchestratorAgent(dagRuntime: DAGRuntimeLike): OrchestratorAgent {
+    const self = this;
+    const stepExecutor = new StepAgentExecutor({
+      fallbackExecutor: async (n, upstreamText) => {
+        const fabric = self.createExecutionFabric();
+        const r = await fabric.execute(n.agentType || 'execute', n.description || n.name, {
+          goal: n.description || n.name,
+          upstreamText,
+        });
+        if (!r.success) throw new Error(r.error || '节点执行失败');
+        return r.data;
+      },
+    });
+    return new OrchestratorAgent({
+      llm: {
+        generateText: async (opts: { prompt: string; temperature?: number }) => {
+          await self.ensurePiBridge();
+          if (!self.piBridge) throw new Error('[OrchestratorAgent] PiBridge 不可用');
+          return self.piBridge.generateText(opts);
+        },
+      },
+      dagRuntime,
+      stepExecutor,
+      maxIterations: 3,
+    });
+  }
+
   private createMissionRuntime(): MissionRuntimeLike {
     const mr = new MissionRuntime(this.eventBus);
     this.missionRuntime = mr;
@@ -335,15 +375,41 @@ export class ServiceContainer {
       enablePriority: true,
       continueOnFailure: true,
       eventBus: this.eventBus,
-      // ⬅️ 默认节点执行器：委托给 ExecutionFabric
+      // ═══ 多 Agent 框架（会话 3 P0）：DAG 节点由 step-agent（agentSpawner + 原语工具）执行 ═══
+      // 取代原先 ExecutionFabric 单次 LLM 生成（无工具调用 → 生成类任务空转卡死）。
+      // ExecutionFabric 降级为 fallback（Agent 不可用时兜底）。
       nodeHandler: async (node, ctx) => {
-        const fabric = this.createExecutionFabric();
-        const cap = node.agentType || 'execute';
         const action = node.description || node.name;
-        console.log(`[DAGRuntime] 执行节点: ${node.id} (cap=${cap}, action=${action})`);
-        const result = await fabric.execute(cap, action, { goal: action, ...(ctx as Record<string, unknown>) });
+        const ctxObj = (ctx !== null && typeof ctx === 'object')
+          ? (ctx as Record<string, unknown>)
+          : {};
+        // P1：上游成果（DAGRuntime 注入）
+        const upstream = (ctxObj.upstreamResults instanceof Map ? ctxObj.upstreamResults : new Map<string, unknown>());
+        const departmentId = typeof ctxObj.departmentId === 'string' ? ctxObj.departmentId : undefined;
+        console.log(`[DAGRuntime] 执行节点: ${node.id} (agentType=${node.agentType}, action=${action.slice(0, 60)})`);
+
+        const executor = new StepAgentExecutor({
+          departmentId,
+          goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
+          fallbackExecutor: async (n, upstreamText) => {
+            const fabric = this.createExecutionFabric();
+            const cap = n.agentType || 'execute';
+            console.log(`[DAGRuntime] ⚠️ step-agent 降级 → ExecutionFabric (cap=${cap})`);
+            const result = await fabric.execute(cap, n.description || n.name, {
+              goal: n.description || n.name,
+              upstreamText,
+              ...ctxObj,
+            });
+            if (!result.success) throw new Error(result.error || '节点执行失败');
+            return result.data;
+          },
+        });
+        const result = await executor.executeStep(
+          { id: node.id, name: node.name, description: node.description, agentType: node.agentType },
+          upstream,
+        );
         if (!result.success) throw new Error(result.error || '节点执行失败');
-        return result.data;
+        return result.output;
       },
     });
 

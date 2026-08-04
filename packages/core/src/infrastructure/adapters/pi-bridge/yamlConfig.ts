@@ -42,9 +42,12 @@ export function parseYaml(text: string): Record<string, unknown> {
   const result: Record<string, unknown> = {};
   let currentObj: Record<string, unknown> | null = null;
 
-  for (const rawLine of text.split('\n')) {
+  for (const rawLine of text.replace(/\r\n/g, '\n').split('\n')) {
     const indent = rawLine.match(/^\s*/)?.[0].length ?? 0;
     // 去注释（# 前有空格或行首）
+    // ⚠️ 会话 3 修复：先规范化 CRLF——JS 正则的 . 不匹配 \r（行终止符），
+    //    CRLF 文件里 /\s*#.*$/ 永不匹配 → 注释残留在值里（enabled 变真值字符串、
+    //    apiKey/baseUrl 带中文注释 → Agent 请求 ByteString 报错）。
     const line = rawLine.replace(/\s*#.*$/, '').trim();
     if (!line) continue;
 

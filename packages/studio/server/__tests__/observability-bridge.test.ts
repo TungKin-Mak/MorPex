@@ -26,7 +26,7 @@ beforeAll(async () => {
   baseUrl = `http://127.0.0.1:${server.getPort()}`;
   // 清空旧观测，保证确定性
   await fetch(`${baseUrl}/api/observability/reset`, { method: 'POST' });
-}, 60000);
+}, 180000);
 
 afterAll(async () => {
   await server?.stop();
@@ -51,7 +51,7 @@ describe('架构可观测 — 服务接线', () => {
   });
 });
 
-describe('架构可观测 — 真实执行产生观测', { timeout: 60000 }, () => {
+describe('架构可观测 — 真实执行产生观测', { timeout: 180000 }, () => {
   it('POST /api/execute 真实执行 → observations 记录调用链 + 执行 ID 可查', async () => {
     const execRes = await fetch(`${baseUrl}/api/execute`, {
       method: 'POST', headers: { 'Content-Type': 'application/json' },
@@ -69,7 +69,7 @@ describe('架构可观测 — 真实执行产生观测', { timeout: 60000 }, () 
     expect(mine.length).toBeGreaterThanOrEqual(2); // started + completed
     // 层标注正确（L5-execution 执行引擎）
     expect(mine.some((o: any) => o.source.layer === 'L5-execution')).toBe(true);
-  }, 60000);
+  }, 180000);
 
   it('span-tree 返回该执行的 span 链（含 parentId 父子关系）', async () => {
     const { status, body } = await getJson(`/api/observability/span-tree/${execId}`);
