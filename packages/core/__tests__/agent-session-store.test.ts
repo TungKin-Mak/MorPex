@@ -87,6 +87,42 @@ describe('AgentSessionStore — JSONL 持久化会话', () => {
     const forkMeta = await (fork.session as { getMetadata(): Promise<{ parentSessionPath?: string }> }).getMetadata();
     expect(forkMeta.parentSessionPath).toBe(source.path);
   });
+
+  it('readEntries → 归一化纯对象（custom + message + custom_message）', async () => {
+    const store = new AgentSessionStore(makeTempRoot());
+    const handle = await store.createSession({ component: 'step-agent', id: 'step_read', goal: 'g' });
+    await store.appendCustom(handle.session, 'step-result', { nodeId: 'n1', success: true });
+    await (handle.session as { appendMessage(m: unknown): Promise<string> }).appendMessage({ role: 'user', content: '你好' });
+    await (handle.session as { appendMessage(m: unknown): Promise<string> }).appendMessage({ role: 'assistant', content: [{ type: 'text', text: '回复一' }] });
+
+    const entries = await store.readEntries(handle.path);
+    const types = entries.map(e => e.type);
+    expect(types).toContain('custom');
+    expect(types).toContain('message');
+
+    // 基础字段齐全 + JSON 可序列化
+    for (const e of entries) {
+      expect(typeof e.id).toBe('string');
+      expect(typeof e.timestamp).toBe('string');
+      JSON.stringify(e); // 不应抛（无循环引用/非序列化值）
+    }
+
+    // custom 归一化：customType + data
+    const custom = entries.find(e => e.type === 'custom') as { customType?: string; data?: { nodeId?: string } };
+    expect(custom?.customType).toBe('step-result');
+    expect(custom?.data?.nodeId).toBe('n1');
+
+    // message 归一化：role + content 文本（文本与内容块数组都变纯文本）
+    const msgs = entries.filter(e => e.type === 'message') as Array<{ role?: string; content?: string }>;
+    expect(msgs.find(m => m.role === 'user')?.content).toBe('你好');
+    expect(msgs.find(m => m.role === 'assistant')?.content).toBe('回复一');
+  });
+
+  it('readEntries → 不存在的 path 返回 []（不抛）', async () => {
+    const store = new AgentSessionStore(makeTempRoot());
+    const entries = await store.readEntries('/nonexistent/nope.jsonl');
+    expect(entries).toEqual([]);
+  });
 });
 
 // ── 2. StepAgentExecutor + sessionStore ──

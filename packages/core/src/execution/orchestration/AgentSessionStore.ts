@@ -64,6 +64,7 @@ interface SessionLike {
     parentSessionPath?: string;
     metadata?: Record<string, unknown>;
   }>;
+  getEntries(options?: { afterEntrySeq?: number; limit?: number }): Promise<Array<Record<string, unknown>>>;
   appendCustomEntry(type: string, data?: unknown): Promise<string>;
   appendSessionName(name: string): Promise<string>;
   appendMessage(message: unknown): Promise<string>;
@@ -173,4 +174,85 @@ export class AgentSessionStore {
       await (session as SessionLike).appendSessionName(name);
     } catch { /* 非关键，忽略 */ }
   }
+
+  /**
+   * readEntries — 读取会话全部条目（治理/审计消费端；会话化治理 UI 数据源）
+   *
+   * 按 path 打开已持久化会话并读取所有条目，归一化为 JSON 可序列化纯对象：
+   *   - message        → { type, id, parentId, timestamp, role, content }
+   *   - custom         → { type, id, parentId, timestamp, customType, data }
+   *   - custom_message → { type, id, parentId, timestamp, customType, content, display, details }
+   *   - 其余           → 基础字段 + 已知扩展字段（thinking_level_change/model_change/...）
+   *
+   * 打开/读取失败 → 返回 []（不抛，消费端容错）。
+   */
+  async readEntries(path: string): Promise<Array<Record<string, unknown>>> {
+    if (!path) return [];
+    try {
+      const session = await this.repo.open({ path } as never);
+      const entries = await (session as unknown as SessionLike).getEntries();
+      if (!Array.isArray(entries)) return [];
+      return entries.map(normalizeEntry);
+    } catch (err) {
+      console.warn(`[AgentSessionStore] ⚠️ readEntries(${path}) 失败: ${(err as Error).message}`);
+      return [];
+    }
+  }
+}
+
+// ── 条目归一化（治理/审计消费端）──
+
+/**
+ * normalizeEntry — pi-agent-core SessionTreeEntry → JSON 可序列化纯对象
+ *
+ * 基础字段 type/id/parentId/timestamp 恒保留；按 entry 类型提取业务字段：
+ *   message → role/content（AgentMessage 文本）；custom → customType/data；
+ *   custom_message → customType/content/display/details；其余类型保留已知扩展字段。
+ */
+function normalizeEntry(raw: Record<string, unknown>): Record<string, unknown> {
+  const base: Record<string, unknown> = {
+    type: raw.type ?? 'unknown',
+    id: raw.id,
+    parentId: raw.parentId ?? null,
+    timestamp: raw.timestamp,
+  };
+
+  switch (raw.type) {
+    case 'message': {
+      const msg = (raw.message ?? {}) as Record<string, unknown>;
+      return { ...base, role: msg.role ?? 'unknown', content: contentToText(msg.content) };
+    }
+    case 'custom':
+      return { ...base, customType: raw.customType, data: raw.data ?? undefined };
+    case 'custom_message':
+      return { ...base, customType: raw.customType, content: contentToText(raw.content), display: raw.display, details: raw.details };
+    case 'thinking_level_change':
+      return { ...base, thinkingLevel: raw.thinkingLevel };
+    case 'model_change':
+      return { ...base, provider: raw.provider, modelId: raw.modelId };
+    case 'active_tools_change':
+      return { ...base, activeToolNames: raw.activeToolNames };
+    case 'label':
+      return { ...base, targetId: raw.targetId, label: raw.label };
+    case 'branch_summary':
+      return { ...base, summary: raw.summary, details: raw.details };
+    case 'compaction':
+      return { ...base, summary: raw.summary, tokensBefore: raw.tokensBefore };
+    default:
+      // session_info / leaf / 未知类型：保留除内部结构外已知标量字段
+      return base;
+  }
+}
+
+/** 消息 content（文本或内容块数组）→ 纯文本 */
+function contentToText(content: unknown): string {
+  if (typeof content === 'string') return content;
+  if (Array.isArray(content)) {
+    return content
+      .filter((c): c is Record<string, unknown> => !!c && typeof c === 'object')
+      .map((c) => (typeof c.text === 'string' ? c.text : ''))
+      .filter(Boolean)
+      .join('\n');
+  }
+  return '';
 }

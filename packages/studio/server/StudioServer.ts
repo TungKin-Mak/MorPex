@@ -168,6 +168,34 @@ export class StudioServer {
       res.json({ ok: true, messages: this.sessionStore?.getChatHistory(req.params.id) ?? [] });
     });
 
+    // ── 编排组件会话（Session 化治理：多 Agent 总大脑/step-agent/执行肢持久化会话）──
+    this.app.get('/api/agent-sessions', async (req, res) => {
+      try {
+        const component = (req.query?.component as string | undefined) as 'orchestrator' | 'step-agent' | 'executor' | undefined;
+        const valid = component === undefined || component === 'orchestrator' || component === 'step-agent' || component === 'executor';
+        if (!valid) {
+          return res.status(400).json({ ok: false, error: 'component 必须是 orchestrator|step-agent|executor' });
+        }
+        const sessions = await container.agentSessionStore.list(component);
+        res.json({ ok: true, sessions });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    this.app.get('/api/agent-sessions/entries', async (req, res) => {
+      const path = req.query?.path;
+      if (!path || typeof path !== 'string') {
+        return res.status(400).json({ ok: false, error: 'path query 参数必填（会话 jsonl 绝对路径）' });
+      }
+      try {
+        const entries = await container.agentSessionStore.readEntries(path);
+        res.json({ ok: true, path, entries });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
     // ── 对话：CompanyFacade.executeGoal（L1 → L3 规划 → L5 执行 → L7 记忆）──
     this.app.post('/api/chat/send', async (req, res) => {
       const goal = req.body?.message ?? req.body?.goal;
