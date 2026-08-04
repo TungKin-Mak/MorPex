@@ -196,3 +196,40 @@ llm:
   maxTokens: 128000        # 不设单次限制（走 model 默认）；成本由 onTokenUsage/CostController 控
 ```
 已验证模型：GLM-4.7-Flash（智谱，思考模式默认，限流 1305 自动重试）；grok-4.20-0309-reasoning（grok2api 唯一可靠）；deepseek（最稳，测试/CI）。
+
+---
+
+## ═════════ 会话 3 补充：新会话实现指南（2026-08-04）═════════
+
+### step-agent 执行基础（P0 抓手）
+- **agentSpawner**（`packages/core/src/infrastructure/adapters/agent-spawner.ts`）：现有 Agent 创建能力
+  `spawn({ identityToken, ring, tools: AgentTool[], systemPrompt, provider, modelId, domainId })`
+  → 返回 `{ prompt(input) → content, abort() }`——**LLM 思考 + 工具调用循环**（pi-agent-core Agent）
+- **AgentTool** = 原语工具（AgentTool 类型，见 `pi-bridge/index.ts`）——step-agent 的执行肢
+- **AgentHarness**（自研 `execution/harness/AgentHarness.ts`）是 harness 上下文框架，**不是执行循环**；真正执行用 agentSpawner / pi-agent-core Agent
+- 现有空壳：`DAGExecutorAdapter` → `DAGRuntime` → nodeHandler（ServiceContainer:339）→ ExecutionFabric（无 Agent 能力）——**替换点**
+
+### 关键代码位置
+```
+ServiceContainer:333-360   DAGRuntime nodeHandler（ExecutionFabric → 待改 AgentHarness/agentSpawner）
+UnifiedExecutionEngine:672  executeAuto（生成类路径分配）
+UnifiedExecutionEngine:743  生成类 → executeViaMission（fcab3e7 加的，待处理）
+execution/runtime/mission/adapters/DAGExecutorAdapter.ts  Mission 执行器（DAG 转换）
+infrastructure/adapters/agent-spawner.ts  Agent 创建
+cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
+```
+
+### 待处理改动（回退 or 改造）
+- **fcab3e7**：生成类走 executeViaMission（实测嵌套 Mission 失败）——新会话按多 Agent 框架**改造**而非简单回退
+- 生成类任务当前：executeAuto 提取不稳 + Mission 嵌套卡死 → 按新框架（总大脑→DAG→step-agent→执行肢）重构
+
+### 环境状态
+- config/morpex.yaml：enabled=true（GLM-4.7-Flash），apiKey=${GLM_API_KEY}（Windows 用户级）
+- 测试稳定：deepseek 下跑（enabled=false）；GLM 限流（1305）batch-run 自动重试
+- observability-bridge/sse 测试：生成类走 Mission 后超时（已调 timeout 180s，需在新框架下验证）
+
+### 已知坑（避免重蹈）
+1. 嵌套 Mission：MorPexRuntime 已建 Mission + executeViaMission 再建 → 双层（新框架 DAG 是工具，不建 Mission）
+2. DAG 节点 ExecutionFabric 无 Agent 能力 → 空转（新框架用 agentSpawner/AgentHarness 执行）
+3. 参数提取不稳（GLM JSON）→ 生成类用 LLM 自然生成（step-agent 输出），不强制提取
+4. 成本：maxTokens 不设限 → 靠 onTokenUsage/CostController 控
