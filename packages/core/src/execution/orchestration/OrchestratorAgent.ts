@@ -46,7 +46,13 @@ export interface AuditResult {
 
 export interface OrchestratorOptions {
   /** LLM 调用（规划/审计/汇总）。未提供 → 降级：单 step-agent 直跑 + 跳过审计 */
-  llm?: { generateText: (opts: { prompt: string; temperature?: number }) => Promise<{ text: string }> };
+  llm?: {
+    generateText: (opts: { prompt: string; temperature?: number }) => Promise<{
+      text: string;
+      /** 真实 token 用量（PiBridge.generateText 返回，用于精确计费） */
+      usage?: { input?: number; output?: number; total?: number };
+    }>;
+  };
   /** DAG 工具（复杂任务分发；nodeHandler 已接 step-agent） */
   dagRuntime?: DAGRuntimeLike;
   /** step-agent 执行器（简单任务直跑 + 复杂任务单节点兜底） */
@@ -71,6 +77,13 @@ export interface OrchestrationResult {
 }
 
 // ── 工具函数 ──
+
+/** 提取 LLM 响应 token 用量（真实 usage.total；缺失时回退字符数估算，保证单调非零） */
+function tokenCount(res?: { text: string; usage?: { input?: number; output?: number; total?: number } } | null): number {
+  if (!res) return 0;
+  if (typeof res.usage?.total === 'number' && res.usage.total > 0) return res.usage.total;
+  return res.text.length;
+}
 
 /** 从 LLM 响应中提取 JSON 对象（与 bootstrap 参数提取同模式，容错） */
 function extractJsonObject(text: string): Record<string, unknown> | null {
@@ -176,13 +189,12 @@ export class OrchestratorAgent {
     const maxIterations = this.opts.maxIterations ?? 3;
     const auditLog: OrchestrationResult['auditLog'] = [];
     const stepResults = new Map<string, unknown>();
-    const t0 = Date.now();
 
     // ── ① 编排：分析复杂度 + 拆解 ──
     let analysis: OrchestratorAnalysis;
     try {
       const res = await this.llm?.generateText({ prompt: ANALYSIS_PROMPT(goal), temperature: 0 });
-      this.opts.onTokenUsage?.(res?.text.length ?? 0);
+      this.opts.onTokenUsage?.(tokenCount(res));
       analysis = parseAnalysis(res ? extractJsonObject(res.text) : null, goal, !!this.llm);
     } catch {
       analysis = { complexity: 'simple', steps: [{ name: goal.slice(0, 50), description: goal, deps: [] }], reasoning: 'analysis_failed' };
@@ -206,7 +218,7 @@ export class OrchestratorAgent {
       try {
         const resultsText = this.formatResults(roundResults);
         const res = await this.llm?.generateText({ prompt: AUDIT_PROMPT(goal, resultsText), temperature: 0 });
-        this.opts.onTokenUsage?.(res?.text.length ?? 0);
+        this.opts.onTokenUsage?.(tokenCount(res));
         const json = res ? extractJsonObject(res.text) : null;
         audit = json
           ? {
@@ -239,7 +251,7 @@ export class OrchestratorAgent {
     try {
       const resultsText = this.formatResults(stepResults);
       const res = await this.llm?.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
-      this.opts.onTokenUsage?.(res?.text.length ?? 0);
+      this.opts.onTokenUsage?.(tokenCount(res));
       finalOutput = res?.text?.trim() ?? this.formatResults(stepResults);
     } catch {
       finalOutput = this.formatResults(stepResults);
@@ -254,7 +266,7 @@ export class OrchestratorAgent {
       auditLog,
       stepResults,
       error: failed ? '所有步骤均未产出成果' : undefined,
-      duration: Date.now() - t0,
+      duration: Date.now() - start,
     };
   }
 

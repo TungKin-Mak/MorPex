@@ -43,6 +43,8 @@ export interface StepAgentExecutorOptions {
   fallbackExecutor?: (node: StepNodeInfo, upstreamText: string) => Promise<unknown>;
   /** 是否禁用 Agent（纯 fallback 模式，测试用） */
   agentDisabled?: boolean;
+  /** step-agent 执行超时（默认 180000ms；超时 → abort + 走 fallback 降级，防止 LLM 挂起卡死） */
+  timeoutMs?: number;
 }
 
 export interface StepAgentResult {
@@ -113,13 +115,17 @@ export class StepAgentExecutor {
       return this.runFallback(node, upstreamText, start);
     }
 
+    let agent: {
+      prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
+      abort: () => Promise<void>;
+    } | null = null;
     try {
       const tools = [
         ...createPrimitiveAgentTools({ departmentId: this.opts.departmentId }),
         ...(this.opts.extraTools ?? []),
       ];
 
-      const agent = await agentSpawner.spawn({
+      agent = await agentSpawner.spawn({
         identityToken: `step-agent:${node.id}`,
         ring: 0,
         tools,
@@ -133,7 +139,7 @@ export class StepAgentExecutor {
         '\n\n请按守则执行并给出交付摘要。',
       ].join('\n');
 
-      const res = await agent.prompt(input);
+      const res = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs ?? 180_000);
       const text = extractText(res.content);
 
       if (!text.trim()) {
@@ -147,9 +153,28 @@ export class StepAgentExecutor {
         duration: Date.now() - start,
       };
     } catch (err) {
+      // 异常/超时 → 尝试中止 Agent 清理（避免孤儿 LLM 会话）
+      if (agent) {
+        try { await agent.abort(); } catch { /* abort 失败忽略，不影响降级 */ }
+      }
       const msg = err instanceof Error ? err.message : String(err);
       console.warn(`[StepAgentExecutor] ⚠️ step-agent 执行失败（${msg}），降级 fallback`);
       return this.runFallback(node, upstreamText, start);
+    }
+  }
+
+  /** 带超时的 Promise 执行（超时 → reject，由上层 catch 走 fallback 降级） */
+  private async withTimeout<T>(p: Promise<T>, timeoutMs: number): Promise<T> {
+    let timer: ReturnType<typeof setTimeout> | undefined;
+    try {
+      return await Promise.race([
+        p,
+        new Promise<never>((_, reject) => {
+          timer = setTimeout(() => reject(new Error(`step-agent 执行超时（${timeoutMs}ms）`)), timeoutMs);
+        }),
+      ]);
+    } finally {
+      if (timer) clearTimeout(timer);
     }
   }
 

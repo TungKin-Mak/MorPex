@@ -266,10 +266,22 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 ### 遗留/后续（下一会话）
 - P3 简单任务单 Agent 路径已隐含实现（OrchestratorAgent simple 分支），但 executeAuto 的简单操作类任务仍走原语参数提取（未改）
 - 总大脑/step-agent 会话化（独立 Session 持久化）未做——当前为进程内编排（Session 化是后续增强）
-- step-agent 无显式超时（PiBridge.generateText 无 timeout 参数）——batch-run 式超时需接线
-- 精确 token 计费未接（onTokenUsage 钩子已在 OrchestratorAgent 预留）
+- ~~step-agent 无显式超时~~ → **✅ 优化轮已加**（timeoutMs 默认 180s，超时 abort + fallback 降级）
+- ~~精确 token 计费未接~~ → **✅ 优化轮已修 onTokenUsage 精度**（llm 类型加宽带 usage.total，真实 token 优先）；CostController 全链路计费仍待接
 - deepseek 工具调用不稳定（pi-agent-core harness + deepseek-v4-flash）——若需 deepseek 工具链路可查 thinking 配置
 - config/morpex.yaml 默认 enabled=false（deepseek），生产切 GLM 需手动改
+
+---
+
+### ═══════ 会话 4 优化轮（2026-08-04，commit 待记录）═══════
+
+实现轮（aa72aff）之后的强制优化阶段，两处真实修复 + 测试补强：
+
+1. **onTokenUsage 精度修复**：`OrchestratorOptions.llm` 类型从 `{ text }` 加宽为 `{ text, usage? }`（PiBridge.generateText 本就返回 usage），新增 `tokenCount()` helper——`usage.total` 优先、缺失回退字符数估算；三处调用点（分析/审计/汇总）改用真实 token。
+2. **step-agent 显式超时**：`StepAgentExecutor` 新增 `timeoutMs`（默认 180000），`withTimeout()` 用 Promise.race 包裹 agent.prompt；超时 → catch → `agent.abort()` 清理 → 走既有 fallback 降级。防 LLM 挂起永久卡住。
+3. **测试补强**：新增 `__tests__/step-agent-timeout.test.ts`（2 用例：超时降级 + 超时无 fallback 返回失败）；P3 单 step 直跑闭环在 multi-agent-orchestration.test.ts:305 已有覆盖，未重复。
+
+**门禁实测**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件 726 通过 + 5 skipped（零失败）**。
 
 ---
 
