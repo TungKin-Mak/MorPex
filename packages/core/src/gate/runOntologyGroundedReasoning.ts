@@ -32,6 +32,7 @@ import { RuleRegistry } from './rules/RuleRegistry.js';
 import { check as ruleEnforcementCheck } from './rules/RuleEnforcementGuard.js';
 import { extractTargetText } from './rules/detectors.js';
 import { lexicalCorrect } from './rules/lexicalCorrection.js';
+import { applyStructuralCorrection } from './rules/structuralCorrection.js';
 import {
   createRuleViolationEvent,
   createRuleDowngradedEvent,
@@ -50,7 +51,11 @@ export interface GroundedReasoningOptions {
       prompt: string;
       temperature?: number;
       maxTokens?: number;
-    }) => Promise<{ text: string }>;
+    }) => Promise<{
+      text: string;
+      /** 真实 token 用量（PiBridge.generateText 返回；缺失时回退估算） */
+      usage?: { input?: number; output?: number; total?: number };
+    }>;
   };
   /** 额外的系统提示上下文 */
   extraContext?: string;
@@ -161,6 +166,18 @@ function getCachedResult(key: string): GroundedReasoningResult | null {
   return entry.result;
 }
 
+/**
+ * countTokens — LLM 调用 token 计数（Phase 2 第二批：精确计费）
+ * 真实 usage.total 优先；缺失时回退估算 ceil((prompt+text)/4)（兼容旧 piBridge 结构）。
+ */
+function countTokens(
+  res: { text: string; usage?: { input?: number; output?: number; total?: number } } | null | undefined,
+  promptText: string,
+): number {
+  if (typeof res?.usage?.total === 'number' && res.usage.total > 0) return res.usage.total;
+  return Math.ceil((promptText.length + (res?.text?.length ?? 0)) / 4);
+}
+
 function setCachedResult(key: string, result: GroundedReasoningResult): void {
   if (!key) return;
   // LRU 淘汰
@@ -236,9 +253,9 @@ export async function runOntologyGroundedReasoning(
     prompt: queryPrompt,
     temperature: 0.2,
   });
-  // Phase 2 E：预算接线——Phase 1 查询 token 估算回调（粗略：字符数/4）；回调异常不影响主流程
+  // Phase 2 E：预算接线——Phase 1 查询 token 回调（精确：usage.total 优先，缺失估算）；回调异常不影响主流程
   try {
-    options.onTokenUsage?.(Math.ceil((queryPrompt.length + (queryResponse.text?.length ?? 0)) / 4));
+    options.onTokenUsage?.(countTokens(queryResponse, queryPrompt));
   } catch (err) {
     console.warn('[GroundedReasoning] ⚠️ onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
   }
@@ -390,9 +407,9 @@ export async function runOntologyGroundedReasoning(
       // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
       temperature: attempt === 0 ? 0.3 : 0.2,
     });
-    // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试的 token 估算回调；回调异常不影响主流程
+    // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试 token 回调（精确：usage.total 优先）；回调异常不影响主流程
     try {
-      options.onTokenUsage?.(Math.ceil((reasoningUser.length + (reasoningResponse.text?.length ?? 0)) / 4));
+      options.onTokenUsage?.(countTokens(reasoningResponse, reasoningUser));
     } catch (err) {
       console.warn('[GroundedReasoning] ⚠️ onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
     }
@@ -475,6 +492,25 @@ export async function runOntologyGroundedReasoning(
       }
       // 修正后仍违规 → 用修正后的违规集继续（供降级/重试用尽判断）
       errorViolations = recheck.violations.filter((v) => v.severity === 'ERROR');
+    }
+
+    // ═══════════════════════════════════════════════════════════
+    // Phase 2（第二批）：结构修正（通用修正管线②）—— eslint --fix 式
+    //   领域适配器（software eslint/tsc 等）经 StructuralCorrectionRegistry 注入；
+    //   修正后重新 check，合规则放行；仍违规 → 继续降级/LLM 重试路径
+    // ═══════════════════════════════════════════════════════════
+    if (errorViolations.length > 0) {
+      const structural = await applyStructuralCorrection(proposal, errorViolations, applicable);
+      if (structural.correctedCount > 0) {
+        proposal = structural.proposal;
+        const recheck = ruleEnforcementCheck(proposal, applicable);
+        ruleViolations = recheck.violations;
+        if (!recheck.hasError) {
+          console.log(`[GroundedReasoning] ✅ 结构修正成功（${structural.correctedCount} 处，${structural.notes.join('; ')}），合规放行`);
+          break;
+        }
+        errorViolations = recheck.violations.filter((v) => v.severity === 'ERROR');
+      }
     }
 
     // 连续命中降级：同一规则连续 2 次命中仍不过 → 临时跳过（仅本次执行，不改持久状态）
@@ -837,9 +873,9 @@ async function semanticJudgement(
 
   try {
     const resp = await piBridge.generateText({ system, prompt, temperature: 0.2 });
-    // 预算可观测性：语义判断的 LLM 调用同样计入 onTokenUsage（与 Phase1/Phase2/重试一致）
+    // 预算可观测性：语义判断的 LLM 调用同样计入 onTokenUsage（精确：usage.total 优先）
     try {
-      onTokenUsage?.(Math.ceil((prompt.length + (resp.text?.length ?? 0)) / 4));
+      onTokenUsage?.(countTokens(resp, prompt));
     } catch (err) {
       console.warn('[GroundedReasoning] ⚠️ 语义判断 onTokenUsage 回调异常（不影响主流程）:', (err as Error).message);
     }

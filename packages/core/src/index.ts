@@ -596,10 +596,12 @@ export { DetectorRegistry } from './gate/rules/DetectorRegistry.js';
 export { rulePersistence } from './gate/rules/rulePersistence.js';
 export { extractRule } from './gate/rules/RuleExtractor.js';
 export { normalizeText, normalizePattern } from './gate/rules/normalize.js';
-export { detectorRegistry, RegexDetector, ApiWhitelistDetector, extractTargetText } from './gate/rules/detectors.js';
+export { detectorRegistry, RegexDetector, ApiWhitelistDetector, extractTargetText, SchemaDetector, validateAgainstSchema } from './gate/rules/detectors.js';
 export type { RuleDetector } from './gate/rules/detectors.js';
 export { lexicalCorrect } from './gate/rules/lexicalCorrection.js';
 export type { LexicalCorrectionResult } from './gate/rules/lexicalCorrection.js';
+export { StructuralCorrectionRegistry, applyStructuralCorrection } from './gate/rules/structuralCorrection.js';
+export type { StructuralCorrector, StructuralCorrectionResult } from './gate/rules/structuralCorrection.js';
 export { check as ruleEnforcementCheck } from './gate/rules/RuleEnforcementGuard.js';
 export type { OntologyProposal } from './gate/types.js';
 export type {

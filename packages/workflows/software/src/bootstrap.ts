@@ -6,6 +6,7 @@
 import { DomainPrimitiveRegistry } from '@morpex/core';
 import { GithubCreateRepoAction, DockerBuildImageAction, CloudDeployAction } from './actions/software-actions.js';
 import { registerSoftwareDetectors } from './rules/custom-detectors.js';
+import { registerSoftwareStructuralCorrector } from './rules/structural-eslint.js';
 
 export async function bootstrapSoftwareWorkflow(_domain = 'software'): Promise<void> {
   DomainPrimitiveRegistry.registerMultiple([
@@ -14,7 +15,8 @@ export async function bootstrapSoftwareWorkflow(_domain = 'software'): Promise<v
     new CloudDeployAction(),
   ]);
   registerSoftwareDetectors();
-  console.log('[Workflow:software] ✅ 插件已就绪（3 个 ActionPrimitive 已注册）');
+  registerSoftwareStructuralCorrector();
+  console.log('[Workflow:software] ✅ 插件已就绪（3 个 ActionPrimitive 已注册 + 规则检测器/结构修正器）');
 }
 
 export default bootstrapSoftwareWorkflow;

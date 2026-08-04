@@ -187,6 +187,8 @@ export class KnowledgeQueryPrimitive implements ActionPrimitive {
         eventBus: eventBusRef ?? undefined,
         scenario: 'knowledge_query_primitive',
         riskTier,
+        // Phase 2 第二批（domain 传递补齐）：KnowledgeQueryPrimitive 有 departmentId 信号 → 按域路由规则
+        domain: deptId === 'global' ? undefined : deptId,
       });
     } catch (err) {
       return {

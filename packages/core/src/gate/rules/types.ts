@@ -11,7 +11,7 @@
 export type RuleSeverity = 'ERROR' | 'WARNING';
 
 /** 检测方式：regex=确定性正则；whitelist=API 白名单前缀；keyword=通用两级模型（关键词扫名+LLM 语义复核，全行业通用）；semantic=LLM 语义复核（Phase 3）；领域可经 DetectorRegistry 注册自定义类型（如 'custom:no-eval'） */
-export type RuleType = 'regex' | 'whitelist' | 'keyword' | 'semantic' | (string & {});
+export type RuleType = 'regex' | 'whitelist' | 'keyword' | 'schema' | 'semantic' | (string & {});
 
 /** 规则状态：pending=提炼待人工确认（不参与匹配）；active=生效；disabled=人工关闭 */
 export type RuleStatus = 'pending' | 'active' | 'disabled';
@@ -68,6 +68,12 @@ export interface RuleEntity {
    * MCU 场景示例：['IOCP','NVIC','SysTick','FLASH','RCC']
    */
   allowedApiPrefixes?: string[];
+  /**
+   * JSON Schema 约束（ruleType='schema' 时使用，Phase 2 第二批）
+   * 检测：目标文本须为合法 JSON 且符合本 Schema（type/required/properties/enum/items 子集），
+   * 否则违规（结构性 ERROR）。适用于结构性输出约束（字段缺失/类型错/枚举越界）。
+   */
+  expectedSchema?: Record<string, unknown>;
   /** 确定性替换目标（Phase 2；Phase 1 保留字段不执行） */
   allowedAction?: string;
   /** 优先级（越大越先匹配；误报降级用） */

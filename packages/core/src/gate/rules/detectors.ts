@@ -236,10 +236,118 @@ export const KeywordDetector: RuleDetector = {
   },
 };
 
+// ═══════════════════════════════════════════════════════════════
+// SchemaDetector — JSON Schema 结构校验（Phase 2 第二批）
+// 规则声明 expectedSchema（JSON Schema 子集：type/required/properties/enum/items），
+// 目标文本须为合法 JSON 且符合结构约束，否则违规（结构性 ERROR）。
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * validateAgainstSchema — 最小 JSON Schema 子集校验
+ * 支持：type / required / properties.<k>.{type,enum,items,required} / items / enum
+ * 不支持：$ref / anyOf / oneOf / allOf / patternProperties（返回未知字段不校验，不误报）
+ *
+ * @returns 错误信息数组（空 = 合规）
+ */
+export function validateAgainstSchema(value: unknown, schema: Record<string, unknown>): string[] {
+  const errors: string[] = [];
+  walk(value, schema, '$', errors);
+  return errors;
+}
+
+function walk(value: unknown, schema: Record<string, unknown>, path: string, errors: string[]): void {
+  // type 检查
+  const expectedType = schema.type as string | undefined;
+  if (expectedType && !matchesType(value, expectedType)) {
+    errors.push(`${path}: 类型不符（期望 ${expectedType}，实际 ${typeOf(value)}）`);
+    return; // 类型错则不再深入
+  }
+
+  // object：required + properties 递归
+  if (expectedType === 'object' && typeof value === 'object' && value !== null && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    const required = (schema.required as string[] | undefined) ?? [];
+    for (const key of required) {
+      if (!(key in obj)) errors.push(`${path}.${key}: 缺少必填字段`);
+    }
+    const properties = (schema.properties as Record<string, Record<string, unknown>> | undefined) ?? {};
+    for (const [key, propSchema] of Object.entries(properties)) {
+      if (key in obj) walk(obj[key], propSchema, `${path}.${key}`, errors);
+    }
+    return;
+  }
+
+  // array：items 递归
+  if (expectedType === 'array' && Array.isArray(value)) {
+    const items = schema.items as Record<string, unknown> | undefined;
+    if (items) value.forEach((item, i) => walk(item, items, `${path}[${i}]`, errors));
+    return;
+  }
+
+  // enum：值域校验
+  if (schema.enum !== undefined && Array.isArray(schema.enum) && !schema.enum.includes(value)) {
+    errors.push(`${path}: 值不在枚举内（${JSON.stringify(schema.enum)}）`);
+  }
+}
+
+function matchesType(value: unknown, type: string): boolean {
+  switch (type) {
+    case 'string': return typeof value === 'string';
+    case 'number': return typeof value === 'number';
+    case 'boolean': return typeof value === 'boolean';
+    case 'object': return typeof value === 'object' && value !== null && !Array.isArray(value);
+    case 'array': return Array.isArray(value);
+    case 'null': return value === null;
+    default: return true; // 未知类型不误报
+  }
+}
+
+function typeOf(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
+/** SchemaDetector — 结构性输出约束（ruleType='schema'） */
+export const SchemaDetector: RuleDetector = {
+  type: 'schema',
+  check(proposal, rule) {
+    if (!rule.expectedSchema) return null; // 未声明 schema → 不匹配（规则配置缺失，不误报）
+    const text = extractTargetText(proposal, rule.target);
+    if (!text) return null;
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(text);
+    } catch {
+      // 目标文本非合法 JSON → 结构性违规
+      return {
+        ruleId: rule.id,
+        severity: rule.severity,
+        matchedText: text.slice(0, 120),
+        target: rule.target,
+        description: rule.description,
+      };
+    }
+
+    const errors = validateAgainstSchema(parsed, rule.expectedSchema);
+    if (errors.length === 0) return null;
+
+    return {
+      ruleId: rule.id,
+      severity: rule.severity,
+      matchedText: errors.slice(0, 3).join('; '),
+      target: rule.target,
+      description: rule.description,
+    };
+  },
+};
+
 /** detectorRegistry — 内置检测器注册表（按 ruleType 分派） */
 export const detectorRegistry: Partial<Record<RuleType, RuleDetector>> = {
   regex: RegexDetector,
   whitelist: ApiWhitelistDetector,
   keyword: KeywordDetector,
+  schema: SchemaDetector,
   // semantic: Phase 3 —— LLM 语义复核检测器（届时经接口注入）
 };

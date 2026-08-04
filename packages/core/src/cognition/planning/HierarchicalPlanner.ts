@@ -145,6 +145,8 @@ export class HierarchicalPlanner {
             guard: this.forcedQueryGuard,
             piBridge: this.piBridge,
             extraContext: '需要在规划前查询 Ontology 获取真实事实。',
+            // Phase 2 第二批（domain 传递补齐）：HierarchicalPlanner 有 departmentId 信号 → 按域路由规则
+            domain: context?.departmentId,
           });
           console.log(`[HierarchicalPlanner] 🏁 Ontology grounded reason 完成, 引用 ${result.proposal.referenced_object_ids.length} 个 ID`);
 
