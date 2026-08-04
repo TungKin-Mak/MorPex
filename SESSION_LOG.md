@@ -475,3 +475,28 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - ⚠️ 叙述勘误：会话 6 正文"fork 无结果，任务转回主线程"不实——实施 fork 实际返回结果并完成了全部提交；本文档以调度器独立复核为准
 
 **结论**：四任务（Session 治理端点 / dep 清理 / 结构修正验证 / Provider 归属）真实交付，门禁全绿（production-check 首次 8/8），可交接。遗留不变：微信接入（待决策）、Session 治理前端 UI、上下文近期摘要/风险分级（可延后）、AST/tsc 结构修正适配器。
+
+---
+
+## ═════════ 会话 7：上下文遗留项③ 近期摘要消费端拼接 + 风险分级（2026-08-05）═════════
+
+### 交付内容（commit 31135d6 + 3cb6741）
+1. **近期摘要消费端拼接**（功能③ 设计哲学闭环：工作上下文 = 系统约束 + Goal/Plan/Task + ontologyRefs + ≤N 条近期摘要）
+   - `ContextPersistence.loadRecent(limit)`：装配快照跨任务按 assembled_at 倒序取最近 N 条
+   - `ContextAssemblyEngine`：config 增 `recentSummaryReader?`/`recentSummaryLimit?`（默认 5）/`riskGrader?`；assemble() 聚焦模式下召回 ≤N 条归档摘要 → `context.recentSummaries` + 追加【近期任务摘要】节到 focusedSummary（reader 异常/空 → 不阻断）
+   - bootstrap 生产接线：双源 reader（① ContextPersistence 装配快照 ② EventStore 权威快照 goal+result+score 合成摘要；taskRef 去重 EventStore 优先；任一源异常兜底）；`setRecentSummaryReader`/`setRiskGrader` setter 时序安全
+2. **风险分级**：`defaultRiskGrader` 确定性关键词分级（high=破坏性 delete/drop/wipe…、medium=副作用 write/deploy/commit…、low=只读默认，零 LLM）+ `context.riskLevel` 写入 + 自定义覆写
+
+### ⚠️ 调度器复核发现并修复 1 个生产接线断点（commit 3cb6741）
+- **根因**：bootstrap 构造引擎传 6 参（**不传 persistence**）→ `assemble()` 的 `this.persistence` 恒空 → **ContextPersistence（装配快照，与 reader 源①同库）在生产路径从未落库** → 双源召回退化为单源（EventStore）；且 `hydrate` 不还原 focusedSummary → reader 源①即使有数据也拿不到摘要文本
+- **修复**：①`setPersistenceProvider` 惰性 provider（bootstrap 注入 `() => container.getContextPersistence()`，assemble 运行时才解析，EventStore 初始化时序无关）②`focusedSummary/riskLevel/recentSummaries` 经 base_data `__` 保留键持久化 + hydrate 还原（免表结构迁移，旧行向后兼容）③+2 新用例（provider 落库回读含 taskRef/focusedSummary；null 不阻断）
+- 修复后：装配快照真实落库 → reader 源①有真实 focusedSummary → **双源召回闭环成立**
+
+### 门禁（全部亲测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 violations（601 模块 1185 依赖）｜ ✅ 全量 vitest **90 文件 / 790 通过 + 5 skipped 零失败**（core 68 文件 625）｜ ✅ 工作树干净、无 e2e 污染
+
+### 遗留（下一会话候选）
+1. **微信接入**（企业微信 vs 个人微信待决策，用户跳过）
+2. **Session 治理前端/UI**（agent-sessions 读取 API 已就绪，UI 未做）
+3. **结构修正器 AST/tsc 适配器增强**（eslint 已验，tsc 型校验未接）
+4. 中文关键词风险分级（defaultRiskGrader 当前英文-only，中文 goal 落 low）
