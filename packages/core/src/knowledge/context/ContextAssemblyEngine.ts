@@ -90,6 +90,8 @@ export class ContextAssemblyEngine {
   private templates: ContextTemplateRepository
   private enricherPipeline: ContextEnricherPipeline
   private config: ContextAssemblyConfig
+  /** 惰性持久化 provider（bootstrap 注入；assemble/loadContext 运行时解析存储，时序安全） */
+  private persistenceProvider: (() => ContextPersistence | null | undefined) | null
 
   constructor(
     registry?: ContextFragmentRegistry,
@@ -101,6 +103,9 @@ export class ContextAssemblyEngine {
     private persistence?: ContextPersistence,
     private metrics?: { record: (name: string, value: number, tags?: Record<string, string>) => void }
   ) {
+    this.persistenceProvider = null
+    // 若构造时传了 persistence，也视为默认 provider（setPersistenceProvider 可覆写）
+    if (persistence) this.persistenceProvider = () => persistence
     this.registry = registry ?? new ContextFragmentRegistry()
     this.builder = builder ?? new ContextBuilder()
     this.versioner = versioner ?? new ContextVersioner()
@@ -281,11 +286,14 @@ export class ContextAssemblyEngine {
     }
 
     // ★ P0: 持久化到 SQLite（如果配置了）——功能③：装配快照透传任务身份 ID（taskRef），
-    //    与任务完成快照（EventStore context.snapshot）同索引，召回按 taskRef 统一检索
-    if (this.persistence) {
+    //    与任务完成快照（EventStore context.snapshot）同索引，召回按 taskRef 统一检索。
+    //    持久化实例经构造注入或 setPersistenceProvider 惰性解析（bootstrap 在 EventStore 就绪后
+    //    注入 provider，assemble 运行时才解析——时序安全；无 provider/解析失败 → 跳过不阻断）。
+    const persistence = this.resolvePersistence()
+    if (persistence) {
       try {
         const taskRef = input.currentTask?.goalId ?? input.currentTask?.planId ?? input.currentTask?.taskId
-        this.persistence.save(enrichedContext, undefined, taskRef)
+        persistence.save(enrichedContext, undefined, taskRef)
       } catch (err) {
         console.warn('[ContextAssemblyEngine] Persistence save failed:', err)
       }
@@ -309,7 +317,31 @@ export class ContextAssemblyEngine {
    * loadContext — 从持久化存储加载上下文
    */
   loadContext(contextId: string): ExecutionContext | undefined {
-    return this.persistence?.loadLatest(contextId)
+    return this.resolvePersistence()?.loadLatest(contextId)
+  }
+
+  /**
+   * resolvePersistence — 解析当前持久化实例（provider 优先；构造注入兜底）
+   *
+   * setPersistenceProvider 注入的惰性 provider 在调用时（assemble/loadContext 运行时）
+   * 才解析存储——EventStore 初始化时序无关；provider 返回 null/undefined → 视为未配置。
+   */
+  private resolvePersistence(): ContextPersistence | null | undefined {
+    try {
+      return this.persistenceProvider ? this.persistenceProvider() : this.persistence
+    } catch {
+      return this.persistence ?? null
+    }
+  }
+
+  /**
+   * setPersistenceProvider — 注入惰性持久化 provider（bootstrap 用）
+   *
+   * 覆写构造注入的 persistence：装配快照在 assemble 时经此 provider 解析存储写入
+   * （EventStore 的 SQLite db 共享），使 ContextPersistence 在真实装配路径真正落库。
+   */
+  setPersistenceProvider(provider: (() => ContextPersistence | null | undefined) | null | undefined): void {
+    this.persistenceProvider = provider ?? null
   }
 
   /**

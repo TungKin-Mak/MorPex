@@ -57,12 +57,21 @@ export class ContextPersistence {
       ...(taskRef ? { taskRef } : {}),
     };
 
+    // 顶层摘要字段（focusedSummary/riskLevel/recentSummaries）写入 base_data 保留键
+    // （免表结构迁移；hydrate 时还原）。近期摘要 reader 数据源①依赖 focusedSummary 作摘要文本。
+    const base = {
+      ...(context.layers.base ?? {}),
+      __focusedSummary: context.focusedSummary,
+      __riskLevel: context.riskLevel,
+      __recentSummaries: context.recentSummaries,
+    };
+
     stmt.run(
       context.contextId,
       context.version,
       context.missionId,
       context.schemaVersion,
-      JSON.stringify(context.layers.base ?? {}),
+      JSON.stringify(base),
       JSON.stringify(session),
       JSON.stringify(context.layers.ephemeral ?? {}),
       JSON.stringify(context.fragments),
@@ -201,15 +210,21 @@ export class ContextPersistence {
    * hydrate — 将数据库行还原为 ExecutionContext
    */
   private hydrate(row: PersistedContextRow): ExecutionContext {
+    const rawBase = JSON.parse(row.base_data as string) as Record<string, unknown>;
     const layers: Record<ContextLayer, Record<string, unknown>> = {
-      base: JSON.parse(row.base_data as string),
+      base: rawBase,
       session: JSON.parse(row.session_data as string),
       ephemeral: JSON.parse(row.ephemeral_data as string),
     };
 
+    // 还原保留键（__ 前缀：focusedSummary/riskLevel/recentSummaries 顶层字段；
+    // 无保留键的旧行 → undefined，向后兼容）
+    const { __focusedSummary, __riskLevel, __recentSummaries, ...cleanBase } = rawBase;
+    layers.base = cleanBase;
+
     const fragments = JSON.parse(row.fragments_json as string);
 
-    return {
+    const ctx: ExecutionContext = {
       contextId: row.context_id,
       version: row.version,
       missionId: row.mission_id,
@@ -218,5 +233,9 @@ export class ContextPersistence {
       fragments: Array.isArray(fragments) ? fragments : [],
       assembledAt: row.assembled_at,
     };
+    if (typeof __focusedSummary === 'string') ctx.focusedSummary = __focusedSummary;
+    if (__riskLevel === 'low' || __riskLevel === 'medium' || __riskLevel === 'high') ctx.riskLevel = __riskLevel;
+    if (Array.isArray(__recentSummaries) && __recentSummaries.length > 0) ctx.recentSummaries = __recentSummaries as ExecutionContext['recentSummaries'];
+    return ctx;
   }
 }

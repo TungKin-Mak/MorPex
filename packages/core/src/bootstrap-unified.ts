@@ -162,6 +162,12 @@ export async function bootstrapUnified(options?: {
       focusMode: true, // 功能③：聚焦模式——只装当前任务材料
       maxTokens: 8000,
     });
+    // ═══ 功能③ 遗留项：装配快照持久化接线（惰性 provider）═══
+    // 此前引擎构造未传 persistence → assemble() 的 this.persistence 恒空 → ContextPersistence
+    // （装配快照，与近期摘要 reader 数据源① 同库）在生产路径从未落库 → 双源召回退化为单源（EventStore）。
+    // 修复：setPersistenceProvider 惰性解析 container.getContextPersistence()（共享 EventStore SQLite db），
+    // assemble 运行时才取——EventStore 初始化时序无关。
+    assemblyEngine.setPersistenceProvider(() => container.getContextPersistence());
     // 装配统一入口：MorPexRuntime orchestrate 后（Mission 已创建，missionId 真实）
     // Provider 注册在 ontology 创建后（见下方 Ontology 迭代4 区块）
     container.setContextAssemblyEngine(assemblyEngine);
@@ -239,7 +245,7 @@ export async function bootstrapUnified(options?: {
       console.warn('[bootstrapUnified] ⚠️ 近期摘要读取器注入失败（非阻断）:', (err as Error).message);
     }
 
-    console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式）');
+    console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式 + 持久化 provider + 近期摘要/风险分级）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);
   }

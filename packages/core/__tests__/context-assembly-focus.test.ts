@@ -281,3 +281,50 @@ describe('近期摘要消费端拼接 + 风险分级（功能③ 遗留项）', 
     expect(ctx.riskLevel).toBeUndefined();
   });
 });
+
+describe('装配快照持久化 provider 接线（assemble 惰性落库 → reader 数据源①闭环）', () => {
+  it('setPersistenceProvider → assemble 真正写入 ContextPersistence → loadRecent 读回', async () => {
+    const dbMod = await import('better-sqlite3');
+    const Database = (dbMod as any).default ?? dbMod;
+    const db = new Database(':memory:');
+    db.exec(`
+      CREATE TABLE IF NOT EXISTS context_snapshots (
+        context_id TEXT NOT NULL,
+        version INTEGER NOT NULL,
+        mission_id TEXT NOT NULL,
+        schema_version TEXT NOT NULL DEFAULT '1.0',
+        base_data TEXT NOT NULL DEFAULT '{}',
+        session_data TEXT NOT NULL DEFAULT '{}',
+        ephemeral_data TEXT NOT NULL DEFAULT '{}',
+        fragments_json TEXT NOT NULL DEFAULT '[]',
+        change_description TEXT,
+        assembled_at INTEGER NOT NULL,
+        PRIMARY KEY (context_id, version)
+      );
+    `);
+    const { ContextPersistence } = await import('../src/knowledge/context/ContextPersistence.js');
+    const persistence = new ContextPersistence(db);
+
+    // 引擎经惰性 provider 接持久化（bootstrap 生产接线同款——此前构造 6 参不传 persistence，落库恒空）
+    const engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
+    engine.setPersistenceProvider(() => persistence);
+
+    await engine.assemble({ missionId: 'm1', goal: '生成报告', domain: 'software', currentTask: { taskId: 'taskX' } });
+
+    // assemble 已写入装配快照（含 taskRef=taskX）
+    const recent = persistence.loadRecent(5);
+    expect(recent.length).toBe(1);
+    expect(recent[0].missionId).toBe('m1');
+    const session = (recent[0].layers.session as Record<string, unknown>) ?? {};
+    expect(session.taskRef).toBe('taskX');
+    // focusedSummary 已生成（近期摘要 reader 数据源① 依赖它）
+    expect(typeof recent[0].focusedSummary).toBe('string');
+  });
+
+  it('provider 返回 null → 不落库不抛（无持久化兼容）', async () => {
+    const engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
+    engine.setPersistenceProvider(() => null);
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '查询', currentTask: { taskId: 't1' } });
+    expect(ctx.riskLevel).toBeDefined(); // 装配正常，持久化缺席不阻断
+  });
+});
