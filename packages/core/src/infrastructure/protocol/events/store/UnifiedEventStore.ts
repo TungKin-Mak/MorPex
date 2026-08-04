@@ -154,4 +154,15 @@ export class UnifiedEventStore implements IEventStore {
   // 内部方法
   // ═══════════════════════════════════════════════════════════════
 
+  /**
+   * getDatabase — 暴露内部 SQLite 实例（功能③ Phase 2 统一召回接线）
+   *
+   * 供 ContextPersistence（装配快照持久化）共享同一 SQLite 连接：
+   * `ServiceContainer.getContextPersistence()` 依赖此方法（此前 UnifiedEventStore
+   * 未委托 → getContextPersistence 恒返 null → 装配快照侧在生产路径死代码）。
+   * 未初始化（无事件写入）→ undefined（调用方应先在 recall 前 await init()）。
+   */
+  getDatabase(): unknown {
+    return (this.inner as unknown as { getDatabase?: () => unknown })?.getDatabase?.();
+  }
 }

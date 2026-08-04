@@ -103,3 +103,37 @@ describe('ContextArchive.loadMerged — 统一召回接口', () => {
     expect(merged.summary.source).toBe('none');
   });
 });
+
+describe('UnifiedEventStore.getDatabase — 装配快照持久化接线（生产路径）', () => {
+  it('init 后 getDatabase 返回共享 SQLite → ContextPersistence 可读写同一连接', async () => {
+    const dbMod = await import('better-sqlite3');
+    const Database = (dbMod as any).default ?? dbMod;
+    const db = new Database(':memory:');
+
+    // 模拟生产接线：UnifiedEventStore（DI 模式）→ init → getDatabase → ContextPersistence
+    const { UnifiedEventStore } = await import('../src/infrastructure/protocol/events/store/UnifiedEventStore.js');
+    const { ContextPersistence } = await import('../src/knowledge/context/ContextPersistence.js');
+    const store = new UnifiedEventStore(db);
+    await (store as unknown as { init: () => Promise<void> }).init();
+
+    const sharedDb = store.getDatabase();
+    expect(sharedDb).toBeDefined();
+
+    const persistence = new ContextPersistence(sharedDb as never);
+    const ctx = {
+      contextId: 'ctx_prod',
+      version: 1,
+      missionId: 'msn_1',
+      schemaVersion: '1.0',
+      goal: '写报告',
+      assembledAt: Date.now(),
+      layers: { base: { goal: '写报告' }, session: { taskRef: 'task_prod' }, ephemeral: {} },
+      fragments: [],
+    } as never;
+    persistence.save(ctx, 'archived', 'task_prod');
+
+    const loaded = persistence.loadByTaskRef('task_prod');
+    expect(loaded.length).toBe(1);
+    expect((loaded[0] as unknown as { contextId: string }).contextId).toBe('ctx_prod');
+  });
+});

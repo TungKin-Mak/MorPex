@@ -208,8 +208,17 @@ export class ServiceContainer {
 
   /**
    * recallTaskContext — 统一召回：按任务身份 ID 合并两存储快照（EventStore 权威 + 装配快照）
+   * 先确保 EventStore 初始化（UnifiedEventStore 惰性 init），再构造装配快照持久化（共享同一 SQLite）。
    */
   async recallTaskContext(taskRef: string): Promise<import('../../knowledge/context/ContextArchive.js').MergedTaskContext> {
+    // ⬇️ 功能③ Phase 2 修复：UnifiedEventStore 惰性 init——不先 init 则 getDatabase() 返 undefined → 装配侧退化
+    if (this._eventStore) {
+      try {
+        await (this._eventStore as unknown as { init?: () => Promise<void> }).init?.();
+      } catch (err) {
+        console.warn(`[ServiceContainer] ⚠️ EventStore init 失败（统一召回退化为仅 EventStore 侧）: ${(err as Error).message}`);
+      }
+    }
     const { loadMerged } = await import('../../knowledge/context/ContextArchive.js');
     return loadMerged(this._eventStore, this.getContextPersistence(), taskRef);
   }
