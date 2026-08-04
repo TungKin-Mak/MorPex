@@ -346,3 +346,52 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - ✅ 工作树干净；SESSION_LOG 已同步（含本次 production-check 精度修正）
 
 **结论**：会话 4 多 Agent 框架（P0+P1+P2）真实可用，门禁全绿（除上述 pre-existing dep 违规与环境性超时）。遗留方向不变：Session 化（跨会话讨论）为下一会话优先候选。
+
+---
+
+## ═════════ 会话 5：按建议顺序执行五项升级（2026-08-05，微信接入除外）═════════
+
+调度器直接实施（fork 机制本会话不可用，三次 No result 后转为直接落地）。五项全部交付，每项独立门禁验证（tsc 0 / validate 100% / core vitest 全绿）。
+
+### ① ✅ Session 化（多 Agent P1 跨会话讨论）— commit c4f28ac
+- **AgentSessionStore**（新，execution/orchestration）：pi-agent-core `JsonlSessionRepo` 包装（create/open/list/fork + appendCustom），落盘 `data/sessions/agent-sessions/<component>/<ts>_<id>.jsonl`，component 分组（orchestrator/step-agent/executor）；fork 的 parentSessionPath = 会话树/跨会话引用原语
+- **PiBridge**：createAgentHarness 支持注入持久化 session（AgentHarness 自动落盘对话/工具调用）；静态工厂 `createJsonlSessionRepo`；`pi-agent-core.d.ts` 补 JsonlSessionRepo 窄接口（该文件本就为"运行时导出缺类型声明"的补丁）
+- **agent-spawner**：SpawnParams.session 透传
+- **StepAgentExecutor**：sessionStore + stepOpts（session/sessionPath/upstreamSessions）；step 会话创建 + `step-result` 条目 + 上游会话引用进 prompt；result 携带 sessionId/path
+- **OrchestratorAgent**：总大脑会话（`orchestration.analysis/audit/synthesis` 条目）+ stepSessions 追踪 + 依赖链 parentSessionPath；DAG 分支预建 step 会话经 ctx 传 nodeHandler
+- **ServiceContainer**：共享 AgentSessionStore 接线（orchestrator + 两处 StepAgentExecutor）
+- 测试 agent-session-store.test.ts 7 用例；门禁 core vitest 63 文件 575 通过
+
+### ② ✅ 执行肢 Gate 凭证供给 — commit a1ebb6a
+- **OrchestratorAgent.gateRunner**（ServiceContainer 注入）：run() 一次经 `runOntologyGroundedReasoning` 签发 `knowledgeContextPackage` 覆盖整个编排；失败/不可用 → null 不阻断（破坏性保持硬拦截，安全降级）
+- **StepAgentExecutor**：stepOpts.gateContext → `createPrimitiveAgentTools({ gateContext })`；Options 兜底
+- **primitiveAgentTools**：PrimitiveToolOptions.gateContext → 原语 execute context.gateContext（file write/shell build/api POST 凭有效凭证通过 gateDestructive）
+- **ServiceContainer**：setOntology 保存 ontology/guard 引用（此前只透传 runtime）；gateRunner 实现（domain=departmentId）
+- 测试 step-agent-gate.test.ts 4 用例；门禁 64 文件 579 通过
+
+### ③ ✅ 规则 Phase 2 第二批 — commit 391c3f4
+- **精确计费（L5）**：runOntologyGroundedReasoning 三处 onTokenUsage（Phase1/Phase2/语义判断）改 `countTokens`——真实 usage.total 优先，缺失回退估算；piBridge 返回类型加宽 usage
+- **SchemaDetector**（ruleType='schema'）：RuleEntity.expectedSchema（JSON Schema 子集 type/required/properties/enum/items）+ validateAgainstSchema 纯函数；非 JSON/缺字段/类型错/枚举越界 → 结构性 ERROR；detectorRegistry 注册
+- **结构修正管线②**：`StructuralCorrectionRegistry`（领域注入）+ `applyStructuralCorrection`（引擎统一入口，maxPasses 防抖，修正器异常不阻断，按 correctedCount 判定原地/新对象）；runOntologyGroundedReasoning 词法修正后挂载（修正→recheck→合规放行）；software eslint 适配器示例（Linter.verifyAndFix，no-var/prefer-const 规则 pending）+ bootstrap 接线
+- **domain 传递补齐**：HierarchicalPlanner（context.departmentId）+ KnowledgeQueryPrimitive（departmentId 非 global 时）按域路由规则
+- 测试 rule-phase2b.test.ts 13 用例；门禁 65 文件 592 通过
+
+### ④ ✅ 上下文 Phase 2 — commit d9bcb1f
+- **统一召回接口**：ContextArchive.loadMerged(eventStore, persistence, taskRef) → MergedTaskContext（archived 权威快照 + snapshots 装配快照 + summary.source 四态 both/event-store/persistence/none）；任一存储异常不阻断另一侧
+- **ServiceContainer**：getContextPersistence() 惰性构造（共享 SqliteEventStore.getDatabase()，非 SQLite → null 退化）+ recallTaskContext(taskRef) 公开 API——**ContextPersistence 首次接线**（此前从未实例化，孤立组件）
+- 测试 context-archive-recall.test.ts 6 用例；门禁 66 文件 598 通过
+
+### ⑤ ✅ CostController 全链路计费 — commit 317081f
+- **CostController**：recordTokens/getTokenUsage/getTotalCost（token 累计 + setTokenPrice 单价折算 + 时长成本合并）；init 监听 `execution.gate.token_usage` → global + gate:<domain> 自动分账；resetInstance 测试隔离
+- **ServiceContainer**：orchestrator onTokenUsage → emit `execution.gate.token_usage`（编排 LLM 真实 usage.total 进入统一计费链，与 Gate 两阶段/规则重试/语义复核同账）
+- 测试 cost-controller.test.ts 6 用例；门禁 67 文件 604 通过
+
+### 当前状态（会话 5 末）
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ core vitest **67 文件 604 通过零失败**
+- **提交区间**：`c4f28ac..317081f`（5 提交，Session 化→执行肢→规则→上下文→计费）
+- **遗留（下一会话候选）**：
+  1. ① 微信接入（企业微信 vs 个人微信未决策，用户本次跳过）
+  2. 编排 Session 化的会话级 UI/治理面板（agent-sessions 目录已落盘，无读取端点）
+  3. 结构修正器全量接入验证（software eslint 规则 pending；AST/tsc 适配器增强）
+  4. ③ 上下文：近期摘要消费端拼接、Provider 归属标记到装配层、风险分级（均标记可延后）
+  5. production-check 的 2 条 pre-existing dep 违规（evaluation/ 遗留）可清理
