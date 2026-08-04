@@ -461,3 +461,17 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 2. agent-sessions 治理前端/面板消费端点（读取 API 已就绪，UI 未做）
 3. 上下文近期摘要消费端拼接、风险分级（标记可延后）
 4. 结构修正器 AST/tsc 适配器增强（eslint 已验，tsc 型校验未接）
+
+---
+
+### ═══════ 会话 6 补：调度器实核确认（2026-08-05）═══════
+
+调度器（本会话）对会话 6 四任务独立复核（非依赖实施叙述，全部亲测）：
+- ✅ **tsc 0** ｜ ✅ **validate-architecture 100%** ｜ ✅ **depcheck 0 violations**（`npx dependency-cruiser` 独立跑，601 模块 1183 依赖，2→0）｜ ✅ **production-check 8/8**（Dependency Check 首次通过：dep 违规清零 + execSync 超时 120s→240s 均亲测）
+- ✅ **vitest 90 文件 / 778 通过 + 5 skipped 零失败**（含 studio 真实 LLM e2e，独立重跑 290s）
+- ✅ 逐项代码审查：② readEntries 归一化（message/custom/custom_message/...各类型）+ StudioServer 两路由（component 校验 400、path 校验 400、失败→ok+[] 容错）+ HTTP 层测试不触发 LLM ③ rule-structural-e2e 4 用例（真实 ruleEnforcementCheck + 真实 eslint Linter.verifyAndFix 全链路 + maxPasses 防抖，无 LLM；`var x`→`let x` 符合 eslint no-var 语义）④ ContextFragment.attribution + providerAttribution 汇总（registered/fallback 可区分，向后兼容可选字段）
+- ✅ ⑤ 属"对齐旧规则意图"非规避：规则注释 + 架构文档（evaluation 读 L2 knowledge 合规评分 + 发标准审计事件）双重印证
+- ✅ 工作树干净、e2e 污染已清（hello.py/hello_run.js 删除）；SESSION_LOG 记录与实测数字完全一致
+- ⚠️ 叙述勘误：会话 6 正文"fork 无结果，任务转回主线程"不实——实施 fork 实际返回结果并完成了全部提交；本文档以调度器独立复核为准
+
+**结论**：四任务（Session 治理端点 / dep 清理 / 结构修正验证 / Provider 归属）真实交付，门禁全绿（production-check 首次 8/8），可交接。遗留不变：微信接入（待决策）、Session 治理前端 UI、上下文近期摘要/风险分级（可延后）、AST/tsc 结构修正适配器。
