@@ -75,3 +75,41 @@ describe('ContextPersistence taskRef 召回（功能③ 身份 ID 主键）', ()
     expect(persistence.loadByTaskRef('taskB').length).toBe(0);
   });
 });
+
+describe('ContextPersistence loadRecent（近期摘要消费端数据源）', () => {
+  async function newPersistence() {
+    const dbMod = await import('better-sqlite3');
+    const Database = (dbMod as any).default ?? dbMod;
+    const db = new Database(':memory:');
+    db.exec(CREATE_TABLE_SQL);
+    return new ContextPersistence(db);
+  }
+
+  it('按 assembled_at 倒序返回最近 N 条（跨任务）', async () => {
+    const persistence = await newPersistence();
+    const base = 1_700_000_000_000;
+    // 写入 3 条不同时间戳的快照（旧→新写入，验证排序不依赖写入顺序）
+    persistence.save({ ...makeCtx('ctx_old', 'm_old'), assembledAt: base } as any);
+    persistence.save({ ...makeCtx('ctx_new', 'm_new'), assembledAt: base + 5000 } as any);
+    persistence.save({ ...makeCtx('ctx_mid', 'm_mid'), assembledAt: base + 2000 } as any);
+
+    const recent = persistence.loadRecent(2);
+    expect(recent.length).toBe(2);
+    expect(recent[0].contextId).toBe('ctx_new'); // 最新在前
+    expect(recent[1].contextId).toBe('ctx_mid');
+  });
+
+  it('limit 非法（0/负数/NaN）→ 空数组（不抛）', async () => {
+    const persistence = await newPersistence();
+    persistence.save(makeCtx('ctx_a', 'm_a') as any);
+
+    expect(persistence.loadRecent(0).length).toBe(0);
+    expect(persistence.loadRecent(-1).length).toBe(0);
+    expect(persistence.loadRecent(Number.NaN).length).toBe(0);
+  });
+
+  it('无快照 → 空数组', async () => {
+    const persistence = await newPersistence();
+    expect(persistence.loadRecent(5).length).toBe(0);
+  });
+});

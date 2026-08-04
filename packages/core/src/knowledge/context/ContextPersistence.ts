@@ -127,6 +127,23 @@ export class ContextPersistence {
   }
 
   /**
+   * loadRecent — 按装配时间取最近 N 条快照（近期摘要消费端数据源）
+   *
+   * 功能③ 遗留项：装配侧召回近期任务摘要（≤N 条）注入工作上下文。
+   * 跨任务（不限 taskRef/contextId），按 assembled_at 倒序，供消费端聚合归档摘要。
+   *
+   * @param limit - 最多返回条数
+   * @returns 最近的快照列表（按时间倒序）；无则空数组
+   */
+  loadRecent(limit: number): ExecutionContext[] {
+    if (!Number.isFinite(limit) || limit <= 0) return [];
+    const rows = this.db.prepare(
+      'SELECT * FROM context_snapshots ORDER BY assembled_at DESC LIMIT ?'
+    ).all(Math.floor(limit)) as PersistedContextRow[];
+    return rows.map((r) => this.hydrate(r));
+  }
+
+  /**
    * loadByTaskRef — 按任务归属检索上下文快照（功能③ 身份 ID 召回）
    *
    * @param taskRef - 任务归属 ID（goalId/planId/taskId）

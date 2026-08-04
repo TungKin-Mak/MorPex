@@ -15,6 +15,33 @@ import type { ContextFragment } from './ContextFragmentRegistry.js'
 
 export type ContextLayer = 'base' | 'session' | 'ephemeral'
 
+// ── 近期摘要消费端 + 风险分级类型（功能③ 遗留项；装配层消费端拼接）──
+
+/** 风险等级（确定性分级：goal 关键词命中；可选自定义分级器覆写） */
+export type RiskLevel = 'low' | 'medium' | 'high'
+
+/** 近期任务摘要（消费端拼接产物：抽离侧已归档，装配侧召回 ≤N 条注入工作上下文） */
+export interface RecentSummary {
+  /** 任务归属 ID（goalId/planId/taskId） */
+  taskRef: string
+  /** 任务摘要文本 */
+  summary: string
+  /** 关键引用 ID（可选） */
+  keyRefs?: string[]
+  /** 归档时间戳 */
+  archivedAt: number
+  /** 来源存储：EventStore 权威快照 / ContextPersistence 装配快照 */
+  source: 'event-store' | 'persistence'
+}
+
+/** 近期摘要读取器（装配引擎消费端；实现方聚合 EventStore + ContextPersistence） */
+export interface RecentSummaryReader {
+  loadRecent(limit: number): Promise<RecentSummary[]>
+}
+
+/** 风险分级器（输入 goal + domain，输出风险等级；默认 defaultRiskGrader 确定性关键词分级） */
+export type RiskGrader = (goal: string, departmentId?: string) => RiskLevel
+
 // ── ExecutionContext — 统一执行上下文 ──
 
 export interface ExecutionContext {
@@ -35,6 +62,10 @@ export interface ExecutionContext {
    * 装配层暴露来源归属，消费端可据信任分级处理（真实数据优先，占位数据标注）。
    */
   providerAttribution?: Array<{ source: string; providerType: 'registered' | 'fallback'; collectedAt: number }>
+  /** 功能③ 遗留项：近期任务摘要（消费端拼接，≤N 条；装配时从归档存储召回注入） */
+  recentSummaries?: RecentSummary[]
+  /** 功能③ 遗留项：风险分级（low/medium/high；默认确定性分级，可自定义覆写） */
+  riskLevel?: RiskLevel
   /** 组装时间 */
   assembledAt: number
   /** 过期时间（可选） */

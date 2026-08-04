@@ -165,6 +165,80 @@ export async function bootstrapUnified(options?: {
     // 装配统一入口：MorPexRuntime orchestrate 后（Mission 已创建，missionId 真实）
     // Provider 注册在 ontology 创建后（见下方 Ontology 迭代4 区块）
     container.setContextAssemblyEngine(assemblyEngine);
+
+    // ═══ 功能③ 遗留项：近期摘要消费端接线 ═══
+    // 设计哲学：工作上下文 = 系统约束 + Goal/Plan/Task + ontologyRefs + ≤N 条近期摘要。
+    // 数据源① ContextPersistence 装配快照（惰性 SQLite，focusedSummary 即摘要）
+    // 数据源② EventStore 权威快照（context.snapshot：goal + result + score 合成摘要；taskRef 去重优先）
+    // reader 在调用时（assemble 运行时）才解析存储——EventStore 未就绪/失败 → 另一源兜底，不阻断装配。
+    try {
+      const { listTaskRefs, loadByTaskRef } = await import('./knowledge/context/ContextArchive.js');
+      const { defaultRiskGrader } = await import('./knowledge/context/ContextAssemblyEngine.js');
+      assemblyEngine.setRecentSummaryReader({
+        loadRecent: async (limit: number) => {
+          const out: Array<{
+            taskRef: string; summary: string; keyRefs?: string[]; archivedAt: number; source: 'event-store' | 'persistence';
+          }> = [];
+
+          // 数据源①：ContextPersistence 装配快照（最近 N 条）
+          try {
+            const persistence = container.getContextPersistence();
+            if (persistence) {
+              for (const snap of persistence.loadRecent(limit)) {
+                const session = (snap.layers?.session ?? {}) as Record<string, unknown>;
+                out.push({
+                  taskRef: (session.taskRef as string) ?? snap.missionId,
+                  summary: snap.focusedSummary ?? `任务 ${snap.missionId}（装配快照，无聚焦摘要）`,
+                  archivedAt: snap.assembledAt,
+                  source: 'persistence',
+                });
+              }
+            }
+          } catch (err) {
+            console.warn(`[bootstrapUnified] ⚠️ 近期摘要·装配快照源读取失败（非阻断）: ${(err as Error).message}`);
+          }
+
+          // 数据源②：EventStore 权威快照（goal + result + score 合成摘要；taskRef 去重优先）
+          try {
+            const es = container.eventStore;
+            if (es) {
+              await (es as unknown as { init?: () => Promise<void> }).init?.();
+              const refs = await listTaskRefs(es);
+              for (const ref of refs) {
+                const snap = await loadByTaskRef(es, ref);
+                if (!snap) continue;
+                const scoreText = typeof snap.score === 'number' ? `，质量分 ${snap.score}` : '';
+                out.push({
+                  taskRef: snap.taskRef,
+                  summary: `${snap.goal ?? ''}（${snap.result === 'success' ? '成功' : '失败'}${scoreText}）`,
+                  archivedAt: snap.archivedAt,
+                  source: 'event-store',
+                });
+              }
+            }
+          } catch (err) {
+            console.warn(`[bootstrapUnified] ⚠️ 近期摘要·EventStore 源读取失败（非阻断）: ${(err as Error).message}`);
+          }
+
+          // 合并：taskRef 去重（EventStore 权威优先），按 archivedAt 倒序，取前 limit
+          const seen = new Map<string, (typeof out)[number]>();
+          for (const s of out) {
+            const existing = seen.get(s.taskRef);
+            if (!existing || (existing.source === 'persistence' && s.source === 'event-store')) {
+              seen.set(s.taskRef, s);
+            }
+          }
+          return [...seen.values()]
+            .sort((a, b) => b.archivedAt - a.archivedAt)
+            .slice(0, limit);
+        },
+      });
+      assemblyEngine.setRiskGrader(defaultRiskGrader);
+      console.log('[bootstrapUnified] ✅ 近期摘要读取器 + 风险分级已注入（双源：EventStore + ContextPersistence）');
+    } catch (err) {
+      console.warn('[bootstrapUnified] ⚠️ 近期摘要读取器注入失败（非阻断）:', (err as Error).message);
+    }
+
     console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);

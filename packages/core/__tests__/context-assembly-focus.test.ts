@@ -11,7 +11,8 @@
 import { describe, it, expect, beforeEach } from 'vitest';
 import { ContextFragmentRegistry } from '../src/knowledge/context/ContextFragmentRegistry.js';
 import type { FragmentProvider, ContextAssemblyInput } from '../src/knowledge/context/ContextFragmentRegistry.js';
-import { ContextAssemblyEngine } from '../src/knowledge/context/ContextAssemblyEngine.js';
+import { ContextAssemblyEngine, defaultRiskGrader } from '../src/knowledge/context/ContextAssemblyEngine.js';
+import type { RecentSummaryReader } from '../src/knowledge/context/ContextBuilder.js';
 
 function mockProvider(source: string, data: Record<string, unknown>, taskRef?: string): FragmentProvider {
   return {
@@ -190,5 +191,93 @@ describe('Provider 归属标记（任务 ④）', () => {
 
     const attr = ctx.providerAttribution!.find((p) => p.source === 'mission_state');
     expect(attr?.providerType).toBe('fallback');
+  });
+});
+
+describe('近期摘要消费端拼接 + 风险分级（功能③ 遗留项）', () => {
+  function mockReader(summaries: Array<{ taskRef: string; summary: string; archivedAt: number }>, throwError = false): RecentSummaryReader {
+    return {
+      loadRecent: async () => {
+        if (throwError) throw new Error('reader 故障');
+        return summaries.map((s) => ({ ...s, source: 'event-store' as const }));
+      },
+    };
+  }
+
+  it('focusMode + reader → recentSummaries 注入 + focusedSummary 含【近期任务摘要】节', async () => {
+    const engine = makeEngine({
+      focusMode: true,
+      maxTokens: 8000,
+      enableVersioning: false,
+      enableEnrichment: false,
+      recentSummaryReader: mockReader([
+        { taskRef: 't1', summary: '完成空气检测设备设计', archivedAt: 100 },
+        { taskRef: 't2', summary: '完成固件烧录验证', archivedAt: 200 },
+      ]),
+      recentSummaryLimit: 5,
+    });
+
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '开发硬件', domain: 'hardware' });
+
+    expect(ctx.recentSummaries).toBeDefined();
+    expect(ctx.recentSummaries!.length).toBe(2);
+    expect(ctx.recentSummaries![0].taskRef).toBe('t1');
+    expect(ctx.recentSummaries![0].source).toBe('event-store');
+    expect(ctx.focusedSummary).toContain('【近期任务摘要（≤2 条）】');
+    expect(ctx.focusedSummary).toContain('- [t1] 完成空气检测设备设计');
+  });
+
+  it('reader 抛错 → 不阻断装配（recentSummaries 缺省，focusedSummary 无摘要节）', async () => {
+    const engine = makeEngine({
+      focusMode: true,
+      maxTokens: 8000,
+      enableVersioning: false,
+      enableEnrichment: false,
+      recentSummaryReader: mockReader([], true),
+    });
+
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '开发硬件' });
+    expect(ctx.contextId).toBeTruthy(); // 装配成功
+    expect(ctx.recentSummaries).toBeUndefined();
+    expect(ctx.focusedSummary).not.toContain('近期任务摘要');
+  });
+
+  it('无 reader → 不注入（向后兼容）', async () => {
+    const engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '查询文档' });
+    expect(ctx.recentSummaries).toBeUndefined();
+  });
+
+  it('默认风险分级：destroy→high / write→medium / query→low', () => {
+    expect(defaultRiskGrader('delete the database and purge all records')).toBe('high');
+    expect(defaultRiskGrader('create a new module and deploy it')).toBe('medium');
+    expect(defaultRiskGrader('查询知识库文档')).toBe('low'); // 无英文关键词 → low
+    expect(defaultRiskGrader('')).toBe('low');
+  });
+
+  it('assemble 写入 riskLevel（默认分级器按 goal）', async () => {
+    const engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: 'delete old version and purge cache' });
+    expect(ctx.riskLevel).toBe('high');
+  });
+
+  it('自定义 riskGrader 覆写默认（setRiskGrader 生效）', async () => {
+    const engine = makeEngine({ focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false });
+    engine.setRiskGrader((_goal) => 'high'); // 一律 high
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '查询文档' });
+    expect(ctx.riskLevel).toBe('high');
+  });
+
+  it('focusMode=false → 不注入近期摘要/风险（向后兼容）', async () => {
+    const engine = makeEngine({
+      focusMode: false,
+      maxFragments: 50,
+      enableVersioning: false,
+      enableEnrichment: false,
+      recentSummaryReader: mockReader([{ taskRef: 't1', summary: 'x', archivedAt: 1 }]),
+    });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '查询' });
+    expect(ctx.recentSummaries).toBeUndefined();
+    expect(ctx.riskLevel).toBeUndefined();
   });
 });

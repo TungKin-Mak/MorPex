@@ -15,8 +15,8 @@
  */
 
 import type { FragmentSource, ContextAssemblyInput, ContextFragment } from './ContextFragmentRegistry.js'
+import type { ExecutionContext, RecentSummaryReader, RiskGrader, RiskLevel } from './ContextBuilder.js'
 import { ContextFragmentRegistry } from './ContextFragmentRegistry.js'
-import type { ExecutionContext } from './ContextBuilder.js'
 import { ContextBuilder } from './ContextBuilder.js'
 import { ContextVersioner } from './ContextVersioner.js'
 import { ContextTemplateRepository } from './ContextTemplateRepository.js'
@@ -42,6 +42,12 @@ export interface ContextAssemblyConfig {
   focusMode?: boolean
   /** 功能③：聚焦模式 token 估算上限（超出从低优先级片段截断；默认 8000） */
   maxTokens?: number
+  /** 功能③ 遗留项：近期摘要读取器（消费端拼接；装配时召回 ≤N 条归档摘要注入工作上下文） */
+  recentSummaryReader?: RecentSummaryReader
+  /** 功能③ 遗留项：近期摘要召回条数上限（默认 5） */
+  recentSummaryLimit?: number
+  /** 功能③ 遗留项：风险分级器（默认 defaultRiskGrader 确定性分级；可自定义覆写） */
+  riskGrader?: RiskGrader
 }
 
 const DEFAULT_CONFIG: ContextAssemblyConfig = {
@@ -52,6 +58,27 @@ const DEFAULT_CONFIG: ContextAssemblyConfig = {
   schemaVersion: '1.0',
   focusMode: false,
   maxTokens: 8000,
+  recentSummaryLimit: 5,
+}
+
+// ═══════════════════════════════════════════════════════════════
+// 风险分级（功能③ 遗留项）——默认确定性分级器（不依赖 LLM）
+// ═══════════════════════════════════════════════════════════════
+
+/**
+ * defaultRiskGrader — 默认风险分级（确定性关键词命中，零 LLM 成本）
+ *
+ * high   ：破坏性/不可逆操作（删除/清空/销毁/格式化/关机等）
+ * medium ：有副作用但可回退（写/创建/部署/提交/发送/安装等）
+ * low    ：只读/查询/生成类（默认）
+ *
+ * 领域/团队可经 config.riskGrader 覆写（输入含 fragments 可看实际材料）。
+ */
+export function defaultRiskGrader(goal: string, _departmentId?: string): RiskLevel {
+  const text = goal ?? ''
+  if (/\b(delete|remove|drop|purge|destroy|rm|wipe|format|truncate|shutdown|kill)\b/i.test(text)) return 'high'
+  if (/\b(write|create|modify|update|deploy|build|push|commit|send|post|publish|install|upgrade|start|stop)\b/i.test(text)) return 'medium'
+  return 'low'
 }
 
 // ── ContextAssemblyEngine — 核心引擎 ──
@@ -204,6 +231,33 @@ export class ContextAssemblyEngine {
     // 功能③ 聚焦模式：生成聚焦摘要（系统约束 + goal + domain + taskRefs + 片段精简摘要）
     if (focusMode) {
       context.focusedSummary = buildFocusedSummary(input, trimmedFragments)
+
+      // ═══════ 功能③ 遗留项：近期摘要消费端拼接 ═══════
+      // 设计哲学：工作上下文 = 系统约束 + Goal/Plan/Task + ontologyRefs + ≤N 条近期摘要。
+      // 抽离侧（Mission 完成 → EventStore context.snapshot / ContextPersistence 装配快照）已归档，
+      // 装配侧在此召回 ≤N 条最近任务摘要注入工作上下文（reader 异常/空 → 不阻断不注入）。
+      if (this.config.recentSummaryReader) {
+        try {
+          const recent = await this.config.recentSummaryReader.loadRecent(this.config.recentSummaryLimit ?? 5)
+          if (Array.isArray(recent) && recent.length > 0) {
+            context.recentSummaries = recent
+            const lines = recent.map(r => `- [${r.taskRef}] ${r.summary}`)
+            context.focusedSummary = `${context.focusedSummary ?? ''}\n\n【近期任务摘要（≤${recent.length} 条）】\n${lines.join('\n')}`.trim()
+          }
+        } catch (err) {
+          console.warn(`[ContextAssemblyEngine] ⚠️ 近期摘要召回失败（不阻断）: ${(err as Error).message}`)
+        }
+      }
+
+      // ═══════ 功能③ 遗留项：风险分级 ═══════
+      // 默认确定性分级（goal 关键词）；领域可经 config.riskGrader 覆写。
+      try {
+        const grader = this.config.riskGrader ?? defaultRiskGrader
+        context.riskLevel = grader(input.goal ?? '', input.domain)
+      } catch (err) {
+        console.warn(`[ContextAssemblyEngine] ⚠️ 风险分级器异常（降级 low）: ${(err as Error).message}`)
+        context.riskLevel = 'low'
+      }
     }
 
     // 任务 ④：装配层暴露 Provider 归属汇总（source → registered/fallback），供治理/审计消费
@@ -270,6 +324,23 @@ export class ContextAssemblyEngine {
    */
   updateConfig(partial: Partial<ContextAssemblyConfig>): void {
     this.config = { ...this.config, ...partial }
+  }
+
+  /**
+   * setRecentSummaryReader — 注入近期摘要读取器（功能③ 遗留项：消费端拼接）
+   *
+   * 供 bootstrap 在归档存储（EventStore/ContextPersistence）就绪后注入；
+   * 覆写 config.recentSummaryReader。
+   */
+  setRecentSummaryReader(reader: RecentSummaryReader | undefined): void {
+    this.config.recentSummaryReader = reader
+  }
+
+  /**
+   * setRiskGrader — 注入自定义风险分级器（覆写 config.riskGrader；缺省用 defaultRiskGrader）
+   */
+  setRiskGrader(grader: RiskGrader | undefined): void {
+    this.config.riskGrader = grader
   }
 
   /**
