@@ -313,3 +313,22 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - ① 微信接入：企业微信 vs 个人微信未决策
 - ② Phase 2 第二批：结构层 tsc/eslint 适配器、schema/AST 检测器、L5 精确计费、domain 沿调用链传递
 - ③ 上下文 Phase 2：Provider 归属标记、统一召回接口、Planner/Primitive domain 传递
+
+---
+
+### ═══════ 会话 4 独立终审（reviewer，2026-08-05，调度器内联执行）═══════
+
+**终审结论：✅ 通过（有条件）**——无必须修项；1 建议项（已记录待后续）+ 1 信息项。
+
+**复核要点（全部独立验证）**：
+1. **AgentTool.execute 双参契约（f20fff3）** ✅：pi-agent-core `types.d.ts:342` 确认 `execute(toolCallId, params, signal?, onUpdate?)`；`('', p)` 显式双参正确，toolCallId 空串安全（PiBridge 包装层不消费）；回归测试断言原语收到完整 params。
+2. **超时实现（f83e102）** ✅：withTimeout 用 Promise.race + finally clearTimeout（无定时器泄漏）；catch 中调用 agent.abort() 后走 fallback。注意：超时后原 prompt Promise 仍挂起（无法取消），靠 abort 清理 LLM 会话——可接受。
+3. **onTokenUsage 精度** ✅：llm 类型加宽为可选 usage（PiBridge.generateText 本就返回）；tokenCount() usage.total 优先、缺失回退字符数；ServiceContainer 接线与测试 mock 均兼容。
+4. **DAGRuntime nodeHandler 修复** ✅：构造器存储为纯增量；其余构造点（workflow-sdk bootstrap.ts:457、architecture-integration.test.ts:52）不传 nodeHandler → 零行为变化；upstreamResults 注入为 spread 追加不覆盖既有 ctx。
+5. **orchestrator 路由** ✅：操作类简单任务仍走 executeAuto 参数提取（无回归）；mode='orchestrator' 为引擎内部值（StudioServer 默认传 'auto'，无枚举校验冲突；DeliveryPlanner 仅判 `!== 'auto'`）。
+6. **安全（Gate）** ✅ 一致且更严：primitiveAgentTools 不传 gateContext → 破坏性原语（file write/shell build/api POST）经 PrimitiveGate.gateDestructive **硬拦截**（gateBinding.ts），与 executeAuto 路径同一文档化安全默认，**非新绕过**。
+7. **架构合规** ✅：提交区间零 validate-architecture 白名单改动，100% 为真实对齐非规避。
+8. **测试质量** ✅：mock 原语注册进真实 DomainPrimitiveRegistry、execute 断言真实参数；DAG 上游用真实 DAGRuntime+TaskGraph；e2e 超时改动合理（先读 SSE started 再 await POST）。
+9. **死代码** ✅：f83e102 已清重复计时；tokenCount/mapToolForAgent/extractText 均有使用与测试。
+
+**建议项（后续，非阻塞）**：step-agent 执行肢**当前无法执行破坏性操作**（file write/shell build 被 Gate 硬拦）——编排路径未供给 KnowledgeContextPackage。后续：orchestrator 执行前经 Gate 两阶段获取知识包 → StepAgentExecutor → primitiveAgentTools context.gateContext 传递，解锁真实文件/shell 动手能力。**信息项**：SSE e2e 在满负载下仍偶发时序 flaky（复跑即绿，CI 上留意）。
