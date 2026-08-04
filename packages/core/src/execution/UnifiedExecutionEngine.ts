@@ -731,8 +731,16 @@ export class UnifiedExecutionEngine {
         // 操作类（file/shell/api/knowledge）保留参数提取（需明确 path/command/url/query）。
         const primName = primMatch.primitive.name;
         if (isGenerativePrimitive(primName)) {
-          Object.assign(primParams, { type: inferArtifactType(request.goal), specification: request.goal });
-          console.log(`[UnifiedExecutionEngine] 🎨 生成类任务 → 跳过参数提取，原语内 LLM 自然生成 (type=${primParams.type})`);
+          // ═══ 生成类任务整体走 Mission 流程（方案 A+B 综合）═══
+          // 生成类（做报表/写代码/生成文档）需要：Gate 两阶段推理（知识凭证）+ LLM 自然生成。
+          // executeAuto 不携带 KnowledgeContextPackage（破坏性原语缺凭证→Gate 硬拦截），
+          // 且 paramExtractor 提取 type/specification 不稳定。
+          // 因此生成类任务跳过 executeAuto 原语执行，走 Mission FSM（Gate 查询→规划→执行→产物）。
+          request.onProgress?.(makeProgressEvent('task.progress', `生成类任务 → Mission 流程（Gate + LLM 自然生成）`, 10, {
+            taskId: executionId, departmentId: request.departmentId,
+            metadata: { primitive: primName },
+          }));
+          if (this.missionRuntime) return this.executeViaMission(request, executionId);
         } else if (this.paramExtractor) {
           try {
             const extracted = await this.paramExtractor(
