@@ -258,6 +258,9 @@ export class ServiceContainer {
     this.runtime.setOntology(ontology);
     this.runtime.setForcedQueryGuard(guard);
     this.runtime.setPiBridge(piBridge);
+    // 会话 4（执行肢解锁）：保存 Gate 依赖供 orchestrator gateRunner 使用
+    this._ontology = ontology;
+    this._guard = guard;
   }
 
   /** setContextAssemblyEngine — 注入上下文装配引擎到 MorPexRuntime（功能③ 聚焦装配，orchestrate 后调用） */
@@ -361,6 +364,28 @@ export class ServiceContainer {
       maxIterations: 3,
       // 会话 4（Session 化）：总大脑会话 + step 会话追踪
       sessionStore: this.agentSessionStore,
+      // 会话 4（执行肢解锁）：Gate 两阶段签发凭证（经 runOntologyGroundedReasoning）
+      gateRunner: async (goal: string, departmentId?: string) => {
+        if (!self._ontology || !self._guard) return null;
+        await self.ensurePiBridge();
+        if (!self.piBridge) return null;
+        try {
+          const { runOntologyGroundedReasoning } = await import('../../gate/runOntologyGroundedReasoning.js');
+          const result = await runOntologyGroundedReasoning({
+            goal,
+            ontology: self._ontology,
+            guard: self._guard,
+            piBridge: self.piBridge,
+            extraContext: `departmentId=${departmentId ?? 'global'}（编排前置 Gate 凭证签发）`,
+            scenario: 'orchestrator-gate',
+            domain: departmentId,
+          });
+          return result.knowledgeContextPackage ?? null;
+        } catch (err) {
+          console.warn(`[ServiceContainer] ⚠️ orchestrator Gate 凭证签发失败（破坏性操作保持硬拦截）: ${(err as Error).message}`);
+          return null;
+        }
+      },
     });
   }
 
@@ -519,6 +544,9 @@ export class ServiceContainer {
 
   private piBridgeInitialized = false;
   private piBridge: any = null;
+  /** 会话 4（执行肢解锁）：Gate 依赖引用（setOntology 时保存，供 orchestrator gateRunner 使用） */
+  private _ontology: import('../../knowledge/ontology/OntologyService.js').OntologyService | null = null;
+  private _guard: import('../../gate/ForcedQueryGuard.js').ForcedQueryGuard | null = null;
 
   private async ensurePiBridge(): Promise<void> {
     if (this.piBridgeInitialized) return;

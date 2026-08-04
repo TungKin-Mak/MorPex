@@ -21,6 +21,7 @@ import { agentSpawner } from '../../../infrastructure/adapters/agent-spawner.js'
 import { createPrimitiveAgentTools } from '../../../infrastructure/tools/primitiveAgentTools.js';
 import type { AgentTool } from '../../../infrastructure/adapters/pi-bridge/index.js';
 import type { AgentSessionStore, AgentSessionHandle } from '../../orchestration/AgentSessionStore.js';
+import type { KnowledgeContextPackage } from '../../../gate/context.js';
 
 /** DAG 节点的窄接口（避免依赖 DAG 内部类型） */
 export interface StepNodeInfo {
@@ -48,6 +49,8 @@ export interface StepAgentExecutorOptions {
   timeoutMs?: number;
   /** 会话 4（Session 化）：组件会话仓库——启用后本步骤创建持久化 step-agent 会话 */
   sessionStore?: AgentSessionStore;
+  /** 会话 4（执行肢解锁）：Gate 凭证（orchestrator 签发；未在 stepOpts 提供时回退此值） */
+  gateContext?: KnowledgeContextPackage;
 }
 
 export interface StepAgentResult {
@@ -132,7 +135,13 @@ export class StepAgentExecutor {
   async executeStep(
     node: StepNodeInfo,
     upstreamResults?: Map<string, unknown> | Record<string, unknown>,
-    stepOpts?: { session?: unknown; sessionPath?: string; upstreamSessions?: Map<string, string> },
+    stepOpts?: {
+      session?: unknown;
+      sessionPath?: string;
+      upstreamSessions?: Map<string, string>;
+      /** 会话 4（执行肢解锁）：orchestrator 经 Gate 两阶段签发的凭证，注入原语工具（破坏性操作放行） */
+      gateContext?: KnowledgeContextPackage;
+    },
   ): Promise<StepAgentResult> {
     const start = Date.now();
     const upstreamText = formatUpstreamResults(upstreamResults) + formatUpstreamSessionRefs(stepOpts?.upstreamSessions);
@@ -180,7 +189,11 @@ export class StepAgentExecutor {
     } | null = null;
     try {
       const tools = [
-        ...createPrimitiveAgentTools({ departmentId: this.opts.departmentId }),
+        ...createPrimitiveAgentTools({
+          departmentId: this.opts.departmentId,
+          // ⬅️ 会话 4（执行肢解锁）：Gate 凭证注入——step-agent 可执行破坏性操作（file write/shell build 等）
+          gateContext: stepOpts?.gateContext ?? this.opts.gateContext,
+        }),
         ...(this.opts.extraTools ?? []),
       ];
 

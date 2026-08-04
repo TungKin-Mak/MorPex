@@ -17,12 +17,18 @@
 
 import type { AgentTool, AgentToolResult } from '../adapters/pi-bridge/index.js';
 import { DomainPrimitiveRegistry } from './DomainPrimitiveRegistry.js';
+import type { KnowledgeContextPackage } from '../../gate/context.js';
 
 export interface PrimitiveToolOptions {
   /** 部门 ID（原语部门隔离，必传） */
   departmentId?: string;
   /** 用户 ID（可选） */
   userId?: string;
+  /**
+   * Gate 凭证（会话 4 执行肢解锁）：orchestrator 经 Gate 两阶段签发后传入，
+   * 使破坏性原语（file write / shell / api POST）凭有效凭证通过 gateDestructive 硬校验。
+   */
+  gateContext?: KnowledgeContextPackage;
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -56,6 +62,8 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
         const result = await primitive.execute((params ?? {}) as Record<string, unknown>, {
           departmentId: options.departmentId,
           userId: options.userId,
+          // ⬅️ 会话 4：Gate 凭证透传——破坏性原语凭有效凭证通过 gateDestructive 硬校验
+          gateContext: options.gateContext,
         });
         const text = result.success
           ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data ?? null))

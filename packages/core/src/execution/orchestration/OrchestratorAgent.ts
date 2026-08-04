@@ -21,6 +21,7 @@
 import type { DAGRuntimeLike } from '../UnifiedExecutionEngine.js';
 import { StepAgentExecutor } from '../runtime/dag/StepAgentExecutor.js';
 import type { AgentSessionStore, AgentSessionHandle } from './AgentSessionStore.js';
+import type { KnowledgeContextPackage } from '../../gate/context.js';
 
 // ── 类型 ──
 
@@ -64,6 +65,12 @@ export interface OrchestratorOptions {
   onTokenUsage?: (tokens: number) => void;
   /** 会话 4（Session 化）：组件会话仓库——总大脑/step-agent 独立持久化会话 */
   sessionStore?: AgentSessionStore;
+  /**
+   * 会话 4（执行肢解锁）：Gate 两阶段签发回调（ServiceContainer 注入）。
+   * 返回 KnowledgeContextPackage 或 null（不可用/失败 → 不阻断，破坏性操作维持硬拦截）。
+   * 一次签发覆盖整个编排（分析/审计/汇总的 token 已计，不重复两阶段）。
+   */
+  gateRunner?: (goal: string, departmentId?: string) => Promise<KnowledgeContextPackage | null>;
 }
 
 export interface OrchestrationResult {
@@ -211,6 +218,19 @@ export class OrchestratorAgent {
     const stepResults = new Map<string, unknown>();
     const stepSessions = new Map<string, string>();
 
+    // ═══ 会话 4（执行肢解锁）：Gate 两阶段签发凭证（一次，覆盖整个编排）═══
+    let gateContext: KnowledgeContextPackage | null = null;
+    if (this.opts.gateRunner) {
+      try {
+        gateContext = await this.opts.gateRunner(goal, opts.departmentId);
+        if (gateContext) {
+          console.log(`[OrchestratorAgent] 🎫 Gate 凭证签发成功（queryCallCount=${gateContext.queryCallCount}）——step-agent 破坏性操作已解锁`);
+        }
+      } catch (err) {
+        console.warn(`[OrchestratorAgent] ⚠️ Gate 凭证签发失败（破坏性操作保持硬拦截）: ${(err as Error).message}`);
+      }
+    }
+
     // ═══ 会话 4（Session 化）：总大脑会话 ═══
     let orchSession: AgentSessionHandle | null = null;
     if (this.opts.sessionStore) {
@@ -254,7 +274,7 @@ export class OrchestratorAgent {
       iterations++;
 
       // 执行本轮步骤（简单 → 单 step-agent；复杂 → DAG 工具）
-      const round = await this.executeSteps(goal, steps, opts.departmentId);
+      const round = await this.executeSteps(goal, steps, opts.departmentId, gateContext);
       for (const [k, v] of round.results) stepResults.set(k, v);
       for (const [k, v] of round.sessions) stepSessions.set(k, v);
       stepsExecuted += round.results.size;
@@ -339,6 +359,7 @@ export class OrchestratorAgent {
     goal: string,
     steps: OrchestratorStep[],
     departmentId?: string,
+    gateContext?: KnowledgeContextPackage | null,
   ): Promise<{ results: Map<string, unknown>; sessions: Map<string, string> }> {
     const results = new Map<string, unknown>();
     const sessions = new Map<string, string>();
@@ -366,7 +387,7 @@ export class OrchestratorAgent {
       const r = await this.opts.stepExecutor.executeStep(
         { id: step.name, name: step.name, description: step.description, agentType: 'general' },
         new Map<string, unknown>(),
-        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions: new Map() },
+        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions: new Map(), gateContext: gateContext ?? undefined },
       );
       results.set(step.name, r.success ? r.output : { error: r.error });
       return { results, sessions };
@@ -384,7 +405,7 @@ export class OrchestratorAgent {
         const dagResult = await this.opts.dagRuntime.execute(
           goal,
           steps.map(s => ({ name: s.name, description: s.description, deps: s.deps })),
-          { goal, departmentId, stepSessions: handles },
+          { goal, departmentId, stepSessions: handles, gateContext: gateContext ?? undefined },
         );
         // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
         const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
@@ -417,7 +438,7 @@ export class OrchestratorAgent {
       const r = await this.opts.stepExecutor.executeStep(
         { id: step.name, name: step.name, description: step.description, agentType: 'general' },
         upstream,
-        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions },
+        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions, gateContext: gateContext ?? undefined },
       );
       results.set(step.name, r.success ? r.output : { error: r.error });
     }
