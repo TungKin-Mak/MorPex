@@ -333,7 +333,7 @@ export async function bootstrapUnified(options?: {
       // ═══ 参数补全层（50 任务实测：LLM 提取常缺必填字段 → 二次提取补全）═══
       const extract = async (missing?: string[]) => {
         const prompt = buildExtractPrompt(goal, primitiveName, schemaJson, missing);
-        const res = await piBridgeWrapper.generateText({ prompt, maxTokens: 2000, temperature: 0 });
+        const res = await piBridgeWrapper.generateText({ prompt, maxTokens: 32000, temperature: 0 });
         const match = res.text.match(/\{[\s\S]*\}/);
         return match ? JSON.parse(match[0]) : {};
       };
