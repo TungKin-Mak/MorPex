@@ -285,6 +285,18 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 
 ---
 
+### ═══════ 会话 4 审查轮（2026-08-04，commit f552089）═══════
+
+**审查发现 1 个必修 bug + 修复 + 回归测试 + e2e 预算调整**：
+
+1. **⚠️ 必修：step-agent 工具参数被丢弃（aa72aff 引入的假阳性）**：`agent-spawner.ts` 工具映射适配器单参调用 `t.execute(p)` → p 落到 toolCallId、params=undefined → 原语以空参执行（knowledge_query 空 query 快速失败、产物靠 LLM 自身知识生成）——e2e“成功”是假阳性。契约确认：pi-agent-core `AgentTool.execute = (toolCallId, params, signal?, onUpdate?)`（types.d.ts:333）。修复：`mapToolForAgent` 提取为可测纯函数，显式 `('', p)` 双参调用；新增回归测试（probe 实测：修复前 params=null，修复后 =完整 params）。
+2. **连带影响**：工具现在真正执行 → knowledge_query 两阶段 Gate LLM 推理在 deepseek 下显著变慢 → SSE/observability e2e 测试 180s 预算不足 → 上浮 300s（生产 GLM 下 180s 足够）。
+3. **⚠️ 教训：e2e 测试污染**——step-agent 的 file/shell 工具以进程 CWD（=仓库根）写文件（hello.py/todo-app.html/probe.txt 等）→ 提交时被 `git add -A` 扫进 commit；已剔除并删除，后续 e2e 前注意 git status。
+
+**门禁实测**：tsc 0 ｜ validate-architecture 100% ｜ vitest **83 文件 727 通过 + 5 skipped（零失败）**。
+
+---
+
 ### 会话 3 遗留任务（未做，继续开放）
 - ① 微信接入：企业微信 vs 个人微信未决策
 - ② Phase 2 第二批：结构层 tsc/eslint 适配器、schema/AST 检测器、L5 精确计费、domain 沿调用链传递
