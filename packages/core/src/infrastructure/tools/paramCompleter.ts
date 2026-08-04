@@ -42,8 +42,8 @@ export function buildExtractPrompt(
   schemaJson: string,
   missing?: string[],
 ): string {
-  const base = `根据原语 "${primitiveName}" 的输入 Schema，从任务描述中提取参数并只输出 JSON 对象。\n任务: ${goal}\nSchema: ${schemaJson}\n`;
+  const base = `根据原语 "${primitiveName}" 的输入 Schema，从任务描述中提取参数并只输出 JSON 对象。\n任务: ${goal}\nSchema: ${schemaJson}\n直接输出纯 JSON（不要 Markdown 代码块，不要多余文字）：`;
   return missing && missing.length > 0
-    ? `${base}注意：以下必填参数缺失，必须补全：${missing.join(', ')}\n输出 JSON:`
-    : `${base}输出 JSON:`;
+    ? `${base}\n注意：以下必填参数缺失，必须补全：${missing.join(', ')}`
+    : base;
 }
