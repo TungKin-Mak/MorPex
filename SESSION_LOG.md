@@ -156,3 +156,43 @@
 - batch-run 5 并发 + GLM 限流容错 + 参数补全层（maxTokens 不设限）+ 路径分配探索（生成类走 Mission 实测嵌套失败，回退待定）
 - 生成类走 Mission 实测：嵌套 Mission（MorPexRuntime + MissionRuntime 双层）+ 内层 DAG 无 Agent 能力 → 300s 超时 —— **教训：Mission 执行层依赖未实现的 Agent 能力池**
 - 后续实现：在另一个会话继续（本会话只讨论定稿 + 记录）
+
+---
+
+## ═════════ 会话 3 测试工具链（脚本清单，2026-08-04）═════════
+
+### 数据流审计工具链（本会话构建）
+| 脚本 | 用途 | 用法 |
+|---|---|---|
+| `scripts/verify-e2e.ts` | 快速全链路验证（executeGoal→装配→抽离→召回）| `npx tsx scripts/verify-e2e.ts` |
+| `scripts/check-llm.ts` | LLM 配置自检（apiKey 状态/网关可达/模型名）| `npx tsx scripts/check-llm.ts` |
+| `scripts/batch-run.ts` | 批量闭环测试（默认 100 任务，5 并发）| `npx tsx scripts/batch-run.ts [--limit N] [--concurrency N] [--only 行业] [--no-prompt]` |
+| `scripts/batch-tasks.ts` | 100 任务集（ecommerce/hardware/software/xjmcu 各 25）| 被 batch-run 引用 |
+| `scripts/tracing/TraceRecorder.ts` | 函数调用追踪器（wrap 服务实例，记录调用链/耗时/入参出参）| 被 batch-run 引用 |
+| `scripts/analyze-trace-reports.ts` | 分析 data/trace-reports/*.md 函数频次（高频/低频/从未调用）| `npx tsx scripts/analyze-trace-reports.ts` |
+| `scripts/_mission-session.ts` | Mission 会话诊断（临时，打印各阶段事件）| 诊断用 |
+
+### batch-run 容错参数（GLM/grok 限流处理）
+```
+--timeout <ms>    单任务超时（默认 180000，无响应抛错）
+--retries <n>     429/5XX/1305 限流自动重试（默认 2，退避 30s/60s/90s）
+--delay <ms>      任务间限流退避（默认 3000）
+--concurrency <n> 并发数（默认 5，总耗时=最慢任务）
+--only <行业>     按行业过滤
+```
+限流识别：HTTP 429/5xx + GLM 1305（"访问量过大"）+ 关键词（限流/过载/稍后再试）→ 自动退避重试；耗尽标记 RATE_LIMITED（退出码 2，不算失败）。
+
+### 报告产物
+- 每任务一份数据流报告：`data/trace-reports/task-{NNN}.md`（任务信息+数据流调用链+函数明细表+抽离/召回）
+- 50/100 份报告用于功能模块审计（哪个模块被调用/未调用/有问题）
+
+### LLM 配置（config/morpex.yaml）
+```
+llm:
+  enabled: true            # true=自定义网关 / false=内置 deepseek
+  baseUrl: <OpenAI 兼容端点>
+  apiKey: ${VAR}           # 环境变量引用（process.env → Windows 用户级兜底）
+  model: <模型名>
+  maxTokens: 128000        # 不设单次限制（走 model 默认）；成本由 onTokenUsage/CostController 控
+```
+已验证模型：GLM-4.7-Flash（智谱，思考模式默认，限流 1305 自动重试）；grok-4.20-0309-reasoning（grok2api 唯一可靠）；deepseek（最稳，测试/CI）。
