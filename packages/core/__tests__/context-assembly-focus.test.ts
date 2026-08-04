@@ -153,3 +153,42 @@ describe('ContextAssemblyEngine 聚焦模式（功能③ 身份 ID + 三分法�
     expect(ctx.focusedSummary).toBeUndefined();
   });
 });
+
+describe('Provider 归属标记（任务 ④）', () => {
+  it('真实 Provider 片段 attribution=registered + providerAttribution 汇总', async () => {
+    const engine = makeEngine({ focusMode: false, maxFragments: 50, enableVersioning: false, enableEnrichment: false });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: 'g' });
+
+    // 每个片段都有归属标记（registered——所有来源都已注册 mock Provider）
+    for (const f of ctx.fragments) {
+      expect(f.attribution?.providerType).toBe('registered');
+    }
+    // 装配层汇总：source → providerType + collectedAt
+    expect(ctx.providerAttribution).toBeDefined();
+    expect(ctx.providerAttribution!.length).toBe(ctx.fragments.length);
+    const profile = ctx.providerAttribution!.find((p) => p.source === 'user_profile');
+    expect(profile?.providerType).toBe('registered');
+    expect(typeof profile?.collectedAt).toBe('number');
+  });
+
+  it('缺失来源 → 兜底片段 attribution=fallback（区别于真实数据）', async () => {
+    // 只注册 user_profile；mission_state 属 default 模板 required → 走 generateFallbackFragment
+    const registry = new ContextFragmentRegistry();
+    registry.register(mockProvider('user_profile', { name: 'Alice' }));
+    const eng = new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, {
+      focusMode: false,
+      maxFragments: 50,
+      enableVersioning: false,
+      enableEnrichment: false,
+    });
+    const ctx = await eng.assemble({ missionId: 'm1', goal: 'g' });
+
+    const profile = ctx.fragments.find((f) => f.source === 'user_profile');
+    const mission = ctx.fragments.find((f) => f.source === 'mission_state');
+    expect(profile?.attribution?.providerType).toBe('registered');
+    expect(mission?.attribution?.providerType).toBe('fallback');
+
+    const attr = ctx.providerAttribution!.find((p) => p.source === 'mission_state');
+    expect(attr?.providerType).toBe('fallback');
+  });
+});

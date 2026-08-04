@@ -30,6 +30,11 @@ export interface ExecutionContext {
   focusedSummary?: string
   /** 使用的片段列表 */
   fragments: ContextFragment[]
+  /**
+   * Provider 归属汇总（任务 ④）：每个片段来源的提供者类型（registered=真实 Provider / fallback=默认兜底）。
+   * 装配层暴露来源归属，消费端可据信任分级处理（真实数据优先，占位数据标注）。
+   */
+  providerAttribution?: Array<{ source: string; providerType: 'registered' | 'fallback'; collectedAt: number }>
   /** 组装时间 */
   assembledAt: number
   /** 过期时间（可选） */

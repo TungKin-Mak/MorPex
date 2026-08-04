@@ -44,6 +44,12 @@ export interface ContextFragment {
    * 装配按它过滤（当前任务 vs 历史任务），抽离快照带它入库，召回按它检索。
    */
   taskRef?: string
+  /**
+   * Provider 归属标记（任务 ④）：片段来源是真实注册 Provider 还是默认兜底。
+   * 'registered' = registry 真实采集；'fallback' = 核心片段 Provider 未注册时的默认占位。
+   * 消费端可据此区分真实数据与默认值（审计/治理/信任分级）。
+   */
+  attribution?: { providerType: 'registered' | 'fallback' }
 }
 
 // ── ContextAssemblyInput — 上下文组装输入 ──

@@ -154,6 +154,13 @@ export class ContextAssemblyEngine {
       })
     }
 
+    // 任务 ④：Provider 归属标记——真实注册 Provider vs 默认兜底（missingFragments = 本次兜底来源）
+    // 消费端可据此区分真实数据与默认占位（信任分级/审计）；fragment.attribution 持久化随快照入库
+    const fallbackSet = new Set(missingFragments)
+    for (const f of fragments) {
+      f.attribution = { providerType: fallbackSet.has(f.source) ? 'fallback' : 'registered' }
+    }
+
     // 5. 限制片段数量（功能③ 聚焦模式：不主动截断——选对材料优先（原则①），
     //    maxTokens 仅为异常兜底上限：仅当材料异常超限（> maxTokens×10）才截，防极端失控）
     let trimmedFragments = fragments
@@ -198,6 +205,13 @@ export class ContextAssemblyEngine {
     if (focusMode) {
       context.focusedSummary = buildFocusedSummary(input, trimmedFragments)
     }
+
+    // 任务 ④：装配层暴露 Provider 归属汇总（source → registered/fallback），供治理/审计消费
+    context.providerAttribution = trimmedFragments.map(f => ({
+      source: f.source,
+      providerType: f.attribution?.providerType ?? 'registered',
+      collectedAt: f.collectedAt,
+    }))
 
     // 10. 运行增强流水线（可选）
     let enrichedContext = context
