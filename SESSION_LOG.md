@@ -407,3 +407,20 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - ✅ 无测试污染、工作树干净
 
 **遗留（不变）**：微信接入（用户跳过）；编排 Session 化治理 UI/读取端点（agent-sessions 已落盘无消费端）；结构修正器全量验证（eslint 规则 pending）；上下文近期摘要消费端/Provider 归属标记/风险分级；production-check 2 条 pre-existing dep 违规。
+
+---
+
+### ═══════ 会话 5 补：调度器实核确认（2026-08-05）═══════
+
+调度器（本会话）实际独立复核五项交付（非仅依赖 fork 叙述），全部亲测通过：
+- ✅ **tsc 0**（`npx tsc --noEmit -p tsconfig.json`）
+- ✅ **validate-architecture 100%**（`node scripts/validate-architecture.js`）
+- ✅ **vitest 88 文件 / 764 通过 + 5 skipped 零失败**（含 studio 真实 LLM e2e，独立重跑）
+- ✅ **① JsonlSessionRepo 运行时存在性 + 落盘往返实测**（create→appendCustom→appendMessage→open→磁盘 3 行 JSONL，probe 通过）
+- ✅ **② 安全边界实测确认**：gateContext 仅经 `requireKnowledgeContext` 强校验（queryCallCount≥1 + referenceCheck.valid）放行；签发失败→null→`gateDestructive` 抛 GateContextRequiredError 硬拦（无新绕过）
+- ✅ **③ 规则 P2**：'eslint' ruleType 无检测器时 RuleEnforcementGuard 安全跳过（warn 不炸）；SchemaDetector/structuralCorrection/domain 传递逐行核对
+- ✅ **④ production 接线修复属实**（bed8e53：UnifiedEventStore.getDatabase 委托 + recall 前置 init）
+- ✅ **⑤ CostController** 事件链（execution.gate.token_usage → global + gate:<domain> 分账）核对
+- ✅ 工作树干净、零测试污染（data/ 已 gitignore）；SESSION_LOG 记录与实测数字完全一致
+
+**结论**：五项升级（Session 化 / 执行肢 Gate 凭证 / 规则 P2 第二批 / 上下文 P2 / CostController 计费）真实交付且门禁全绿，可交接。遗留方向不变。
