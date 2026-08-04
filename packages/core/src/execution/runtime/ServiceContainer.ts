@@ -391,6 +391,18 @@ export class ServiceContainer {
       maxIterations: 3,
       // 会话 4（Session 化）：总大脑会话 + step 会话追踪
       sessionStore: this.agentSessionStore,
+      // ⑤ 全链路计费：编排 LLM token 经事件总线上报（CostController 监听 execution.gate.token_usage）
+      onTokenUsage: (tokens: number) => {
+        if (tokens <= 0) return;
+        this.eventBus.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'execution.gate.token_usage',
+          timestamp: Date.now(),
+          executionId: `orch_${Date.now()}`,
+          source: 'orchestrator',
+          payload: { tokens },
+        });
+      },
       // 会话 4（执行肢解锁）：Gate 两阶段签发凭证（经 runOntologyGroundedReasoning）
       gateRunner: async (goal: string, departmentId?: string) => {
         if (!self._ontology || !self._guard) return null;
