@@ -65,6 +65,7 @@ import { MissionController } from './execution/runtime/mission/MissionController
 import { WorkflowRegistry as WorkflowPluginRegistry } from './workflow/WorkflowProvider.js';
 
 import type { IEventStore } from './infrastructure/protocol/events/store/IEventStore.js';
+import { buildExtractPrompt, validatePrimitiveParams } from './infrastructure/tools/paramCompleter.js';
 
 export interface UnifiedBootstrapResult {
   container: ServiceContainer;
@@ -329,11 +330,21 @@ export async function bootstrapUnified(options?: {
   container.executionEngine.setParamExtractor(async (goal: string, primitiveName: string, inputSchema: Record<string, unknown>) => {
     try {
       const schemaJson = JSON.stringify(inputSchema ?? {}).slice(0, 800);
-      const res = await piBridgeWrapper.generateText({
-        prompt: `根据原语 "${primitiveName}" 的输入 Schema，从任务描述中提取参数并只输出 JSON 对象。\n任务: ${goal}\nSchema: ${schemaJson}\n输出 JSON:`, maxTokens: 300, temperature: 0,
-      });
-      const match = res.text.match(/\{[\s\S]*\}/);
-      if (match) return JSON.parse(match[0]);
+      // ═══ 参数补全层（50 任务实测：LLM 提取常缺必填字段 → 二次提取补全）═══
+      const extract = async (missing?: string[]) => {
+        const prompt = buildExtractPrompt(goal, primitiveName, schemaJson, missing);
+        const res = await piBridgeWrapper.generateText({ prompt, maxTokens: 300, temperature: 0 });
+        const match = res.text.match(/\{[\s\S]*\}/);
+        return match ? JSON.parse(match[0]) : {};
+      };
+      let params = await extract();
+      const missing = validatePrimitiveParams(inputSchema ?? {}, params);
+      if (missing.length > 0) {
+        console.log(`[bootstrap] 🔄 参数补全层：${primitiveName} 缺必填字段 ${missing.join(', ')}，二次 LLM 补全`);
+        const completed = await extract(missing);
+        params = { ...params, ...completed };
+      }
+      return params;
     } catch { /* 提取失败回退 goal 透传 */ }
     return {};
   });
