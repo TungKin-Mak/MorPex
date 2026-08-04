@@ -9,6 +9,8 @@ import {
   getRequiredParams,
   validatePrimitiveParams,
   buildExtractPrompt,
+  isGenerativePrimitive,
+  inferArtifactType,
 } from '../src/infrastructure/tools/paramCompleter.js';
 
 const artifactSchema = {
@@ -39,5 +41,25 @@ describe('paramCompleter', () => {
 
     const withMissing = buildExtractPrompt('生成报告', 'artifact_generation', '{"required":["type"]}', ['type']);
     expect(withMissing).toContain('必填参数缺失，必须补全：type');
+  });
+});
+
+describe('路径分配（方案 B：生成类跳过参数提取）', () => {
+  it('isGenerativePrimitive 识别生成类原语', () => {
+    expect(isGenerativePrimitive('artifact_generation')).toBe(true);
+    expect(isGenerativePrimitive('file_operation')).toBe(false);
+    expect(isGenerativePrimitive('knowledge_query')).toBe(false);
+    expect(isGenerativePrimitive('shell_execution')).toBe(false);
+    expect(isGenerativePrimitive('api_call')).toBe(false);
+  });
+
+  it('inferArtifactType 按目标关键词推断类型', () => {
+    expect(inferArtifactType('生成电商价格合规检查报告')).toBe('report');
+    expect(inferArtifactType('帮我做一份销售报表')).toBe('report');
+    expect(inferArtifactType('生成 MCU 初始化代码')).toBe('code');
+    expect(inferArtifactType('编写配置文件')).toBe('config');
+    expect(inferArtifactType('分析销售数据')).toBe('data');
+    expect(inferArtifactType('生成设计文档')).toBe('doc');
+    expect(inferArtifactType('随便写点什么')).toBe('doc'); // 默认
   });
 });

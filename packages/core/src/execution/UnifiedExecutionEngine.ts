@@ -32,6 +32,28 @@ import type { DepartmentId } from '../governance/control-plane/department-types.
 import type { ProgressCallback } from '../infrastructure/common/ProgressCallback.js';
 import { DomainPrimitiveRegistry } from '../infrastructure/tools/DomainPrimitiveRegistry.js';
 
+/**
+ * 生成类原语判断（路径分配方案 B）
+ * 生成类（artifact_generation）：用户要求"做东西"（报表/代码/文档）——内容由原语内 LLM 生成，
+ * 不需要参数提取；操作类（file/shell/api/knowledge）：需明确参数（path/command/url/query），保留提取。
+ */
+function isGenerativePrimitive(name: string): boolean {
+  return name === 'artifact_generation';
+}
+
+/**
+ * 按目标关键词推断产物类型（artifact_generation 的 type 枚举）
+ * 生成类跳过参数提取时，type 由目标文本推断，不依赖 LLM 提取。
+ */
+function inferArtifactType(goal: string): string {
+  const g = goal.toLowerCase();
+  if (/报告|报表|report/.test(g)) return 'report';
+  if (/代码|code|编码|程序/.test(g)) return 'code';
+  if (/配置|config/.test(g)) return 'config';
+  if (/数据|data|dataset/.test(g)) return 'data';
+  return 'doc'; // 默认文档
+}
+
 // ── Types ──
 
 export type ExecutionMode = 'mission' | 'dag' | 'fabric' | 'auto';
@@ -703,12 +725,19 @@ export class UnifiedExecutionEngine {
           metadata: { reason: primMatch.reason },
         }));
         const primParams: Record<string, unknown> = { goal: request.goal, ...(request.context as Record<string, unknown>) };
-        // 全功能实现：用参数提取器把自然语言目标转成原语结构化参数（失败则回退 goal 透传）
-        if (this.paramExtractor) {
+        // ═══ 路径分配调整（方案 B）：生成类原语跳过参数提取，原语内 LLM 自然生成 ═══
+        // 生成类（artifact_generation：做报表/写代码/生成文档）内容由原语内部 LLM 生成（setLLMCaller），
+        // 提取 type/specification 是多余且不稳定（50 任务实测失败主因）。
+        // 操作类（file/shell/api/knowledge）保留参数提取（需明确 path/command/url/query）。
+        const primName = primMatch.primitive.name;
+        if (isGenerativePrimitive(primName)) {
+          Object.assign(primParams, { type: inferArtifactType(request.goal), specification: request.goal });
+          console.log(`[UnifiedExecutionEngine] 🎨 生成类任务 → 跳过参数提取，原语内 LLM 自然生成 (type=${primParams.type})`);
+        } else if (this.paramExtractor) {
           try {
             const extracted = await this.paramExtractor(
               request.goal,
-              primMatch.primitive.name,
+              primName,
               (primMatch.primitive as { inputSchema?: Record<string, unknown> }).inputSchema ?? {},
             );
             Object.assign(primParams, extracted);

@@ -47,3 +47,25 @@ export function buildExtractPrompt(
     ? `${base}\n注意：以下必填参数缺失，必须补全：${missing.join(', ')}`
     : base;
 }
+
+/**
+ * 生成类原语判断（路径分配方案 B）
+ * 生成类（artifact_generation）：用户要求"做东西"（报表/代码/文档）——内容由原语内 LLM 生成，
+ * 不需要参数提取；操作类（file/shell/api/knowledge）：需明确参数（path/command/url/query），保留提取。
+ */
+export function isGenerativePrimitive(name: string): boolean {
+  return name === 'artifact_generation';
+}
+
+/**
+ * 按目标关键词推断产物类型（artifact_generation 的 type 枚举）
+ * 生成类跳过参数提取时，type 由目标文本推断，不依赖 LLM 提取。
+ */
+export function inferArtifactType(goal: string): string {
+  const g = goal.toLowerCase();
+  if (/报告|报表|report/.test(g)) return 'report';
+  if (/代码|code|编码|程序/.test(g)) return 'code';
+  if (/配置|config/.test(g)) return 'config';
+  if (/数据|data|dataset/.test(g)) return 'data';
+  return 'doc'; // 默认文档
+}
