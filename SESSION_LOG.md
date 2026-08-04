@@ -395,3 +395,15 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
   3. 结构修正器全量接入验证（software eslint 规则 pending；AST/tsc 适配器增强）
   4. ③ 上下文：近期摘要消费端拼接、Provider 归属标记到装配层、风险分级（均标记可延后）
   5. production-check 的 2 条 pre-existing dep 违规（evaluation/ 遗留）可清理
+
+---
+
+### ═══════ 会话 5 补：调度器独立复核 + 生产接线修复（2026-08-05，commit bed8e53）═══════
+
+会话 5 五项交付后，调度器独立复核（不信任 fork 叙述，全部亲自验证）：
+- ✅ **tsc 0** ｜ ✅ **validate-architecture 100%** ｜ ✅ **vitest 88 文件 / 763 通过 + 5 skipped 零失败**（独立重跑，含 studio 真实 LLM e2e）
+- ✅ 逐项代码审查：① AgentSessionStore/PiBridge JsonlSessionRepo 注入（AgentHarness 自动落盘）② gateRunner 签名与 runOntologyGroundedReasoning 匹配、失败→null→破坏性保持硬拦截（安全边界正确）③ countTokens/SchemaDetector/StructuralCorrectionRegistry/software eslint 适配器/domain 传递 ④ loadMerged 四态 ⑤ CostController 事件链（MorPexRuntime 带 domain、orchestrator 归 global）
+- ⚠️ **审查发现并修复 1 个生产断点**（commit bed8e53）：`UnifiedEventStore` 未暴露 `getDatabase` → `ServiceContainer.getContextPersistence()` 恒返 null → **④ 装配快照持久化在生产路径是死代码**（ContextPersistence 从未实例化成功）。修复：UnifiedEventStore.getDatabase() 委托内部 SqliteEventStore + recallTaskContext 前置 `await init()`（惰性 init 兼容）+ 端到端测试（UnifiedEventStore→getDatabase→ContextPersistence save/loadByTaskRef 同一连接，7/7）。门禁复跑全绿（88 文件 764 通过）。
+- ✅ 无测试污染、工作树干净
+
+**遗留（不变）**：微信接入（用户跳过）；编排 Session 化治理 UI/读取端点（agent-sessions 已落盘无消费端）；结构修正器全量验证（eslint 规则 pending）；上下文近期摘要消费端/Provider 归属标记/风险分级；production-check 2 条 pre-existing dep 违规。
