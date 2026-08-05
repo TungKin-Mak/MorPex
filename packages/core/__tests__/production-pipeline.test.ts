@@ -138,32 +138,35 @@ import { UnifiedExecutionEngine } from '../src/execution/UnifiedExecutionEngine.
 import { ApprovalGate } from '../src/governance/ApprovalGate.js';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
 
-// --- Test 8: Engine executeViaMission 轮询等待完成 ---
+// --- Test 8: Engine orchestrator 主路径等待完成（会话 15 去兜底化：mission 轮询路径已移除） ---
 (async () => {
-  console.log('\n--- Test 8: Engine executeViaMission polling (wait for completion) ---');
+  console.log('\n--- Test 8: Engine orchestrator path (wait for completion) ---');
   const bus = new EventBus();
   const engine = new UnifiedExecutionEngine(bus);
 
-  // 注入一个模拟 MissionRuntime，2 秒后完成
-  let missionState = 'pending';
-  const mockMissionRuntime = {
-    name: 'MockMissionRuntime',
-    start: async (goal: string) => {
-      // 异步启动：1s 后 running, 2s 后 completed
-      setTimeout(() => { missionState = 'running'; }, 500);
-      setTimeout(() => { missionState = 'completed'; }, 1500);
-      return { executionId: 'test-mission-1' };
+  // 注入一个模拟总大脑：1.5s 后完成（模拟 LLM 编排耗时）
+  engine.setOrchestratorAgent({
+    name: 'MockOrchestrator',
+    run: async (goal: string) => {
+      await new Promise(r => setTimeout(r, 1500));
+      return {
+        success: true,
+        output: { text: `交付物: ${goal}` },
+        iterations: 1,
+        stepsExecuted: 1,
+        auditLog: [{ iteration: 1, pass: true, issues: [], reasoning: 'ok' }],
+        stepResults: new Map([['step', { text: '成果' }]]),
+        duration: 1500,
+      };
     },
-    getStatus: () => ({ state: missionState }),
-    cancel: async () => {},
-  };
-  engine.setMissionRuntime(mockMissionRuntime);
+  });
 
-  const result = await engine.execute({ goal: 'test polling', mode: 'mission', timeoutMs: 5000 });
-  ok(result.ok === true, 'Engine executeViaMission returns ok=true after polling');
-  ok(result.status === 'completed', 'Engine executeViaMission returns status=completed, not running');
-  ok(result.duration >= 1500, 'Engine polling waited for mission completion (duration >= 1500ms)');
-  console.log(`  duration=${result.duration}ms, status=${result.status}`);
+  const result = await engine.execute({ goal: 'test orchestrator', timeoutMs: 5000 });
+  ok(result.ok === true, 'Engine orchestrator returns ok=true after completion');
+  ok(result.status === 'completed', 'Engine orchestrator returns status=completed');
+  ok(result.mode === 'orchestrator', 'Engine orchestrator returns mode=orchestrator');
+  ok(result.duration >= 1500, 'Engine waited for orchestrator completion (duration >= 1500ms)');
+  console.log(`  duration=${result.duration}ms, mode=${result.mode}, status=${result.status}`);
 })();
 
 // --- Test 9: ApprovalGate waitForDecision 阻塞 ---

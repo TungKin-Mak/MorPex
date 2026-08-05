@@ -89,85 +89,25 @@ describe('SubAgentFork — 舰队成本上限（Cost Ceiling）', () => {
   });
 });
 
-describe('UnifiedExecutionEngine — maxIterations（有界执行）', () => {
-  it('mission 轮询超过 maxIterations → 失败结果 + execution.budget.exceeded 事件', async () => {
+describe('UnifiedExecutionEngine — 编排超时包络（会话 15 去兜底化修订）', () => {
+  it('orchestrator 执行超过 timeoutMs → status failed（包络拦截，不永久卡住）', async () => {
     const bus = new EventBus();
     const engine = new UnifiedExecutionEngine(bus);
-    const budgetEvents = collectEvents(bus, 'execution.budget.exceeded');
 
-    // 假 MissionRuntime：永不完成
-    engine.setMissionRuntime({
-      name: 'stuck-runtime',
-      start: async () => ({ executionId: 'mission_stuck' }),
-      getStatus: () => ({ state: 'running' }),
-      cancel: async () => {},
+    // 假总大脑：永不完成 → 必然触发引擎超时包络
+    engine.setOrchestratorAgent({
+      name: 'stuck-orchestrator',
+      run: async () => new Promise(() => { /* 永不 resolve */ }),
     });
 
     const result = await engine.execute({
       goal: '永不完成的任务',
-
-      maxIterations: 2,
-      timeoutMs: 60_000,
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.status).toBe('failed');
-    expect(result.error).toContain('[Bounded Autonomy]');
-    expect(result.error).toContain('Iteration cap reached');
-    expect(budgetEvents.length).toBe(1);
-  });
-});
-
-describe('UnifiedExecutionEngine — 超时硬拦截（Wave 4）', () => {
-  it('mission 超时 → status failed（不再是 running）+ execution.budget.exceeded 事件', async () => {
-    const bus = new EventBus();
-    const engine = new UnifiedExecutionEngine(bus);
-    const budgetEvents = collectEvents(bus, 'execution.budget.exceeded');
-
-    // 假 MissionRuntime：永不完成 → 必然触发 timeout
-    engine.setMissionRuntime({
-      name: 'stuck-runtime',
-      start: async () => ({ executionId: 'mission_stuck' }),
-      getStatus: () => ({ state: 'running' }),
-      cancel: async () => {},
-    });
-
-    const result = await engine.execute({
-      goal: '永不完成的任务',
-
       timeoutMs: 1000,
     });
 
     expect(result.ok).toBe(false);
     expect(result.status).toBe('failed');
-    expect(result.error).toContain('[Bounded Autonomy]');
-    expect(result.error).toContain('执行超时');
-    expect(budgetEvents.length).toBe(1);
-  });
-
-  it('DAG 超时 → status failed（不再是 running）+ execution.budget.exceeded 事件', async () => {
-    const bus = new EventBus();
-    const engine = new UnifiedExecutionEngine(bus);
-    const budgetEvents = collectEvents(bus, 'execution.budget.exceeded');
-
-    engine.setDAGRuntime({
-      name: 'stuck-dag',
-      execute: async () => ({ executionId: 'dag_stuck' }),
-      getStatus: () => ({ state: 'running' }),
-      cancel: async () => {},
-    });
-
-    const result = await engine.execute({
-      goal: '永不完成的 DAG',
-
-      timeoutMs: 1000,
-    });
-
-    expect(result.ok).toBe(false);
-    expect(result.status).toBe('failed');
-    expect(result.error).toContain('[Bounded Autonomy]');
-    expect(result.error).toContain('执行超时');
-    expect(budgetEvents.length).toBe(1);
+    expect(result.error).toContain('超时');
   });
 });
 

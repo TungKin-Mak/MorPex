@@ -9,13 +9,35 @@
  * 全部使用 os.tmpdir() 临时目录（不污染仓库 data/）。
  */
 
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import * as fs from 'node:fs';
 import * as os from 'node:os';
 import * as path from 'node:path';
 import { AgentSessionStore, type AgentSessionHandle } from '../src/execution/orchestration/AgentSessionStore.js';
 import { StepAgentExecutor } from '../src/execution/runtime/dag/StepAgentExecutor.js';
 import { OrchestratorAgent, type OrchestratorStep } from '../src/execution/orchestration/OrchestratorAgent.js';
+
+// ═══ 会话 15（去兜底化）：StepAgentExecutor 不再有 agentDisabled/fallbackExecutor。
+//     测试改为 mock agentSpawner（返回成功 agent）验证真实 agent 路径 + 会话记录。
+const spawnMock = vi.fn();
+vi.mock('../src/infrastructure/adapters/agent-spawner.js', () => ({
+  agentSpawner: {
+    spawn: (params: unknown) => spawnMock(params),
+  },
+}));
+
+/** 记录每次 prompt 输入（供上游会话引用断言） */
+const promptInputs: string[] = [];
+function installSpawnAgent(): void {
+  promptInputs.length = 0;
+  spawnMock.mockResolvedValue({
+    prompt: async (input: string) => {
+      promptInputs.push(String(input));
+      return { content: [{ type: 'text', text: '## 交付摘要\n完成。' }] };
+    },
+    abort: async () => {},
+  });
+}
 
 // ── 工具：临时目录 ──
 
@@ -129,12 +151,9 @@ describe('AgentSessionStore — JSONL 持久化会话', () => {
 
 describe('StepAgentExecutor — 会话化（sessionStore）', () => {
   it('step 会话创建 + step-result 条目 + result 携带 sessionId/path', async () => {
+    installSpawnAgent();
     const store = new AgentSessionStore(makeTempRoot());
-    const executor = new StepAgentExecutor({
-      agentDisabled: true,
-      sessionStore: store,
-      fallbackExecutor: async () => ({ fallback: true, done: 'ok' }),
-    });
+    const executor = new StepAgentExecutor({ sessionStore: store, timeoutMs: 10000 });
 
     const res = await executor.executeStep(
       { id: 'node_1', name: '生成文档', description: '生成文档', agentType: 'general' },
@@ -142,7 +161,7 @@ describe('StepAgentExecutor — 会话化（sessionStore）', () => {
     );
 
     expect(res.success).toBe(true);
-    expect(res.mode).toBe('fallback');
+    expect(res.mode).toBe('agent');
     expect(res.sessionId).toBeTruthy();
     expect(res.sessionPath).toContain('--step-agent--');
 
@@ -151,21 +170,14 @@ describe('StepAgentExecutor — 会话化（sessionStore）', () => {
     const results = await readCustom(reopened, 'step-result');
     expect(results.length).toBe(1);
     expect(results[0].success).toBe(true);
-    expect(results[0].mode).toBe('fallback');
+    expect(results[0].mode).toBe('agent');
     expect(results[0].nodeName).toBe('生成文档');
   });
 
-  it('传入 upstreamSessions → fallback 收到上游会话引用文本（跨会话讨论锚点）', async () => {
+  it('传入 upstreamSessions → prompt 注入上游会话引用文本（跨会话讨论锚点）', async () => {
+    installSpawnAgent();
     const store = new AgentSessionStore(makeTempRoot());
-    let receivedUpstream = '';
-    const executor = new StepAgentExecutor({
-      agentDisabled: true,
-      sessionStore: store,
-      fallbackExecutor: async (_node, upstreamText) => {
-        receivedUpstream = upstreamText;
-        return { ok: true };
-      },
-    });
+    const executor = new StepAgentExecutor({ sessionStore: store, timeoutMs: 10000 });
 
     const upstream = new Map([['上游步骤', '上游成果 A']]);
     const upstreamSessions = new Map([['上游步骤', 'C:/sessions/--step-agent--/xxx_upstream.jsonl']]);
@@ -175,9 +187,10 @@ describe('StepAgentExecutor — 会话化（sessionStore）', () => {
       { upstreamSessions },
     );
 
-    expect(receivedUpstream).toContain('上游成果 A');
-    expect(receivedUpstream).toContain('上游步骤会话引用');
-    expect(receivedUpstream).toContain('xxx_upstream.jsonl');
+    expect(promptInputs.length).toBeGreaterThan(0);
+    expect(promptInputs[0]).toContain('上游成果 A');
+    expect(promptInputs[0]).toContain('上游步骤会话引用');
+    expect(promptInputs[0]).toContain('xxx_upstream.jsonl');
   });
 });
 
@@ -199,14 +212,20 @@ describe('OrchestratorAgent — 总大脑会话化', () => {
   }
 
   function realStepExecutor(store: AgentSessionStore) {
-    return new StepAgentExecutor({
-      agentDisabled: true,
-      sessionStore: store,
-      fallbackExecutor: async () => ({ fallback: true }),
-    });
+    return new StepAgentExecutor({ sessionStore: store, timeoutMs: 10000 });
+  }
+
+  function mockDagRuntime(results: Record<string, unknown>) {
+    return {
+      name: 'mock-dag',
+      execute: async () => ({ executionId: 'dag_sess', success: true, failedNodes: 0, nodeResults: new Map(Object.entries(results)) }),
+      getStatus: async () => ({ state: 'completed' }),
+      cancel: async () => {},
+    };
   }
 
   it('复杂任务：总大脑会话（analysis/audit/synthesis）+ stepSessions + 依赖链 parentSessionPath', async () => {
+    installSpawnAgent();
     const store = new AgentSessionStore(makeTempRoot());
     const llm = mockLlm([
       {
@@ -224,9 +243,13 @@ describe('OrchestratorAgent — 总大脑会话化', () => {
       { match: '汇总', reply: '最终交付物' },
     ]);
 
-    // 无 dagRuntime → 走降级逐节点直跑（真实 StepAgentExecutor + 会话）
+    // dagRuntime 注入（复杂任务走 DAG 分发，会话由总大脑预创建）
     const orchestrator = new OrchestratorAgent({
       llm,
+      dagRuntime: mockDagRuntime({
+        'node_0_1785000000000': { text: '调研成果' },
+        'node_1_1785000000000': { text: '实现成果' },
+      }),
       stepExecutor: realStepExecutor(store),
       sessionStore: store,
       maxIterations: 3,
@@ -264,6 +287,7 @@ describe('OrchestratorAgent — 总大脑会话化', () => {
   });
 
   it('审计 fail → 补充任务也创建会话（迭代轮次会话追踪）', async () => {
+    installSpawnAgent();
     const store = new AgentSessionStore(makeTempRoot());
     let auditCount = 0;
     const llm = mockLlm([

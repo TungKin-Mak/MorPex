@@ -358,10 +358,9 @@ export class MorPexRuntime {
       }
 
       // ── Phase 2: Execution（统一执行引擎）──
+      // ═══ 会话 15（去兜底化）：模式内部化——引擎现行单路径（简单操作类→原语快路径；其余→总大脑编排）═══
       const execRequest: ExecutionRequest = {
         goal: context.goal.objective,
-        // 执行引擎选择内部化（UnifiedExecutionEngine auto 逻辑按复杂度选 fabric/dag/mission）
-        mode: 'auto',
         departmentId: context.team.departments[0],
         context: {
           executionId: context.executionId,

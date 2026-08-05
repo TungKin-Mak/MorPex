@@ -1,14 +1,17 @@
 /**
- * StepAgentExecutor 空内容纠正性重试测试（会话 9：不能关思考模式 → 重试兜底）
+ * StepAgentExecutor 空内容纠正性重试测试（会话 9 · 会话 15 去兜底化修订）
  *
- * GLM 思考模式下：工具错误后下一轮常只输出 reasoning_content、content 为空
+ * GLM/opencode 思考模式下：工具错误后下一轮常只输出 reasoning_content、content 为空
  * （extractText 判空）。此前直接降级 fallback → 任务失败率 19/99。
  * 修复：空内容时带纠正指令重试（默认 1 次），模型补全参数重新调用或直接给交付摘要。
  *
+ * 会话 15 去兜底化：重试仍空 → 失败返回（不再降级 fallback，fail loud）。
+ *
  * 覆盖：
  *   - 空内容 → 纠正性重试 → 重试产出文本 → 恢复成功（mode=agent）
- *   - 空内容 → 重试仍空 → 降级 fallback
- *   - correctiveRetries=0 → 不重试直接降级
+ *   - 空内容 → 重试仍空 → 失败返回（不无限重试，不降级）
+ *   - correctiveRetries=0 → 不重试直接失败
+ *   - 无上游成果时 prompt 输入不注入垃圾上下文（替代原 agentDisabled 断言）
  */
 
 import { describe, it, expect, vi, beforeEach } from 'vitest';
@@ -54,41 +57,37 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
     expect(spawnMock).toHaveBeenCalledTimes(1); // 同一个 agent，prompt 调 2 次（首次+纠正）
   });
 
-  it('空内容 → 重试仍空 → 降级 fallback（不无限重试）', async () => {
+  it('空内容 → 重试仍空 → 失败返回（不无限重试，会话 15 不再降级 fallback）', async () => {
     spawnMock.mockResolvedValue(makeAgent([
       { content: [] },
       { content: [] }, // 纠正重试仍空
       { content: [] },
     ]));
-    let fallbackCalled = false;
     const executor = new StepAgentExecutor({
       timeoutMs: 10000,
       correctiveRetries: 1, // 只重试 1 次
-      fallbackExecutor: async () => { fallbackCalled = true; return { fallback: true }; },
     });
     const res = await executor.executeStep({ id: 's2', name: 's2', description: 'x', agentType: 'general' });
 
-    expect(res.success).toBe(true);
-    expect(res.mode).toBe('fallback');
-    expect(fallbackCalled).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.mode).toBe('agent');
+    expect(res.error).toContain('空内容');
   });
 
-  it('correctiveRetries=0 → 不重试直接降级', async () => {
+  it('correctiveRetries=0 → 不重试直接失败', async () => {
     spawnMock.mockResolvedValue(makeAgent([
       { content: [] },
       { content: [{ type: 'text', text: '不应被调用' }] },
     ]));
-    let fallbackCalled = false;
     const executor = new StepAgentExecutor({
       timeoutMs: 10000,
       correctiveRetries: 0,
-      fallbackExecutor: async () => { fallbackCalled = true; return { fallback: 'fb' }; },
     });
     const res = await executor.executeStep({ id: 's3', name: 's3', description: 'x', agentType: 'general' });
 
-    expect(res.success).toBe(true);
-    expect(res.mode).toBe('fallback');
-    expect(fallbackCalled).toBe(true);
+    expect(res.success).toBe(false);
+    expect(res.mode).toBe('agent');
+    expect(res.error).toContain('空内容');
   });
 
   it('首次即有文本 → 不触发纠正重试（正常路径）', async () => {
@@ -103,5 +102,18 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
     expect(res.success).toBe(true);
     expect(promptCount).toBe(1); // 无纠正重试
     expect(res.mode).toBe('agent');
+  });
+
+  it('无上游成果 → prompt 输入不注入垃圾上下文（保持聚焦）', async () => {
+    let receivedInput = '';
+    spawnMock.mockResolvedValue({
+      prompt: async (input: string) => { receivedInput = input; return { content: [{ type: 'text', text: '完成' }] }; },
+      abort: async () => {},
+    });
+    const executor = new StepAgentExecutor({ timeoutMs: 10000 });
+    await executor.executeStep({ id: 's5', name: 's5', description: 'x', agentType: 'general' });
+
+    expect(receivedInput).not.toContain('上游步骤成果');
+    expect(receivedInput).not.toContain('【上游');
   });
 });

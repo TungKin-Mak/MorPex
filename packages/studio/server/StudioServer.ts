@@ -226,7 +226,6 @@ export class StudioServer {
       try {
         const r = await container.executionEngine.execute({
           goal: String(goal),
-          mode: req.body?.mode ?? 'auto',
           departmentId: req.body?.departmentId,
           context: req.body?.context,
         });

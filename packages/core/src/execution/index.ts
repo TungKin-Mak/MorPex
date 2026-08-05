@@ -29,9 +29,8 @@ export type {
   ExecutionRequest,
   ExecutionResult,
   EngineHealth,
-  MissionRuntimeLike,
   DAGRuntimeLike,
-  ExecutionFabricLike,
+  OrchestratorAgentLike,
 } from './UnifiedExecutionEngine.js';
 
 // ── 团队编排（L5：原 organization/ 归位）──

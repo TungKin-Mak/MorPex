@@ -9,6 +9,11 @@
  *        - pass → 生成最终交付物
  *        - fail → 生成补充任务 → 再分发（迭代，上限 maxIterations）
  *
+ * ═══ 会话 15（去兜底化）：LLM 必填，失败即抛（fail loud，无静默降级）═══
+ *   - llm 为必选项（生产恒注入）→ 移除 llm_unavailable_fallback
+ *   - 任务拆解/审计/汇总 LLM 失败或 JSON 解析失败 → 抛错（run 失败，显式可诊断）
+ *   - DAG 工具失败 → 抛错（移除“逐节点直跑”静默降级）
+ *
  * 组件边界（会话 3 定稿）：
  *   - 总大脑 = 本类（规划 + 审计，纯编排不执行）
  *   - DAG 工具 = DAGRuntimeLike（调度/分发/依赖传递）
@@ -47,8 +52,8 @@ export interface AuditResult {
 }
 
 export interface OrchestratorOptions {
-  /** LLM 调用（规划/审计/汇总）。未提供 → 降级：单 step-agent 直跑 + 跳过审计 */
-  llm?: {
+  /** LLM 调用（规划/审计/汇总）。必填——去兜底化后无 LLM 不可执行（生产恒注入） */
+  llm: {
     generateText: (opts: { prompt: string; temperature?: number }) => Promise<{
       text: string;
       /** 真实 token 用量（PiBridge.generateText 返回，用于精确计费） */
@@ -57,7 +62,7 @@ export interface OrchestratorOptions {
   };
   /** DAG 工具（复杂任务分发；nodeHandler 已接 step-agent） */
   dagRuntime?: DAGRuntimeLike;
-  /** step-agent 执行器（简单任务直跑 + 复杂任务单节点兜底） */
+  /** step-agent 执行器（简单任务直跑 + 复杂任务单节点） */
   stepExecutor: StepAgentExecutor;
   /** 审计迭代上限（默认 3，防止无限补充循环） */
   maxIterations?: number;
@@ -129,14 +134,13 @@ function previewText(v: unknown, max = 2000): string {
   return s.length > max ? `${s.slice(0, max)}…[截断]` : s;
 }
 
-/** 解析总大脑拆解结果（容错：解析失败 → 单 step 直跑） */
-function parseAnalysis(json: Record<string, unknown> | null, goal: string, llmAvailable: boolean): OrchestratorAnalysis {
+/**
+ * 解析总大脑拆解结果。
+ * ═══ 会话 15（去兜底化）：无合法 JSON / 无步骤 → 抛错（fail loud，由 run 失败显式可诊断）。
+ */
+function parseAnalysis(json: Record<string, unknown> | null): OrchestratorAnalysis {
   if (!json) {
-    return {
-      complexity: 'simple',
-      steps: [{ name: goal.slice(0, 50), description: goal, deps: [] }],
-      reasoning: llmAvailable ? 'analysis_failed' : 'llm_unavailable_fallback',
-    };
+    throw new Error('[OrchestratorAgent] 任务拆解响应无法解析为 JSON（LLM 输出为空或非 JSON）');
   }
   const complexity = json.complexity === 'complex' ? 'complex' : 'simple';
   const rawSteps = Array.isArray(json.steps) ? json.steps : [];
@@ -144,11 +148,14 @@ function parseAnalysis(json: Record<string, unknown> | null, goal: string, llmAv
     .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
     .map((s, i) => ({
       name: typeof s.name === 'string' && s.name ? s.name : `step_${i}`,
-      description: typeof s.description === 'string' && s.description ? s.description : goal,
+      description: typeof s.description === 'string' && s.description ? s.description : '',
       deps: toStringList(s.deps),
     }));
   if (steps.length === 0) {
-    return { complexity: 'simple', steps: [{ name: goal.slice(0, 50), description: goal, deps: [] }], reasoning: 'empty_steps_fallback' };
+    throw new Error('[OrchestratorAgent] 任务拆解未产出任何步骤（steps 为空）');
+  }
+  if (steps.some(s => !s.description)) {
+    throw new Error('[OrchestratorAgent] 任务拆解步骤缺失 description（无法执行）');
   }
   return { complexity, steps, reasoning: typeof json.reasoning === 'string' ? json.reasoning : '' };
 }
@@ -204,10 +211,6 @@ export class OrchestratorAgent {
     this.llm = opts.llm;
   }
 
-  get llmAvailable(): boolean {
-    return !!this.llm;
-  }
-
   /**
    * run — 总大脑完整闭环：编排 → 执行 → 审计（迭代）→ 汇总
    */
@@ -248,15 +251,10 @@ export class OrchestratorAgent {
       }
     }
 
-    // ── ① 编排：分析复杂度 + 拆解 ──
-    let analysis: OrchestratorAnalysis;
-    try {
-      const res = await this.llm?.generateText({ prompt: ANALYSIS_PROMPT(goal), temperature: 0 });
-      this.opts.onTokenUsage?.(tokenCount(res));
-      analysis = parseAnalysis(res ? extractJsonObject(res.text) : null, goal, !!this.llm);
-    } catch {
-      analysis = { complexity: 'simple', steps: [{ name: goal.slice(0, 50), description: goal, deps: [] }], reasoning: 'analysis_failed' };
-    }
+    // ── ① 编排：分析复杂度 + 拆解（LLM 失败/JSON 非法 → 抛错，fail loud）──
+    const res = await this.llm.generateText({ prompt: ANALYSIS_PROMPT(goal), temperature: 0 });
+    this.opts.onTokenUsage?.(tokenCount(res));
+    const analysis = parseAnalysis(res ? extractJsonObject(res.text) : null);
     if (orchSession && this.opts.sessionStore) {
       await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.analysis', {
         complexity: analysis.complexity,
@@ -279,32 +277,28 @@ export class OrchestratorAgent {
       for (const [k, v] of round.sessions) stepSessions.set(k, v);
       stepsExecuted += round.results.size;
 
-      // 审计
-      let audit: AuditResult;
-      try {
-        const resultsText = this.formatResults(round.results);
-        const res = await this.llm?.generateText({ prompt: AUDIT_PROMPT(goal, resultsText), temperature: 0 });
-        this.opts.onTokenUsage?.(tokenCount(res));
-        const json = res ? extractJsonObject(res.text) : null;
-        audit = json
-          ? {
-              pass: json.pass === true,
-              issues: toStringList(json.issues),
-              supplementaryTasks: Array.isArray(json.supplementaryTasks)
-                ? json.supplementaryTasks
-                    .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
-                    .map((s, i) => ({
-                      name: typeof s.name === 'string' ? s.name : `supplement_${i}`,
-                      description: typeof s.description === 'string' ? s.description : goal,
-                      deps: toStringList(s.deps),
-                    }))
-                : [],
-              reasoning: typeof json.reasoning === 'string' ? json.reasoning : '',
-            }
-          : { pass: true, issues: [], supplementaryTasks: [], reasoning: 'llm_unavailable_pass' };
-      } catch {
-        audit = { pass: true, issues: [], supplementaryTasks: [], reasoning: 'audit_failed_pass' };
+      // 审计（LLM 失败/JSON 非法 → 抛错，绝不静默 pass）
+      const resultsText = this.formatResults(round.results);
+      const auditRes = await this.llm.generateText({ prompt: AUDIT_PROMPT(goal, resultsText), temperature: 0 });
+      this.opts.onTokenUsage?.(tokenCount(auditRes));
+      const json = auditRes ? extractJsonObject(auditRes.text) : null;
+      if (!json) {
+        throw new Error('[OrchestratorAgent] 审计响应无法解析为 JSON（禁止静默 pass）');
       }
+      const audit: AuditResult = {
+        pass: json.pass === true,
+        issues: toStringList(json.issues),
+        supplementaryTasks: Array.isArray(json.supplementaryTasks)
+          ? json.supplementaryTasks
+              .filter((s): s is Record<string, unknown> => !!s && typeof s === 'object')
+              .map((s, i) => ({
+                name: typeof s.name === 'string' ? s.name : `supplement_${i}`,
+                description: typeof s.description === 'string' ? s.description : '',
+                deps: toStringList(s.deps),
+              }))
+          : [],
+        reasoning: typeof json.reasoning === 'string' ? json.reasoning : '',
+      };
 
       auditLog.push({ iteration: iterations, pass: audit.pass, issues: audit.issues, reasoning: audit.reasoning });
       if (orchSession && this.opts.sessionStore) {
@@ -321,15 +315,13 @@ export class OrchestratorAgent {
       steps = audit.supplementaryTasks; // fail → 补充任务再分发
     }
 
-    // ── ③ 汇总：LLM 生成最终交付物 ──
-    let finalOutput: unknown;
-    try {
-      const resultsText = this.formatResults(stepResults);
-      const res = await this.llm?.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
-      this.opts.onTokenUsage?.(tokenCount(res));
-      finalOutput = res?.text?.trim() ?? this.formatResults(stepResults);
-    } catch {
-      finalOutput = this.formatResults(stepResults);
+    // ── ③ 汇总：LLM 生成最终交付物（失败 → 抛错，fail loud）──
+    const resultsText = this.formatResults(stepResults);
+    const synthRes = await this.llm.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
+    this.opts.onTokenUsage?.(tokenCount(synthRes));
+    const finalOutput = synthRes?.text?.trim() ?? '';
+    if (!finalOutput) {
+      throw new Error('[OrchestratorAgent] 汇总 LLM 未产出交付物');
     }
     if (orchSession && this.opts.sessionStore) {
       await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.synthesis', {
@@ -380,7 +372,43 @@ export class OrchestratorAgent {
       return { session: handle.session, sessionPath: handle.path };
     };
 
-    // 简单任务：单 step-agent 直跑（会话 3：简单任务不走 DAG）
+    // 复杂任务：DAG 工具分发（nodeHandler 已接 step-agent + 上游成果注入）
+    // ═══ 会话 15（去兜底化）：DAG 失败直接上抛（移除逐节点直跑静默降级，fail loud）═══
+    if (this.opts.dagRuntime && steps.length > 1) {
+      // 会话 4：预创建所有 step 会话（parentSessionPath 按依赖链），经 ctx 传给 nodeHandler
+      const handles = new Map<string, { session: unknown; sessionPath: string }>();
+      for (const s of steps) {
+        const h = await ensureStepSession(s);
+        if (h.sessionPath) handles.set(s.name, { session: h.session, sessionPath: h.sessionPath });
+      }
+      const dagResult = await this.opts.dagRuntime.execute(
+        goal,
+        steps.map(s => ({ name: s.name, description: s.description, deps: s.deps })),
+        { goal, departmentId, stepSessions: handles, gateContext: gateContext ?? undefined },
+      );
+      // 失败节点 → 抛错（fail loud，不把失败步骤伪装进成果）
+      const dagMeta = dagResult as unknown as { success?: boolean; failedNodes?: number; errors?: Array<{ error?: string }> };
+      if (dagMeta.success === false || (typeof dagMeta.failedNodes === 'number' && dagMeta.failedNodes > 0)) {
+        const errText = dagMeta.errors?.[0]?.error ?? `${dagMeta.failedNodes} 个节点失败`;
+        throw new Error(`[OrchestratorAgent] DAG 执行存在失败节点: ${errText}`);
+      }
+      // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
+      const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
+      if (raw) {
+        const nodes = steps.map(s => ({ id: s.name, name: s.name, description: s.description, deps: s.deps }));
+        for (const [nodeId, out] of raw) {
+          const idxMatch = nodeId.match(/^node_(\d+)_/);
+          const idx = idxMatch ? parseInt(idxMatch[1], 10) : -1;
+          const step = (idx >= 0 && idx < nodes.length)
+            ? nodes[idx]
+            : nodes.find(n => n.id === nodeId || nodeId.includes(n.name)) ?? nodes[0];
+          results.set(step?.id ?? nodeId, out);
+        }
+      }
+      return { results, sessions };
+    }
+
+    // 简单任务：单 step-agent 直跑（会话 3：简单任务不走 DAG；步骤失败 → 抛错）
     if (steps.length === 1 && this.opts.stepExecutor) {
       const step = steps[0];
       const sess = await ensureStepSession(step);
@@ -389,60 +417,12 @@ export class OrchestratorAgent {
         new Map<string, unknown>(),
         { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions: new Map(), gateContext: gateContext ?? undefined },
       );
-      results.set(step.name, r.success ? r.output : { error: r.error });
+      if (!r.success) throw new Error(`[OrchestratorAgent] 步骤「${step.name}」执行失败: ${r.error}`);
+      results.set(step.name, r.output);
       return { results, sessions };
     }
 
-    // 复杂任务：DAG 工具分发（nodeHandler 已接 step-agent + 上游成果注入）
-    if (this.opts.dagRuntime && steps.length > 1) {
-      try {
-        // 会话 4：预创建所有 step 会话（parentSessionPath 按依赖链），经 ctx 传给 nodeHandler
-        const handles = new Map<string, { session: unknown; sessionPath: string }>();
-        for (const s of steps) {
-          const h = await ensureStepSession(s);
-          if (h.sessionPath) handles.set(s.name, { session: h.session, sessionPath: h.sessionPath });
-        }
-        const dagResult = await this.opts.dagRuntime.execute(
-          goal,
-          steps.map(s => ({ name: s.name, description: s.description, deps: s.deps })),
-          { goal, departmentId, stepSessions: handles, gateContext: gateContext ?? undefined },
-        );
-        // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
-        const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
-        if (raw) {
-          const nodes = steps.map(s => ({ id: s.name, name: s.name, description: s.description, deps: s.deps }));
-          for (const [nodeId, out] of raw) {
-            const idxMatch = nodeId.match(/^node_(\d+)_/);
-            const idx = idxMatch ? parseInt(idxMatch[1], 10) : -1;
-            const step = (idx >= 0 && idx < nodes.length)
-              ? nodes[idx]
-              : nodes.find(n => n.id === nodeId || nodeId.includes(n.name)) ?? nodes[0];
-            results.set(step?.id ?? nodeId, out);
-          }
-        }
-        return { results, sessions };
-      } catch (err) {
-        console.warn(`[OrchestratorAgent] ⚠️ DAG 执行失败: ${(err as Error).message}，降级逐节点直跑`);
-      }
-    }
-
-    // 降级：无 DAG 工具或 DAG 失败 → 逐节点 step-agent 直跑（依赖注入上游成果）
-    for (const step of steps) {
-      const upstream = new Map<string, unknown>();
-      const upstreamSessions = new Map<string, string>();
-      for (const dep of step.deps || []) {
-        if (results.has(dep)) upstream.set(dep, results.get(dep));
-        if (sessions.has(dep)) upstreamSessions.set(dep, sessions.get(dep)!);
-      }
-      const sess = await ensureStepSession(step);
-      const r = await this.opts.stepExecutor.executeStep(
-        { id: step.name, name: step.name, description: step.description, agentType: 'general' },
-        upstream,
-        { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions, gateContext: gateContext ?? undefined },
-      );
-      results.set(step.name, r.success ? r.output : { error: r.error });
-    }
-    return { results, sessions };
+    throw new Error('[OrchestratorAgent] 编排失败：复杂任务无 DAG 工具（dagRuntime 未注入）');
   }
 
   private formatResults(results: Map<string, unknown>): string {

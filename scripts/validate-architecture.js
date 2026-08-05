@@ -238,6 +238,7 @@ const GENERATION_ALLOWLIST = [
   '/infrastructure/adapters/pi-bridge',                       // PiBridge 封装（L8 基础设施适配）
   '/cognition/',                               // L4 认知统一入口（Brain + planning）
   '/execution/harness',                        // L5 AgentHarness 执行原语
+  '/execution/orchestration/',                 // L5 总大脑编排（analysis/audit/synthesis 推理；知识查询仍经 KnowledgeQueryPrimitive + Gate）
   '/evaluation/',                              // L6 评价（评分 LLM）
   '/evolution/',                               // L7 演化（SOP 分类等，有降级路径）
   '/infrastructure/',                          // L8 运行时（piBridge 包装）

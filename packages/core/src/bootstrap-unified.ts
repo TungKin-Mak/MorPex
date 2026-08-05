@@ -134,8 +134,7 @@ export async function bootstrapUnified(options?: {
     console.warn('[bootstrapUnified] ⚠️ Workflow 插件 ActionPrimitive 注册失败:', (err as Error).message);
   }
 
-  // 4. 注册 ArtifactFacade 到 ExecutionEngine（向后兼容）
-  container.executionEngine.setArtifactFacade(container.artifactFacade);
+  // 4. （已移除）ArtifactFacade → ExecutionEngine 注入：产物创建统一由 MorPexRuntime 处理，Engine 不再消费
 
   // 5. 创建 CompanyFacade（构造时强制要求 Runtime + ControlPlane）
   const eventBus = container.eventBus;

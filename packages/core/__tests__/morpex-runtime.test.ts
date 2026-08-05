@@ -148,7 +148,8 @@ describe('MorPexRuntime — 事件与调用侧', () => {
     await runtime.run('构建一个 REST API 服务', { departmentId: 'engineering' });
     expect(stub.calls).toHaveLength(1);
     expect(stub.calls[0].goal).toContain('REST API');
-    expect(stub.calls[0].mode).toBe('auto'); // 执行引擎选择内部化（mode 收敛）
+    // ═══ 会话 15（去兜底化）：ExecutionRequest 已移除 mode——引擎现行单路径（内部路由）═══
+    expect(stub.calls[0].mode).toBeUndefined();
     // 契约：departmentId 由 context.team.departments[0] 派生（非 options 直传）——generic 工作流可为 undefined
     expect(stub.calls[0].context?.executionId).toBeTruthy();
     expect(stub.calls[0].context?.missionId).toBeTruthy();

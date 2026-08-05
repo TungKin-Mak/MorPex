@@ -2,7 +2,7 @@ import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { MissionController } from './mission/MissionController.js';
 import { DynamicTeamOrchestrator } from '../../execution/DynamicTeamOrchestrator.js';
 import { UnifiedExecutionEngine } from '../../execution/UnifiedExecutionEngine.js';
-import type { MissionRuntimeLike, DAGRuntimeLike, ExecutionFabricLike } from '../../execution/UnifiedExecutionEngine.js';
+import type { DAGRuntimeLike } from '../../execution/UnifiedExecutionEngine.js';
 import { ArtifactFacade } from '../../knowledge/artifact/ArtifactFacade.js';
 import { VerificationEngine } from '../../evaluation/verification/VerificationEngine.js';
 import { ComplianceChecker } from '../../governance/ComplianceChecker.js';
@@ -30,129 +30,6 @@ import { ExperienceMatcher } from '../../cognition/learning/agent/ExperienceMatc
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
 import type { ForcedQueryGuard } from '../../gate/ForcedQueryGuard.js';
 import { EvaluationEngine } from '../../evaluation/EvaluationEngine.js';
-
-/**
- * 根据任务描述生成模拟代码（用于降级/测试场景）
- * 包含 TaskVerifier 验证所需的关键词
- */
-function generateMockCode(action: string, _capability: string): string {
-  const isTodoRelated = /todo|saas|task|app|application/i.test(action);
-  const isAPIRelated = /api|rest|endpoint|service/i.test(action);
-  const isCLIRelated = /cli|command|terminal|shell/i.test(action);
-
-  if (isTodoRelated) {
-    return `# Todo SaaS Application
-
-## 代码实现
-\`\`\`javascript
-// 用户认证系统
-const express = require('express');
-const session = require('express-session');
-const bcrypt = require('bcrypt');
-
-const app = express();
-app.use(session({ secret: 'secret', resave: false, saveUninitialized: true }));
-
-// 注册
-app.post('/api/register', async (req, res) => {
-  const { username, password, email } = req.body;
-  const hashedPassword = await bcrypt.hash(password, 10);
-  // 保存用户
-  res.json({ success: true, token: 'jwt-token-here' });
-});
-
-// 登录
-app.post('/api/login', async (req, res) => {
-  const { username, password } = req.body;
-  // 验证用户
-  req.session.user = { username };
-  res.json({ success: true, auth: true });
-});
-
-// CRUD - 创建任务
-app.post('/api/todos', (req, res) => {
-  const { title, description } = req.body;
-  const todo = { id: Date.now(), title, description, completed: false };
-  // 保存到数据库
-  res.json({ success: true, todo, create: true });
-});
-
-// CRUD - 读取任务
-app.get('/api/todos', (req, res) => {
-  const todos = []; // 从数据库读取
-  res.json({ success: true, todos, read: true });
-});
-
-// CRUD - 更新任务
-app.put('/api/todos/:id', (req, res) => {
-  const { id } = req.params;
-  const { title, completed } = req.body;
-  // 更新
-  res.json({ success: true, update: true });
-});
-
-// CRUD - 删除任务
-app.delete('/api/todos/:id', (req, res) => {
-  const { id } = req.params;
-  // 删除
-  res.json({ success: true, delete: true, crud: true });
-});
-
-// 团队协作
-app.get('/api/team/projects', (req, res) => {
-  res.json({ projects: [{ id: 1, name: 'Project A', members: ['user1', 'user2'] }], team: true, collaborat: true });
-});
-
-// 共享任务
-app.post('/api/share', (req, res) => {
-  const { todoId, sharedWith } = req.body;
-  res.json({ success: true, share: true, member: sharedWith, collaborat: true });
-});
-
-// 项目列表
-app.get('/api/projects', (req, res) => {
-  res.json({ projects: [{ id: 1, name: 'Project Alpha', members: ['user1', 'user2'] }], project: 'demo-project' });
-});
-\`\`\`
-
-## 文档说明
-本系统是一个完整的 Todo SaaS 应用，支持用户认证、任务 CRUD 和团队协作。
-
-### 技术栈
-- 后端: Node.js + Express
-- 前端: React
-- 数据库: PostgreSQL
-- 认证: JWT + Session
-
-### API 接口
-- POST /api/register - 用户注册
-- POST /api/login - 用户登录
-- GET /api/todos - 获取任务列表
-- POST /api/todos - 创建任务
-- PUT /api/todos/:id - 更新任务
-- DELETE /api/todos/:id - 删除任务
-- GET /api/team/projects - 团队项目
-- POST /api/share - 共享任务
-
-### 功能特性
-- 用户认证（register, login, auth, session, token）
-- 任务管理（create, read, update, delete, crud）
-- 团队协作（team, share, collaborat, project, member）
-- 密码加密存储
-`;
-  }
-
-  if (isAPIRelated) {
-    return `# REST API Service\n\n## 代码实现\n\`\`\`python\nfrom flask import Flask, request, jsonify, session\nfrom flask_sqlalchemy import SQLAlchemy\nimport jwt\n\napp = Flask(__name__)\ndb = SQLAlchemy()\n\nclass User(db.Model):\n    id = db.Column(db.Integer, primary_key=True)\n    username = db.Column(db.String(80), unique=True)\n    password = db.Column(db.String(200))\n    token = db.Column(db.String(200))\n\n@app.route('/api/register', methods=['POST'])\ndef register():\n    data = request.json\n    # 注册逻辑\n    return jsonify({'success': True, 'auth': True})\n\n@app.route('/api/login', methods=['POST'])\ndef login():\n    data = request.json\n    session['user'] = data['username']\n    return jsonify({'success': True, 'token': 'jwt-token'})\n\n@app.route('/api/items', methods=['GET', 'POST', 'PUT', 'DELETE'])\ndef crud():\n    if request.method == 'POST':\n        return jsonify({'create': True})\n    elif request.method == 'GET':\n        return jsonify({'read': True, 'items': []})\n    elif request.method == 'PUT':\n        return jsonify({'update': True})\n    elif request.method == 'DELETE':\n        return jsonify({'delete': True, 'crud': True})\n\n@app.route('/api/team/share', methods=['POST'])\ndef share():\n    return jsonify({'share': True, 'team': True, 'collaborat': True})\n\`\`\`\n\n## 文档\nRESTful API 服务，支持完整的 CRUD 操作、用户认证和团队协作。\n`;
-  }
-
-  if (isCLIRelated) {
-    return `# CLI Tool\n\n## 代码实现\n\`\`\`python\nimport sys\nimport json\nimport click\nfrom auth import login, register\n\n@click.group()\ndef cli():\n    pass\n\n@cli.command()\n@click.option('--username', prompt=True)\n@click.option('--password', prompt=True, hide_input=True)\ndef login_cmd(username, password):\n    \"\"\"用户登录\"\"\"\n    result = login(username, password)\n    click.echo(f\"Auth: {result['auth']}\")\n\n@cli.command()\n@click.option('--username', prompt=True)\n@click.option('--password', prompt=True, hide_input=True)\n@click.option('--email', prompt=True)\ndef register_cmd(username, password, email):\n    \"\"\"用户注册\"\"\"\n    result = register(username, password, email)\n    click.echo(f\"Token: {result['token']}\")\n\n@cli.command()\ndef create():\n    \"\"\"创建任务\"\"\"\n    click.echo('Create: task created')\n\n@cli.command()\ndef list_tasks():\n    \"\"\"读取任务列表\"\"\"\n    click.echo('Read: loading tasks...')\n\n@cli.command()\n@click.argument('task_id')\ndef update(task_id):\n    \"\"\"更新任务\"\"\"\n    click.echo(f'Update: task {task_id} updated')\n\n@cli.command()\n@click.argument('task_id')\ndef delete(task_id):\n    \"\"\"删除任务\"\"\"\n    click.echo(f'Delete: task {task_id} deleted, CRUD completed')\n\n@cli.command()\ndef team():\n    \"\"\"团队协作\"\"\"\n    click.echo('Team: collaborating with members on projects')\n\nif __name__ == '__main__':\n    cli()\n\`\`\`\n\n## 文档\n命令行工具，支持认证、CRUD 操作和团队协作功能。\n`;
-  }
-
-  // 通用场景
-  return `# Implementation\n\n## 代码实现\n\`\`\`javascript\nconst express = require('express');\nconst session = require('express-session');\nconst jwt = require('jsonwebtoken');\n\nconst app = express();\n\n// Auth\napp.post('/api/register', (req, res) => {\n  res.json({ success: true, auth: true, register: true });\n});\napp.post('/api/login', (req, res) => {\n  res.json({ success: true, token: 'jwt', session: true, login: true });\n});\n\n// CRUD\napp.post('/api/items', (req, res) => {\n  res.json({ success: true, create: true });\n});\napp.get('/api/items', (req, res) => {\n  res.json({ success: true, read: true, items: [] });\n});\napp.put('/api/items/:id', (req, res) => {\n  res.json({ success: true, update: true });\n});\napp.delete('/api/items/:id', (req, res) => {\n  res.json({ success: true, delete: true, crud: true });\n});\n\n// Team\napp.get('/api/team', (req, res) => {\n  res.json({ team: true, project: 'demo', members: ['admin'], collaborat: true });\n});\napp.post('/api/share', (req, res) => {\n  res.json({ share: true });\n});\n\napp.listen(3000);\n\`\`\`\n\n## 文档\n功能完整的应用，包含用户认证（register, login, auth, session, token, password）、\nCRUD 操作（create, read, update, delete, crud, todo, task）、\n团队协作（team, share, collaborat, project, member）、\n前后端完整实现（Backend Development, Frontend Development）。\n`;
-}
 
 /**
  * ServiceContainer — 依赖注入容器
@@ -235,17 +112,16 @@ export class ServiceContainer {
     this.missionController = new MissionController(this.eventBus);
     this.teamOrchestrator = new DynamicTeamOrchestrator();
     this.executionEngine = new UnifiedExecutionEngine(this.eventBus);
-    this.executionEngine.setMissionRuntime(this.createMissionRuntime());
+    // ═══ 会话 15（去兜底化）：createMissionRuntime 仅实例化真实 MissionRuntime（bootstrap 经 container.missionRuntime 使用），
+    //     不再包装注入引擎（引擎现行唯一执行后端 = orchestrator）═══
+    this.createMissionRuntime();
     const dagRuntime = this.createDAGRuntime();
-    this.executionEngine.setDAGRuntime(dagRuntime);
-    this.executionEngine.setExecutionFabric(this.createExecutionFabric());
     // 会话 4（Session 化）：共享组件会话仓库（总大脑 + step-agent 持久化会话）
     this.agentSessionStore = new AgentSessionStore();
-    // 会话 3：总大脑接线（生成类任务主路径；审计循环 + step-agent 执行肢）
+    // 会话 3：总大脑接线（唯一执行后端；审计循环 + step-agent 执行肢）
     this.orchestratorAgent = this.createOrchestratorAgent(dagRuntime);
     this.executionEngine.setOrchestratorAgent(this.orchestratorAgent);
     this.artifactFacade = new ArtifactFacade(this.eventBus);
-    this.executionEngine.setArtifactFacade(this.artifactFacade);
     this.verificationEngine = new VerificationEngine(this.eventBus);
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
@@ -377,15 +253,6 @@ export class ServiceContainer {
     const stepExecutor = new StepAgentExecutor({
       // 会话 4（Session 化）：step-agent 独立持久化会话
       sessionStore: this.agentSessionStore,
-      fallbackExecutor: async (n, upstreamText) => {
-        const fabric = self.createExecutionFabric();
-        const r = await fabric.execute(n.agentType || 'execute', n.description || n.name, {
-          goal: n.description || n.name,
-          upstreamText,
-        });
-        if (!r.success) throw new Error(r.error || '节点执行失败');
-        return r.data;
-      },
     });
     return new OrchestratorAgent({
       llm: {
@@ -437,18 +304,9 @@ export class ServiceContainer {
     });
   }
 
-  private createMissionRuntime(): MissionRuntimeLike {
-    const mr = new MissionRuntime(this.eventBus);
-    this.missionRuntime = mr;
-    return {
-      name: 'MissionRuntime',
-      start: async (goal: string, context?: Record<string, unknown>) => {
-        const mission = await mr.createMissionFromGoal(goal, context?.departmentId as string || 'default', context?.executionId as string || `exec_${Date.now()}`);
-        return { executionId: mission.id };
-      },
-      getStatus: (id: string) => mr.getMission(id),
-      cancel: (id: string) => mr.cancelMission(id),
-    };
+  private createMissionRuntime(): void {
+    // 仅实例化真实 MissionRuntime（供 bootstrap container.missionRuntime 使用；引擎不再消费包装）
+    this.missionRuntime = new MissionRuntime(this.eventBus);
   }
 
   private createDAGRuntime(): DAGRuntimeLike {
@@ -475,18 +333,6 @@ export class ServiceContainer {
           goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
           // 会话 4（Session 化）：DAG 节点 step-agent 会话也持久化（未预建时自行创建）
           sessionStore: this.agentSessionStore,
-          fallbackExecutor: async (n, upstreamText) => {
-            const fabric = this.createExecutionFabric();
-            const cap = n.agentType || 'execute';
-            console.log(`[DAGRuntime] ⚠️ step-agent 降级 → ExecutionFabric (cap=${cap})`);
-            const result = await fabric.execute(cap, n.description || n.name, {
-              goal: n.description || n.name,
-              upstreamText,
-              ...ctxObj,
-            });
-            if (!result.success) throw new Error(result.error || '节点执行失败');
-            return result.data;
-          },
         });
         // 会话 4：总大脑预建的 step 会话（按节点名匹配，nodeHandler 复用同一会话）
         const stepSessions = (ctxObj.stepSessions instanceof Map ? ctxObj.stepSessions : new Map<string, { session: unknown; sessionPath: string }>());
@@ -607,100 +453,6 @@ export class ServiceContainer {
     } catch (err) {
       console.warn('[ServiceContainer] ⚠️ PiBridge 不可用');
     }
-  }
-
-  private createExecutionFabric(): ExecutionFabricLike {
-    const self = this;
-    return {
-      name: 'ExecutionFabric',
-      execute: async (capability: string, action: string, params: Record<string, unknown>) => {
-        // 延迟初始化 PiBridge（首次调用时）
-        await self.ensurePiBridge();
-
-        if (self.piBridge) {
-          try {
-            const start = Date.now();
-            // 构造更完整的提示词，要求输出结构化的代码和文档
-            const goalType = action.includes('Todo') || action.includes('SaaS') || action.includes('app') ? 'web_application' :
-                             action.includes('API') || action.includes('REST') ? 'api' :
-                             action.includes('CLI') || action.includes('命令行') ? 'cli' :
-                             action.includes('plugin') || action.includes('插件') ? 'plugin' : 'general';
-            const prompt = `你是一名资深全栈工程师。请根据以下需求输出完整的代码实现和说明文档。
-
-需求: ${action}
-能力要求: ${capability}
-
-请严格按照以下格式输出:
-
-## 代码实现
-\`\`\`
-(完整的代码，包含所有功能实现)
-\`\`\`
-
-## 文档说明
-(功能说明、使用指南、API文档等)
-
-## 技术栈
-- 后端: Node.js / Express / FastAPI
-- 前端: React / Vue
-- 数据库: PostgreSQL / SQLite
-- 认证: JWT / Session
-
-请确保输出包含以下关键功能:
-1. 用户认证系统（注册、登录、会话管理）
-2. 核心业务逻辑（CRUD 操作）
-3. 团队协作功能
-4. 前后端完整实现
-
-输出结果:`;
-            const result = await self.piBridge.generateText({ prompt });
-            const outputText = result.text || '';
-            return {
-              success: true,
-              data: {
-                text: outputText,
-                action,
-                params,
-                // 分离代码和文档部分
-                code: outputText.includes('代码') || outputText.includes('\\`\\`\\`') ? outputText : '',
-                document: outputText,
-                capabilities: ['Backend Development', 'Frontend Development', 'Database Design', 'API Design'],
-              },
-              duration: Date.now() - start,
-            };
-          } catch (err) {
-            console.warn('[ServiceContainer] PiBridge 调用失败:', (err as Error).message);
-            return { success: false, error: (err as Error).message, duration: 0 };
-          }
-        }
-        // ══ Mock 门禁 ══
-        // 生产环境禁止静默 Mock，需设置 MORPEX_ALLOW_MOCK=1（仅测试用）
-        if (process.env.MORPEX_ALLOW_MOCK !== '1' && process.env.NODE_ENV !== 'test') {
-          return {
-            success: false,
-            error: 'PiBridge 不可用且未允许 Mock（设置 MORPEX_ALLOW_MOCK=1 仅用于测试）',
-            duration: 0,
-          };
-        }
-        // 降级: 模拟执行（仅在测试/明确允许时）
-        console.warn('[ServiceContainer] ⚠️ ExecutionFabric 使用 Mock 降级 (MORPEX_ALLOW_MOCK=1)');
-        const mockCode = generateMockCode(action, capability);
-        return {
-          success: true,
-          data: {
-            text: mockCode,
-            action,
-            params,
-            code: mockCode,
-            document: mockCode,
-            capabilities: ['Backend Development', 'Frontend Development', 'Database Design', 'API Design'],
-            mock: true,
-          },
-          duration: 0,
-        };
-      },
-      getFabricStatus: () => ({ status: self.piBridge ? 'live' : 'mock', uptime: process.uptime() }),
-    };
   }
 
   /**

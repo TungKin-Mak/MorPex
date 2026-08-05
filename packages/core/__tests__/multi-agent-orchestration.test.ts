@@ -8,7 +8,7 @@
  *   4. OrchestratorAgent P2：总大脑（简单直跑 / 复杂 DAG / 审计迭代 / LLM 不可用降级）
  */
 
-import { describe, it, expect, beforeEach } from 'vitest';
+import { describe, it, expect, beforeEach, vi } from 'vitest';
 import { DomainPrimitiveRegistry } from '../src/infrastructure/tools/DomainPrimitiveRegistry.js';
 import type { ActionPrimitive } from '../src/infrastructure/tools/primitives/types.js';
 import { createPrimitiveAgentTools } from '../src/infrastructure/tools/primitiveAgentTools.js';
@@ -17,6 +17,17 @@ import { StepAgentExecutor, extractText } from '../src/execution/runtime/dag/Ste
 import { DAGRuntime } from '../src/execution/runtime/dag/DAGRuntime.js';
 import type { ExecutionDAG } from '../src/execution/runtime/dag/types.js';
 import { OrchestratorAgent, type OrchestratorStep } from '../src/execution/orchestration/OrchestratorAgent.js';
+
+// ═══ 会话 15（去兜底化）：StepAgentExecutor 不再有 agentDisabled/fallbackExecutor。
+//     测试改为 mock agentSpawner 验证真实 agent 路径（成功 / 空内容重试失败）。
+const spawnMock = vi.fn();
+vi.mock('../src/infrastructure/adapters/agent-spawner.js', async (importOriginal) => {
+  const actual = await importOriginal<typeof import('../src/infrastructure/adapters/agent-spawner.js')>();
+  return {
+    ...actual,
+    agentSpawner: { spawn: (params: unknown) => spawnMock(params) },
+  };
+});
 
 // ── 测试原语（模拟 5 个通用原语）──
 
@@ -165,43 +176,33 @@ describe('primitiveAgentTools — 原语 → AgentTool 桥', () => {
 });
 
 describe('StepAgentExecutor — step-agent 执行器', () => {
-  it('agentDisabled → 走 fallback 执行器（含上游成果文本）', async () => {
-    let receivedUpstream = '';
-    const executor = new StepAgentExecutor({
-      agentDisabled: true,
-      fallbackExecutor: async (node, upstreamText) => {
-        receivedUpstream = upstreamText;
-        return { fallback: true, node: node.name };
-      },
+  it('agent 正常输出 → success（mode=agent）', async () => {
+    spawnMock.mockResolvedValue({
+      prompt: async () => ({ content: [{ type: 'text', text: '## 交付摘要\n完成。' }] }),
+      abort: async () => {},
     });
-    const upstream = new Map([['step_a', '上游成果 A']]);
+    const executor = new StepAgentExecutor({ timeoutMs: 10000 });
     const res = await executor.executeStep(
       { id: 'step_b', name: 'step_b', description: '做 B', agentType: 'general' },
-      upstream,
+      new Map([['step_a', '上游成果 A']]),
     );
     expect(res.success).toBe(true);
-    expect(res.mode).toBe('fallback');
-    expect(receivedUpstream).toContain('上游成果 A');
-    expect((res.output as { fallback: boolean }).fallback).toBe(true);
+    expect(res.mode).toBe('agent');
+    expect((res.output as { text: string }).text).toContain('交付摘要');
   });
 
-  it('agent 不可用且无 fallback → 返回失败', async () => {
-    const executor = new StepAgentExecutor({ agentDisabled: true });
+  it('agent 空内容重试仍空 → 失败返回（不降级 fallback）', async () => {
+    spawnMock.mockResolvedValue({
+      prompt: async () => ({ content: [] }), // 空内容 + 纠正重试仍空
+      abort: async () => {},
+    });
+    const executor = new StepAgentExecutor({ timeoutMs: 10000, correctiveRetries: 1 });
     const res = await executor.executeStep(
       { id: 's', name: 's', description: 'x', agentType: 'general' },
     );
     expect(res.success).toBe(false);
-    expect(res.error).toContain('fallbackExecutor');
-  });
-
-  it('无上游成果时 upstream 文本为空（不注入垃圾上下文）', async () => {
-    let receivedUpstream = '未调用';
-    const executor = new StepAgentExecutor({
-      agentDisabled: true,
-      fallbackExecutor: async (_node, upstreamText) => { receivedUpstream = upstreamText; return {}; },
-    });
-    await executor.executeStep({ id: 's', name: 's', description: 'x', agentType: 'general' });
-    expect(receivedUpstream).toBe('');
+    expect(res.mode).toBe('agent');
+    expect(res.error).toContain('空内容');
   });
 
   it('extractText 从 content 提取文本', () => {
@@ -429,35 +430,16 @@ describe('OrchestratorAgent — 总大脑（P2 审计循环）', () => {
     expect(res.stepsExecuted).toBe(1);
   });
 
-  it('LLM 不可用 → 降级：单 step-agent 直跑 + 审计默认 pass', async () => {
-    const orchestrator = new OrchestratorAgent({
-      llm: undefined,
-      stepExecutor: mockStepExecutor('降级成果'),
-      maxIterations: 3,
-    });
-    const res = await orchestrator.run('生成文档');
-    expect(res.success).toBe(true);
-    expect(res.iterations).toBe(1);
-    expect(res.auditLog[0].pass).toBe(true);
-    expect(res.auditLog[0].reasoning).toContain('llm_unavailable');
-  });
-
-  it('LLM 拆解返回非法 JSON → 回退单 step 直跑', async () => {
+  it('LLM 拆解返回非法 JSON → 抛错失败（fail loud，不静默回退单 step）', async () => {
     const llm = mockLlm([
       { match: '总大脑（编排 Agent）', reply: '抱歉，无法解析' },
-      { match: '审计 Agent', reply: JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' }) },
-      { match: '汇总', reply: '汇总结果' },
     ]);
     const orchestrator = new OrchestratorAgent({
       llm,
       stepExecutor: mockStepExecutor('成果'),
       maxIterations: 3,
     });
-    const res = await orchestrator.run('生成文档');
-    expect(res.success).toBe(true);
-    expect(res.iterations).toBe(1);
-    expect(res.stepsExecuted).toBe(1);
-    // 非法 JSON → 回退单 step 直跑（不走 DAG，不空转）
-    expect([...res.stepResults.keys()]).toHaveLength(1);
+    // 非法 JSON → run 抛错（由上层转失败），不再降级单 step 直跑
+    await expect(orchestrator.run('生成文档')).rejects.toThrow(/无法解析/);
   });
 });
