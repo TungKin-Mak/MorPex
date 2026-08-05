@@ -11,7 +11,26 @@
  */
 
 /** 默认 LLM 模型标识，所有模块统一引用此常量 */
-export const DEFAULT_MODEL = 'deepseek/deepseek-v4-flash';
+/**
+ * DEFAULT_MODEL — 默认模型（会话 10：移除 deepseek，仅 GLM-4.7-Flash）
+ * 当 config/morpex.yaml 未启用网关 / 未配置 model 时的回退默认。
+ */
+export const DEFAULT_MODEL = 'zhipu-glm/glm-4.7-flash';
+
+/**
+ * RateLimitError — LLM 网关限流/过载错误（会话 10 新增）
+ *
+ * GLM 速率限制（HTTP 429，code 1302/1305）时 pi-ai 静默返回空结果；
+ * 本错误让调用方显式感知限流并退避重试（batch-run 已按 429/5xx 重试）。
+ */
+export class RateLimitError extends Error {
+  readonly code: string;
+  constructor(code: string, message: string) {
+    super(message);
+    this.name = 'RateLimitError';
+    this.code = code;
+  }
+}
 
 // ═══════════════════════════════════════════════════════════════════
 // pi-ai 导入（动态 + Record 类型避免编译时类型依赖）
@@ -131,7 +150,7 @@ export class PiBridge {
   /** LLM 网关配置（config/morpex.yaml 的 llm 块；enabled=true 时生效） */
   private gateway: LlmGatewayConfig | null = null;
 
-  constructor(defaultModel = 'deepseek/deepseek-v4-flash') {
+  constructor(defaultModel = DEFAULT_MODEL) {
     // 读取 YAML 配置：有启用网关 → 默认模型指向网关 provider/model
     const cfg = loadMorpexConfig();
     if (cfg?.llm?.enabled && cfg.llm.provider && cfg.llm.model) {
@@ -312,23 +331,40 @@ export class PiBridge {
     if (params.system) messages.push({ role: 'system', content: params.system });
     messages.push({ role: 'user', content: params.prompt });
 
-    const result = await m.complete(model, { messages }, {
-      temperature: params.temperature,
-      maxTokens: params.maxTokens,
-    });
+    // ═══ 会话 10（GLM-only 限流容错）═══
+    // pi-ai openai-completions 不检查 response.ok——HTTP 429（GLM 1302/1305 速率限制）时
+    // 读空 body 返回空结果（text=''、usage=0），调用方拿到"空文本"而非错误 → 全链路静默失败。
+    // 修复：经 onResponse 回调检测 429/5xx → 抛 RateLimitError（调用方可退避重试，batch-run 已有）。
+    let httpStatus: number | null = null;
+    try {
+      const result = await m.complete(model, { messages }, {
+        temperature: params.temperature,
+        maxTokens: params.maxTokens,
+        onResponse: (resp: { status?: number }) => { httpStatus = resp.status ?? null; },
+      } as Record<string, unknown>);
 
-    const text = this.extractText(result);
+      if (httpStatus !== null && (httpStatus === 429 || httpStatus >= 500)) {
+        const code = httpStatus === 429 ? 'GLM_RATE_LIMIT' : `GLM_HTTP_${httpStatus}`;
+        throw new RateLimitError(code, `LLM 网关返回 HTTP ${httpStatus}（限流/过载）——provider=${provider} model=${modelId}`);
+      }
 
-    return {
-      text,
-      modelUsed: `${provider}/${model.id as string}`,
-      finishReason: (result.stopReason as string) ?? 'unknown',
-      usage: {
-        input: (result.usage as { input?: number })?.input ?? 0,
-        output: (result.usage as { output?: number })?.output ?? 0,
-        total: (result.usage as { totalTokens?: number })?.totalTokens ?? 0,
-      },
-    };
+      const text = this.extractText(result);
+
+      return {
+        text,
+        modelUsed: `${provider}/${model.id as string}`,
+        finishReason: (result.stopReason as string) ?? 'unknown',
+        usage: {
+          input: (result.usage as { input?: number })?.input ?? 0,
+          output: (result.usage as { output?: number })?.output ?? 0,
+          total: (result.usage as { totalTokens?: number })?.totalTokens ?? 0,
+        },
+      };
+    } catch (err) {
+      // 透传 RateLimitError（含上面构造的）；其余异常包装为带状态的上抛，避免静默空结果
+      if (err instanceof RateLimitError) throw err;
+      throw err;
+    }
   }
 
   // ═══════════════════════════════════════════════════════════════
@@ -479,7 +515,7 @@ export class PiBridge {
 
   private parseModel(model: string): [string, string] {
     const idx = model.indexOf('/');
-    return idx === -1 ? ['deepseek', model] : [model.substring(0, idx), model.substring(idx + 1)];
+    return idx === -1 ? ['zhipu-glm', model] : [model.substring(0, idx), model.substring(idx + 1)];
   }
 
   private extractText(msg: Record<string, unknown>): string {

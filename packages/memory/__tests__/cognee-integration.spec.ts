@@ -2,7 +2,7 @@
  * cognee 真实引擎集成测试（L7 Memory / 外部依赖，P2 尾项）
  *
  * 前提：cognee 服务在线（`COGNEE_URL`，默认 http://127.0.0.1:8001）
- * 启动：`ENABLE_BACKEND_ACCESS_CONTROL=false DEEPSEEK_API_KEY=... ./scripts/start-cognee.sh --bg`
+ * 启动：`ENABLE_BACKEND_ACCESS_CONTROL=false GLM_API_KEY=... ./scripts/start-cognee.sh --bg`
  *
  * 设计（对齐项目降级策略）：
  *   - 探活：cognee 不在线 → 全部跳过（不使默认套件失败）

@@ -36,10 +36,10 @@ export class PiModelRegistry {
   private modelName: string;
   private apiKey: boolean;
 
-  constructor(model = 'deepseek/deepseek-v4-flash') {
+  constructor(model = 'zhipu-glm/glm-4.7-flash') {
     this.bridge = new PiBridge(model);
     this.modelName = model;
-    this.apiKey = !!(process.env.DEEPSEEK_API_KEY ?? process.env.OPENAI_API_KEY);
+    this.apiKey = !!(process.env.GLM_API_KEY ?? process.env.OPENAI_API_KEY);
     console.log(`[PiModelRegistry] ✅ ${model}${this.apiKey ? '' : ' (无 API key)'}`);
   }
 
@@ -88,7 +88,7 @@ export class PiModelRegistry {
   }
 
   // ═══════════════════════════════════════════════════════════════
-  // HTTP 回退（直接调 DeepSeek API）
+  // HTTP 回退（会话 10：直调 GLM-4.7-Flash 网关 bigmodel）
   // ═══════════════════════════════════════════════════════════════
 
   private async directHttpGenerate(params: GenerateParams): Promise<GenerateResult> {
@@ -96,20 +96,20 @@ export class PiModelRegistry {
     if (params.system) messages.push({ role: 'system', content: params.system });
     messages.push({ role: 'user', content: params.prompt });
 
-    const apiKey = process.env.DEEPSEEK_API_KEY ?? process.env.OPENAI_API_KEY;
+    const apiKey = process.env.GLM_API_KEY ?? process.env.OPENAI_API_KEY;
 
     try {
-      const response = await fetch('https://api.deepseek.com/v1/chat/completions', {
+      const response = await fetch('https://open.bigmodel.cn/api/paas/v4/chat/completions', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${apiKey}`,
         },
         body: JSON.stringify({
-          model: 'deepseek-chat',
+          model: 'glm-4.7-flash',
           messages,
           temperature: params.temperature ?? 0.3,
-          max_tokens: params.maxTokens ?? 2000,
+          max_tokens: params.maxTokens ?? 32000,
         }),
         signal: AbortSignal.timeout(30000),
       });
@@ -125,7 +125,7 @@ export class PiModelRegistry {
       };
       const text = data.choices?.[0]?.message?.content ?? '';
 
-      return { content: text, text, modelUsed: 'deepseek-chat (HTTP)' };
+      return { content: text, text, modelUsed: 'glm-4.7-flash (HTTP)' };
     } catch (err) {
       console.warn('[PiModelRegistry] HTTP 调用失败:', err);
       return { content: '', text: '', modelUsed: this.modelName };

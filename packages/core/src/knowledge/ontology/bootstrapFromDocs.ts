@@ -95,7 +95,7 @@ ${docs.join('\n\n---\n\n')}
     system: systemPrompt,
     prompt: userPrompt,
     temperature: 0.2,
-    maxTokens: 3000,
+    maxTokens: 32000, // 会话 10：GLM 思考模式吃 token，3000 会截断
   });
 
   let extraction: BootstrapExtraction;

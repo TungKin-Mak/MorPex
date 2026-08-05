@@ -47,6 +47,12 @@ export interface StepAgentExecutorOptions {
   agentDisabled?: boolean;
   /** step-agent 执行超时（默认 180000ms；超时 → abort + 走 fallback 降级，防止 LLM 挂起卡死） */
   timeoutMs?: number;
+  /**
+   * 会话 9：空内容纠正性重试次数（默认 1）——GLM 思考模式下拿到工具错误后
+   * 常只输出 reasoning_content 而 content 为空（extractText 判空）。重试一次带纠正指令
+   * （重新调用工具/直接给交付摘要），再降级 fallback。0 = 禁用（回到直接降级）。
+   */
+  correctiveRetries?: number;
   /** 会话 4（Session 化）：组件会话仓库——启用后本步骤创建持久化 step-agent 会话 */
   sessionStore?: AgentSessionStore;
   /** 会话 4（执行肢解锁）：Gate 凭证（orchestrator 签发；未在 stepOpts 提供时回退此值） */
@@ -214,7 +220,28 @@ export class StepAgentExecutor {
       ].join('\n');
 
       const raw = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs ?? 180_000);
-      const text = extractText(raw.content);
+      let text = extractText(raw.content);
+
+      // ═══ 会话 9：空内容纠正性重试（保留思考模式）═══
+      // GLM 思考模式：工具错误后下一轮常只输出 reasoning_content、content 为空 → extractText 判空。
+      // 不直接降级：带纠正指令重试（agent session 上下文仍在，含失败的工具调用与错误反馈），
+      // 让模型重新调用工具（补全参数）或直接产出交付摘要；重试仍空才降级。
+      if (!text.trim() && (this.opts.correctiveRetries ?? 1) > 0) {
+        const retries = this.opts.correctiveRetries ?? 1;
+        for (let attempt = 1; attempt <= retries; attempt++) {
+          const correctiveInput = [
+            '你的上一步执行没有产出可见文本（可能工具调用参数不完整，或只进行了思考未输出）。',
+            '请【直接输出交付摘要】完成本步骤：',
+            `- 若需要知识/文件/接口数据：重新调用对应工具并提供【完整必需参数】（如 knowledge 需 query、shell 需 command、api 需 url+method）。`,
+            `- 若信息已足够：直接以 "## 交付摘要" 开头输出最终总结（含产物路径、关键决策、遗留风险）。`,
+            '注意：最终输出必须是可见文本（不要只思考），格式精炼。',
+          ].join('\n');
+          console.warn(`[StepAgentExecutor] ⚠️ Agent 返回空内容，纠正性重试 ${attempt}/${retries}…`);
+          const retryRaw = await this.withTimeout(agent.prompt(correctiveInput), this.opts.timeoutMs ?? 180_000);
+          text = extractText(retryRaw.content);
+          if (text.trim()) break;
+        }
+      }
 
       if (!text.trim()) {
         throw new Error('[StepAgentExecutor] Agent 返回空内容');

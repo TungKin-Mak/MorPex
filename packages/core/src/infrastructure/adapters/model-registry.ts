@@ -30,7 +30,7 @@ export const piModelRegistry = {
     try {
       return getProviders() as unknown as string[];
     } catch {
-      return ['deepseek', 'openai'];
+      return ['zhipu-glm', 'openai'];
     }
   },
 
@@ -75,20 +75,20 @@ export const piModelRegistry = {
 
   /** Get default model */
   getDefaultModel(): ModelInfo {
-    return this.findModel('deepseek-v4-flash') ?? {
-      id: 'deepseek-v4-flash',
-      name: 'DeepSeek V4 Flash',
-      provider: 'deepseek',
+    return this.findModel('glm-4.7-flash') ?? {
+      id: 'glm-4.7-flash',
+      name: 'GLM-4.7-Flash',
+      provider: 'zhipu-glm',
       api: 'openai-completions',
-      contextWindow: 128_000,
-      maxTokens: 16_384,
+      contextWindow: 200_000,
+      maxTokens: 128_000,
       supportsReasoning: true,
     };
   },
 
   // Backward-compat aliases
   getProviders: () => {
-    try { return getProviders() as unknown as string[]; } catch { return ['deepseek', 'openai']; }
+    try { return getProviders() as unknown as string[]; } catch { return ['zhipu-glm', 'openai']; }
   },
   getModels: (provider: string) => {
     try {

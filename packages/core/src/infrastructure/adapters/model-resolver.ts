@@ -37,9 +37,9 @@ export function resolveModel(
     } catch { /* fall through */ }
   }
 
-  // Fallback order
+  // Fallback order（会话 10：移除 deepseek，仅 GLM）
   const fallbacks = [
-    ['deepseek', 'deepseek-v4-flash'],
+    ['zhipu-glm', 'glm-4.7-flash'],
     ['openai', 'gpt-4o-mini'],
   ];
 

@@ -46,7 +46,7 @@ export function findModel(modelId: string): ModelInfo | undefined {
 }
 
 /**
- * 获取默认模型（当前使用 deepseek-v4-flash）
+  * 获取默认模型（会话 10：当前使用 GLM-4.7-Flash）
  */
 export function getDefaultModel(): ModelInfo {
   return piModelRegistry.getDefaultModel();

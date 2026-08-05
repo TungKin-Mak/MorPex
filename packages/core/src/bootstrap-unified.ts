@@ -332,7 +332,9 @@ export async function bootstrapUnified(options?: {
         system: params.system,
         prompt: params.prompt,
         temperature: params.temperature,
-        maxTokens: params.maxTokens ?? 2000,
+        // ⚠️ 会话 10（GLM-only 修复）：此前 `?? 2000` 上限被 GLM 思考模式吃满 → content 空 →
+        //    参数补全/提取返回空 → 原语缺参失败。与 PiBridge cfg 默认一致 32000（思考留足余量）。
+        maxTokens: params.maxTokens ?? 32000,
       });
     },
   };
@@ -411,11 +413,32 @@ export async function bootstrapUnified(options?: {
     try {
       const schemaJson = JSON.stringify(inputSchema ?? {}).slice(0, 800);
       // ═══ 参数补全层（50 任务实测：LLM 提取常缺必填字段 → 二次提取补全）═══
+      // 会话 10（GLM-only）：思考模式鲁棒提取——先剥 ```json 代码块，再取首个 {...} 平衡括号，
+      // 修复转义后 JSON.parse；仍失败 → 回退 {}（不抛，外层兜底）。
+      const robustJsonExtract = (text: string): Record<string, unknown> => {
+        if (!text) return {};
+        const fence = text.match(/```(?:json)?\s*([\s\S]*?)```/i);
+        const candidate = fence ? fence[1] : text;
+        const match = candidate.match(/\{[\s\S]*\}/);
+        if (!match) return {};
+        try {
+          const parsed = JSON.parse(match[0]);
+          return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+        } catch {
+          // 修复常见转义问题（\' → '，多余逗号）后重试
+          try {
+            const repaired = match[0].replace(/\\'/g, "'").replace(/,\s*}/g, '}');
+            const parsed = JSON.parse(repaired);
+            return parsed && typeof parsed === 'object' ? parsed as Record<string, unknown> : {};
+          } catch {
+            return {};
+          }
+        }
+      };
       const extract = async (missing?: string[]) => {
         const prompt = buildExtractPrompt(goal, primitiveName, schemaJson, missing);
         const res = await piBridgeWrapper.generateText({ prompt, temperature: 0 });
-        const match = res.text.match(/\{[\s\S]*\}/);
-        return match ? JSON.parse(match[0]) : {};
+        return robustJsonExtract(res.text ?? '');
       };
       let params = await extract();
       const missing = validatePrimitiveParams(inputSchema ?? {}, params);

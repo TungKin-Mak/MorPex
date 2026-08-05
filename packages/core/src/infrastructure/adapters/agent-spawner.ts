@@ -6,8 +6,8 @@
  *
  * ═══ 会话 3 修复（多 Agent 框架 P0）═══
  * - 未指定 provider/modelId 时不传 model → PiBridge 构造器按 config/morpex.yaml
- *   网关解析默认模型（此前硬编码 'deepseek/deepseek-v4-flash'，网关启用时
- *   该模型不在注册表 → getModel 返回空 → model.provider=undefined →
+ *   网关解析默认模型（网关启用 → 网关模型；否则 GLM-4.7-Flash 默认），
+ *   此前硬编码默认模型在网关启用时不在注册表 → getModel 返回空 → model.provider=undefined →
  *   "Unknown provider: undefined" → step-agent 空转）。
  * - 透传 execute：step-agent 执行肢的工具必须真正可调用（此前被丢弃）。
  */
@@ -64,7 +64,7 @@ export const agentSpawner = {
     prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
     abort: () => Promise<void>;
   }> {
-    // 未指定时让 PiBridge 构造器解析默认模型（网关启用 → 网关模型；否则 deepseek）
+    // 未指定时让 PiBridge 构造器解析默认模型（网关启用 → 网关模型；否则 GLM-4.7-Flash）
     const bridge = new PiBridge(
       params.provider && params.modelId
         ? `${params.provider}/${params.modelId}`

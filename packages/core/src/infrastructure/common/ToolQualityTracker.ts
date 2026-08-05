@@ -54,7 +54,7 @@ export class ToolQualityTracker {
   /**
    * recordCall — 记录一次工具调用
    *
-   * @param toolName - 工具名（如 'shell', 'fs_read', 'llm_deepseek'）
+   * @param toolName - 工具名（如 'shell', 'fs_read', 'llm_glm'）
    * @param success - 是否成功
    * @param latencyMs - 延迟（毫秒）
    * @param error - 错误信息（失败时）

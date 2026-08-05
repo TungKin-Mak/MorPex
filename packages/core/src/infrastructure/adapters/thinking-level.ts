@@ -35,7 +35,7 @@ function getCached(provider: string, modelId: string): Record<string, unknown> {
 }
 
 export const thinkingLevelControl = {
-  getSupportedLevels(modelId: string, provider = 'deepseek'): ThinkingLevel[] {
+  getSupportedLevels(modelId: string, provider = 'zhipu-glm'): ThinkingLevel[] {
     try {
       const model = getCached(provider, modelId);
       const fn = getSupportedThinkingLevels as (m: Record<string, unknown>) => string[];
@@ -46,7 +46,7 @@ export const thinkingLevelControl = {
     }
   },
 
-  clampLevel(modelId: string, level: ThinkingLevel, provider = 'deepseek'): ThinkingLevel {
+  clampLevel(modelId: string, level: ThinkingLevel, provider = 'zhipu-glm'): ThinkingLevel {
     try {
       const model = getCached(provider, modelId);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any

@@ -110,7 +110,7 @@ Output ONLY valid JSON in this exact format:
 }`,
         prompt: `Create an execution plan for this goal: "${mission.goal}"\n\nContext: ${JSON.stringify(mission.context ?? {})}`,
         temperature: 0.3,
-        maxTokens: 2000,
+        maxTokens: 32000,
         responseFormat: 'json_object',
       });
       const elapsed = Date.now() - startTime;
