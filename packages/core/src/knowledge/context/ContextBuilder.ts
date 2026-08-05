@@ -66,6 +66,17 @@ export interface ExecutionContext {
   recentSummaries?: RecentSummary[]
   /** 功能③ 遗留项：风险分级（low/medium/high；默认确定性分级，可自定义覆写） */
   riskLevel?: RiskLevel
+  /**
+   * 会话 16c（3+4）：装配成本监控——耗时/片段数/字符数/信息密度（防上下文膨胀）。
+   * 随装配快照持久化（__ 保留键），供治理/观测消费。
+   */
+  assemblyTelemetry?: {
+    durationMs: number
+    fragmentCount: number
+    totalChars: number
+    focusedSummaryChars: number
+    infoDensity: number
+  }
   /** 组装时间 */
   assembledAt: number
   /** 过期时间（可选） */

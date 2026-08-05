@@ -47,6 +47,11 @@ export interface ExecutionRequest {
   context?: Record<string, unknown>;
   /** 超时（毫秒，可选防御；默认不设限——LLM 任务可能数小时） */
   timeoutMs?: number;
+  /**
+   * 会话 16c（3+4）：任务级自动重跑次数上限（默认 1）——retryable 失败（空参/瞬态，非安全拦截）
+   * 时带上次失败上下文重跑；0 = 禁用。
+   */
+  maxTaskRerun?: number;
   /** 任务 ID（可选） */
   taskId?: string;
   /** 进度回调（Phase 4.6） */
@@ -84,13 +89,15 @@ export interface DAGRuntimeLike {
 /** OrchestratorAgentLike — 多 Agent 总大脑（会话 3）：编排 → 执行 → 审计（迭代）→ 汇总 */
 export interface OrchestratorAgentLike {
   readonly name: string;
-  run(goal: string, opts?: { departmentId?: string }): Promise<{
+  run(goal: string, opts?: { departmentId?: string; contextHint?: string }): Promise<{
     success: boolean;
     output?: unknown;
     iterations: number;
     stepsExecuted: number;
     auditLog: Array<{ iteration: number; pass: boolean; issues: string[]; reasoning: string }>;
     stepResults: Map<string, unknown>;
+    /** 会话 15 P1-②：部分成功 salvage 失败报告 */
+    failureReport?: Array<{ step: string; error: string }>;
     error?: string;
     duration: number;
   }>;
@@ -312,12 +319,27 @@ export class UnifiedExecutionEngine {
     }));
 
     try {
-      const runPromise = this.orchestrator.run(request.goal, {
-        departmentId: request.departmentId,
-      });
-      const result = (request.timeoutMs && request.timeoutMs > 0)
-        ? await this.withTimeout(runPromise, request.timeoutMs, `编排执行超时（${request.timeoutMs}ms）`)
-        : await runPromise;
+      // ═══ 会话 16c（3+4）：任务级自动重跑 ═══
+      // retryable 失败（空参/瞬态，非安全拦截）→ 带上次失败上下文重跑一次（有界，默认 1 次）。
+      const runOnce = async (contextHint?: string) => {
+        const p = this.orchestrator!.run(request.goal, {
+          departmentId: request.departmentId,
+          contextHint,
+        });
+        return (request.timeoutMs && request.timeoutMs > 0)
+          ? this.withTimeout(p, request.timeoutMs, `编排执行超时（${request.timeoutMs}ms）`)
+          : p;
+      };
+
+      let result = await runOnce();
+      let reran = false;
+      const maxTaskRerun = request.maxTaskRerun ?? 1;
+      if (!result.success && maxTaskRerun > 0 && result.failureReport && this.hasRetryableFailure(result.failureReport)) {
+        const hint = `上次执行失败（仅作规避指引）：${result.failureReport.map(f => `${f.step}: ${f.error}`).join('；')}`;
+        console.warn(`[UnifiedExecutionEngine] 🔁 任务级自动重跑（retryable 失败）…`);
+        result = await runOnce(hint);
+        reran = true;
+      }
 
       return {
         ok: result.success,
@@ -331,6 +353,10 @@ export class UnifiedExecutionEngine {
           iterations: result.iterations,
           stepsExecuted: result.stepsExecuted,
           audit: result.auditLog,
+          // ⬅️ 会话 16c（3+4）：失败步骤报告透传（经验沉淀/观测消费）
+          failureReport: result.failureReport,
+          // ⬅️ 会话 16c：是否经过任务级自动重跑
+          ...(reran ? { reran: true } : {}),
         },
       };
     } catch (err) {
@@ -340,6 +366,11 @@ export class UnifiedExecutionEngine {
         error: msg, duration: Date.now() - startTime,
       };
     }
+  }
+
+  /** retryable 失败判定（非安全拦截——安全拦截重跑无效，不浪费成本） */
+  private hasRetryableFailure(failureReport: Array<{ step: string; error: string }>): boolean {
+    return failureReport.some(f => !/GateContextRequiredError|需要 Gate 凭证|安全拦截|权限不足/.test(f.error));
   }
 
   /**

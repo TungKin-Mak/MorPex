@@ -22,6 +22,7 @@ import { ContextVersioner } from './ContextVersioner.js'
 import { ContextTemplateRepository } from './ContextTemplateRepository.js'
 import { ContextEnricherPipeline } from './ContextEnricher.js'
 import type { ContextPersistence } from './ContextPersistence.js'
+import type { EventBus } from '../../infrastructure/common/EventBus.js'
 
 // ── ContextAssemblyConfig — 组装配置 ──
 
@@ -48,6 +49,10 @@ export interface ContextAssemblyConfig {
   recentSummaryLimit?: number
   /** 功能③ 遗留项：风险分级器（默认 defaultRiskGrader 确定性分级；可自定义覆写） */
   riskGrader?: RiskGrader
+  /** 会话 16c（3+4）：装配成本监控开关（默认 true） */
+  enableTelemetry?: boolean
+  /** 会话 16c（3+4）：EventBus（可选）——发射 context.assembly.telemetry 供观测聚合 */
+  eventBus?: EventBus
 }
 
 const DEFAULT_CONFIG: ContextAssemblyConfig = {
@@ -121,6 +126,9 @@ export class ContextAssemblyEngine {
    * @returns 组装完成的 ExecutionContext
    */
   async assemble(input: ContextAssemblyInput): Promise<ExecutionContext> {
+    // ═══ 会话 16c（3+4）：装配成本监控——记录开始时间 ═══
+    const assembleStart = this.config.enableTelemetry === false ? 0 : Date.now();
+
     // 1. 选择模板
     const template = this.selectTemplate(input)
 
@@ -280,6 +288,9 @@ export class ContextAssemblyEngine {
       enrichedContext.contextId = context.contextId
     }
 
+    // ═══ 会话 16c（3+4）：装配成本遥测（耗时/片段/字符/信息密度 + 事件）═══
+    this.attachAssemblyTelemetry(enrichedContext, trimmedFragments, assembleStart)
+
     // 11. 版本快照（可选）
     if (this.config.enableVersioning) {
       this.versioner.snapshot(enrichedContext, `Assembly from template "${template?.templateId ?? 'none'}"`)
@@ -300,6 +311,45 @@ export class ContextAssemblyEngine {
     }
 
     return enrichedContext
+  }
+
+  /**
+   * ═══ 会话 16c（3+4）：装配成本遥测 ═══
+   * 在上下文构建完成、增强前调用：记录耗时/片段数/字符数/信息密度 + 发射 context.assembly.telemetry。
+   */
+  private attachAssemblyTelemetry(context: ExecutionContext, trimmedFragments: ContextFragment[], assembleStart: number): void {
+    if (this.config.enableTelemetry === false || assembleStart === 0) return;
+    const durationMs = Date.now() - assembleStart;
+    const totalChars = trimmedFragments.reduce((acc, f) => {
+      const text = typeof f.data === 'string' ? f.data : JSON.stringify(f.data ?? '');
+      return acc + (text?.length ?? 0);
+    }, 0);
+    const focusedSummaryChars = context.focusedSummary?.length ?? 0;
+    // 信息密度 = 聚焦摘要字符 / 原始片段总字符（0-1；高 = 精简有效，低 = 上下文膨胀风险）
+    const infoDensity = totalChars > 0 ? Number((focusedSummaryChars / totalChars).toFixed(4)) : 0;
+    context.assemblyTelemetry = {
+      durationMs,
+      fragmentCount: trimmedFragments.length,
+      totalChars,
+      focusedSummaryChars,
+      infoDensity,
+    };
+    // 发射事件（观测聚合端点数据源）
+    this.config.eventBus?.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'context.assembly.telemetry',
+      timestamp: Date.now(),
+      executionId: context.contextId ?? context.missionId,
+      source: 'context-assembly-engine',
+      payload: {
+        missionId: context.missionId,
+        durationMs,
+        fragmentCount: trimmedFragments.length,
+        totalChars,
+        focusedSummaryChars,
+        infoDensity,
+      },
+    });
   }
 
   /**

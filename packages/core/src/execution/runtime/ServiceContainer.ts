@@ -125,7 +125,7 @@ export class ServiceContainer {
     this.verificationEngine = new VerificationEngine(this.eventBus);
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
-    this.experienceMiner = new ExperienceMiner();
+    this.experienceMiner = new ExperienceMiner(this.eventBus);
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();
@@ -253,6 +253,8 @@ export class ServiceContainer {
     const stepExecutor = new StepAgentExecutor({
       // 会话 4（Session 化）：step-agent 独立持久化会话
       sessionStore: this.agentSessionStore,
+      // ⬅️ 会话 16c（3+4）：步骤结果事件出口（execution.step.result，观测/学习数据源）
+      eventBus: this.eventBus,
     });
     return new OrchestratorAgent({
       llm: {
@@ -333,6 +335,8 @@ export class ServiceContainer {
           goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
           // 会话 4（Session 化）：DAG 节点 step-agent 会话也持久化（未预建时自行创建）
           sessionStore: this.agentSessionStore,
+          // ⬅️ 会话 16c（3+4）：步骤结果事件出口
+          eventBus: this.eventBus,
         });
         // 会话 4：总大脑预建的 step 会话（按节点名匹配，nodeHandler 复用同一会话）
         const stepSessions = (ctxObj.stepSessions instanceof Map ? ctxObj.stepSessions : new Map<string, { session: unknown; sessionPath: string }>());

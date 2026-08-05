@@ -272,7 +272,7 @@
 | `evaluation/verification/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | L6 评价/验证权威 |
 
 
-## `evolution/`（20 文件）
+## `evolution/`（21 文件）
 
 > 层边界规则：提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2
 
@@ -283,7 +283,8 @@
 | `evolution/SelfImprovementLoop.ts` | SelfImprovementLoop — 自我改进闭环（Wave 3a 自 cognition/ 迁入）。Observation → Analysis → Proposal → Simulation → Evaluation → Approval → Deployment → Monitor；只生成提案，不直接修改代码。Wave 3b：晋升经 EvolutionSandbox.approveAndApply 需 Gate 凭证 | L7 演化唯一所有者；L4 禁止直接触发 |
 | `evolution/ActiveEvolutionTrigger.ts` | ActiveEvolutionTrigger — 主动进化触发器 v16 Phase 4.7: 一人跨多领域虚拟公司的主动自我进化能力。 在事件驱动触发之外， 增加基于失败、质量、新部门等条件的主动进化触发器。 设计原则： - EventBus 通信（监听 mission.completed、evolution.active_triggered 等） - 部门隔离（按 deptId 独立追踪失败计数） - 阈值可配置 - 非阻塞：触发检查不干扰主线执行 触发条件： 1.  | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/EvolutionSandbox.ts` | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 |
-| `evolution/ExperienceMiner.ts` | ExperienceMiner — 经验挖掘器 v16: 任务完成后自动挖掘经验，更新 CapabilityRegistry / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
+| `evolution/ExperienceMiner.ts` | ExperienceMiner — 经验挖掘器 v16: 任务完成后自动挖掘经验，更新 CapabilityRegistry。v16c（3+4）经验沉淀触发条件：消费 failureReport/stepStats → LearningEventDetector 识别可学习事件 → 发射 evolution.experience.mined | L7 演化唯一所有者；只产经验与事件，不执行 |
+| `evolution/LearningEventDetector.ts` | LearningEventDetector — 可学习事件识别（v16c 3+4）：空参模式/安全拦截/高重试/部分失败 → LearningEvent 结构化记录 + summarize 聚合（观测/学习数据源，纯函数） | L7 演化唯一所有者；纯函数无副作用 |
 | `evolution/FailureAnalyzer.ts` | FailureAnalyzer — v11 Failure Analysis Engine Analyzes workflow execution failures to identify root causes, failure patterns, and recovery recommendations. Flow: Execution History → Failure Detection → Root Cause Analysis → Recommendations @packageDocumentatio | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/KnowledgeGapListener.ts` | KnowledgeGapListener — 知识缺失监听器（QueryMiss → Feedback → Evolution） vNext+ 演化安全闭环的一部分： Ontology Gate 无结果（QueryMiss）不能静默失败。 本监听器订阅 EventBus 的 `ontology.query.miss` 事件： 1. 将每次知识缺失写入 FeedbackService（Feedback 对象，source='query_miss'） 2. 聚合缺失统计（按 tier / reason / goal）， | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/PatternExtractor.ts` | PatternExtractor — 模式提取器 (v16) 从完成任务提取模式，写入合并后的 CapabilityRegistry / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |

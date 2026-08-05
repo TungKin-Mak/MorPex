@@ -160,6 +160,8 @@ export async function bootstrapUnified(options?: {
       schemaVersion: '1.0',
       focusMode: true, // 功能③：聚焦模式——只装当前任务材料
       maxTokens: 8000,
+      enableTelemetry: true, // ═══ 会话 16c（3+4）：装配成本监控
+      eventBus: container.eventBus, // ═══ 会话 16c：context.assembly.telemetry 事件出口
     });
     // ═══ 功能③ 遗留项：装配快照持久化接线（惰性 provider）═══
     // 此前引擎构造未传 persistence → assemble() 的 this.persistence 恒空 → ContextPersistence

@@ -459,13 +459,22 @@ export class MorPexRuntime {
         }
       }
 
-      // ── Phase 5: Experience Mining ──
-      await this.experienceMiner.mineFromCompletedTask({
+      // ── Phase 5: Experience Mining（会话 16c：步骤级失败信号 + 可学习事件）──
+      const failureReport = (execResult.metrics?.failureReport as Array<{ step: string; error: string }> | undefined);
+      const minedEvents = await this.experienceMiner.mineFromCompletedTask({
         goal: context.goal.objective,
         taskId: context.executionId,
         result: execResult.ok ? 'success' : 'failure',
         capabilities: context.capabilities.map(c => c.name),
         departmentId: context.team.departments[0],
+        failureReport,
+        stepStats: {
+          totalSteps: (execResult.metrics?.stepsExecuted as number | undefined) ?? 0,
+          failedSteps: failureReport?.length ?? 0,
+          retryableFails: (failureReport ?? []).filter(f => !/GateContextRequiredError|需要 Gate 凭证|安全拦截|权限不足/.test(f.error)).length,
+          nonRetryableFails: (failureReport ?? []).filter(f => /GateContextRequiredError|需要 Gate 凭证|安全拦截|权限不足/.test(f.error)).length,
+          totalRetries: 0, // 步骤级 retries 汇总由 execution.step.result 事件承载（观测端聚合）
+        },
       });
 
       // ═══ 学习回路接线（审计发现 learnFromOutcome 零调用）：任务完成后结果学习 ═══

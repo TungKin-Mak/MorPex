@@ -219,7 +219,7 @@ export class OrchestratorAgent {
   /**
    * run — 总大脑完整闭环：编排 → 执行 → 审计（迭代）→ 汇总
    */
-  async run(goal: string, opts: { departmentId?: string } = {}): Promise<OrchestrationResult> {
+  async run(goal: string, opts: { departmentId?: string; contextHint?: string } = {}): Promise<OrchestrationResult> {
     const start = Date.now();
     const maxIterations = this.opts.maxIterations ?? 3;
     const auditLog: OrchestrationResult['auditLog'] = [];
@@ -257,7 +257,11 @@ export class OrchestratorAgent {
     }
 
     // ── ① 编排：分析复杂度 + 拆解（LLM 失败/JSON 非法 → 抛错，fail loud）──
-    const res = await this.llm.generateText({ prompt: ANALYSIS_PROMPT(goal), temperature: 0 });
+    // ═══ 会话 16c（3+4）：contextHint = 任务级自动重跑注入的上次失败参考（避免重蹈）═══
+    const analysisPrompt = opts.contextHint
+      ? `${ANALYSIS_PROMPT(goal)}\n\n【上次尝试失败参考（仅作规避指引，勿照抄失败路径）】\n${opts.contextHint}`
+      : ANALYSIS_PROMPT(goal);
+    const res = await this.llm.generateText({ prompt: analysisPrompt, temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(res));
     const analysis = parseAnalysis(res ? extractJsonObject(res.text) : null);
     if (orchSession && this.opts.sessionStore) {

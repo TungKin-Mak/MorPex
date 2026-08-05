@@ -23,6 +23,7 @@ import cors from 'cors';
 import type { Server as HttpServer } from 'node:http';
 import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
+import { CostController } from '../../core/src/governance/CostController.js';
 import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
 import { startObservabilityBridge, wireObservabilityServices } from './observability/runtime-bridge.js';
@@ -50,6 +51,17 @@ export class StudioServer {
   private boot?: UnifiedBootstrapResult;
   private sseClients = new Map<string, { res: express.Response; connectedAt: number }>();
   private sseIdCounter = 0;
+
+  /** 会话 16c（3+4）：execution-stats 总成功率（跨模式加权） */
+  private calcOverallRate(quality: Record<string, { success: number; total: number; avgDuration: number; successRate: number }>): number {
+    let total = 0;
+    let success = 0;
+    for (const q of Object.values(quality)) {
+      total += q.total;
+      success += q.success;
+    }
+    return total > 0 ? Number((success / total).toFixed(4)) : 0;
+  }
 
   constructor(config: StudioServerConfig = {}) {
     this.config = config;
@@ -238,6 +250,73 @@ export class StudioServer {
     this.app.get('/api/execution/:executionId', (req, res) => {
       const mission = container.missionController.getMission(req.params.executionId);
       res.json({ executionId: req.params.executionId, mission: mission ?? null });
+    });
+
+    // ── 会话 16c（3+4）：实时观测聚合端点（实时仪表盘 API 层）──
+    // 聚合：执行质量（成功率/耗时）+ 步骤质量（空参率/重试/错误分类）+ 装配成本（耗时/字符/密度）
+    //        + 成本（token/金额）——按批次/步骤类型统计，供 P3 仪表盘消费。
+    this.app.get('/api/execution-stats', (_req, res) => {
+      try {
+        const history = container.eventBus?.getHistory?.() ?? [];
+
+        // 1. 执行质量（引擎 executionQuality：auto/orchestrator 分模式）
+        const quality = container.executionEngine.getExecutionQuality();
+
+        // 2. 步骤质量（execution.step.result 事件：空参率/重试/错误分类）
+        const stepEvents = history.filter((e: { type: string }) => e.type === 'execution.step.result');
+        let emptyParamFails = 0, safetyFails = 0, stepFails = 0, totalRetries = 0;
+        for (const e of stepEvents as Array<{ payload?: { success?: boolean; errorClass?: string; retries?: number } }>) {
+          const p = e.payload ?? {};
+          totalRetries += p.retries ?? 0;
+          if (p.success === false) {
+            stepFails++;
+            if (p.errorClass === 'retryable') emptyParamFails++;
+            if (p.errorClass === 'non-retryable') safetyFails++;
+          }
+        }
+        const totalSteps = stepEvents.length;
+
+        // 3. 装配成本（context.assembly.telemetry 事件：耗时/字符/信息密度）
+        const asmEvents = history.filter((e: { type: string }) => e.type === 'context.assembly.telemetry');
+        const asmDurations = (asmEvents as Array<{ payload?: { durationMs?: number; infoDensity?: number; fragmentCount?: number } }>)
+          .map(e => ({ durationMs: e.payload?.durationMs ?? 0, infoDensity: e.payload?.infoDensity ?? 0, fragmentCount: e.payload?.fragmentCount ?? 0 }));
+        const avgAsmDuration = asmDurations.length > 0 ? asmDurations.reduce((a, b) => a + b.durationMs, 0) / asmDurations.length : 0;
+        const avgInfoDensity = asmDurations.length > 0 ? asmDurations.reduce((a, b) => a + b.infoDensity, 0) / asmDurations.length : 0;
+
+        // 4. 成本（CostController 全链路 token/金额）
+        const cost = CostController.getInstance();
+        const tokenUsage = cost.getTokenUsage('global');
+
+        res.json({
+          ok: true,
+          stats: {
+            execution: {
+              byMode: quality,
+              totalSuccessRate: this.calcOverallRate(quality),
+            },
+            steps: {
+              totalSteps,
+              failed: stepFails,
+              emptyParamFails,
+              safetyFails,
+              emptyParamRate: totalSteps > 0 ? Number((emptyParamFails / totalSteps).toFixed(4)) : 0,
+              totalRetries,
+            },
+            assembly: {
+              count: asmDurations.length,
+              avgDurationMs: Math.round(avgAsmDuration),
+              avgInfoDensity,
+            },
+            cost: {
+              totalTokens: tokenUsage.tokens,
+              totalCost: Number(cost.getTotalCost('global').toFixed(4)),
+            },
+            generatedAt: Date.now(),
+          },
+        });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
     });
 
     // ── 产物（L7 ArtifactFacade）──

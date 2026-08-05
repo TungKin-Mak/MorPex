@@ -24,6 +24,7 @@ import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type { AgentSessionStore, AgentSessionHandle } from '../../orchestration/AgentSessionStore.js';
 import type { KnowledgeContextPackage } from '../../../gate/context.js';
+import type { EventBus } from '../../../infrastructure/common/EventBus.js';
 
 /** DAG 节点的窄接口（避免依赖 DAG 内部类型） */
 export interface StepNodeInfo {
@@ -110,6 +111,11 @@ export interface StepAgentExecutorOptions {
   sessionStore?: AgentSessionStore;
   /** 会话 4（执行肢解锁）：Gate 凭证（orchestrator 签发；未在 stepOpts 提供时回退此值） */
   gateContext?: KnowledgeContextPackage;
+  /**
+   * 会话 16c（3+4）：EventBus——步骤结果/质量事件出口（execution.step.result），
+   * 供观测聚合端点 + 学习闭环消费；未注入则不发射。
+   */
+  eventBus?: EventBus;
 }
 
 export interface StepAgentResult {
@@ -354,6 +360,7 @@ export class StepAgentExecutor {
         errorClass: 'none',
       };
       await this.recordStepResult(stepSession, node, res);
+      this.emitStepResult(node, res);
       return this.withSessionMeta(res, stepSession);
     } catch (err) {
       // 异常/超时 → 尝试中止 Agent 清理（避免孤儿 LLM 会话）
@@ -372,8 +379,34 @@ export class StepAgentExecutor {
         errorClass: classifyStepError(msg),
       };
       await this.recordStepResult(stepSession, node, res, msg);
+      this.emitStepResult(node, res);
       return this.withSessionMeta(res, stepSession);
     }
+  }
+
+  /**
+   * 会话 16c（3+4）：发射步骤结果事件（execution.step.result）——观测/学习闭环数据源。
+   * 事件体含步骤级质量信号（success/retries/errorClass/duration/error）。
+   */
+  private emitStepResult(node: StepNodeInfo, res: StepAgentResult): void {
+    if (!this.opts.eventBus) return;
+    this.opts.eventBus.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'execution.step.result',
+      timestamp: Date.now(),
+      executionId: `step_${node.id}`,
+      source: 'step-agent-executor',
+      payload: {
+        nodeId: node.id,
+        nodeName: node.name,
+        agentType: node.agentType,
+        success: res.success,
+        duration: res.duration,
+        retries: res.retries ?? 0,
+        errorClass: res.errorClass ?? (res.success ? 'none' : 'retryable'),
+        error: res.error,
+      },
+    });
   }
 
   /** 记录本步骤会话条目（step-result；失败原因与质量信号一并记录） */

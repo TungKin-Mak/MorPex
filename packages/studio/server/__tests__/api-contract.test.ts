@@ -62,6 +62,22 @@ describe('Studio REST API — 契约', () => {
     expect(typeof body.artifacts).toBe('number');
   });
 
+  it('GET /api/execution-stats → 观测聚合（质量/步骤/装配/成本，3+4）', async () => {
+    const { status, body } = await getJson('/api/execution-stats');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    // 执行质量（byMode + 总成功率）
+    expect(body.stats.execution.byMode).toBeDefined();
+    expect(typeof body.stats.execution.totalSuccessRate).toBe('number');
+    // 步骤质量（空参率等字段存在）
+    expect(typeof body.stats.steps.emptyParamRate).toBe('number');
+    expect(typeof body.stats.steps.totalRetries).toBe('number');
+    // 装配成本
+    expect(typeof body.stats.assembly.avgDurationMs).toBe('number');
+    // 成本
+    expect(typeof body.stats.cost.totalTokens).toBe('number');
+  });
+
   it('GET /api/config → version + engine', async () => {
     const { status, body } = await getJson('/api/config');
     expect(status).toBe(200);

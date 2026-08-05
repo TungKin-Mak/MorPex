@@ -980,3 +980,40 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
 3. P1 剩余：任务级自动重跑（EventStore 失败快照 + 经验提示词）、经验沉淀触发条件（PatternExtractor 仅成功/失败二态 → 步骤级信号接入）、进化提案落地通道
 4. P2（上下文装配效率 / 规划动态性）、P3（监控/仪表盘）未做
+
+---
+
+## ═════════ 会话 16c：3+4 交付——经验沉淀触发条件 + 任务级自动重跑 + 装配监控 + 观测聚合（2026-08-06）═════════
+
+> 用户 "3+4" = 遗留项 3（P1 剩余：任务级自动重跑 / 经验沉淀触发条件）+ 遗留项 4（P2 上下文装配效率 / P3 监控运维）。
+> 进化提案落地通道（3-3）评估后延后（EvolutionSandbox 已有 proposeChange，但"应用到代码/策略"风险高，单列）。
+
+### 交付（4 项）
+1. **经验沉淀触发条件**（3-2，核心闭环）：
+   - 新 `LearningEventDetector`（evolution/，纯函数）：从 failureReport + stepStats 识别可学习事件——`empty-param`（缺失参数/Validation failed/空内容）/ `safety-block`（Gate 凭证/安全拦截）/ `high-retry`（重试≥2）/ `partial-failure`（兜底）+ `summarize` 聚合
+   - `ExperienceMiner` 扩展：mineFromCompletedTask 接受 failureReport/stepStats → 识别事件 → 发射 `evolution.experience.mined`（含事件明细+聚合）+ 内存记录 getEvents/summarizeEvents
+   - 接线：ServiceContainer 注入 eventBus；MorPexRuntime Phase 5 传 failureReport（引擎 metrics 透传）+ stepStats
+   - 解决"常没有产生经验"（此前仅 success/failure 二态）
+2. **任务级自动重跑**（3-1，有界）：
+   - `UnifiedExecutionEngine`：orchestrator retryable 失败（非安全拦截）→ 带上次失败上下文（contextHint）重跑一次（默认 maxTaskRerun=1，可 0 禁用）；安全拦截不重跑（无效不浪费）
+   - `OrchestratorAgent.run` 支持 `contextHint` → 注入 ANALYSIS_PROMPT（上次失败参考，避免重蹈）
+   - metrics 透传 `reran` 标记
+3. **上下文装配成本监控**（4-P2-1）：ContextAssemblyEngine.assemble 记录 durationMs/fragmentCount/totalChars/focusedSummaryChars/infoDensity → `context.assemblyTelemetry`（随快照持久化）+ 发射 `context.assembly.telemetry` 事件；config enableTelemetry/eventBus（bootstrap 接线）
+4. **实时观测聚合端点**（4-P3，API 层仪表盘）：StudioServer `GET /api/execution-stats`——执行质量（byMode/总成功率）+ 步骤质量（空参率/重试/错误分类，数据源 = StepAgentExecutor 新发射的 `execution.step.result` 事件）+ 装配成本（avgDuration/infoDensity）+ 成本（CostController token/金额）
+
+### 新增测试（18 用例）
+- `learning-event-detector.test.ts` **8**（四类事件识别 + summarize + miner 发射/容错）
+- `task-rerun-step-event.test.ts` **4**（retryable 重跑成功/安全拦截不重跑/maxTaskRerun=0 禁用 + step 事件发射）
+- `assembly-telemetry.test.ts` **3**（telemetry 字段/事件/关闭开关）
+- api-contract +1（execution-stats 端点契约）
+
+### 门禁（全部亲测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0（610 模块）｜ ✅ production-check 8/8 ｜ ✅ core vitest **76 文件 / 671 通过 + 5 skipped**（仅 full-closed-loop 3 = opencode API 限额，非回归）｜ ✅ studio api-contract 25 通过
+- 文档：AICOS_CORE_FILE_REGISTRY（evolution/ 20→21 + LearningEventDetector + ExperienceMiner 描述更新）、barrel evolution/index 导出 LearningEventDetector
+
+### 遗留（下一会话候选）
+1. **opencode API 限额恢复后**：batch 实测空参率（P0 beforeToolCall + P1 强制重发 + 16c 任务级重跑，预期 79.4% → 90%+）
+2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
+3. **进化提案落地通道**（3-3）：EvolutionSandbox 提案 → 代码/提示词/策略 半自动应用闭环（评估后单列）
+4. P2 剩余：任务间经验主动注入（基于 embedding/任务类型注入相似经验——16c 已产出可学习事件可作数据源）、规划动态性（动态重规划/规划质量评估）
+5. P3 剩余：异常告警（空参率突升/原语持续失败）、execution-stats 前端 UI
