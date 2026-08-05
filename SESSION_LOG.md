@@ -908,3 +908,46 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 ### 前置/阻塞状态（新会话先确认）
 - opencode free API 限额状态（会话 14 被限额阻塞 full-closed-loop 验证）
 - 内置 provider 限流检测（空结果+零 usage → RateLimitError 兜底）仍未做
+
+---
+
+## ═════════ 会话 16：架构升级——P0 工具可靠性根治 + 全链路去兜底化（2026-08-06）═════════
+
+> 用户指令：读 SESSION_LOG + AGENTS.md 后升级改造现有架构，**不考虑向后兼容 / fallback 问题**。
+> 背景：会话 15 定稿优化清单（P0 工具空参根治为最高优先，79.4% 成功率瓶颈）；历史累积大量 fallback/兼容路径。
+
+### ① ✅ P0 工具空参根治（step-agent 工具可靠性，会话 15 清单 P0 主体）
+- **beforeToolCall 钩子全链接线**（关键杠杆：pi-agent-core AgentHarness 原生支持 beforeToolCall，拦截后 reason 回填 LLM 强制重发，不靠 LLM 自觉）：
+  - `PiBridge.createAgentHarness`：AgentConfig/构造器新增 `beforeToolCall` 透传（之前从未接线）
+  - `agent-spawner`：SpawnParams 新增 `beforeToolCall` 透传
+  - `StepAgentExecutor.executeStep`：spawn 时挂载 `createPrimitiveBeforeToolCall({ departmentId, goal })`
+- **工具 schema 强化**（`primitiveAgentTools.enrichSchemaForTool`）：
+  - 顶层 `additionalProperties: false`（多余参数 TypeBox 拒绝）
+  - 必填自由文本参数 `minLength: 1`（空串 `""` 在 **pi-ai TypeBox 校验层**即被拒——根治"空串通过 required 键存在性校验"的根本缺口；用 TypeBox 探针实证 minLength 拒绝空串）
+  - 必填参数 `examples`（LLM 知道填什么格式）
+  - 设计取舍：knowledge query **不设 minLength**（保留 beforeToolCall goal 兜底路径不被 TypeBox 阻断）
+- **createPrimitiveBeforeToolCall**（新，纯函数）：
+  - knowledge query 空 → 注入 step goal（改动 args 引用，agent-loop.js 源码确认 validatedArgs 同引用传给 execute）
+  - 其余工具必填空参 → `{ block: true, reason }` 拦截 + 工具专属示例重发指令
+- 新增 `step-agent-tool-reliability.test.ts` **9 用例**（goal 兜底/拦截/示例/放行/schema 形态/未注册工具不误拦）
+- **门禁**：tsc 0 ｜ 相关 10 测试文件 106 用例全绿
+
+### ② ✅ 全链路去兜底化（用户授权"不考虑 fallback"）
+- **StepAgentExecutor**：删除 `agentDisabled` / `fallbackExecutor` / `runFallback`；失败/超时 → abort 清理 + 失败返回（fail loud）；`mode` 收敛为恒 `'agent'`；保留 correctiveRetries（重试仍空 → 失败，不再降级）
+- **OrchestratorAgent**：`llm` 必填（删 llm_unavailable_fallback）；拆解/审计/汇总 LLM 失败或 JSON 非法 → **抛错**（删 analysis_failed 单步回退、删 audit_failed_pass **静默放行**——危险项、删 DAG 失败逐节点直跑）；步骤失败 → 上抛（不再把 `{error}` 伪装进成果）
+- **ServiceContainer**：删除 `createExecutionFabric` / `generateMockCode` / `MORPEX_ALLOW_MOCK` 静默 Mock 降级 / orchestrator+DAG 的 fabric fallback 接线；`createMissionRuntime` 简化为仅实例化真实 MissionRuntime（bootstrap 仍用 container.missionRuntime）
+- **UnifiedExecutionEngine（v3.0）**：删除 mission/dag/fabric 三路并存 + resolveMode 复杂度路由 + 降级链 + ActionExecutor + costRecorder/executionCosts（99 任务审计：mission/DAG 生产 0 调用，纯 fallback 保留）；现行单路径 = 简单操作类高置信原语快路径（保留 paramExtractor 生产注入）+ 其余走 orchestrator（唯一执行后端）；timeoutMs 仅作可选防御包络（不设限默认，符合 11c）；`ExecutionMode` 收敛 `'auto'|'orchestrator'`，ExecutionRequest 移除 mode/maxIterations/maxCostTokens
+- **连带修正**：barrel（execution/index.ts）移除 MissionRuntimeLike/ExecutionFabricLike 导出 + OrchestratorAgentLike 补入；bootstrap-unified 移除 setArtifactFacade（产物由 MorPexRuntime 统一创建，Engine 不消费）；MorPexRuntime/StudioServer 移除 mode 字段；validate-architecture 白名单加 `/execution/orchestration/`（OrchestratorAgent 编排推理 = 生产生成点，与 /execution/runtime/、/execution/harness 同类；知识查询仍经 KnowledgeQueryPrimitive + Gate）
+- **测试更新**：step-agent-timeout（超时→失败+abort）/ step-agent-corrective（重试仍空→失败）/ bounded-autonomy（3 个 mission/dag 轮询测试 → orchestrator 超时包络）/ multi-agent-orchestration（agentDisabled/fallback 测试 → spawn mock 真实 agent 路径；llm 必填；非法 JSON → rejects）/ agent-session-store（fallback 测试 → spawn mock + prompt 输入断言上游会话引用）/ production-pipeline Test8（mission 轮询 → orchestrator）/ morpex-runtime（mode 断言 → undefined）
+
+### 门禁（调度器独立复核，全部亲测）
+- ✅ **tsc 0** ｜ ✅ **validate-architecture 100%** ｜ ✅ **depcheck 0 violations**（608 模块 1204 依赖）｜ ✅ **production-check 8/8** ｜ ✅ core vitest **71 文件 / 644 通过 + 5 skipped 零失败**
+- ⚠️ **5 个真实 LLM e2e 失败 = API 限额环境阻塞（非回归）**：full-closed-loop 3 场景 + observability-bridge chat/send 2 用例。探针实证 opencode free 模型 complete 返回**空文本 + usage 0**（会话 14/15 已记录的限额症状）；fail-loud 语义下空 LLM → 编排显式失败（旧 fallback 同样失败：step-agent 循环本身需 LLM 决策）。限额恢复后复跑应全绿
+- ✅ 源码零残留（agentDisabled/fallbackExecutor/setMissionRuntime/... 全部 0 引用，仅注释提及）；测试残留仅说明注释
+- ⚠️ 无 e2e 产物污染（工作树仅本次改动 + 新测试文件）
+
+### 遗留（下一会话候选）
+1. **opencode free API 限额恢复后**：重跑 full-closed-loop + batch 实测空参率下降（79.4% 基线 → 目标 90%+）
+2. **内置 provider 限流检测**（空结果 + 零 usage → RateLimitError 兜底抛错，不再静默空返回）——会话 14/15 遗留，本次探针再次确认未做
+3. 会话 15 清单 P1（salvage 部分成功 / 经验闭环触发条件）、P2（上下文装配效率 / 规划动态性）、P3（监控）未做
+4. Session 化治理 UI、微信接入（用户排除）、沙箱目录归档管理

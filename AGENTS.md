@@ -28,7 +28,7 @@
 - **AICOS-Core 8 层架构**（详见 docs/AICOS_CORE_ARCHITECTURE.md）：
   Entry/Governance · Ontology Gate ★ · Planning · Cognition/Brain · Execution · Tools/Primitives · Knowledge/Memory · Evolution · Workflow Plugin · Infrastructure
 - **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全 10 层装配）
-- **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine（auto：原语兜底 → fabric/dag/mission）
+- **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine（v3 单路径：简单操作类→原语快路径；其余→OrchestratorAgent 总大脑编排）
 - **原语注册中心**：`DomainPrimitiveRegistry`（19 原语 = 5 通用 + 14 插件），`executeAuto` 消费 + NL→参数提取
 
 ## 3. 架构铁律
