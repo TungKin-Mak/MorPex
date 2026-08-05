@@ -607,3 +607,37 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 4. **eslint 规则清理**：no-var 等 ruleType='eslint' 激活后无检测器被跳过（AST 检测器 no-var-ast 已覆盖 no-var）
 5. **xjmcu 硬件依赖**：astrocli 需真实 MCU——batch 排除/标记
 6. **微信接入**（企业微信 vs 个人微信待决策）
+
+---
+
+## ═════════ 会话 11：改用 opencode/deepseek-v4-flash-free + 模型配置抽离到 config.yaml（2026-08-05）═════════
+
+### 用户决策：不用 glm-4.7-flash，改用 model 中的 `deepseek-v4-flash-free[opencode]`，抽离文件硬编码模型，全部用 config.yaml 配置
+
+### 交付（commit `4f482ff`，13 文件 +142/-81）
+1. **config 新增 `llm.mode`**：`builtin`（pi-ai 内置 provider，如 opencode）/ `gateway`（自定义 OpenAI 兼容网关）
+   - config/morpex.yaml：`mode: builtin` + `provider: opencode` + `model: deepseek-v4-flash-free` + `apiKey: ${OPENCODE_API_KEY}`
+   - opencode provider：`https://opencode.ai/zen/v1`，contextWindow 200K / maxTokens 128K / reasoning
+   - OPENCODE_API_KEY 在 Windows 用户级环境变量（sk-iEY2x63S...，67 字符）
+2. **PiBridge 构造器按 mode 分流**：
+   - `builtin` → gateway=null 走 pi-ai builtinModels；config apiKey 注入 `process.env.<PROVIDER>_API_KEY`（内置 provider 的 envApiKeyAuth 只读 process.env）
+   - `gateway` → initGateway 自定义网关（保留旧能力）
+   - `DEFAULT_MODEL` → `opencode/deepseek-v4-flash-free`（仅 config 缺失时兜底）
+3. **抽离硬编码模型（config 为唯一来源）**：新增 `resolveDefaultModel()` helper（读 config → `${provider}/${model}`，缺失兜底 DEFAULT_MODEL）
+   - model-registry / model-resolver / MorPexConfig(zod) / PiModelRegistry / thinking-level 全部改为 config 驱动
+   - **零残留 glm/zhipu 硬编码**（grep 确认仅注释/历史）
+4. **check-llm 按 mode 区分验证**：builtin → pi-ai 注册表查模型；gateway → HTTP /models
+5. 测试断言更新（pi-bridge-yaml 默认模型 → opencode/deepseek-v4-flash-free）
+
+### 实测
+- ✅ check-llm：`内置 provider "opencode" 模型 "deepseek-v4-flash-free": ✅ 在注册表`，apiKey 解析（sk-iEY2x...）
+- ✅ 直接 complete 5.8s 返回（thinking 模式）
+- ✅ **门禁全绿**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0（606 模块）｜ core vitest **70 文件 / 635 通过零失败**（含 full-closed-loop 3 场景 opencode 真实 LLM 跑通，**无限流、比 GLM 稳定**）
+
+### 遗留（下一会话候选）
+1. **GLM 限流治理**（会话 10 遗留）：core 抛 RateLimitError 后调用方尚未统一接入退避重试（当前换 opencode 已规避 GLM 限流；若回 gateway 模式仍需）
+2. **step-agent 工作目录治理**（sandbox，防写仓库根）
+3. **eslint 规则清理**（no-var 等 ruleType='eslint' 激活后无检测器被跳过）
+4. **xjmcu 硬件依赖**（astrocli 需真实 MCU，batch 排除/标记）
+5. **微信接入**（企业微信 vs 个人微信待决策）
+6. **config 迁移说明**：`llm.mode` 语义已扩展——老 config（仅 enabled/provider/baseUrl/apiKey/model，无 mode）默认按 builtin 处理（provider 需是 pi-ai 内置 provider）；如需自定义网关须显式 `mode: gateway`
