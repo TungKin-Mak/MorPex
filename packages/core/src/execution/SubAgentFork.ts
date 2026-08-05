@@ -99,7 +99,8 @@ export interface SubAgentForkConfig {
 }
 
 const DEFAULT_CONFIG: SubAgentForkConfig = {
-  defaultTimeoutMs: 120_000,
+  // 会话 11c：LLM 子任务默认不设限时（复杂任务可能数小时）；需防御时显式传 defaultTimeoutMs
+  defaultTimeoutMs: 0,
   defaultMaxRetries: 2,
   maxConcurrency: 5,
   memorySnapshotEnabled: true,
@@ -712,7 +713,11 @@ export class SubAgentFork {
   /**
    * withTimeout — 带超时的 Promise 包装
    */
+  /**
+   * withTimeout — 带超时的 Promise 包装（会话 11c：ms<=0 默认不设限，让长任务自然完成）
+   */
   private withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+    if (!ms || ms <= 0) return promise;
     return Promise.race([
       promise,
       new Promise<never>((_, reject) =>
@@ -766,13 +771,13 @@ export class SubAgentFork {
    *
    * @param fleetId - 舰队 ID
    * @param pollIntervalMs - 轮询间隔（默认 100ms）
-   * @param timeoutMs - 总超时（默认 300s）
+   * @param timeoutMs - 总超时（默认 0 = 不设限；LLM 舰队任务可能数小时，会话 11c 起默认不硬限时）
    * @returns 完成的舰队
    */
   async waitForFleet(
     fleetId: string,
     pollIntervalMs: number = 100,
-    timeoutMs: number = 300_000,
+    timeoutMs: number = 0,
   ): Promise<SubAgentFleet> {
     const startTime = Date.now();
 
@@ -784,7 +789,8 @@ export class SubAgentFork {
         return fleet;
       }
 
-      if (Date.now() - startTime > timeoutMs) {
+      // 会话 11c：timeoutMs<=0（默认）不设限，让长任务自然完成
+      if (timeoutMs > 0 && Date.now() - startTime > timeoutMs) {
         throw new Error(`等待舰队 "${fleetId}" 超时 (${timeoutMs}ms)`);
       }
 

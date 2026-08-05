@@ -576,7 +576,8 @@ export class UnifiedExecutionEngine {
 
       // 等待 Mission 生命周期完成
       const missionId = result.executionId;
-      const maxWait = request.timeoutMs || 300000; // 默认 5 分钟
+      // ═══ 会话 11c：LLM 任务默认不设时间上限（复杂任务可能数小时）；request.timeoutMs>0 才限时防御 ═══
+      const maxWait = request.timeoutMs || 0;
       const maxIterations = request.maxIterations ?? 300; // vNext+: 迭代上限
       const maxCostTokens = request.maxCostTokens; // vNext+: Token 成本上限
       let waited = 0;
@@ -584,7 +585,7 @@ export class UnifiedExecutionEngine {
       let costTokens = 0;
       const pollInterval = 1000;
 
-      while (waited < maxWait) {
+      while (maxWait > 0 && waited < maxWait) {
         // vNext+: Bounded Autonomy — 迭代/成本上限
         iterations++;
         costTokens += 1;
@@ -664,7 +665,8 @@ export class UnifiedExecutionEngine {
 
       // 等待 DAG 执行完成
       const dagExecutionId = result.executionId;
-      const maxWait = request.timeoutMs || 300000;
+      // ═══ 会话 11c：LLM 任务默认不设时间上限；request.timeoutMs>0 才限时防御 ═══
+      const maxWait = request.timeoutMs || 0;
       const maxIterations = request.maxIterations ?? 300; // vNext+: 迭代上限
       const maxCostTokens = request.maxCostTokens; // vNext+: Token 成本上限
       let waited = 0;
@@ -672,7 +674,7 @@ export class UnifiedExecutionEngine {
       let costTokens = 0;
       const pollInterval = 1000;
 
-      while (waited < maxWait) {
+      while (maxWait > 0 && waited < maxWait) {
         // vNext+: Bounded Autonomy — 迭代/成本上限
         iterations++;
         costTokens += 1;

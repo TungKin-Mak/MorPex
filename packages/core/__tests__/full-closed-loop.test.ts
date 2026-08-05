@@ -105,7 +105,7 @@ describe('full-closed-loop：用户输入 → 交付物全链路', () => {
     expect(recalled!.missionId).toBe(result.missionId);
     expect(recalled!.taskRef).toBe(result.missionId);
     // ⚠️ 会话 10（GLM-only）：思考模式下单场景实测 ~167s，180s 过紧（限流/波动易超）→ 300s
-  }, 300_000);
+  }, 600_000); // 会话 11c：opencode 复杂任务可能数小时，测试预算放宽
 
   it('【场景2 失败任务】错误处理 + 演化提案', async () => {
     // 构造确定失败：不存在的部门 → 路由层失败（错误路径）
@@ -143,5 +143,5 @@ describe('full-closed-loop：用户输入 → 交付物全链路', () => {
     } else {
       expect(result.error).toBeTruthy();
     }
-  }, 240_000);
+  }, 900_000); // 会话 11c：复杂多步任务 opencode 思考模式可超 15 分钟
 });

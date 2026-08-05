@@ -111,7 +111,7 @@ export class PiModelRegistry {
           temperature: params.temperature ?? 0.3,
           max_tokens: params.maxTokens ?? 32000,
         }),
-        signal: AbortSignal.timeout(30000),
+        signal: AbortSignal.timeout(600_000), // 会话 11c：LLM 思考模式可能超 30s，放宽到 10 分钟
       });
 
       if (!response.ok) {

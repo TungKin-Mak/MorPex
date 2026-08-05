@@ -45,7 +45,10 @@ export interface StepAgentExecutorOptions {
   fallbackExecutor?: (node: StepNodeInfo, upstreamText: string) => Promise<unknown>;
   /** 是否禁用 Agent（纯 fallback 模式，测试用） */
   agentDisabled?: boolean;
-  /** step-agent 执行超时（默认 180000ms；超时 → abort + 走 fallback 降级，防止 LLM 挂起卡死） */
+  /**
+   * step-agent 执行超时（会话 11c：默认【不设限】——LLM 任务长短不一，复杂任务可能数小时；
+   * 传入 timeoutMs>0 时启用超时 → abort + 降级 fallback，供需要防御的场景使用）。
+   */
   timeoutMs?: number;
   /**
    * 会话 9：空内容纠正性重试次数（默认 1）——GLM 思考模式下拿到工具错误后
@@ -219,7 +222,7 @@ export class StepAgentExecutor {
         '\n\n请按守则执行并给出交付摘要。',
       ].join('\n');
 
-      const raw = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs ?? 180_000);
+      const raw = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs);
       let text = extractText(raw.content);
 
       // ═══ 会话 9：空内容纠正性重试（保留思考模式）═══
@@ -237,7 +240,7 @@ export class StepAgentExecutor {
             '注意：最终输出必须是可见文本（不要只思考），格式精炼。',
           ].join('\n');
           console.warn(`[StepAgentExecutor] ⚠️ Agent 返回空内容，纠正性重试 ${attempt}/${retries}…`);
-          const retryRaw = await this.withTimeout(agent.prompt(correctiveInput), this.opts.timeoutMs ?? 180_000);
+          const retryRaw = await this.withTimeout(agent.prompt(correctiveInput), this.opts.timeoutMs);
           text = extractText(retryRaw.content);
           if (text.trim()) break;
         }
@@ -300,8 +303,12 @@ export class StepAgentExecutor {
     }
   }
 
-  /** 带超时的 Promise 执行（超时 → reject，由上层 catch 走 fallback 降级） */
-  private async withTimeout<T>(p: Promise<T>, timeoutMs: number): Promise<T> {
+  /**
+   * 带超时的 Promise 执行（timeoutMs 未设置/<=0 → 不设限，让 LLM 自然跑完；
+   * >0 时超时 → reject，由上层 catch 走 fallback 降级）
+   */
+  private async withTimeout<T>(p: Promise<T>, timeoutMs?: number): Promise<T> {
+    if (!timeoutMs || timeoutMs <= 0) return p;
     let timer: ReturnType<typeof setTimeout> | undefined;
     try {
       return await Promise.race([

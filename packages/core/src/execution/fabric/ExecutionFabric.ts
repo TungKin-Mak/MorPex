@@ -66,7 +66,7 @@ export interface ExecutionFabricConfig {
 const DEFAULT_CONFIG: ExecutionFabricConfig = {
   cacheEnabled: true,
   cacheTTLMs: 60_000,
-  defaultTimeoutMs: 30_000,
+  defaultTimeoutMs: 600_000, // 会话 11c：LLM 任务不限时，工具动作超时放宽到 10 分钟
   maxRetries: 2,
 };
 

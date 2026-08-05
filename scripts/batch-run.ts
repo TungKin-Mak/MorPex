@@ -7,7 +7,8 @@
  *   npx tsx scripts/batch-run.ts --only xjmcu  # 只跑指定行业
  *
  * 容错参数（grok2api 限流/无响应）：
- *   --timeout <ms>    单任务 LLM 超时（默认 180000，无响应抛错）
+ *   --timeout <ms>    单任务超时（默认 0=不设限；LLM 任务长短不一，复杂任务可能数小时，
+ *                     需要限时防御时显式传入——会话 11c 起默认不再硬限时）
  *   --retries <n>     429/5XX 自动重试次数（默认 2）
  *   --delay <ms>      任务间限流退避延时（默认 3000）
  *
@@ -40,7 +41,8 @@ const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
 const delayIdx = args.indexOf('--delay');
 const delayMs = delayIdx >= 0 ? parseInt(args[delayIdx + 1], 10) : 3000; // 任务间限流退避
 const timeoutIdx = args.indexOf('--timeout');
-const timeoutMs = timeoutIdx >= 0 ? parseInt(args[timeoutIdx + 1], 10) : 180_000; // 单任务超时
+// ═══ 会话 11c：LLM 任务默认不设限时（复杂任务可能数小时）；仅显式 --timeout 才限时防御 ═══
+const timeoutMs = timeoutIdx >= 0 ? parseInt(args[timeoutIdx + 1], 10) : 0; // 0 = 不超时
 const autoRetryIdx = args.indexOf('--retries');
 const autoRetries = autoRetryIdx >= 0 ? parseInt(args[autoRetryIdx + 1], 10) : 2; // 429/5XX 自动重试次数
 const concurrencyIdx = args.indexOf('--concurrency');
@@ -69,11 +71,12 @@ export function retryableWaitMs(err: string | undefined): number {
   return 0;
 }
 
-/** 超时包装：LLM 无响应/挂起时抛错 */
+/** 超时包装：ms<=0（默认）→ 不设限，让 LLM 任务自然跑完（复杂任务可能数小时） */
 async function withTimeout<T>(p: Promise<T>, ms: number, label: string): Promise<T> {
+  if (!ms || ms <= 0) return p;
   let timer: NodeJS.Timeout | undefined;
   const timeout = new Promise<never>((_, rej) => {
-    timer = setTimeout(() => rej(new Error(`${label} 超时(${ms}ms)——疑似 grok2api 无响应`)), ms);
+    timer = setTimeout(() => rej(new Error(`${label} 超时(${ms}ms)——疑似 LLM 无响应`)), ms);
   });
   try {
     return await Promise.race([p, timeout]);
