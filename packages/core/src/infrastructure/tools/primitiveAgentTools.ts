@@ -41,6 +41,11 @@ export interface PrimitiveToolOptions {
    * file 工具 write 用相对/缺省 path 时落到此目录；shell 工具 cwd 缺省时指向此目录。
    */
   workspaceDir?: string;
+  /**
+   * 会话 13：step 目标（goal/description）——knowledge 工具 query 缺失时用它兜底
+   * （step 目标即要查的内容），解决思考模式空参导致的 12/40 失败。
+   */
+  goal?: string;
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -79,9 +84,18 @@ export function validateRequiredParams(params: Record<string, unknown>, schema?:
   return errors;
 }
 
-/** 必填参数缺失 → 精确重新调用指引（agent 循环 self-healing 用） */
+/** 必填参数缺失 → 精确重新调用指引（agent 循环 self-healing 用，含工具专属示例） */
 export function buildMissingParamMessage(toolLabel: string, missing: string[]): string {
-  return `工具 ${toolLabel} 调用参数不完整：${missing.join('；')}。请【重新调用】${toolLabel} 工具，并提供完整必需参数（一次调用填全，不要留空）。`;
+  // 工具专属正确调用示例（提高 opencode 重发成功率；shell/api 无法用 goal 兜底，示例尤其关键）
+  const EXAMPLES: Record<string, string> = {
+    shell: `正确示例：${'{"command":"ls -la","cwd":"<工作目录>"}'}`,
+    api: `正确示例：${'{"url":"https://example.com/api","method":"GET"}'}`,
+    knowledge: `正确示例：${'{"query":"<要查询的具体问题>"}'}`,
+    file: `正确示例：${'{"operation":"write","path":"<文件相对路径>","content":"<内容>"}'}`,
+    artifact: `正确示例：${'{"type":"report","specification":"<产物要求>"}'}`,
+  };
+  const example = EXAMPLES[toolLabel];
+  return `工具 ${toolLabel} 调用参数不完整：${missing.join('；')}。${example ? `\n${example}\n` : ''}请【重新调用】${toolLabel} 工具，一次调用填全所有必需参数，不要留空、不要省略。`;
 }
 
 /**
@@ -105,6 +119,12 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
       parameters: schema,
       execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
         const p = (params ?? {}) as Record<string, unknown>;
+        // ═══ 会话 13：knowledge 空 query → 用 step goal 兜底（step 目标即要查的内容）═══
+        // 解决思考模式空参导致的失败（审计 12/40 为 query 空）。其余原语空参无法安全推断 → 保持错误。
+        if (def.label === 'knowledge' && !p.query && options.goal) {
+          p.query = options.goal;
+          console.warn(`[primitiveAgentTools] 🔄 knowledge query 为空 → 用 step goal 兜底: ${String(options.goal).slice(0, 60)}…`);
+        }
         // ═══ 会话 9：必填参数校验——空参不传给原语，返回精确重新调用指引（self-healing）═══
         const missing = validateRequiredParams(p, schema);
         if (missing.length > 0) {

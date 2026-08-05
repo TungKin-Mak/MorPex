@@ -107,6 +107,44 @@ describe('primitiveAgentTools — 原语 → AgentTool 桥', () => {
     expect(validateRequiredParams({}, { type: 'object', properties: {} })).toHaveLength(0); // 无 required
   });
 
+  it('knowledge 空 query → 用 step goal 兜底（会话 13 根治：审计 12/40 失败为 query 空）', async () => {
+    let receivedParams: Record<string, unknown> = {};
+    const requiredPrimitive: ActionPrimitive = {
+      name: 'knowledge_query',
+      description: '查询知识（必填 query）',
+      inputSchema: { type: 'object', properties: { query: { type: 'string' } }, required: ['query'] },
+      canHandle: () => 0,
+      execute: async (params) => { receivedParams = params; return { success: true, data: { ok: true, params } }; },
+    };
+    (DomainPrimitiveRegistry as unknown as { primitives: Map<string, unknown> }).primitives.set('knowledge_query', {
+      primitive: requiredPrimitive,
+      registeredAt: Date.now(),
+    });
+
+    // 传 goal → 空参调用时用 goal 兜底，原语成功执行
+    const tools = createPrimitiveAgentTools({ departmentId: 'software', goal: '为电商部门生成商品价格合规检查方案' });
+    const knowledgeTool = tools.find(t => t.name === 'knowledge')!;
+    const res = await knowledgeTool.execute('tc_1', {});
+    expect(res.isError).toBe(false); // goal 兜底 → 成功
+    expect(receivedParams.query).toBe('为电商部门生成商品价格合规检查方案');
+
+    // 不传 goal → 空参仍报错（安全：无兜底源）
+    const toolsNoGoal = createPrimitiveAgentTools({ departmentId: 'software' });
+    const kt2 = toolsNoGoal.find(t => t.name === 'knowledge')!;
+    const res2 = await kt2.execute('tc_1', {});
+    expect(res2.isError).toBe(true);
+    expect(res2.content[0].text).toContain('重新调用');
+  });
+
+  it('buildMissingParamMessage 含工具专属正确调用示例（会话 13 强化重发指引）', async () => {
+    const { buildMissingParamMessage } = await import('../src/infrastructure/tools/primitiveAgentTools.js');
+    const shellMsg = buildMissingParamMessage('shell', ['command']);
+    expect(shellMsg).toContain('正确示例');
+    expect(shellMsg).toContain('"command"');
+    const apiMsg = buildMissingParamMessage('api', ['url', 'method']);
+    expect(apiMsg).toContain('"url"');
+  });
+
   it('mapToolForAgent 保留工具调用参数（会话 4 审查修复：防参数丢弃回归）', async () => {
     const tools = createPrimitiveAgentTools({ departmentId: 'software' });
     const knowledgeTool = tools.find(t => t.name === 'knowledge')!;

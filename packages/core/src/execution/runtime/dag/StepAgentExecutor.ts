@@ -226,6 +226,8 @@ export class StepAgentExecutor {
           gateContext: stepOpts?.gateContext ?? this.opts.gateContext,
           // ⬅️ 会话 12：沙箱工作目录（file/shell 默认落此）
           workspaceDir,
+          // ⬅️ 会话 13：step 目标（knowledge 空 query 兜底）
+          goal: this.opts.goal,
         }),
         ...(this.opts.extraTools ?? []),
       ];
