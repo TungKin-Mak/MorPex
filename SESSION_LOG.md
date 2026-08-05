@@ -670,3 +670,32 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - **【P0 升】复杂任务超时治理**：opencode 思考模式慢 → 复杂任务 300s 超时。方向：①step-agent 超时策略（当前 180s 兜底）与任务级 300s 的匹配 ②DAG 并行度/步骤数限制 ③复杂任务拆解粒度
 - 工具参数校验（primitiveAgentTools required 校验）+ 空内容纠正重试（StepAgentExecutor）在 opencode 下未触发（参数天然完整）——但保留作为 gateway 模式/其他模型的防御
 - 其余遗留不变：GLM 限流退避（回 gateway 时）、step-agent 工作目录 sandbox、eslint 规则清理、xjmcu 硬件、微信接入
+
+---
+
+## ═════════ 会话 11c：LLM 任务不限时（用户决策，commit 774ef07）═════════
+
+### 用户决策：**LLM 任务不应该限时，复杂任务可能运行数小时**（会话 11b 实测 opencode 复杂任务 300s 超时 2 个，且 full-closed-loop 场景3 在 240s 测试预算超时但 317s 自然跑完）
+
+### 改动（7 文件，+39/-21）
+| 位置 | 原默认 | 改后 |
+|---|---|---|
+| batch-run `--timeout` | 180s | **0（不设限）**；显式传才限时 |
+| StepAgentExecutor `timeoutMs` | 180s | **不设**（undefined=不超时）；传入>0 才限时 |
+| UnifiedExecutionEngine 等 Mission 完成 `maxWait` | 5min | **0**（request.timeoutMs>0 才限时） |
+| UnifiedExecutionEngine 等 DAG 完成 `maxWait` | 5min | **0** |
+| SubAgentFork 子任务 `defaultTimeoutMs` | 120s | **0** |
+| SubAgentFork `waitForFleet` | 300s | **0** |
+| ExecutionFabric 工具动作超时 | 30s | 10min |
+| PiModelRegistry HTTP 回退 | 30s | 10min |
+| full-closed-loop 场景1/3 测试预算 | 300s/240s | 600s/900s |
+
+保留的防护（非时间限时，合理）：Bounded Autonomy 的 `maxIterations`（迭代上限）、`maxCostTokens`（token 成本上限）、SubAgentFork `maxAttempts`。
+
+### 实测印证
+- full-closed-loop 场景3（复杂多步）：240s 测试预算超时 → 放宽 900s 后 **317s 自然跑完** ✅——精确印证"复杂任务需要远超固定预算"
+- 门禁：tsc 0 ｜ validate 100% ｜ depcheck 0
+
+### 遗留
+- 上一条（会话 11b P0）复杂任务超时治理：现在"不限时"已消除硬超时；但 batch-run 并发 5 个长任务可能长时间占用——并发/资源调度另议
+- 其余不变：step-agent 工作目录 sandbox、eslint 规则清理、xjmcu 硬件、微信接入
