@@ -855,17 +855,27 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - 主链路完整（核心 8 层 99/99 必经）｜知识强制接地优秀｜安全隔离优秀｜可观测性优秀｜失败可诊断性优秀
 - **当前真实瓶颈 = LLM 工具调用可靠性**（工具空参 48/199 ≈ 24.1%），非架构拓扑缺陷
 
-### P0：工具空参根治（最高优先，预期成功率 79%→90%+，排除换模型）
+### P0：工具空参根治（最高优先，预期成功率 79%→90%+，排除换模型、排除模型路由）
 1. **结构化工具调用强制约束**：
    - step-agent systemPrompt + tool schema 更强约束"必须先输出完整 JSON 参数再调用"
    - 对思考模式模型增加"参数完整性自检"中间步骤（prompt 层）
    - 考虑 function calling 原生格式（而非纯文本思考后调用）
-2. **工具调用前预校验 + 自动补全**：不只 knowledge（已 goal 兜底），**shell/api 也从 step goal / upstreamResults 智能推断**（command/url 缺失时）
-3. **模型路由**：工具密集型步骤路由到更稳定模型（GLM/opencode 按步骤类型分流——注意：不换默认模型，但可混合）
-4. **空参失败统计反馈闭环**：把"空参类型+模型+步骤类型"沉淀到 ExperienceMiner → 后续规划/提示词自动规避高发空参模式
+   - **json_schema/strict 结构化约束**：用 json_schema 模式强制参数 schema（LLM 无法省略必填参数）
+2. **工具 schema 强化（工具定义层——上个对话诊断要点）**：
+   - 每个参数加 `examples` 示例（LLM 知道填什么格式）
+   - schema 加 `additionalProperties:false` + 强 `required`（省略必填即报错）
+   - description 强调"必须提供完整 X，否则调用失败"（当前 api/shell/file description 过短）
+   - 工具描述加"参数完整性自检"要求（调用前自查 JSON 是否填全）
+3. **工具调用前预校验 + 自动补全**：不只 knowledge（已 goal 兜底），**shell/api 也从 step goal / upstreamResults 智能推断**（command/url 缺失时）
+4. **harness 层强制重发（重试机制层——上个对话诊断要点）**：
+   - 当前 agent-loop 工具错误回填后**重发靠 LLM 自觉**（失败原因：LLM 拿错误后常放弃工具转输出文本）
+   - 改：StepAgentExecutor 检测到 missingParams 错误 → 带"补全参数重新调用"指令**强制再 prompt**（不靠 LLM 自觉）
+   - 对"可重试错误"（空参/临时网络）允许更多轮次，"不可重试错误"直接失败
+5. **思考模式与工具调用解耦**：工具调用轮次尝试禁 thinking（或降 thinking 级别），减少推理 token 吞参
+6. **空参失败统计反馈闭环**：把"空参类型+模型+步骤类型"沉淀到 ExperienceMiner → 后续规划/提示词自动规避高发空参模式
 
 ### P1：失败降级与任务级恢复
-1. **步骤级重试精细化**：区分可重试（空参/临时网络）vs 不可重试；可重试允许更多轮次或换模型
+1. **步骤级重试精细化**：区分可重试（空参/临时网络）vs 不可重试；可重试允许更多轮次或增强重发指令（不换模型）
 2. **部分成功 salvage**：关键步骤失败也能基于上游成果生成"降级交付物 + 失败原因报告"，而非直接 ok=false
 3. **任务级自动重跑**：工具空参失败任务支持"带经验提示词"自动重跑（利用 EventStore 失败快照）
 
