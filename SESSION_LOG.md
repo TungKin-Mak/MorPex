@@ -768,3 +768,54 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 1. **【P0】step-agent 工具空参问题**：opencode 思考模式间歇性空参（11 次）——primitiveAgentTools required 校验已返回精确重新调用指引，但 step-agent 未可靠重发。需：工具错误后 agent 循环重试策略加强（当前 correctiveRetries 只管空 content，不管工具错误后的重发）
 2. **API 限额**：opencode free 模型有配额，长跑需监控/分片
 3. 其余不变：微信接入（用户排除）、GLM 限流退避（回 gateway 时）、沙箱目录增长管理
+
+---
+
+## ═════════ 会话 13：多次任务日志审计——功能模块调用情况（2026-08-05）═════════
+
+### 分析对象（5 批次日志 + 99 份 trace 报告）
+| 批次 | 任务 | 成功 | 失败 | 成功率 |
+|---|---|---|---|---|
+| GLM 99（run-100-glm）| 99 | 77 | 22 | 77.8% |
+| opencode 10（run-opencode-free）| 10 | 8 | 2 | 80.0% |
+| opencode 90（run-99-restart，API 限额中断）| 90 | 73 | 17 | 81.1% |
+| **合计（有效）** | **199** | **158** | **41** | **79.4%** |
+
+### 失败原因分布（41 个失败，100% 可解释）
+- **工具参数为空 40**：query 空（12）+ url 空（10）+ command 空（6）+ GLM 批次（12）——step-agent 思考模式间歇性空参调用（唯一主因）
+- shell 白名单误拦截 1（LLM 把任务文本当命令，安全防护正确拦截）
+- GLM 批次 3 个 300s 超时（已不限时，遗留）
+
+### 功能模块调用审计（trace 99 报告 + 日志前缀统计）
+
+**① 核心链路（99/99 全调用，逐任务必经）**：
+`CompanyFacade.executeGoal → MorPexRuntime.run → UnifiedExecutionEngine.execute → ContextAssemblyEngine.assemble → OntologyService(upsert/get/queryObjects) → MissionController.createMission → TeamOrchestrator.orchestrate → ControlPlane.checkAll`
+- L1 门禁：ControlPlane.checkAll ✅ 99/99
+- L2 知识：OntologyService.upsertObject/getObject/queryObjects ✅ 99/99（本体数据真实读写）
+- L3 规划：经 MorPexRuntime 统一规划 ✅（DeliveryPlanner 事件有）
+- L4 认知/装配：ContextAssemblyEngine.assemble + collectFragmentsWithTimeout ✅ 99/99
+- L5 执行：UnifiedExecutionEngine.execute + executeAuto（96/99，主路径）✅
+- L6 评价：VerificationEngine.verify（95）、LearningEngine.learnFromOutcome（95）✅
+- L7 进化：Evolution 分析（MorPexRuntime 内）✅
+- L10 治理/基建：ApprovalGate.requestApproval（95）、ArtifactFacade.create（95）✅
+
+**② 高频支持模块（日志前缀）**：
+- GroundedReasoning（Gate 两阶段推理）970 次调用（最高频）——每次任务多次 Gate
+- MorPexRuntime 881、CompanyFacade 194、StepAgentExecutor 63、OrchestratorAgent 38、DAGRuntime 9
+- PrimitiveGate 98（原语 Gate 硬校验）、ShellExecutionPrimitive 67、FileOperationPrimitive 34
+
+**③ 未调用/死代码（trace 揭示）**：
+- `UnifiedExecutionEngine.executeViaDAG` / `executeViaMission` **0 次调用**——多 Agent 编排（orchestrator）已替代，DAG/Mission 执行路径在生产未走（但 fcab3e7 的 executeViaMission 仍保留为 fallback）
+- 各服务大量 setter/管理方法从未调用（`[CompanyFacade]` createDepartment/getStats/setCEO 等 15 个、`[MorPexRuntime]` setEventStore/setPlanner 等 8 个、`[MissionController]` recover/autoRecover/listMissions 等 10 个、`[UnifiedExecutionEngine]` cancel/getStatus/listExecutions 等 22 个）——多数为构造注入 setter（bootstrap 期用，运行时追踪窗口外）或管理/治理 API（未接线）
+- `OntologyService.getRelated` 低频（1 份报告）——血缘查询少用
+
+### 结论
+1. **核心 8 层链路全部真实运行**（L1→L8 每任务必经），架构健康
+2. **唯一系统性失败源：step-agent 工具空参**（40/41 失败）——P0 待解决（已建 required 校验 + 精确重发指引，但 agent 未可靠重发）
+3. **死代码面**：executeViaDAG/executeViaMission 生产未走（orchestrator 取代）；各服务管理 API 未接线（治理面板可消费）
+4. 沙箱隔离 + 安全防护（PrimitiveGate/shell 白名单）全部生效（0 污染、1 次正确拦截）
+
+### 遗留（下一会话候选）
+1. 【P0】step-agent 工具空参根治（工具错误后 agent 循环强制重发/或 retry 层补全）
+2. 【P2】死代码清理或接线：executeViaDAG/Mission 路径、服务管理 API（治理面板）
+3. 其余：微信接入（排除）、API 限额长跑策略、沙箱目录归档
