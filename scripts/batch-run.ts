@@ -37,6 +37,11 @@ const limitIdx = args.indexOf('--limit');
 const limit = limitIdx >= 0 ? parseInt(args[limitIdx + 1], 10) : TASKS.length;
 const onlyIdx = args.indexOf('--only');
 const only = onlyIdx >= 0 ? args[onlyIdx + 1] : undefined;
+const excludeIdx = args.indexOf('--exclude');
+// 会话 12：--exclude <dept[,dept2]> 排除行业（如 xjmcu 需真实 MCU 硬件，无设备时预期失败）
+const excludeDepts = excludeIdx >= 0
+  ? String(args[excludeIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  : [];
 // grok2api 容错参数（限流/无响应处理）
 const delayIdx = args.indexOf('--delay');
 const delayMs = delayIdx >= 0 ? parseInt(args[delayIdx + 1], 10) : 3000; // 任务间限流退避
@@ -151,9 +156,13 @@ async function main(): Promise<void> {
   }
   console.log(`[setup] ✅ 规则激活 ${activated.length} 条: ${activated.join(', ') || '无'}\n`);
 
-  // 4. 筛选任务
-  const tasks = TASKS.filter((t) => (only ? t.departmentName === only : true)).slice(0, limit);
-  console.log(`[run] 任务数: ${tasks.length}\n`);
+  // 4. 筛选任务（会话 12：--exclude 排除硬件依赖行业）
+  const tasks = TASKS.filter((t) => {
+    if (only && t.departmentName !== only) return false;
+    if (excludeDepts.length > 0 && excludeDepts.includes(t.departmentName)) return false;
+    return true;
+  }).slice(0, limit);
+  console.log(`[run] 任务数: ${tasks.length}${excludeDepts.length ? `（排除 ${excludeDepts.join(', ')}）` : ''}\n`);
 
   // 5. 单任务执行（抽取为函数，支持并发）
   async function runOneTask(num: number, task: BatchTask): Promise<TaskResult> {

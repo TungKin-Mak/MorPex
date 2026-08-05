@@ -26,7 +26,7 @@ export interface ActionPrimitive {
   /** 执行原语操作 */
   execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage; workspaceDir?: string }
   ): Promise<ActionResult>;
 }
 

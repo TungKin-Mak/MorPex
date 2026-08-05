@@ -35,6 +35,12 @@ export interface PrimitiveToolOptions {
    * 使破坏性原语（file write / shell / api POST）凭有效凭证通过 gateDestructive 硬校验。
    */
   gateContext?: KnowledgeContextPackage;
+  /**
+   * 会话 12：沙箱工作目录——step-agent 的产物/命令工作基准目录（如 data/agent-workspace/<stepId>/），
+   * 防止工具写到仓库根（实测污染：开发设计规划/XC8P9530_main.c）。
+   * file 工具 write 用相对/缺省 path 时落到此目录；shell 工具 cwd 缺省时指向此目录。
+   */
+  workspaceDir?: string;
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -116,6 +122,8 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
           userId: options.userId,
           // ⬅️ 会话 4：Gate 凭证透传——破坏性原语凭有效凭证通过 gateDestructive 硬校验
           gateContext: options.gateContext,
+          // ⬅️ 会话 12：沙箱工作目录（file/shell 默认落此，防写仓库根）
+          workspaceDir: options.workspaceDir,
         });
         const text = result.success
           ? (typeof result.data === 'string' ? result.data : JSON.stringify(result.data ?? null))

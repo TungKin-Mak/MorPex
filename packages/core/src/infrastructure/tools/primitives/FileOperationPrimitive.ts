@@ -71,7 +71,7 @@ export class FileOperationPrimitive implements ActionPrimitive {
 
   async execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage; workspaceDir?: string }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
     const operation = params.operation as FileOperationRequest['operation'];
@@ -83,11 +83,19 @@ export class FileOperationPrimitive implements ActionPrimitive {
       return { success: false, error: 'FileOperationPrimitive: path 参数不能为空' };
     }
 
+    // ═══ 会话 12：沙箱工作目录——破坏性操作（write/mkdir/copy/move/delete）用相对/无前缀路径时
+    //    落到 workspaceDir，防写仓库根（实测污染：开发设计规划/XC8P9530_main.c）═══
+    const workspace = context?.workspaceDir;
+    const isWriteOp = !READONLY_FILE_OPS.has(operation);
+    const safePath = (isWriteOp && workspace && !path.startsWith('/') && !/^[a-zA-Z]:[\\/]/.test(path))
+      ? require('node:path').join(workspace, path)
+      : path;
+
     // Wave 4：Gate 绑定 — 破坏性操作（write/delete/move/copy/mkdir）必须持有 KnowledgeContextPackage
     if (READONLY_FILE_OPS.has(operation)) {
-      PrimitiveGate.gateReadonly(`FileOperationPrimitive ${operation} ${path}`, context?.gateContext);
+      PrimitiveGate.gateReadonly(`FileOperationPrimitive ${operation} ${safePath}`, context?.gateContext);
     } else {
-      PrimitiveGate.gateDestructive(`FileOperationPrimitive ${operation} ${path}`, context?.gateContext);
+      PrimitiveGate.gateDestructive(`FileOperationPrimitive ${operation} ${safePath}`, context?.gateContext);
     }
 
     if (!FileOperationPrimitive.connectorExec) {
@@ -96,13 +104,13 @@ export class FileOperationPrimitive implements ActionPrimitive {
 
     try {
       const result = await FileOperationPrimitive.connectorExec('fs.' + operation, {
-        path,
+        path: safePath,
         content,
         destination,
         departmentId: deptId,
       });
 
-      console.log(`[FileOperationPrimitive] 📁 ${operation} ${path} (部门: ${deptId}) → ${result.success ? '✅' : '❌'}`);
+      console.log(`[FileOperationPrimitive] 📁 ${operation} ${safePath} (部门: ${deptId}) → ${result.success ? '✅' : '❌'}`);
       return result;
     } catch (err) {
       return { success: false, error: `FileOperationPrimitive: ${operation} 失败: ${(err as Error).message}` };

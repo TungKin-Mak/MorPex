@@ -20,6 +20,8 @@
 import { agentSpawner } from '../../../infrastructure/adapters/agent-spawner.js';
 import { createPrimitiveAgentTools } from '../../../infrastructure/tools/primitiveAgentTools.js';
 import type { AgentTool } from '../../../infrastructure/adapters/pi-bridge/index.js';
+import * as path from 'node:path';
+import * as fs from 'node:fs';
 import type { AgentSessionStore, AgentSessionHandle } from '../../orchestration/AgentSessionStore.js';
 import type { KnowledgeContextPackage } from '../../../gate/context.js';
 
@@ -56,6 +58,11 @@ export interface StepAgentExecutorOptions {
    * （重新调用工具/直接给交付摘要），再降级 fallback。0 = 禁用（回到直接降级）。
    */
   correctiveRetries?: number;
+  /**
+   * 会话 12：沙箱工作目录根（默认 data/agent-workspace）——每个 step 在
+   * workspaceRoot/<nodeId>/ 下独立沙箱，file write / shell cwd 默认落沙箱，防写仓库根。
+   */
+  workspaceRoot?: string;
   /** 会话 4（Session 化）：组件会话仓库——启用后本步骤创建持久化 step-agent 会话 */
   sessionStore?: AgentSessionStore;
   /** 会话 4（执行肢解锁）：Gate 凭证（orchestrator 签发；未在 stepOpts 提供时回退此值） */
@@ -75,7 +82,7 @@ export interface StepAgentResult {
 }
 
 /** 组装 step-agent 系统提示词 */
-function buildStepSystemPrompt(node: StepNodeInfo, opts: StepAgentExecutorOptions): string {
+function buildStepSystemPrompt(node: StepNodeInfo, opts: StepAgentExecutorOptions, workspaceDir?: string): string {
   return [
     '你是一名 MorPex step-agent，负责完成总大脑分配给你的一个执行步骤。',
     `【本步骤职责】${node.name}`,
@@ -86,8 +93,12 @@ function buildStepSystemPrompt(node: StepNodeInfo, opts: StepAgentExecutorOption
     '1. 知识优先：任何生成/创建前，先用 knowledge 工具查询知识库；查询有结果再行动。',
     '2. 使用工具完成动手工作：file 读写文件、shell 执行命令、api 调用接口、artifact 生成产物。',
     '3. artifact 工具负责把最终产物落盘（代码/文档/数据/报告），并报告产物路径与内容摘要。',
-    '4. 完成后输出：最终交付摘要（含产物路径、关键决策、遗留风险），格式精炼。',
-    '5. 若某工具不可用或失败，说明原因并尝试替代方案，不要假装成功。',
+    // 会话 12：沙箱工作目录——告诉 agent 产物应写到沙箱，不在仓库根
+    ...(workspaceDir
+      ? [`4. 【工作目录】你的沙箱工作目录是 ${workspaceDir}。所有文件/命令产物请写到该目录内（file 工具 write 用相对路径自动落入、shell 工具 cwd 已指向）。不要写到仓库根或其他目录。`]
+      : []),
+    '5. 完成后输出：最终交付摘要（含产物路径、关键决策、遗留风险），格式精炼。',
+    '6. 若某工具不可用或失败，说明原因并尝试替代方案，不要假装成功。',
     '',
     '输出格式要求：最后以 "## 交付摘要" 开头输出最终总结。',
   ].filter(Boolean).join('\n');
@@ -197,11 +208,24 @@ export class StepAgentExecutor {
       abort: () => Promise<void>;
     } | null = null;
     try {
+      // ═══ 会话 12：沙箱工作目录——每个 step 独立目录，file write / shell cwd 默认落此，防写仓库根 ═══
+      let workspaceDir: string | undefined;
+      const workspaceRoot = this.opts.workspaceRoot ?? 'data/agent-workspace';
+      try {
+        workspaceDir = path.join(workspaceRoot, sanitizeSessionId(node.id) || 'step');
+        fs.mkdirSync(workspaceDir, { recursive: true });
+      } catch (err) {
+        console.warn(`[StepAgentExecutor] ⚠️ 沙箱目录创建失败（降级无沙箱）: ${(err as Error).message}`);
+        workspaceDir = undefined;
+      }
+
       const tools = [
         ...createPrimitiveAgentTools({
           departmentId: this.opts.departmentId,
           // ⬅️ 会话 4（执行肢解锁）：Gate 凭证注入——step-agent 可执行破坏性操作（file write/shell build 等）
           gateContext: stepOpts?.gateContext ?? this.opts.gateContext,
+          // ⬅️ 会话 12：沙箱工作目录（file/shell 默认落此）
+          workspaceDir,
         }),
         ...(this.opts.extraTools ?? []),
       ];
@@ -210,7 +234,7 @@ export class StepAgentExecutor {
         identityToken: `step-agent:${node.id}`,
         ring: 0,
         tools,
-        systemPrompt: buildStepSystemPrompt(node, this.opts),
+        systemPrompt: buildStepSystemPrompt(node, this.opts, workspaceDir),
         domainId: this.opts.departmentId ?? 'general',
         // ⬅️ 会话 4：注入持久化会话（对话/工具调用自动落盘）
         session: stepSession?.session,

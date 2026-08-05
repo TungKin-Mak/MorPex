@@ -86,12 +86,13 @@ export class ShellExecutionPrimitive implements ActionPrimitive {
 
   async execute(
     params: Record<string, unknown>,
-    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage }
+    context?: { departmentId?: string; userId?: string; gateContext?: KnowledgeContextPackage; workspaceDir?: string }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
     const command = params.command as string;
     const args = params.args as string[] | undefined;
-    const cwd = params.cwd as string | undefined;
+    // ═══ 会话 12：沙箱工作目录——cwd 缺省时指向 workspaceDir，防命令在仓库根落产物 ═══
+    const cwd = (params.cwd as string | undefined) ?? context?.workspaceDir;
     const timeout = (params.timeout as number) || 30000;
 
     if (!command?.trim()) {

@@ -14,8 +14,10 @@
 import { Linter } from 'eslint';
 import {
   StructuralCorrectionRegistry,
+  DetectorRegistry,
   RuleRegistry,
   type StructuralCorrector,
+  type RuleDetector,
   type RuleEntity,
   type RuleViolation,
   type OntologyProposal,
@@ -77,13 +79,50 @@ const EsLintStructuralCorrector: StructuralCorrector = {
 };
 
 /**
- * registerSoftwareStructuralCorrector — 注册结构修正器 + eslint 规则（幂等，bootstrap 调用）
+ * EsLintDetector — eslint 检测器（ruleType='eslint'，会话 12 补全）
+ *
+ * 此前 eslint 规则（no-var 等）激活后因无检测器被 RuleEnforcementGuard 跳过（warn），
+ * TscStructuralCorrector 永远不触发——修正器是死代码。补本检测器：用 eslint Linter 对
+ * 生成代码做真实 lint，命中规则 → violation → 引擎走结构修正 → 修正器 verifyAndFix 闭环。
+ */
+const EsLintDetector: RuleDetector = {
+  type: 'eslint' as RuleEntity['ruleType'],
+  check(proposal: OntologyProposal, rule: RuleEntity): RuleViolation | null {
+    const payload = proposal.payload ?? proposal.proposal;
+    if (typeof payload !== 'string' || !payload) return null;
+
+    const cfg = ESLINT_RULE_CONFIGS[rule.id];
+    if (!cfg) return null; // 未知 eslint 规则 → 不误报
+
+    try {
+      const linter = new Linter();
+      const messages = linter.verify(payload, [{ languageOptions: { ecmaVersion: 2022 }, rules: cfg.rules } as never]);
+      if (messages.length === 0) return null;
+      const first = messages[0] as { message?: string; line?: number; column?: number };
+      return {
+        ruleId: rule.id,
+        severity: rule.severity,
+        matchedText: payload.slice(0, 120),
+        target: rule.target,
+        description: `${rule.description}——${first.message ?? '违规'}(line ${first.line ?? '?'})`,
+      };
+    } catch {
+      return null; // lint 失败不误报
+    }
+  },
+};
+
+/**
+ * registerSoftwareStructuralCorrector — 注册结构修正器 + eslint 检测器 + eslint 规则（幂等，bootstrap 调用）
  */
 export function registerSoftwareStructuralCorrector(): void {
   // 1. 注入结构修正器（同 type 覆盖，幂等）
   StructuralCorrectionRegistry.registerCorrector('eslint', EsLintStructuralCorrector);
 
-  // 2. 注册 eslint 规则（默认 pending：待人工确认生效，不跨域误伤）
+  // 2. 注入 eslint 检测器（会话 12：此前缺失 → 规则被跳过、修正器死代码）
+  DetectorRegistry.registerDetector('eslint', EsLintDetector);
+
+  // 3. 注册 eslint 规则（默认 pending：待人工确认生效，不跨域误伤）
   RuleRegistry.register(DOMAIN, {
     id: 'no-var',
     title: '禁止 var 声明',
@@ -98,5 +137,5 @@ export function registerSoftwareStructuralCorrector(): void {
     description: '生成的代码禁止使用 var（用 let/const）——eslint no-var 结构修正',
   });
 
-  console.log(`[Workflow:software] ✅ 结构修正器已注入（eslint）+ 规则 pending 待确认`);
+  console.log(`[Workflow:software] ✅ 结构修正器 + eslint 检测器已注入 + 规则 pending 待确认`);
 }
