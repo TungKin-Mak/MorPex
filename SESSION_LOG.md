@@ -735,3 +735,36 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 - **微信接入**（用户排除）
 - GLM 限流退避（回 gateway 模式时；当前 opencode 已规避）
 - step-agent 沙箱的 UI 清理/归档（agent-workspace 目录增长管理，后续）
+
+---
+
+## ═════════ 会话 12b：opencode 99 任务实测（API 限额中断，2026-08-05）═════════
+
+### 运行
+- 配置：opencode/deepseek-v4-flash-free（config 驱动，mode: builtin）
+- 命令：`npx tsx scripts/batch-run.ts --limit 99`（5 并发，不限时）
+- **两次运行**（电脑意外重启 + API 限额手动停止）：
+  - 第一次 run-100-opencode（重启前）：18/99 完成（17 成功 + 1 失败）
+  - 第二次 run-99-opencode-restart（API 限额停止）：67/99 完成（56 成功 + 11 失败）
+
+### 结果（合并有效样本 85 个）
+**成功 73/85（85.9%）｜ 失败 12**
+- 失败原因全部分析：**工具参数为空 11**（query 空 5 + url 空 4 + command 空 2）+ shell 白名单误拦截 1（LLM 把任务文本当命令，安全防护正确拦截）
+- **工具参数为空问题在 opencode 下仍存在**（思考模式间歇性，11/67 ≈ 16.4%，比 GLM 19/99 ≈ 19.2% 略低但不消除）
+
+### 关键对比（多模型）
+| 模型 | 成功率 | 工具空参 |
+|---|---|---|
+| GLM-4.7-Flash（99）| 77% | 19 次 |
+| opencode/deepseek-v4-flash-free（67+）| **~86%** | 11 次 |
+| 差异 | opencode 略高 | 空参频率略低但不消除 |
+
+### ✅ 沙箱隔离彻底生效（重要验证）
+- 工作树**零污染**（git status 干净）
+- step-agent 产物全部隔离在 `data/agent-workspace/`（13 个文件：报告/测试等）
+- 对比 GLM 批次污染仓库根（开发设计规划/XC8P9530_main.c）——**会话 12 沙箱根治**
+
+### 遗留（下一会话候选）
+1. **【P0】step-agent 工具空参问题**：opencode 思考模式间歇性空参（11 次）——primitiveAgentTools required 校验已返回精确重新调用指引，但 step-agent 未可靠重发。需：工具错误后 agent 循环重试策略加强（当前 correctiveRetries 只管空 content，不管工具错误后的重发）
+2. **API 限额**：opencode free 模型有配额，长跑需监控/分片
+3. 其余不变：微信接入（用户排除）、GLM 限流退避（回 gateway 时）、沙箱目录增长管理
