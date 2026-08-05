@@ -530,3 +530,45 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 2. **Session 治理前端/UI**（agent-sessions 读取 API 已就绪，UI 未做）
 3. **中文关键词风险分级增强**（defaultRiskGrader 英文-only，中文 goal 落 low）
 4. AST/tsc 修正器增强：`var x: number = "str"` 类类型错误当前不可机械修（依赖 LLM 重试）；完整 AST 重写（import 补全/类型推断）为后续
+
+---
+
+## ═════════ 会话 9：100 任务全量实测（2026-08-05，GLM-4.7-Flash）═════════
+
+### 运行配置
+- **LLM**：`config/morpex.yaml` → `enabled: true` + `provider: zhipu-glm` + `model: glm-4.7-flash`（原配置）
+- **apiKey**：`${GLM_API_KEY}` 经 Windows 用户级环境变量解析（49 字符，f53c2bbb…，yamlConfig User 级兜底）
+- **⚠️ 关键澄清**：`DEFAULT_MODEL='deepseek/deepseek-v4-flash'` 只是**回退默认**；构造器在 `llm.enabled=true` 时走网关分支（`zhipu-glm/glm-4.7-flash`），日志 `[PiBridge] ✅ 自定义 LLM 网关已配置: https://open.bigmodel.cn/api/paas/v4 (zhipu-glm/glm-4.7-flash)` 反复出现 = **确认用 GLM，非 deepseek**
+- **冒烟验证**：raw HTTP `glm-4.7-flash` 200 + PiBridge.generateText 正常返回（"你好，请问有什么我可以帮您的？" usage 383）；**GLM 思考模式默认开启**（reasoning_content），小 max_tokens 会被思考吃满 → 不设限（走 model 默认 128K）
+- 命令：`npx tsx scripts/batch-run.ts --timeout 300000 --retries 3 --delay 2000`（5 并发）
+- 日志：`data/batch-runs/run-100-glm-20260805-044513.log`；报告：`data/trace-reports/task-001..099.md`
+
+### 结果（99 任务，batch-tasks 实际导出 99）
+**成功 77/99（77.8%）｜ 失败 22 ｜ 限流 0 ｜ 总耗时 1501s（25 分钟）｜ 平均 1956 函数调用/任务 ｜ 自动审批 0**
+
+早段任务 2-8s 秒成功；后段 40-50s 且失败增多（知识库随 99 Mission 增长，Gate 查询变慢）。
+
+### 失败根因（22）
+1. **step-agent 工具调用参数为空（19/22，主因）**：KnowledgeQueryPrimitive query 空 9× / APICallPrimitive url 空 6× / ShellExecutionPrimitive command 空 4× → step-agent 返回空内容 → 降级 fallback。
+   - **探针证明 GLM 原始 tool_calls 参数完整**（`tool_calls:[{function:{arguments:"{\"query\":\"...\"}",name:"knowledge"}}]`）→ 是 **pi-agent-core ↔ GLM（思考模式）tool_call arguments 解析的集成问题**（间歇性），非 GLM 模型本身
+   - 与 session-4 f20fff3（AgentTool.execute 单参调用）**同族不同层**：这次在 pi-agent-core 解析 GLM tool_calls arguments 环节
+2. **3 次 300s 超时**（任务 26/57/93）——GLM 思考模式超长响应/无响应
+3. **xjmcu astrocli 连 MCU 硬件失败**（`RuntimeError: 未找到设备 VID=8235, PID=584B`）——测试环境无设备，预期场景
+
+### 其他发现
+- `ruleType='eslint' 检测器未注册，规则 no-var 跳过`——eslint 规则激活但**无检测器**（session-8 已有 AST 检测器 no-var-ast，eslint 规则冗余/需补 Detector 或移除）
+- `无法解析查询计划 JSON，执行默认安全查询`——GLM 思考模式影响 Gate 查询计划 JSON 提取（有兜底，但查询针对性下降）
+- **工作树污染**：step-agent 文件工具写到 CWD=仓库根（`开发设计规划/XC8P9530_main.c`，xjmcu 产物）——**Gate 凭证解锁破坏性操作后需工作目录治理（sandbox）**，已 git clean 清理
+- 任务集实际 99（batch-tasks.ts 99 条，非声明 100）
+- 平均 1956 函数调用/任务 = TraceRecorder 全量包装计数（含低层调用），指标口径偏大
+
+### 遗留事项（下一会话候选，按优先级）
+1. **【P0】pi-agent-core ↔ GLM 工具调用参数解析**：思考模式下 tool_call arguments 间歇性丢失（19/99 失败主因）。深挖 pi-agent-core 对 GLM reasoning_content + tool_calls 的解析；可能需关思考模式（thinking disabled）或升级/打补丁 pi-agent-core
+2. **【P1】step-agent 工作目录治理**：文件工具写 CWD=仓库根 → 注入 sandbox 工作目录（如 data/agent-workspace/<sessionId>/），防污染 + 隔离
+3. **【P1】GLM 思考模式响应治理**：Gate 查询计划 JSON 提取失败（有兜底但降低质量）+ 300s 超时 3 次 → 思考 token 预算/超时控制
+4. **【P2】eslint 规则清理**：no-var/prefer-const/no-unused-vars（ruleType='eslint'）激活后无检测器被跳过——补 eslint Detector 或移除（AST 检测器 no-var-ast 已覆盖 no-var）
+5. **【P2】xjmcu 硬件依赖**：astrocli 需真实 MCU——batch 需排除硬件任务或标记 expected-fail
+6. **【P2】config**：`enabled: true` 已提交（用户启用 GLM）；CI/测试默认仍建议 false（deepseek 稳定）——测试前注意切换
+
+### 门禁（批量前已全绿；批量后工作树仅 config 变更 + 已清理污染）
+✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ vitest 91 文件 803 通过（批量前基线）
