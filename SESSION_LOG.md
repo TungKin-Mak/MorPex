@@ -819,3 +819,28 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 1. 【P0】step-agent 工具空参根治（工具错误后 agent 循环强制重发/或 retry 层补全）
 2. 【P2】死代码清理或接线：executeViaDAG/Mission 路径、服务管理 API（治理面板）
 3. 其余：微信接入（排除）、API 限额长跑策略、沙箱目录归档
+
+---
+
+## ═════════ 会话 14：遗留 1+2 处理（commit 744f181）═════════
+
+### ① ✅ P0 工具空参根治（会话 13 审计：40/41 失败为工具空参）
+- **knowledge 空 query → 用 step goal 兜底**：`primitiveAgentTools` 加 `goal` 选项（StepAgentExecutor 传 this.opts.goal）；knowledge 工具 query 缺失时用 step 目标作查询内容（step 目标即要查的）——解决审计 12/40 失败
+- **buildMissingParamMessage 强化**：加工具专属正确调用示例 JSON（shell/api/file/artifact/knowledge）——shell/api 无法用 goal 兜底（安全），示例提高 opencode 重发成功率
+- 测试 +3（goal 兜底成功/无 goal 报错/错误消息含示例）
+- **门禁**：tsc 0 / 非 LLM 测试 70 文件 638 通过
+
+### ② ✅ 死代码审计结论（项 2）
+- `executeViaDAG` / `executeViaMission` **不是死代码**——受支持的显式 mode（`mode:'mission'/'dag'`）+ fallback（无 orchestrator 时），且有 production-pipeline 测试覆盖。生产主路径（默认 auto → orchestrator）不走它们，但保留
+- 各服务"未接线管理 API"（UnifiedExecutionEngine 22 个等）：多数为 bootstrap setter（追踪窗口外）或治理面板 API（无消费端）——**保守保留**，待治理面板接线（非本次）
+
+### ⚠️ API 限额状态（阻塞验证）
+- **opencode free 模型被 API 限额**（complete 返回空 content + usage 0，pi-ai 静默空返回）
+- full-closed-loop 3 场景因此失败（场景1 ok=false）——**非代码回归**（排除后 70 文件 638 全过）
+- 需等限额恢复才能验证 full-closed-loop 全绿
+- ⚠️ 内置 provider 限流也走 pi-ai 静默空（会话 10 RateLimitError 只覆盖自定义网关 onResponse 路径；内置 provider 的 complete 不暴露 onResponse）——后续可在 PiBridge 检测空结果+零 usage 兜底抛错
+
+### 遗留
+1. **API 限额恢复后验证** full-closed-loop + 重跑 batch 确认空参率下降
+2. 内置 provider 限流检测（空结果+零 usage → RateLimitError 兜底）
+3. 其余不变：微信接入（排除）、治理面板接线（管理 API 消费端）、沙箱目录归档
