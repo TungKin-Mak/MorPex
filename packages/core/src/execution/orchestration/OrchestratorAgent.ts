@@ -80,13 +80,18 @@ export interface OrchestratorOptions {
 
 export interface OrchestrationResult {
   success: boolean;
-  /** 最终交付物（LLM 汇总文本） */
+  /** 最终交付物（LLM 汇总文本）；部分失败时 = 基于成功步骤的降级交付物 */
   output?: unknown;
   iterations: number;
   stepsExecuted: number;
   auditLog: Array<{ iteration: number; pass: boolean; issues: string[]; reasoning: string }>;
   /** 各步骤原始成果（nodeName → output） */
   stepResults: Map<string, unknown>;
+  /**
+   * 会话 15 P1-② 部分成功 salvage：硬失败步骤报告（step → 原因）。
+   * 存在时 success=false，但 output 仍为基于成功步骤的降级交付物（显式，非静默）。
+   */
+  failureReport?: Array<{ step: string; error: string }>;
   /** 会话 4：各步骤持久化会话路径（stepName → sessionPath；跨会话讨论锚点） */
   stepSessions: Map<string, string>;
   /** 会话 4：总大脑会话 ID/路径 */
@@ -268,6 +273,8 @@ export class OrchestratorAgent {
     let stepsExecuted = 0;
 
     // ── ② 执行 + 审计迭代 ──
+    // ═══ 会话 15 P1-②：跨轮累积硬失败（供最终 salvage 报告）═══
+    const stepFailures = new Map<string, string>();
     while (iterations < maxIterations) {
       iterations++;
 
@@ -275,6 +282,7 @@ export class OrchestratorAgent {
       const round = await this.executeSteps(goal, steps, opts.departmentId, gateContext);
       for (const [k, v] of round.results) stepResults.set(k, v);
       for (const [k, v] of round.sessions) stepSessions.set(k, v);
+      for (const [k, v] of round.failures) stepFailures.set(k, v);
       stepsExecuted += round.results.size;
 
       // 审计（LLM 失败/JSON 非法 → 抛错，绝不静默 pass）
@@ -315,8 +323,45 @@ export class OrchestratorAgent {
       steps = audit.supplementaryTasks; // fail → 补充任务再分发
     }
 
-    // ── ③ 汇总：LLM 生成最终交付物（失败 → 抛错，fail loud）──
+    // ── ③ 汇总 ──
     const resultsText = this.formatResults(stepResults);
+
+    // ═══ 会话 15 P1-② 部分成功 salvage ═══
+    // 存在硬失败步骤：显式 success=false + 基于成功步骤的降级交付物 + 失败原因报告。
+    // （非静默——调用方看到 ok=false 与失败明细，而非伪装成功的降级输出）
+    if (stepFailures.size > 0) {
+      let partialOutput: unknown;
+      try {
+        const synth = await this.llm.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
+        this.opts.onTokenUsage?.(tokenCount(synth));
+        partialOutput = synth?.text?.trim() ?? resultsText;
+      } catch {
+        partialOutput = resultsText;
+      }
+      if (orchSession && this.opts.sessionStore) {
+        await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.synthesis', {
+          outputPreview: previewText(partialOutput),
+          partial: true,
+        });
+      }
+      const failureReport = [...stepFailures.entries()].map(([step, error]) => ({ step, error }));
+      return {
+        success: false,
+        output: partialOutput,
+        iterations,
+        stepsExecuted,
+        auditLog,
+        stepResults,
+        stepSessions,
+        failureReport,
+        sessionId: orchSession?.sessionId,
+        sessionPath: orchSession?.path,
+        error: `部分步骤失败（${failureReport.length}）：${failureReport[0].error}`,
+        duration: Date.now() - start,
+      };
+    }
+
+    // 正常路径：LLM 生成最终交付物（失败 → 抛错，fail loud）
     const synthRes = await this.llm.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(synthRes));
     const finalOutput = synthRes?.text?.trim() ?? '';
@@ -352,9 +397,10 @@ export class OrchestratorAgent {
     steps: OrchestratorStep[],
     departmentId?: string,
     gateContext?: KnowledgeContextPackage | null,
-  ): Promise<{ results: Map<string, unknown>; sessions: Map<string, string> }> {
+  ): Promise<{ results: Map<string, unknown>; sessions: Map<string, string>; failures: Map<string, string> }> {
     const results = new Map<string, unknown>();
     const sessions = new Map<string, string>();
+    const failures = new Map<string, string>();
 
     // 会话 4：预创建本步骤会话（parentSessionPath = 第一个依赖步骤的会话路径）
     const ensureStepSession = async (step: OrchestratorStep): Promise<{ session?: unknown; sessionPath?: string }> => {
@@ -373,7 +419,7 @@ export class OrchestratorAgent {
     };
 
     // 复杂任务：DAG 工具分发（nodeHandler 已接 step-agent + 上游成果注入）
-    // ═══ 会话 15（去兜底化）：DAG 失败直接上抛（移除逐节点直跑静默降级，fail loud）═══
+    // ═══ 会话 15 P1-②：DAG 失败节点不抛错——收集进 failures（仍合并成功节点成果），run 返回显式部分成果 ═══
     if (this.opts.dagRuntime && steps.length > 1) {
       // 会话 4：预创建所有 step 会话（parentSessionPath 按依赖链），经 ctx 传给 nodeHandler
       const handles = new Map<string, { session: unknown; sessionPath: string }>();
@@ -386,11 +432,11 @@ export class OrchestratorAgent {
         steps.map(s => ({ name: s.name, description: s.description, deps: s.deps })),
         { goal, departmentId, stepSessions: handles, gateContext: gateContext ?? undefined },
       );
-      // 失败节点 → 抛错（fail loud，不把失败步骤伪装进成果）
+      // 失败节点 → 收集进 failures（不伪装，不阻断成功节点成果）
       const dagMeta = dagResult as unknown as { success?: boolean; failedNodes?: number; errors?: Array<{ error?: string }> };
       if (dagMeta.success === false || (typeof dagMeta.failedNodes === 'number' && dagMeta.failedNodes > 0)) {
         const errText = dagMeta.errors?.[0]?.error ?? `${dagMeta.failedNodes} 个节点失败`;
-        throw new Error(`[OrchestratorAgent] DAG 执行存在失败节点: ${errText}`);
+        failures.set('__dag__', errText);
       }
       // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
       const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
@@ -405,10 +451,10 @@ export class OrchestratorAgent {
           results.set(step?.id ?? nodeId, out);
         }
       }
-      return { results, sessions };
+      return { results, sessions, failures };
     }
 
-    // 简单任务：单 step-agent 直跑（会话 3：简单任务不走 DAG；步骤失败 → 抛错）
+    // 简单任务：单 step-agent 直跑（会话 3：简单任务不走 DAG；步骤失败 → 收集进 failures）
     if (steps.length === 1 && this.opts.stepExecutor) {
       const step = steps[0];
       const sess = await ensureStepSession(step);
@@ -417,9 +463,13 @@ export class OrchestratorAgent {
         new Map<string, unknown>(),
         { session: sess.session, sessionPath: sess.sessionPath, upstreamSessions: new Map(), gateContext: gateContext ?? undefined },
       );
-      if (!r.success) throw new Error(`[OrchestratorAgent] 步骤「${step.name}」执行失败: ${r.error}`);
-      results.set(step.name, r.output);
-      return { results, sessions };
+      if (!r.success) {
+        failures.set(step.name, r.error ?? '未知错误');
+        results.set(step.name, { error: r.error });
+      } else {
+        results.set(step.name, r.output);
+      }
+      return { results, sessions, failures };
     }
 
     throw new Error('[OrchestratorAgent] 编排失败：复杂任务无 DAG 工具（dagRuntime 未注入）');

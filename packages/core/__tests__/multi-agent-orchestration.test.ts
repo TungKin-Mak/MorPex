@@ -202,7 +202,7 @@ describe('StepAgentExecutor — step-agent 执行器', () => {
     );
     expect(res.success).toBe(false);
     expect(res.mode).toBe('agent');
-    expect(res.error).toContain('空内容');
+    expect(res.error).toContain('未产出有效结果');
   });
 
   it('extractText 从 content 提取文本', () => {

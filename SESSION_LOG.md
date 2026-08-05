@@ -951,3 +951,32 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 2. **内置 provider 限流检测**（空结果 + 零 usage → RateLimitError 兜底抛错，不再静默空返回）——会话 14/15 遗留，本次探针再次确认未做
 3. 会话 15 清单 P1（salvage 部分成功 / 经验闭环触发条件）、P2（上下文装配效率 / 规划动态性）、P3（监控）未做
 4. Session 化治理 UI、微信接入（用户排除）、沙箱目录归档管理
+
+---
+
+## ═════════ 会话 16b：P1 失败降级与任务级恢复（2026-08-06，用户 "3" = 会话 15 清单 P1）═════════
+
+### 交付（承接会话 16 去兜底化，显式失败语义保持一致）
+1. **P1-① 步骤级重试精细化**（`StepAgentExecutor`）：
+   - 新增输出分类 `classifyStepOutput` / `classifyStepError`：`retryable`（空内容 / 工具失败标记 `[primitive:... failed]`/缺失参数/Validation failed）/ `non-retryable`（Gate 安全拦截 `GateContextRequiredError`/需要 Gate 凭证/安全拦截）/ `none`
+   - **安全拦截 → 立即失败不重试**（重试仍会被 Gate 硬拦）；工具失败标记 → 带纠正指令重试，指令为**【必须重新调用工具填全参数】**（不给"直接输出摘要"逃生口——那正是空参空转的放弃路径）
+   - 空内容 → 保留原纠正指令（信息已足够可直出摘要）
+2. **P1-② 部分成功 salvage**（`OrchestratorAgent`）：
+   - `executeSteps` 收集失败进 `failures`（不再抛错）；DAG 失败节点 → 收集 `__dag__` + 仍合并成功节点成果
+   - `run()` 跨轮累积 `stepFailures`；存在硬失败 → **显式** `success:false` + `failureReport`（step+原因）+ `partialOutput`（基于成功步骤的 LLM 汇总，失败回退原始成果）+ `orchestration.synthesis` 条目标 `partial:true`
+   - 语义：**非静默**——调用方看到 ok=false 与失败明细，而非伪装成功的降级输出（与 16② fail-loud 一致，只是不丢弃上游好成果）
+3. **P1-③ 步骤级质量信号**：`StepAgentResult` 增 `retries`/`errorClass`，写入 step-result 会话条目（供经验/评价消费）
+
+### 新增测试
+- `step-agent-retry-classification.test.ts` **7 用例**（分类纯函数 + 工具失败重试强制重发 / 安全拦截不重试 / 重试耗尽 errorClass=retryable）
+- `orchestrator-salvage.test.ts` **5 用例**（单步失败→failureReport+降级交付物 / DAG 混合失败→成功节点保留 / 全成功→无 failureReport）
+- 更新 step-agent-corrective / multi-agent 错误消息断言（"空内容"→"未产出有效结果"）
+
+### 门禁（全部亲测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0（610 模块 1206 依赖）｜ ✅ production-check 8/8 ｜ ✅ core vitest **73 文件 / 656 通过 + 5 skipped**（仅 full-closed-loop 3 个 = opencode API 限额，非回归）
+
+### 遗留（下一会话候选）
+1. **opencode API 限额恢复后**：重跑 batch 实测空参率（P0 beforeToolCall + P1 强制重发预期 79.4% → 90%+）
+2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
+3. P1 剩余：任务级自动重跑（EventStore 失败快照 + 经验提示词）、经验沉淀触发条件（PatternExtractor 仅成功/失败二态 → 步骤级信号接入）、进化提案落地通道
+4. P2（上下文装配效率 / 规划动态性）、P3（监控/仪表盘）未做

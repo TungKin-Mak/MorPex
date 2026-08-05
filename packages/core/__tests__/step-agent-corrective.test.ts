@@ -71,7 +71,7 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
 
     expect(res.success).toBe(false);
     expect(res.mode).toBe('agent');
-    expect(res.error).toContain('空内容');
+    expect(res.error).toContain('未产出有效结果');
   });
 
   it('correctiveRetries=0 → 不重试直接失败', async () => {
@@ -87,7 +87,7 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
 
     expect(res.success).toBe(false);
     expect(res.mode).toBe('agent');
-    expect(res.error).toContain('空内容');
+    expect(res.error).toContain('未产出有效结果');
   });
 
   it('首次即有文本 → 不触发纠正重试（正常路径）', async () => {

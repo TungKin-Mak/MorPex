@@ -33,6 +33,56 @@ export interface StepNodeInfo {
   agentType: string;
 }
 
+/**
+ * 步骤输出错误分类（会话 15 P1-① 步骤级重试精细化）
+ * - 'retryable'：空内容 / 工具调用失败（缺失参数/校验失败/放弃工具）——LLM 重新调用工具即可恢复
+ * - 'non-retryable'：安全/权限拦截（Gate 凭证缺失等）——重试仍会被硬拦，立即失败
+ * - 'none'：正常输出
+ */
+export type StepErrorClass = 'retryable' | 'non-retryable' | 'none';
+
+/** 输出携带工具失败/放弃工具标记（可重试） */
+function isToolFailureOutput(text: string): boolean {
+  return (
+    /\[primitive:[\w]+ failed\]/.test(text) ||
+    /缺失必需参数|参数不完整|请【重新调用】/.test(text) ||
+    /validation failed for tool/i.test(text) ||
+    /工具 .* 调用参数不完整/i.test(text)
+  );
+}
+
+/** 输出携带安全/权限拦截标记（不可重试） */
+function isSafetyBlockedOutput(text: string): boolean {
+  return (
+    /GateContextRequiredError/.test(text) ||
+    /需要 Gate 凭证|缺少知识凭证/.test(text) ||
+    /安全拦截|权限不足|被 Gate 硬拦/.test(text)
+  );
+}
+
+/** 分类步骤输出/错误（供重试决策 + 步骤级质量信号） */
+export function classifyStepOutput(text: string): StepErrorClass {
+  if (isSafetyBlockedOutput(text)) return 'non-retryable';
+  if (!text.trim() || isToolFailureOutput(text)) return 'retryable';
+  return 'none';
+}
+
+/**
+ * 分类步骤错误消息（异常路径）：
+ * - Gate 安全拦截 → 'non-retryable'（重试仍会被硬拦）
+ * - 超时/空结果/工具失败 → 'retryable'（瞬态/可恢复）
+ */
+export function classifyStepError(msg: string): StepErrorClass {
+  if (
+    /GateContextRequiredError/.test(msg) ||
+    /需要 Gate 凭证|缺少知识凭证/.test(msg) ||
+    /安全拦截|权限不足|被 Gate 硬拦/.test(msg)
+  ) {
+    return 'non-retryable';
+  }
+  return 'retryable';
+}
+
 export interface StepAgentExecutorOptions {
   /** 部门 ID（原语隔离 + 知识路由） */
   departmentId?: string;
@@ -69,6 +119,15 @@ export interface StepAgentResult {
   output?: unknown;
   error?: string;
   duration: number;
+  /**
+   * 会话 15 P1-③ 步骤级质量信号：纠正性重试次数（0 = 一次通过）
+   */
+  retries?: number;
+  /**
+   * 会话 15 P1-③ 步骤级质量信号：最终结果错误分类
+   * （'none' = 正常；'retryable' = 空参/工具失败；'non-retryable' = 安全拦截）
+   */
+  errorClass?: StepErrorClass;
   /** 会话 4：本步骤持久化会话 ID/路径（sessionStore 启用时存在；跨会话引用锚点） */
   sessionId?: string;
   sessionPath?: string;
@@ -158,6 +217,8 @@ export class StepAgentExecutor {
   ): Promise<StepAgentResult> {
     const start = Date.now();
     const upstreamText = formatUpstreamResults(upstreamResults) + formatUpstreamSessionRefs(stepOpts?.upstreamSessions);
+    // ⬅️ 会话 15 P1-③ 步骤级质量信号：纠正性重试计数（try/catch 共享）
+    let retriesUsed = 0;
 
     // ═══ 会话 4（Session 化）：创建/复用本步骤持久化会话 ═══
     let stepSession: AgentSessionHandle | null = null;
@@ -244,29 +305,43 @@ export class StepAgentExecutor {
       const raw = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs);
       let text = extractText(raw.content);
 
-      // ═══ 会话 9：空内容纠正性重试（保留思考模式）═══
-      // GLM 思考模式：工具错误后下一轮常只输出 reasoning_content、content 为空 → extractText 判空。
-      // 不直接降级：带纠正指令重试（agent session 上下文仍在，含失败的工具调用与错误反馈），
-      // 让模型重新调用工具（补全参数）或直接产出交付摘要；重试仍空才降级。
-      if (!text.trim() && (this.opts.correctiveRetries ?? 1) > 0) {
+      // ═══ 会话 9 + 会话 15 P1-①：纠正性重试（分类精细化）═══
+      // 首轮输出分类：
+      //   - 'non-retryable'（安全/权限拦截）→ 立即失败，不重试（重试仍会被 Gate 硬拦）
+      //   - 'retryable'（空内容 / 工具调用失败标记）→ 带纠正指令重试：
+      //        工具失败 → 【必须重新调用工具填全参数】（不给"直接输出摘要"逃生口——那正是空参空转的放弃路径）
+      //        空内容   → 保持原纠正指令（信息已足够可直出摘要）
+      const firstClass = classifyStepOutput(text);
+      if (firstClass === 'non-retryable') {
+        throw new Error(`[StepAgentExecutor] 步骤被安全拦截（不可重试）: ${text.slice(0, 200)}`);
+      }
+      if (firstClass === 'retryable' && (this.opts.correctiveRetries ?? 1) > 0) {
         const retries = this.opts.correctiveRetries ?? 1;
         for (let attempt = 1; attempt <= retries; attempt++) {
-          const correctiveInput = [
-            '你的上一步执行没有产出可见文本（可能工具调用参数不完整，或只进行了思考未输出）。',
-            '请【直接输出交付摘要】完成本步骤：',
-            `- 若需要知识/文件/接口数据：重新调用对应工具并提供【完整必需参数】（如 knowledge 需 query、shell 需 command、api 需 url+method）。`,
-            `- 若信息已足够：直接以 "## 交付摘要" 开头输出最终总结（含产物路径、关键决策、遗留风险）。`,
-            '注意：最终输出必须是可见文本（不要只思考），格式精炼。',
-          ].join('\n');
-          console.warn(`[StepAgentExecutor] ⚠️ Agent 返回空内容，纠正性重试 ${attempt}/${retries}…`);
+          retriesUsed = attempt;
+          const correctiveInput = text.trim()
+            ? [
+                '你的上一步工具调用失败或参数不完整（见上述错误反馈）。',
+                '你必须【重新调用】对应工具并填全所有必需参数，一次调用填全，不要省略、不要留空、不要改为输出文字：',
+                '- knowledge 需 query、shell 需 command、api 需 url+method、file 需 operation+path、artifact 需 type+specification。',
+                '工具成功返回后再以 "## 交付摘要" 开头输出最终总结（含产物路径、关键决策、遗留风险）。',
+              ].join('\n')
+            : [
+                '你的上一步执行没有产出可见文本（可能工具调用参数不完整，或只进行了思考未输出）。',
+                '请【直接输出交付摘要】完成本步骤：',
+                `- 若需要知识/文件/接口数据：重新调用对应工具并提供【完整必需参数】（如 knowledge 需 query、shell 需 command、api 需 url+method）。`,
+                `- 若信息已足够：直接以 "## 交付摘要" 开头输出最终总结（含产物路径、关键决策、遗留风险）。`,
+                '注意：最终输出必须是可见文本（不要只思考），格式精炼。',
+              ].join('\n');
+          console.warn(`[StepAgentExecutor] ⚠️ Agent 输出需纠正（class=${firstClass}），纠正性重试 ${attempt}/${retries}…`);
           const retryRaw = await this.withTimeout(agent.prompt(correctiveInput), this.opts.timeoutMs);
           text = extractText(retryRaw.content);
-          if (text.trim()) break;
+          if (text.trim() && classifyStepOutput(text) === 'none') break;
         }
       }
 
-      if (!text.trim()) {
-        throw new Error('[StepAgentExecutor] Agent 返回空内容');
+      if (!text.trim() || classifyStepOutput(text) !== 'none') {
+        throw new Error(`[StepAgentExecutor] Agent 未产出有效结果（class=${classifyStepOutput(text)}）`);
       }
 
       const res: StepAgentResult = {
@@ -274,6 +349,9 @@ export class StepAgentExecutor {
         mode: 'agent',
         output: { text: text.trim(), nodeId: node.id, agentType: node.agentType },
         duration: Date.now() - start,
+        // ⬅️ 会话 15 P1-③ 步骤级质量信号
+        retries: retriesUsed,
+        errorClass: 'none',
       };
       await this.recordStepResult(stepSession, node, res);
       return this.withSessionMeta(res, stepSession);
@@ -289,13 +367,16 @@ export class StepAgentExecutor {
         mode: 'agent',
         error: msg,
         duration: Date.now() - start,
+        // ⬅️ 会话 15 P1-③ 步骤级质量信号：错误分类（安全拦截=non-retryable；超时/工具失败=retryable）
+        retries: retriesUsed,
+        errorClass: classifyStepError(msg),
       };
       await this.recordStepResult(stepSession, node, res, msg);
       return this.withSessionMeta(res, stepSession);
     }
   }
 
-  /** 记录本步骤会话条目（step-result；失败原因一并记录） */
+  /** 记录本步骤会话条目（step-result；失败原因与质量信号一并记录） */
   private async recordStepResult(
     stepSession: AgentSessionHandle | null,
     node: StepNodeInfo,
@@ -310,6 +391,9 @@ export class StepAgentExecutor {
       success: res.success,
       mode: res.mode,
       duration: res.duration,
+      // ⬅️ 会话 15 P1-③ 步骤级质量信号：重试次数 + 错误分类（供经验/评价消费）
+      retries: res.retries ?? 0,
+      errorClass: res.errorClass ?? (res.success ? 'none' : 'retryable'),
       error: res.error ?? agentError ?? undefined,
       outputPreview: previewText(res.output),
     });
