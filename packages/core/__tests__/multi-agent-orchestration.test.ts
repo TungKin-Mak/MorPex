@@ -66,6 +66,47 @@ describe('primitiveAgentTools — 原语 → AgentTool 桥', () => {
     expect(tools.map(t => t.name)).not.toContain('api');
   });
 
+  it('必填参数校验（会话 9）：空参不传原语 → 精确重新调用指引（self-healing）', async () => {
+    // 覆盖 knowledge_query 为带 required 的原语，跟踪 execute 是否被调用
+    let primitiveCalled = false;
+    const requiredPrimitive: ActionPrimitive = {
+      name: 'knowledge_query',
+      description: '查询知识（必填 query）',
+      inputSchema: { type: 'object', properties: { query: { type: 'string', description: '自然语言查询' } }, required: ['query'] },
+      canHandle: () => 0,
+      execute: async (params) => { primitiveCalled = true; return { success: true, data: { called: true, params } }; },
+    };
+    (DomainPrimitiveRegistry as unknown as { primitives: Map<string, unknown> }).primitives.set('knowledge_query', {
+      primitive: requiredPrimitive,
+      registeredAt: Date.now(),
+    });
+
+    const tools = createPrimitiveAgentTools({ departmentId: 'software' });
+    const knowledgeTool = tools.find(t => t.name === 'knowledge')!;
+
+    // 空参调用 → 校验拦截，不调原语，返回可执行指引
+    const empty = await knowledgeTool.execute('tc_1', {});
+    expect(empty.isError).toBe(true);
+    expect(primitiveCalled).toBe(false);
+    expect(empty.content[0].text).toContain('缺失必需参数 "query"');
+    expect(empty.content[0].text).toContain('重新调用');
+
+    // 完整参数 → 正常执行
+    const ok = await knowledgeTool.execute('tc_1', { query: '架构文档' });
+    expect(ok.isError).toBe(false);
+    expect(primitiveCalled).toBe(true);
+  });
+
+  it('validateRequiredParams：空字符串/undefined/空数组均判缺失；无 required 不拦截', async () => {
+    const { validateRequiredParams } = await import('../src/infrastructure/tools/primitiveAgentTools.js');
+    const schema = { type: 'object', required: ['query'], properties: { query: { type: 'string' } } };
+    expect(validateRequiredParams({}, schema)).toHaveLength(1);
+    expect(validateRequiredParams({ query: '' }, schema)).toHaveLength(1);
+    expect(validateRequiredParams({ query: '  ' }, schema)).toHaveLength(1);
+    expect(validateRequiredParams({ query: 'x' }, schema)).toHaveLength(0);
+    expect(validateRequiredParams({}, { type: 'object', properties: {} })).toHaveLength(0); // 无 required
+  });
+
   it('mapToolForAgent 保留工具调用参数（会话 4 审查修复：防参数丢弃回归）', async () => {
     const tools = createPrimitiveAgentTools({ departmentId: 'software' });
     const knowledgeTool = tools.find(t => t.name === 'knowledge')!;

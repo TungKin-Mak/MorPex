@@ -137,14 +137,14 @@ describe('PiBridge 网关配置', () => {
     rmSync(dir, { recursive: true, force: true });
   });
 
-  it('PiBridge 无配置时 defaultModel 保持默认（deepseek）', () => {
-    // 在无 config/morpex.yaml 的临时目录构造 → 无网关 → 保持 deepseek 默认
+  it('PiBridge 无配置时 defaultModel 保持默认（GLM-4.7-Flash）', () => {
+    // 在无 config/morpex.yaml 的临时目录构造 → 无网关 → 保持 GLM 默认（会话 10 移除 deepseek）
     const dir = mkdtempSync(join(tmpdir(), 'morpex-nocfg-'));
     const oldCwd = process.cwd();
     try {
       process.chdir(dir);
       const bridge = new PiBridge();
-      expect(bridge.defaultModel).toBe('deepseek/deepseek-v4-flash');
+      expect(bridge.defaultModel).toBe('zhipu-glm/glm-4.7-flash');
     } finally {
       process.chdir(oldCwd);
       rmSync(dir, { recursive: true, force: true });

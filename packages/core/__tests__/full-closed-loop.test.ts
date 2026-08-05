@@ -12,7 +12,7 @@
  *     → 只走 EventBus（内存历史，container.eventBus.getHistory()）
  *   - context.snapshot / mission.* / artifact.created → 持久化在 EventStore（container.eventStore.query）
  *
- * ⚠️ 真实 LLM（deepseek，config/morpex.yaml enabled:false）；运行较慢（每场景 30-90s）。
+ * ⚠️ 真实 LLM（GLM-4.7-Flash，config/morpex.yaml enabled:true）；运行较慢（每场景 30-90s）。
  */
 import { describe, it, expect, beforeAll } from 'vitest';
 import { bootstrapUnified } from '../src/bootstrap-unified.js';
@@ -104,7 +104,8 @@ describe('full-closed-loop：用户输入 → 交付物全链路', () => {
     expect(recalled).not.toBeNull();
     expect(recalled!.missionId).toBe(result.missionId);
     expect(recalled!.taskRef).toBe(result.missionId);
-  }, 180_000);
+    // ⚠️ 会话 10（GLM-only）：思考模式下单场景实测 ~167s，180s 过紧（限流/波动易超）→ 300s
+  }, 300_000);
 
   it('【场景2 失败任务】错误处理 + 演化提案', async () => {
     // 构造确定失败：不存在的部门 → 路由层失败（错误路径）
