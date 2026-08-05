@@ -20,7 +20,7 @@ function makeBridge(status: number | null) {
   const bridge = new PiBridge();
   // 直接替换内部 models（绕过 init/网关——测试不调真实 LLM）
   (bridge as unknown as { models: unknown }).models = {
-    getModel: () => ({ id: 'glm-4.7-flash', provider: 'zhipu-glm' }),
+    getModel: () => ({ id: 'deepseek-v4-flash-free', provider: 'opencode' }),
     complete: async (_model: unknown, _ctx: unknown, opts?: Record<string, unknown>) => {
       const onResponse = opts?.onResponse as ((resp: { status?: number }) => void) | undefined;
       if (onResponse && status !== null) onResponse({ status });

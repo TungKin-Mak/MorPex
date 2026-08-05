@@ -24,7 +24,9 @@ async function main(): Promise<void> {
     return;
   }
   const llm = cfg.llm;
+  const mode = llm.mode ?? 'builtin';
   console.log(`【1】配置解析`);
+  console.log(`    mode     = ${mode}（builtin=内置 provider / gateway=自定义网关）`);
   console.log(`    enabled  = ${llm.enabled}`);
   console.log(`    provider = ${llm.provider ?? '(未填)'}`);
   console.log(`    baseUrl  = ${llm.baseUrl ?? '(未填)'}`);
@@ -36,10 +38,6 @@ async function main(): Promise<void> {
   console.log(`\n【2】apiKey 解析状态`);
   if (key) {
     console.log(`    ✅ 已解析（长度=${key.length}，前缀=${key.slice(0, 8)}…）`);
-    // 会话 10：GLM 网关（智谱）——无 g2a_ 前缀要求；仅提示智谱 key 格式
-    if (!key.startsWith('f53c2b')) {
-      console.log(`    ℹ️ 前缀非智谱示例 f53c2b…（GLM 网关 key 无固定前缀要求，仅提示）`);
-    }
   } else {
     console.log(`    ❌ 未解析到（${llm.apiKey === '' ? '配置里 ${VAR} 引用的环境变量未找到' : '未配置'}）`);
   }
@@ -47,42 +45,59 @@ async function main(): Promise<void> {
   // 3. enabled 状态
   console.log(`\n【3】启用状态`);
   if (!llm.enabled) {
-    console.log(`    ⚠️ enabled=false —— 使用内置默认（GLM-4.7-Flash，读 GLM_API_KEY）`);
-    console.log(`    （当前仅 GLM-4.7-Flash；enabled=false 走内置默认模型）`);
+    console.log(`    ⚠️ enabled=false —— LLM 未启用`);
     return;
   }
 
-  // 4. 网关可达性 + 模型名
-  console.log(`\n【4】网关可达性（${llm.baseUrl}）`);
-  if (!key) {
-    console.log(`    ❌ apiKey 为空，跳过网关测试`);
-    return;
-  }
-  try {
-    const res = await fetch(`${llm.baseUrl}/models`, {
-      headers: { Authorization: `Bearer ${key}` },
-      signal: AbortSignal.timeout(8000),
-    });
-    if (res.ok) {
-      console.log(`    ✅ 网关可达（HTTP ${res.status}）`);
-      try {
-        const body = (await res.json()) as { data?: Array<{ id: string }> };
-        const ids = (body.data ?? []).map((m) => m.id);
-        console.log(`    网关模型列表（${ids.length} 个）: ${ids.join(', ')}`);
-        if (llm.model) {
-          const ok = ids.includes(llm.model);
-          console.log(`    配置模型 "${llm.model}" 是否在列表: ${ok ? '✅ 有效' : '❌ 不在列表——调用会失败，请改为列表中的模型名'}`);
-        }
-      } catch {
-        console.log(`    （响应非标准 JSON，已可达）`);
+  // 4. 模型有效性：builtin → pi-ai 内置注册表验证；gateway → HTTP /models 验证
+  console.log(`\n【4】模型有效性（${mode} 模式）`);
+  if (mode === 'builtin') {
+    try {
+      const { PiBridge } = await import('../packages/core/src/infrastructure/adapters/index.js');
+      const bridge = new PiBridge();
+      await bridge.init();
+      const models = (bridge as unknown as { models: { getModel(p: string, id: string): unknown } }).models;
+      const found = models.getModel(llm.provider ?? '', llm.model ?? '');
+      console.log(`    内置 provider "${llm.provider}" 模型 "${llm.model}": ${found ? '✅ 在注册表' : '❌ 不在注册表——请检查 provider/model'}`);
+      if (found) {
+        const f = found as { contextWindow?: number; maxTokens?: number };
+        console.log(`    contextWindow=${f.contextWindow} maxTokens=${f.maxTokens}`);
       }
-    } else {
-      const text = await res.text();
-      console.log(`    ❌ 网关返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
-      console.log(`      （invalid_api_key → apiKey 无效，请确认 config 里 ${'${GROK2API_API_KEY}'} 指向的密钥是否正确）`);
+    } catch (err) {
+      console.log(`    ❌ 内置模型验证失败: ${(err as Error).message}`);
     }
-  } catch (err) {
-    console.log(`    ❌ 网关不可达: ${(err as Error).message}`);
+  } else {
+    // gateway 模式：HTTP /models 验证
+    console.log(`\n【4】网关可达性（${llm.baseUrl}）`);
+    if (!key) {
+      console.log(`    ❌ apiKey 为空，跳过网关测试`);
+      return;
+    }
+    try {
+      const res = await fetch(`${llm.baseUrl}/models`, {
+        headers: { Authorization: `Bearer ${key}` },
+        signal: AbortSignal.timeout(8000),
+      });
+      if (res.ok) {
+        console.log(`    ✅ 网关可达（HTTP ${res.status}）`);
+        try {
+          const body = (await res.json()) as { data?: Array<{ id: string }> };
+          const ids = (body.data ?? []).map((m) => m.id);
+          console.log(`    网关模型列表（${ids.length} 个）: ${ids.join(', ')}`);
+          if (llm.model) {
+            const ok = ids.includes(llm.model);
+            console.log(`    配置模型 "${llm.model}" 是否在列表: ${ok ? '✅ 有效' : '❌ 不在列表——调用会失败，请改为列表中的模型名'}`);
+          }
+        } catch {
+          console.log(`    （响应非标准 JSON，已可达）`);
+        }
+      } else {
+        const text = await res.text();
+        console.log(`    ❌ 网关返回 HTTP ${res.status}: ${text.slice(0, 200)}`);
+      }
+    } catch (err) {
+      console.log(`    ❌ 网关不可达: ${(err as Error).message}`);
+    }
   }
 }
 

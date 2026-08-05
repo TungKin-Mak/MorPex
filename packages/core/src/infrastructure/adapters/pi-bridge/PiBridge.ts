@@ -12,10 +12,10 @@
 
 /** 默认 LLM 模型标识，所有模块统一引用此常量 */
 /**
- * DEFAULT_MODEL — 默认模型（会话 10：移除 deepseek，仅 GLM-4.7-Flash）
- * 当 config/morpex.yaml 未启用网关 / 未配置 model 时的回退默认。
+ * DEFAULT_MODEL — 默认模型兜底（会话 11：config 为唯一来源，此常量仅当 config 缺失/未配置时兜底）
+ * 实际模型由 config/morpex.yaml 的 llm.provider + llm.model 驱动。
  */
-export const DEFAULT_MODEL = 'zhipu-glm/glm-4.7-flash';
+export const DEFAULT_MODEL = 'opencode/deepseek-v4-flash-free';
 
 /**
  * RateLimitError — LLM 网关限流/过载错误（会话 10 新增）
@@ -30,6 +30,23 @@ export class RateLimitError extends Error {
     this.name = 'RateLimitError';
     this.code = code;
   }
+}
+
+/**
+ * resolveDefaultModel — 从 config/morpex.yaml 解析默认模型（会话 11：抽离硬编码，config 为唯一来源）
+ *
+ * 返回 `${provider}/${model}`（如 'opencode/deepseek-v4-flash-free'）；
+ * config 未配置 llm 或缺 provider/model → 回退 DEFAULT_MODEL 兜底。
+ * 各模块（model-registry / model-resolver / MorPexConfig / PiModelRegistry）统一引用，
+ * 消除散落的硬编码模型名。
+ */
+export function resolveDefaultModel(configPath?: string): string {
+  try {
+    const cfg = loadMorpexConfig(configPath);
+    const llm = cfg?.llm;
+    if (llm?.provider && llm.model) return `${llm.provider}/${llm.model}`;
+  } catch { /* config 异常 → 兜底 */ }
+  return DEFAULT_MODEL;
 }
 
 // ═══════════════════════════════════════════════════════════════════
@@ -151,11 +168,27 @@ export class PiBridge {
   private gateway: LlmGatewayConfig | null = null;
 
   constructor(defaultModel = DEFAULT_MODEL) {
-    // 读取 YAML 配置：有启用网关 → 默认模型指向网关 provider/model
+    // ═══ 会话 11：config 为唯一模型来源（抽离硬编码）═══
+    // llm.mode:
+    //   - 'builtin'（默认）→ 用 pi-ai 内置 provider（provider/model 从 config 读；
+    //                       apiKey 经 config 注入 process.env 供内置 provider 自带 env 鉴权）
+    //   - 'gateway'       → 自定义 OpenAI 兼容网关（baseUrl + apiKey）
     const cfg = loadMorpexConfig();
-    if (cfg?.llm?.enabled && cfg.llm.provider && cfg.llm.model) {
-      this.gateway = cfg.llm;
-      this.defaultModel = `${cfg.llm.provider}/${cfg.llm.model}`;
+    const llm = cfg?.llm;
+    if (llm?.enabled && llm.provider && llm.model) {
+      this.defaultModel = `${llm.provider}/${llm.model}`;
+      const mode = llm.mode ?? 'builtin';
+      if (mode === 'gateway') {
+        this.gateway = llm;
+      } else {
+        // builtin：gateway 置空走 pi-ai 内置 provider；若 config 提供 apiKey（含 ${VAR}/Windows 兑底），
+        // 注入 process.env.<PROVIDER>_API_KEY 供内置 provider 鉴权（envApiKeyAuth 只读 process.env）
+        this.gateway = null;
+        if (llm.apiKey) {
+          const envKey = `${llm.provider.toUpperCase()}_API_KEY`;
+          if (!process.env[envKey]) process.env[envKey] = llm.apiKey;
+        }
+      }
     } else {
       this.gateway = null;
       this.defaultModel = defaultModel;
@@ -515,7 +548,7 @@ export class PiBridge {
 
   private parseModel(model: string): [string, string] {
     const idx = model.indexOf('/');
-    return idx === -1 ? ['zhipu-glm', model] : [model.substring(0, idx), model.substring(idx + 1)];
+    return idx === -1 ? ['opencode', model] : [model.substring(0, idx), model.substring(idx + 1)];
   }
 
   private extractText(msg: Record<string, unknown>): string {

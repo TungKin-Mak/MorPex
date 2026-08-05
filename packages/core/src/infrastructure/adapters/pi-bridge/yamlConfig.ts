@@ -16,9 +16,11 @@ import { readFileSync } from 'node:fs';
 import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
-/** LLM 网关配置（config/morpex.yaml 的 llm 块） */
+/** LLM 配置（config/morpex.yaml 的 llm 块） */
 export interface LlmGatewayConfig {
   enabled?: boolean;
+  /** 会话 11：模型来源——'builtin'=pi-ai 内置 provider（provider/model 从 config 读）；'gateway'=自定义 OpenAI 兼容网关 */
+  mode?: 'builtin' | 'gateway';
   provider?: string;
   baseUrl?: string;
   apiKey?: string;

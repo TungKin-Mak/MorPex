@@ -1,16 +1,17 @@
-# MorPex LLM 配置（会话 10：仅 GLM-4.7-Flash，已移除 deepseek）
+# MorPex LLM 配置（会话 11：config 为唯一模型来源，抽离代码硬编码）
 #
-# 配置了 llm 且 enabled: true → 使用自定义 OpenAI 兼容网关（GLM-4.7-Flash，智谱）
-# 未配置 / enabled: false    → 使用内置默认 GLM-4.7-Flash（读 GLM_API_KEY，Windows 用户级兑底）
+# llm.mode:
+#   - builtin  → 使用 pi-ai 内置 provider（provider/model 从 config 读；apiKey 由 provider 自带 env 解析，
+#                或经 llm.apiKey 注入——config apiKey 支持 ${VAR} 环境变量引用 + Windows 用户级兑底）
+#   - gateway  → 自定义 OpenAI 兼容网关（baseUrl + apiKey）
 #
-# 网关：https://open.bigmodel.cn/api/paas/v4（智谱开放平台，OpenAI 兼容）
-#   apiKey 从环境变量 GLM_API_KEY 读取（process.env → Windows 用户级兑底）
-#   model 填 glm-4.7-flash（思考模式默认开启）
+# 内置 provider 示例（pi-ai builtinModels）：opencode / opencode-go / anthropic / openai / zai-coding-cn ...
 llm:
-  enabled: true      # ← true=使用智谱 GLM 网关；false=内置默认（仍 GLM-4.7-Flash）
-  provider: zhipu-glm     # 自定义 provider 标识（内部用）
-  baseUrl: https://open.bigmodel.cn/api/paas/v4   # GLM-4.7-Flash（智谱，OpenAI 兼容）
-  apiKey: ${GLM_API_KEY}   # ← 从环境变量 GLM_API_KEY 读取
-  model: glm-4.7-flash
+  mode: builtin          # builtin=pi-ai 内置 provider（opencode 等）；gateway=自定义网关
+  enabled: true          # LLM 总开关
+  provider: opencode     # 模型来源 provider（内置 provider id 或自定义网关标识）
+  model: deepseek-v4-flash-free   # 模型名（opencode 内置：deepseek-v4-flash-free / deepseek-v4-flash ...）
+  baseUrl: https://opencode.ai/zen/v1
+  apiKey: ${OPENCODE_API_KEY}   # ← 从环境变量 OPENCODE_API_KEY 读取（Windows 用户级兑底）
   contextWindow: 200000
   maxTokens: 128000

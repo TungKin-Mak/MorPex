@@ -4,7 +4,7 @@
  * @packageDocumentation
  */
 
-export { PiBridge } from './PiBridge.js';
+export { PiBridge, DEFAULT_MODEL, RateLimitError, resolveDefaultModel } from './PiBridge.js';
 export type {
   GenerateParams,
   GenerateResult,

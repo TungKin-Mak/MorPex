@@ -144,7 +144,7 @@ describe('PiBridge 网关配置', () => {
     try {
       process.chdir(dir);
       const bridge = new PiBridge();
-      expect(bridge.defaultModel).toBe('zhipu-glm/glm-4.7-flash');
+      expect(bridge.defaultModel).toBe('opencode/deepseek-v4-flash-free');
     } finally {
       process.chdir(oldCwd);
       rmSync(dir, { recursive: true, force: true });

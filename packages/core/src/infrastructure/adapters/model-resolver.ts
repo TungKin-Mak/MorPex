@@ -5,6 +5,7 @@
  */
 
 import { getModel, getProviders } from '@earendil-works/pi-ai/compat';
+import { resolveDefaultModel } from './pi-bridge/index.js';
 
 // Known provider set for runtime validation
 const _knownSet = new Set<string>();
@@ -37,9 +38,13 @@ export function resolveModel(
     } catch { /* fall through */ }
   }
 
-  // Fallback order（会话 10：移除 deepseek，仅 GLM）
+  // Fallback order（会话 11：config 驱动默认模型 + openai 兜底）
+  const resolved = resolveDefaultModel();
+  const idx = resolved.indexOf('/');
+  const cfgProvider = idx === -1 ? 'opencode' : resolved.substring(0, idx);
+  const cfgModel = idx === -1 ? 'deepseek-v4-flash-free' : resolved.substring(idx + 1);
   const fallbacks = [
-    ['zhipu-glm', 'glm-4.7-flash'],
+    [cfgProvider, cfgModel],
     ['openai', 'gpt-4o-mini'],
   ];
 

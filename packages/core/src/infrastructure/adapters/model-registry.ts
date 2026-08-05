@@ -6,6 +6,7 @@
  */
 
 import { getModels, getProviders } from '@earendil-works/pi-ai/compat';
+import { resolveDefaultModel, DEFAULT_MODEL } from './pi-bridge/index.js';
 
 /** Model info in MorPex format */
 export interface ModelInfo {
@@ -30,7 +31,7 @@ export const piModelRegistry = {
     try {
       return getProviders() as unknown as string[];
     } catch {
-      return ['zhipu-glm', 'openai'];
+      return [resolveDefaultModel().split('/')[0] || 'opencode', 'openai'];
     }
   },
 
@@ -73,12 +74,16 @@ export const piModelRegistry = {
     return undefined;
   },
 
-  /** Get default model */
+  /** Get default model（会话 11：从 config 解析 provider/model，不再硬编码） */
   getDefaultModel(): ModelInfo {
-    return this.findModel('glm-4.7-flash') ?? {
-      id: 'glm-4.7-flash',
-      name: 'GLM-4.7-Flash',
-      provider: 'zhipu-glm',
+    const resolved = resolveDefaultModel(); // 'provider/model'（config 驱动；缺失兜底 DEFAULT_MODEL）
+    const idx = resolved.indexOf('/');
+    const provider = idx === -1 ? DEFAULT_MODEL.split('/')[0] : resolved.substring(0, idx);
+    const modelId = idx === -1 ? DEFAULT_MODEL.split('/')[1] : resolved.substring(idx + 1);
+    return this.findModel(modelId) ?? {
+      id: modelId,
+      name: modelId,
+      provider,
       api: 'openai-completions',
       contextWindow: 200_000,
       maxTokens: 128_000,
@@ -88,7 +93,7 @@ export const piModelRegistry = {
 
   // Backward-compat aliases
   getProviders: () => {
-    try { return getProviders() as unknown as string[]; } catch { return ['zhipu-glm', 'openai']; }
+    try { return getProviders() as unknown as string[]; } catch { return [resolveDefaultModel().split('/')[0] || 'opencode', 'openai']; }
   },
   getModels: (provider: string) => {
     try {

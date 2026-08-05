@@ -2,7 +2,7 @@
  * ThinkingLevel — 模型推理深度控制
  */
 
-import { PiBridge } from './pi-bridge/index.js';
+import { PiBridge, resolveDefaultModel } from './pi-bridge/index.js';
 
 const { clampThinkingLevel, getSupportedThinkingLevels } = PiBridge;
 
@@ -35,7 +35,7 @@ function getCached(provider: string, modelId: string): Record<string, unknown> {
 }
 
 export const thinkingLevelControl = {
-  getSupportedLevels(modelId: string, provider = 'zhipu-glm'): ThinkingLevel[] {
+  getSupportedLevels(modelId: string, provider = resolveDefaultModel().split('/')[0] || 'opencode'): ThinkingLevel[] {
     try {
       const model = getCached(provider, modelId);
       const fn = getSupportedThinkingLevels as (m: Record<string, unknown>) => string[];
@@ -46,7 +46,7 @@ export const thinkingLevelControl = {
     }
   },
 
-  clampLevel(modelId: string, level: ThinkingLevel, provider = 'zhipu-glm'): ThinkingLevel {
+  clampLevel(modelId: string, level: ThinkingLevel, provider = resolveDefaultModel().split('/')[0] || 'opencode'): ThinkingLevel {
     try {
       const model = getCached(provider, modelId);
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
