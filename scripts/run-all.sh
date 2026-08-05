@@ -72,8 +72,8 @@ mkdir -p "$ROOT/logs"
 : > "$PIDFILE"
 
 # ── 0. 环境变量（从 .env 读取 LLM key）──
-export DEEPSEEK_API_KEY="$(awk -F= '/^DEEPSEEK_API_KEY=/{print $2}' "$ROOT/.env" | tr -d '\r')"
-export LLM_API_KEY="${LLM_API_KEY:-$DEEPSEEK_API_KEY}"
+export GLM_API_KEY="$(awk -F= '/^GLM_API_KEY=/{print $2}' "$ROOT/.env" | tr -d '\r')"
+export LLM_API_KEY="${LLM_API_KEY:-${GLM_API_KEY:-}}"
 export COGNEE_URL
 export PORT
 export MIRROR_PATH="${MIRROR_PATH:-./data/mirror}"
@@ -86,8 +86,8 @@ if ! curl -sf -m 2 "http://localhost:${COGNEE_PORT}/health" >/dev/null 2>&1; the
   if [ -n "$VENV_PY" ] && [ -x "$VENV_PY" ]; then
     # 复用已装好的 venv，直接起 uvicorn（跳过 pip install）
     export LLM_PROVIDER="${LLM_PROVIDER:-custom}"
-    export LLM_MODEL="${LLM_MODEL:-deepseek/deepseek-chat}"
-    export LLM_ENDPOINT="${LLM_ENDPOINT:-https://api.deepseek.com}"
+    export LLM_MODEL="${LLM_MODEL:-glm-4.7-flash}"
+    export LLM_ENDPOINT="${LLM_ENDPOINT:-https://open.bigmodel.cn/api/paas/v4}"
     export EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-fastembed}"
     export EMBEDDING_MODEL="${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}"
     export EMBEDDING_DIMENSIONS="${EMBEDDING_DIMENSIONS:-384}"

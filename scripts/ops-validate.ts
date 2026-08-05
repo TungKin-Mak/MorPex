@@ -12,7 +12,7 @@
  *   3. 人类审批频率    = approval.required / approval_granted 事件数
  *   4. 成本曲线        = executionEngine.getExecutionCost + 执行耗时
  *
- * 依赖：DEEPSEEK_API_KEY（.env）——真实 LLM 执行。
+  * 依赖：GLM_API_KEY（.env）——真实 LLM 执行（仅 GLM-4.7-Flash）。
  */
 
 import { bootstrapUnified } from '../packages/core/src/bootstrap-unified.js';

@@ -36,8 +36,9 @@ async function main(): Promise<void> {
   console.log(`\n【2】apiKey 解析状态`);
   if (key) {
     console.log(`    ✅ 已解析（长度=${key.length}，前缀=${key.slice(0, 8)}…）`);
-    if (!key.startsWith('g2a_')) {
-      console.log(`    ⚠️ 前缀不是 g2a_ —— Grok2API 网关要求 g2a_ 开头的客户端密钥，请检查`);
+    // 会话 10：GLM 网关（智谱）——无 g2a_ 前缀要求；仅提示智谱 key 格式
+    if (!key.startsWith('f53c2b')) {
+      console.log(`    ℹ️ 前缀非智谱示例 f53c2b…（GLM 网关 key 无固定前缀要求，仅提示）`);
     }
   } else {
     console.log(`    ❌ 未解析到（${llm.apiKey === '' ? '配置里 ${VAR} 引用的环境变量未找到' : '未配置'}）`);
@@ -46,8 +47,8 @@ async function main(): Promise<void> {
   // 3. enabled 状态
   console.log(`\n【3】启用状态`);
   if (!llm.enabled) {
-    console.log(`    ⚠️ enabled=false —— 当前走内置 provider（deepseek），未启用 Grok2API 网关`);
-    console.log(`    跑 Grok2API 需把 config/morpex.yaml 的 llm.enabled 改为 true`);
+    console.log(`    ⚠️ enabled=false —— 使用内置默认（GLM-4.7-Flash，读 GLM_API_KEY）`);
+    console.log(`    （当前仅 GLM-4.7-Flash；enabled=false 走内置默认模型）`);
     return;
   }
 

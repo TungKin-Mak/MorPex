@@ -21,7 +21,7 @@
  *   - 每任务一个追踪会话：包装核心服务实例方法，记录完整数据流调用链
  *   - 每任务生成一份报告：data/trace-reports/task-{NNN}.md
  *
- * 不改产品代码；config/morpex.yaml 保持默认（deepseek）。
+  * 不改产品代码；config/morpex.yaml 默认 GLM-4.7-Flash。
  */
 import { bootstrapUnified } from '../packages/core/src/bootstrap-unified.js';
 import { RuleRegistry } from '../packages/core/src/gate/rules/RuleRegistry.js';

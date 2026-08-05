@@ -16,7 +16,7 @@
  *   --skip-static 跳过 Phase 0
  *   --with-k6 跑 Phase 6（需环境）
  *   --with-coverage 跑 Phase 1 后附加覆盖率采集（c8，阈值低于基线防回退）
- *   --e2e     给 vitest 传 RUN_LLM_E2E=1 + COGNEE_E2E=1（真实 LLM / cognee 真实链路，需 DEEPSEEK_API_KEY + cognee:8001 在线）
+ *   --e2e     给 vitest 传 RUN_LLM_E2E=1 + COGNEE_E2E=1（真实 LLM / cognee 真实链路，需 GLM_API_KEY + cognee:8001 在线）
  *
  * 用法：
  *   npm run test:full                       # 全部

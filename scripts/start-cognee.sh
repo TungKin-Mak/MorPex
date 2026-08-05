@@ -11,8 +11,8 @@
 #
 # 环境变量（可配置，见 docs/MEMORY_DEPLOYMENT.md）：
 #   COGNEE_PORT        端口（默认 8001）
-#   DEEPSEEK_API_KEY   LLM key（或 LLM_API_KEY）
-#   LLM_PROVIDER/LLM_MODEL/LLM_ENDPOINT   LLM 配置（默认 custom/deepseek）
+#   GLM_API_KEY   LLM key（或 LLM_API_KEY）
+#   LLM_PROVIDER/LLM_MODEL/LLM_ENDPOINT   LLM 配置（默认 custom/glm-4.7-flash）
 #   COGNEE_DATA_DIR    数据目录（默认 ~/.morpex/cognee）
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
@@ -38,10 +38,10 @@ echo "  · 安装 cognee（首次较慢）"
 
 # ── 2. 数据目录 + 环境变量 ──────────────────────────────────────────
 mkdir -p "$DATA_DIR"/{data,sys,cache}
-export LLM_API_KEY="${LLM_API_KEY:-${DEEPSEEK_API_KEY:-}}"
+export LLM_API_KEY="${LLM_API_KEY:-${GLM_API_KEY:-}}"
 export LLM_PROVIDER="${LLM_PROVIDER:-custom}"
-export LLM_MODEL="${LLM_MODEL:-deepseek/deepseek-chat}"
-export LLM_ENDPOINT="${LLM_ENDPOINT:-https://api.deepseek.com}"
+export LLM_MODEL="${LLM_MODEL:-glm-4.7-flash}"
+export LLM_ENDPOINT="${LLM_ENDPOINT:-https://open.bigmodel.cn/api/paas/v4}"
 export EMBEDDING_PROVIDER="${EMBEDDING_PROVIDER:-fastembed}"
 export EMBEDDING_MODEL="${EMBEDDING_MODEL:-BAAI/bge-small-en-v1.5}"
 export EMBEDDING_DIMENSIONS="${EMBEDDING_DIMENSIONS:-384}"
@@ -49,7 +49,7 @@ export DATA_ROOT_DIRECTORY="$DATA_DIR/data"
 export SYSTEM_ROOT_DIRECTORY="$DATA_DIR/sys"
 export CACHE_ROOT_DIRECTORY="$DATA_DIR/cache"
 export ENABLE_BACKEND_ACCESS_CONTROL="${ENABLE_BACKEND_ACCESS_CONTROL:-false}"
-[ -n "$LLM_API_KEY" ] || { echo "✗ 缺少 LLM_API_KEY / DEEPSEEK_API_KEY"; exit 1; }
+[ -n "$LLM_API_KEY" ] || { echo "✗ 缺少 LLM_API_KEY / GLM_API_KEY"; exit 1; }
 
 # ── 3. 启动 ─────────────────────────────────────────────────────────
 if [ "$MODE" = "--bg" ]; then

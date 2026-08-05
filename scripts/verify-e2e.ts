@@ -7,7 +7,7 @@
  *   3. 召回：ContextArchive.loadByTaskRef 按 taskRef 精确还原
  *
  * 运行：npx tsx scripts/verify-e2e.ts
- * 依赖：.env 的 DEEPSEEK_API_KEY（真跑 LLM）
+  * 依赖：.env 的 GLM_API_KEY（真跑 LLM，仅 GLM-4.7-Flash）
  */
 import { bootstrapUnified } from '../packages/core/src/bootstrap-unified.js';
 import { loadByTaskRef } from '../packages/core/src/knowledge/context/ContextArchive.js';
