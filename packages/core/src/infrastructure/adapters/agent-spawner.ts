@@ -30,6 +30,15 @@ export interface SpawnParams {
    * 提供时 agent 对话/工具调用自动写入该会话；否则默认内存会话。
    */
   session?: unknown;
+  /**
+   * 会话 15（工具可靠性 P0）：工具执行前钩子（透传到 pi-agent-core AgentHarness）。
+   * 用于空参拦截强制重发 / knowledge query 空时用 step goal 兜底。
+   */
+  beforeToolCall?: (params: {
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+  }) => Promise<{ block?: boolean; reason?: string } | undefined> | { block?: boolean; reason?: string } | undefined;
 }
 
 /**
@@ -87,6 +96,10 @@ export const agentSpawner = {
     // ⬅️ Session 化：透传持久化会话（AgentHarness 自动把对话写入注入 session）
     if (params.session) {
       (config as { session?: unknown }).session = params.session;
+    }
+    // ⬅️ 会话 15（工具可靠性 P0）：透传工具执行前钩子（空参拦截/知识 goal 兜底）
+    if (params.beforeToolCall) {
+      (config as { beforeToolCall?: typeof params.beforeToolCall }).beforeToolCall = params.beforeToolCall;
     }
 
     return bridge.createAgentHarness(config);

@@ -135,6 +135,16 @@ export interface AgentConfig {
    * 提供时直接使用（AgentHarness 自动把对话/工具调用写入该 session），否则默认 InMemorySessionRepo。
    */
   session?: unknown;
+  /**
+   * 会话 15（工具可靠性 P0）：工具执行前钩子。
+   * 在 pi-agent-core 校验通过后、execute 执行前调用；返回 { block: true, reason } 可拦截本次调用，
+   * reason 作为错误结果回填 LLM（强制其补全参数重发），用于根治思考模式空参问题。
+   */
+  beforeToolCall?: (params: {
+    toolCallId: string;
+    toolName: string;
+    args: Record<string, unknown>;
+  }) => Promise<{ block?: boolean; reason?: string } | undefined> | { block?: boolean; reason?: string } | undefined;
 }
 
 export interface AgentToolDescriptor {
@@ -469,6 +479,8 @@ export class PiBridge {
       session,
       tools,
       systemPrompt: config.systemPrompt || 'You are a helpful assistant.',
+      // ⬅️ 会话 15（工具可靠性 P0）：工具执行前钩子透传——空参拦截/知识 goal 兜底在工具执行前生效
+      beforeToolCall: config.beforeToolCall,
     });
 
     return harness as {

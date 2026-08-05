@@ -8,8 +8,8 @@
  *   1. 组装 step-agent systemPrompt（职责 + 原语工具使用守则 + 知识优先原则）
  *   2. 注入上游成果（P1：upstreamResults → prompt 上下文）
  *   3. agentSpawner.spawn 创建执行肢（pi-agent-core Agent：LLM 思考 + 工具调用循环）
- *   4. prompt(node.description) 执行 → 提取最终输出
- *   5. 失败/Agent 不可用 → fallbackExecutor（ExecutionFabric 单次 LLM 生成）降级
+ *   4. prompt(node.description) 执行 → 提取最终输出（空内容带纠正指令重试）
+ *   5. 失败/超时 → 中止 Agent 清理 + 返回失败（会话 15 去兜底化：移除 fallback 降级）
  *
  * 输出形态（MVP）：文本（step-agent 的最终总结/产物说明）。
  * 产物落盘由 agent 通过 artifact_generation 原语工具完成。
@@ -18,7 +18,7 @@
  */
 
 import { agentSpawner } from '../../../infrastructure/adapters/agent-spawner.js';
-import { createPrimitiveAgentTools } from '../../../infrastructure/tools/primitiveAgentTools.js';
+import { createPrimitiveAgentTools, createPrimitiveBeforeToolCall } from '../../../infrastructure/tools/primitiveAgentTools.js';
 import type { AgentTool } from '../../../infrastructure/adapters/pi-bridge/index.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -41,21 +41,14 @@ export interface StepAgentExecutorOptions {
   /** 额外注入的工具（叠加在原语工具之上） */
   extraTools?: AgentTool[];
   /**
-   * 兜底执行器：Agent spawn/执行失败时降级（单次 LLM 生成）。
-   * 不传时失败直接返回（由上层决定重试/失败）。
-   */
-  fallbackExecutor?: (node: StepNodeInfo, upstreamText: string) => Promise<unknown>;
-  /** 是否禁用 Agent（纯 fallback 模式，测试用） */
-  agentDisabled?: boolean;
-  /**
    * step-agent 执行超时（会话 11c：默认【不设限】——LLM 任务长短不一，复杂任务可能数小时；
-   * 传入 timeoutMs>0 时启用超时 → abort + 降级 fallback，供需要防御的场景使用）。
+   * 传入 timeoutMs>0 时启用超时 → abort + 失败返回，供需要防御的场景使用）。
    */
   timeoutMs?: number;
   /**
-   * 会话 9：空内容纠正性重试次数（默认 1）——GLM 思考模式下拿到工具错误后
+   * 会话 9：空内容纠正性重试次数（默认 1）——GLM/opencode 思考模式下拿到工具错误后
    * 常只输出 reasoning_content 而 content 为空（extractText 判空）。重试一次带纠正指令
-   * （重新调用工具/直接给交付摘要），再降级 fallback。0 = 禁用（回到直接降级）。
+   * （重新调用工具/直接给交付摘要）。0 = 禁用（首次空内容即失败）。
    */
   correctiveRetries?: number;
   /**
@@ -71,8 +64,8 @@ export interface StepAgentExecutorOptions {
 
 export interface StepAgentResult {
   success: boolean;
-  /** 执行模式：'agent' = step-agent 工具循环 ｜ 'fallback' = 单次 LLM 生成 */
-  mode: 'agent' | 'fallback';
+  /** 执行模式：'agent' = step-agent 工具循环（去兜底化后唯一模式；会话 15 移除 fallback） */
+  mode: 'agent';
   output?: unknown;
   error?: string;
   duration: number;
@@ -196,12 +189,7 @@ export class StepAgentExecutor {
       }
     }
 
-    // ── 降级路径：Agent 禁用/未就绪 → fallback（单次 LLM 生成）──
-    if (this.opts.agentDisabled) {
-      const res = await this.runFallback(node, upstreamText, start);
-      await this.recordStepResult(stepSession, node, res);
-      return this.withSessionMeta(res, stepSession);
-    }
+    // ── 主路径：step-agent 工具循环（agentSpawner + 原语工具）──
 
     let agent: {
       prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
@@ -240,6 +228,11 @@ export class StepAgentExecutor {
         domainId: this.opts.departmentId ?? 'general',
         // ⬅️ 会话 4：注入持久化会话（对话/工具调用自动落盘）
         session: stepSession?.session,
+        // ⬅️ 会话 15（工具可靠性 P0）：工具执行前钩子——空参拦截强制重发 + knowledge goal 兜底
+        beforeToolCall: createPrimitiveBeforeToolCall({
+          departmentId: this.opts.departmentId,
+          goal: this.opts.goal,
+        }),
       });
 
       const input = [
@@ -287,11 +280,16 @@ export class StepAgentExecutor {
     } catch (err) {
       // 异常/超时 → 尝试中止 Agent 清理（避免孤儿 LLM 会话）
       if (agent) {
-        try { await agent.abort(); } catch { /* abort 失败忽略，不影响降级 */ }
+        try { await agent.abort(); } catch { /* abort 失败忽略，不影响失败返回 */ }
       }
       const msg = err instanceof Error ? err.message : String(err);
-      console.warn(`[StepAgentExecutor] ⚠️ step-agent 执行失败（${msg}），降级 fallback`);
-      const res = await this.runFallback(node, upstreamText, start);
+      console.warn(`[StepAgentExecutor] ✗ step-agent 执行失败（${msg}）`);
+      const res: StepAgentResult = {
+        success: false,
+        mode: 'agent',
+        error: msg,
+        duration: Date.now() - start,
+      };
       await this.recordStepResult(stepSession, node, res, msg);
       return this.withSessionMeta(res, stepSession);
     }
@@ -345,24 +343,6 @@ export class StepAgentExecutor {
       ]);
     } finally {
       if (timer) clearTimeout(timer);
-    }
-  }
-
-  private async runFallback(node: StepNodeInfo, upstreamText: string, start: number): Promise<StepAgentResult> {
-    if (!this.opts.fallbackExecutor) {
-      return {
-        success: false,
-        mode: 'fallback',
-        error: '[StepAgentExecutor] Agent 不可用且未配置 fallbackExecutor',
-        duration: Date.now() - start,
-      };
-    }
-    try {
-      const output = await this.opts.fallbackExecutor(node, upstreamText);
-      return { success: true, mode: 'fallback', output, duration: Date.now() - start };
-    } catch (err) {
-      const msg = err instanceof Error ? err.message : String(err);
-      return { success: false, mode: 'fallback', error: msg, duration: Date.now() - start };
     }
   }
 }

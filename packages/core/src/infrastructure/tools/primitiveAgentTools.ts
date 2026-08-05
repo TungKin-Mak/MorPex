@@ -19,11 +19,13 @@ import type { AgentTool, AgentToolResult } from '../adapters/pi-bridge/index.js'
 import { DomainPrimitiveRegistry } from './DomainPrimitiveRegistry.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
 
-/** 工具参数 schema 窄接口（inputSchema：JSON Schema 子集，仅用 required/properties 类型） */
+/** 工具参数 schema 窄接口（inputSchema：JSON Schema 子集，仅用 required/properties 类型；
+ *  会话 15 扩展 examples/minLength/additionalProperties 供 TypeBox 校验与 LLM 提示） */
 interface ToolInputSchema {
   type?: string;
   required?: string[];
-  properties?: Record<string, { type?: string; description?: string }>;
+  properties?: Record<string, { type?: string; description?: string; examples?: unknown[]; minLength?: number }>;
+  additionalProperties?: boolean;
 }
 export interface PrimitiveToolOptions {
   /** 部门 ID（原语部门隔离，必传） */
@@ -56,6 +58,81 @@ const PRIMITIVE_TOOL_DEFS: Array<{ name: string; label: string }> = [
   { name: 'api_call', label: 'api' },
   { name: 'artifact_generation', label: 'artifact' },
 ];
+
+/**
+ * 会话 15（工具可靠性 P0）：工具 schema 强化元数据。
+ * - examples：每个必填参数给真实调用示例（LLM 知道填什么格式）
+ * - minLengthFields：自由文本参数加 minLength:1（空串""在 pi-ai TypeBox 校验层即被拒绝，
+ *   报精确错误回填 LLM——根治思考模式空参问题的第一道闸）
+ * 注：knowledge query 不设 minLength——空 query 由 createPrimitiveBeforeToolCall 用 step goal 兜底注入。
+ */
+const TOOL_SCHEMA_ENRICH: Record<string, { examples?: Record<string, unknown[]>; minLengthFields?: string[] }> = {
+  knowledge: {
+    examples: {
+      query: ['查询公司的技术栈与产品线', '查询 MCU 项目的历史交付记录', '查询电商订单数据模型'],
+    },
+  },
+  shell: {
+    examples: {
+      command: ['ls -la', 'node build.js', 'mkdir -p dist && cp -r src dist/'],
+    },
+    minLengthFields: ['command'],
+  },
+  api: {
+    examples: {
+      url: ['https://api.example.com/v1/items'],
+      method: ['GET', 'POST'],
+    },
+    // method 为 enum（空值已被枚举校验覆盖）→ 不设 minLength，避免冗余
+    minLengthFields: ['url'],
+  },
+  file: {
+    examples: {
+      operation: ['read', 'write', 'list'],
+      path: ['docs/report.md', 'src/main.ts'],
+      content: ['# 标题\n正文内容…'],
+    },
+    minLengthFields: ['operation', 'path'],
+  },
+  artifact: {
+    examples: {
+      type: ['report', 'code', 'doc', 'config', 'data'],
+      specification: ['生成一份产品需求文档，包含背景、目标、功能清单与验收标准'],
+    },
+    minLengthFields: ['type', 'specification'],
+  },
+};
+
+/** 空串/空值判断（空参问题的统一判定） */
+function isEmptyValue(v: unknown): boolean {
+  return v === undefined || v === null || v === '' ||
+    (typeof v === 'string' && v.trim() === '') ||
+    (Array.isArray(v) && v.length === 0);
+}
+
+/**
+ * enrichSchemaForTool — 强化原语 inputSchema 为 AgentTool 工具 schema
+ * - 顶层 additionalProperties: false（省略必填/多余参数即 TypeBox 校验报错）
+ * - 必填字符串参数加 minLength:1（空串被 TypeBox 拒绝，报精确错误回填 LLM）
+ * - 必填参数加 examples（LLM 知道填什么格式）
+ */
+function enrichSchemaForTool(label: string, schema: ToolInputSchema): ToolInputSchema {
+  if (!schema || typeof schema !== 'object') return schema;
+  const enrich = TOOL_SCHEMA_ENRICH[label];
+  const props = { ...(schema.properties ?? {}) };
+  const required = schema.required ?? [];
+  if (enrich) {
+    for (const field of required) {
+      const prop = props[field];
+      if (!prop || typeof prop !== 'object') continue;
+      const p = { ...prop };
+      if (enrich.examples?.[field]?.length) p.examples = enrich.examples[field];
+      if (enrich.minLengthFields?.includes(field) && (p.type === 'string' || p.type === undefined)) p.minLength = 1;
+      props[field] = p;
+    }
+  }
+  return { ...schema, type: 'object', properties: props, required, additionalProperties: false };
+}
 
 /**
  * validateRequiredParams — 按 inputSchema.required 校验工具调用参数
@@ -110,7 +187,7 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
   for (const def of PRIMITIVE_TOOL_DEFS) {
     const primitive = DomainPrimitiveRegistry.get(def.name);
     if (!primitive) continue; // 原语未注册（测试环境可能只注册部分）→ 跳过
-    const schema = (primitive.inputSchema ?? {}) as ToolInputSchema;
+    const schema = enrichSchemaForTool(def.label, (primitive.inputSchema ?? {}) as ToolInputSchema);
 
     tools.push({
       name: def.label,
@@ -158,6 +235,52 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
   }
 
   return tools;
+}
+
+/**
+ * createPrimitiveBeforeToolCall — 工具执行前钩子（会话 15 工具可靠性 P0）
+ *
+ * 挂载到 pi-agent-core AgentHarness 的 beforeToolCall（经 PiBridge/agent-spawner 透传）。
+ * 在 pi-ai TypeBox schema 校验通过后、原语 execute 执行前触发：
+ *   1. knowledge query 空 → 用 step goal 兜底注入（思考模式空参主因之一，query 空 12/40 失败）
+ *   2. 其余工具必填空参 → 返回 { block: true, reason } 拦截本次调用，reason 作为错误结果回填 LLM，
+ *      强制其【补全参数重新调用】（根治"LLM 拿错误后放弃工具转输出文本"的空参空转）
+ *
+ * @param options - 与 createPrimitiveAgentTools 同源上下文（goal 供 knowledge 兜底）
+ */
+export function createPrimitiveBeforeToolCall(options: PrimitiveToolOptions = {}): (
+  params: { toolCallId: string; toolName: string; args: Record<string, unknown> },
+) => Promise<{ block?: boolean; reason?: string } | undefined> {
+  // 按工具 label 索引原语 schema（与工具创建同源，校验口径一致）
+  const schemas = new Map<string, ToolInputSchema>();
+  for (const def of PRIMITIVE_TOOL_DEFS) {
+    const primitive = DomainPrimitiveRegistry.get(def.name);
+    if (primitive) schemas.set(def.label, (primitive.inputSchema ?? {}) as ToolInputSchema);
+  }
+
+  return async (params: { toolCallId: string; toolName: string; args: Record<string, unknown> }): Promise<{ block?: boolean; reason?: string } | undefined> => {
+    const { toolName, args } = params;
+    const p = (args ?? {}) as Record<string, unknown>;
+
+    // 1. knowledge query 空 → step goal 兜底注入（在 schema 校验通过后、execute 前，直接改 args 引用）
+    if (toolName === 'knowledge' && isEmptyValue(p.query) && options.goal) {
+      p.query = options.goal;
+      console.warn(`[primitiveAgentTools] 🔄 beforeToolCall: knowledge query 为空 → 注入 step goal 兜底: ${String(options.goal).slice(0, 60)}…`);
+      return undefined;
+    }
+
+    // 2. 其余工具必填空参 → block + 精确重发指令（强制 LLM 补全重发，不靠 LLM 自觉）
+    const schema = schemas.get(toolName);
+    if (schema?.required?.length) {
+      const missing = validateRequiredParams(p, schema);
+      if (missing.length > 0) {
+        const reason = buildMissingParamMessage(toolName, missing);
+        console.warn(`[primitiveAgentTools] ⛔ beforeToolCall 拦截空参工具调用（${toolName}）: ${reason}`);
+        return { block: true, reason };
+      }
+    }
+    return undefined;
+  };
 }
 
 /** 便捷函数：列出当前可用的原语 AgentTool 名称（诊断用） */
