@@ -699,3 +699,39 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 ### 遗留
 - 上一条（会话 11b P0）复杂任务超时治理：现在"不限时"已消除硬超时；但 batch-run 并发 5 个长任务可能长时间占用——并发/资源调度另议
 - 其余不变：step-agent 工作目录 sandbox、eslint 规则清理、xjmcu 硬件、微信接入
+
+---
+
+## ═════════ 会话 12：处理遗留 4 项（微信除外，commit 4b81c41）═════════
+
+### ① ✅ step-agent 沙箱工作目录（防写仓库根）
+- 根因：step-agent 的 file/shell 工具以 process.cwd()（仓库根）为基准 → 实测污染 `开发设计规划/XC8P9530_main.c`（xjmcu 产物）
+- 修复：
+  - `StepAgentExecutor`：自动创建 `data/agent-workspace/<nodeId>/` 沙箱（失败降级无沙箱不阻断）
+  - `primitiveAgentTools` + `ActionPrimitive` context：加 `workspaceDir` 字段
+  - `FileOperationPrimitive`：破坏性操作（write/mkdir/copy/move/delete）用相对/无前缀路径时落到 workspaceDir；绝对路径保持
+  - `ShellExecutionPrimitive`：cwd 缺省指向 workspaceDir
+  - systemPrompt 告知 agent 工作目录 + 产物写沙箱
+- 测试 +4（相对路径落沙箱/绝对路径保持/cwd 缺省指沙箱/显式 cwd 优先）
+- 注意：fs.write 已映射 `data/deliverables-<deptId>/`（bootstrap），沙箱主要拦 shell 相对路径 + 工具直接写仓库根
+
+### ② ✅ eslint 检测器补全（规则不再被跳过）
+- 根因：`ruleType='eslint'` 规则（no-var）激活后无检测器 → RuleEnforcementGuard 跳过（warn）→ TscStructuralCorrector 是死代码
+- 修复：`EsLintDetector`（用 eslint Linter.verify 检测，命中→violation）注册到 DetectorRegistry；`registerSoftwareStructuralCorrector` 同时注入检测器 + 修正器 → **检测→修正闭环**
+- rule-structural-e2e.test.ts 无需再手动注入检测器（生产自带）
+
+### ③ ✅ batch-run --exclude <dept>（硬件依赖排除）
+- xjmcu astrocli 需真实 MCU（VID=8235, PID=584B），无设备时预期失败
+- `npx tsx scripts/batch-run.ts --exclude xjmcu`（支持逗号多值：`--exclude xjmcu,hardware`）
+
+### ④ batch 并发调度
+- `--concurrency` 已存在（默认 5）；不限时后并发长任务资源占用由用户按需调 --concurrency 控制（无需改代码）
+- 汇总统计已有 成功/限流跳过/失败 分类
+
+### 门禁
+- ✅ tsc 0 ｜ validate-architecture 100% ｜ depcheck 0（607 模块）｜ vitest **71 文件 / 639 通过零失败**（+sandbox 4 用例）
+
+### 遗留（剩余）
+- **微信接入**（用户排除）
+- GLM 限流退避（回 gateway 模式时；当前 opencode 已规避）
+- step-agent 沙箱的 UI 清理/归档（agent-workspace 目录增长管理，后续）
