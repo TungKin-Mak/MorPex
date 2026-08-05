@@ -572,3 +572,38 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 
 ### 门禁（批量前已全绿；批量后工作树仅 config 变更 + 已清理污染）
 ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ vitest 91 文件 803 通过（批量前基线）
+
+---
+
+## ═════════ 会话 10：GLM-only 切换 + 遗留 P0/P1 修复（2026-08-05）═════════
+
+### 用户决策：**直接删除 deepseek，只使用 glm-4.7-flash**（不能关思考模式）
+提交区间：`7860533`（feat）+ `5ac912c`（test）+ `b0c6bb6`（chore）
+
+### ① 移除 deepseek（全部代码路径 → GLM）
+- `PiBridge.DEFAULT_MODEL`：`deepseek/deepseek-v4-flash` → `zhipu-glm/glm-4.7-flash`（构造器 + parseModel fallback）
+- `MorPexConfig` zod 默认 modelProvider/modelId + fsm → `zhipu-glm`/`glm-4.7-flash`
+- `model-registry.getDefaultModel` + providers fallback、`model-resolver` fallbacks → GLM
+- `PiModelRegistry`（workflow-sdk）：默认 GLM + 直接 HTTP 回退改 bigmodel 端点（glm-4.7-flash）
+- shell 脚本（run-all.sh / start-cognee.sh）：LLM 默认 → GLM 端点；check-llm 去 Grok2API g2a_ 警告
+- 注释/测试断言全部更新（pi-bridge-yaml 默认模型断言改 GLM）；仅保留"会话 10 移除"标记 + 历史预算注释
+
+### ② P0 修复（99 任务实测 19/22 失败根因）
+1. **maxTokens 2000/3000 上限 → 32000**（PiBridge 一致）：GLM 思考模式把 2000 吃满 → content 空 → 参数补全/提取返回空 → 原语缺参失败。修：`piBridgeWrapper.generateText`、workflow-sdk bootstrap、PiModelRegistry HTTP、bootstrapFromDocs
+2. **param-completer 鲁棒 JSON 提取**：剥 ```json 代码块 + 平衡括号 + 修复转义/尾逗号；不再因 GLM 思考模式输出格式失败
+3. **RateLimitError 限流检测**：pi-ai openai-completions 不查 response.ok——GLM HTTP 429（1302/1305）静默返回空结果（text='' usage=0）→ 全链路静默失败。修：generateText 经 onResponse 回调检测 429/5xx → 抛 RateLimitError（batch-run 已按 429/5xx 重试，core 现在也显式感知）
+4. **工具必填参数校验**（primitiveAgentTools）：按 inputSchema.required 校验，空参不传原语 → 返回精确重新调用指引（self-healing）
+5. **step-agent 空内容纠正重试**：GLM 思考模式工具错误后只出 reasoning_content、content 空 → extractText 判空 → 之前直接降级；现带纠正指令重试（默认 1 次）再降级
+
+### 实测（全量 core vitest 70 文件 / 635 通过）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 violations（606 模块）｜ ✅ core vitest **70 文件 / 635 通过零失败**（含 full-closed-loop 3 场景）
+- ⚠️ full-closed-loop 在 GLM 限流高峰期单跑会 flaky（全量套件内通过；单独跑在配额耗尽后触发 429）——GLM 账户速率限制特性，非代码 bug；RateLimitError 检测已让失败显式可重试
+- ⚠️ GLM 思考模式慢（单场景 167s，此前 deepseek 校准 180s 预算 → 场景1 已改 300s）
+
+### 遗留（下一会话候选）
+1. **GLM 限流治理**：429/1305 目前靠 batch-run 退避重试；core 内 generateText 抛 RateLimitError 后，调用方（param-completer/Gate/orchestrator）尚未统一接入退避重试——需在 onTokenUsage/调用点统一 retry-with-backoff
+2. **full-closed-loop GLM 限流 flaky**：建议测试内加 RateLimitError 重试或标记 skip-if-rate-limited
+3. **P1 step-agent 工作目录治理**：文件工具写 CWD=仓库根（实测 `开发设计规划/XC8P9530_main.c`）→ sandbox 工作目录
+4. **eslint 规则清理**：no-var 等 ruleType='eslint' 激活后无检测器被跳过（AST 检测器 no-var-ast 已覆盖 no-var）
+5. **xjmcu 硬件依赖**：astrocli 需真实 MCU——batch 排除/标记
+6. **微信接入**（企业微信 vs 个人微信待决策）
