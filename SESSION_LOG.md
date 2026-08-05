@@ -641,3 +641,32 @@ cognition/planning/DeliveryPlannerAdapter.ts  plan→DAG（agentType 定义）
 4. **xjmcu 硬件依赖**（astrocli 需真实 MCU，batch 排除/标记）
 5. **微信接入**（企业微信 vs 个人微信待决策）
 6. **config 迁移说明**：`llm.mode` 语义已扩展——老 config（仅 enabled/provider/baseUrl/apiKey/model，无 mode）默认按 builtin 处理（provider 需是 pi-ai 内置 provider）；如需自定义网关须显式 `mode: gateway`
+
+---
+
+## ═════════ 会话 11b：opencode/deepseek-v4-flash-free 测试任务实测（2026-08-05）═════════
+
+### 运行
+- 配置：`mode: builtin` + `provider: opencode` + `model: deepseek-v4-flash-free`（config 驱动，无硬编码）
+- 命令：`npx tsx scripts/batch-run.ts --limit 10 --timeout 300000 --retries 2 --delay 1500`（5 并发）
+- 日志：`data/batch-runs/run-opencode-free-20260805-181656.log`
+
+### 结果（10 任务）
+**成功 8/10（80%）｜ 限流 0 ｜ 失败 2（均 300s 超时）｜ 总耗时 600s**
+- 成功任务：66.6s / 111.6s / 114.9s / 136.8s / 132.5s / 135.4s / 165.9s / 175.6s
+- 失败：任务 5 / 10（300s 超时，复杂任务 + 思考模式慢）
+
+### 关键对比（模型切换效果）
+| 指标 | GLM-4.7-Flash（99 任务，会话 9）| opencode/deepseek-v4-flash-free（10 任务，本会话）|
+|---|---|---|
+| 成功率 | 77%（77/99）| **80%（8/10）** |
+| 工具参数为空错误 | **19 次**（失败主因）| **0 次 ✅** |
+| 限流 | GLM 1305/1302 限流（batch 退避）| **0 次** |
+| 失败模式 | 工具空参 + 超时 | 仅超时（思考模式慢）|
+
+**核心结论**：opencode/deepseek-v4-flash-free 的 step-agent **工具调用参数可靠**（0 次 query/command/url 为空），彻底消除 GLM 的 19/22 失败主因；剩余失败均为复杂任务 300s 超时（思考模式 + 多 Agent 编排慢）。
+
+### 遗留更新
+- **【P0 升】复杂任务超时治理**：opencode 思考模式慢 → 复杂任务 300s 超时。方向：①step-agent 超时策略（当前 180s 兜底）与任务级 300s 的匹配 ②DAG 并行度/步骤数限制 ③复杂任务拆解粒度
+- 工具参数校验（primitiveAgentTools required 校验）+ 空内容纠正重试（StepAgentExecutor）在 opencode 下未触发（参数天然完整）——但保留作为 gateway 模式/其他模型的防御
+- 其余遗留不变：GLM 限流退避（回 gateway 时）、step-agent 工作目录 sandbox、eslint 规则清理、xjmcu 硬件、微信接入
