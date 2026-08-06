@@ -9,6 +9,9 @@ import { ComplianceChecker } from '../../governance/ComplianceChecker.js';
 import { ApprovalGate } from '../../governance/ApprovalGate.js';
 import { AnomalyDetector } from '../../governance/AnomalyDetector.js';
 import { ExperienceMiner } from '../../evolution/ExperienceMiner.js';
+import { EvolutionSandbox } from '../../evolution/EvolutionSandbox.js';
+import { PromptStrategyRegistry } from '../../evolution/PromptStrategyRegistry.js';
+import { EvolutionApplyLoop } from '../../evolution/EvolutionApplyLoop.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { MorPexRuntime } from './MorPexRuntime.js';
 import { MissionRuntime } from './mission/MissionRuntime.js';
@@ -52,6 +55,10 @@ export class ServiceContainer {
   readonly experienceMiner: ExperienceMiner;
   /** 会话 16d（P3 运维）：异常告警检测器（空参率突升/原语连续失败/装配超时） */
   readonly anomalyDetector: AnomalyDetector;
+  /** 会话 16e（3-3 进化落地通道）：策略库（可学习事件 → 应用为提示词策略，版本化可回滚） */
+  readonly promptStrategyRegistry: PromptStrategyRegistry;
+  readonly evolutionSandbox: EvolutionSandbox;
+  readonly evolutionApplyLoop: EvolutionApplyLoop;
   readonly simulator: ExecutionSimulator;
   /** L3 全功能实现：真实 MissionRuntime（供 DeliveryPlanner 接入规划阶段；构造器内赋值） */
   missionRuntime!: import('./mission/MissionRuntime.js').MissionRuntime;
@@ -132,6 +139,31 @@ export class ServiceContainer {
     // ═══ 会话 16d（P3 运维）：异常告警检测器（监听 step/装配事件流）═══
     this.anomalyDetector = new AnomalyDetector(this.eventBus);
     this.anomalyDetector.init(this.eventBus);
+    // ═══ 会话 16e（3-3 进化提案落地通道）：策略库 + 沙箱 + 半自动应用闭环 ═══
+    this.promptStrategyRegistry = new PromptStrategyRegistry();
+    this.evolutionSandbox = new EvolutionSandbox();
+    this.evolutionApplyLoop = new EvolutionApplyLoop(this.evolutionSandbox, this.promptStrategyRegistry, {
+      // 半自动应用：Gate 凭证可签发时自动批准低风险策略；否则停留 pending_approval
+      gateContextProvider: async () => {
+        if (!this._ontology || !this._guard) return null;
+        await this.ensurePiBridge();
+        if (!this.piBridge) return null;
+        try {
+          const { runOntologyGroundedReasoning } = await import('../../gate/runOntologyGroundedReasoning.js');
+          const result = await runOntologyGroundedReasoning({
+            goal: '演化策略应用（低风险提示词策略）',
+            ontology: this._ontology,
+            guard: this._guard,
+            piBridge: this.piBridge,
+            scenario: 'evolution-apply',
+          });
+          return result.knowledgeContextPackage ?? null;
+        } catch {
+          return null;
+        }
+      },
+    });
+    this.evolutionApplyLoop.init(this.eventBus);
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();
@@ -243,6 +275,8 @@ export class ServiceContainer {
       if (typeof this.runtime.setEventStore === 'function') {
         this.runtime.setEventStore(this._eventStore);
       }
+      // ═══ 会话 16e（3-3 进化落地通道）：演化提案版本化持久化 ═══
+      this.evolutionSandbox.setEventStore(this._eventStore);
       console.log('[ServiceContainer] ✅ EventStore 已接入 MissionController + ArtifactFacade + SystemMetadataGraph + MorPexRuntime');
     } catch (err) {
       console.warn('[ServiceContainer] ⚠️ EventStore 不可用:', (err as Error).message);

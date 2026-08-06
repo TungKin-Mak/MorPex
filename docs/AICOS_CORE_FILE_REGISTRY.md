@@ -273,7 +273,7 @@
 | `evaluation/verification/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | L6 评价/验证权威 |
 
 
-## `evolution/`（22 文件）
+## `evolution/`（24 文件）
 
 > 层边界规则：提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2
 
@@ -287,6 +287,8 @@
 | `evolution/ExperienceMiner.ts` | ExperienceMiner — 经验挖掘器 v16: 任务完成后自动挖掘经验，更新 CapabilityRegistry。v16c（3+4）经验沉淀触发条件：消费 failureReport/stepStats → LearningEventDetector 识别可学习事件 → 发射 evolution.experience.mined | L7 演化唯一所有者；只产经验与事件，不执行 |
 | `evolution/LearningEventDetector.ts` | LearningEventDetector — 可学习事件识别（v16c 3+4）：空参模式/安全拦截/高重试/部分失败 → LearningEvent 结构化记录 + summarize 聚合（观测/学习数据源，纯函数） | L7 演化唯一所有者；纯函数无副作用 |
 | `evolution/ExperienceInjectionService.ts` | ExperienceInjectionService — 任务间经验主动注入（v16d P2）：按 goal/domain 匹配已沉淀可学习事件 → 规避提示注入聚焦上下文（沉淀→注入闭环） | L7 演化唯一所有者；只产提示不执行 |
+| `evolution/PromptStrategyRegistry.ts` | PromptStrategyRegistry — 提示词/策略库（v16e 3-3 进化落地目标）：可学习事件 → 版本化策略 hint（setHint 递增版本/removeHint 回滚），装配/执行路径读取影响行为 | L7 演化唯一所有者；纯数据存储 |
+| `evolution/EvolutionApplyLoop.ts` | EvolutionApplyLoop — 进化提案落地通道（v16e 3-3 半自动应用）：学习事件 → 沙箱提案（apply/revert 动作）→ 有 Gate 凭证自动应用 / 否则 pending_approval；防抖防重提 | L7 演化唯一所有者；走 EvolutionSandbox，不绕过沙箱 |
 | `evolution/FailureAnalyzer.ts` | FailureAnalyzer — v11 Failure Analysis Engine Analyzes workflow execution failures to identify root causes, failure patterns, and recovery recommendations. Flow: Execution History → Failure Detection → Root Cause Analysis → Recommendations @packageDocumentatio | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/KnowledgeGapListener.ts` | KnowledgeGapListener — 知识缺失监听器（QueryMiss → Feedback → Evolution） vNext+ 演化安全闭环的一部分： Ontology Gate 无结果（QueryMiss）不能静默失败。 本监听器订阅 EventBus 的 `ontology.query.miss` 事件： 1. 将每次知识缺失写入 FeedbackService（Feedback 对象，source='query_miss'） 2. 聚合缺失统计（按 tier / reason / goal）， | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/PatternExtractor.ts` | PatternExtractor — 模式提取器 (v16) 从完成任务提取模式，写入合并后的 CapabilityRegistry / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |

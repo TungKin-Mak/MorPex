@@ -162,12 +162,18 @@ export async function bootstrapUnified(options?: {
       maxTokens: 8000,
       enableTelemetry: true, // ═══ 会话 16c（3+4）：装配成本监控
       eventBus: container.eventBus, // ═══ 会话 16c：context.assembly.telemetry 事件出口
-      // ═══ 会话 16d（P2）：任务间经验主动注入——装配时注入相似任务规避提示 ═══
+      // ═══ 会话 16d/16e（P2 经验注入 + 3-3 进化策略落地）：装配时注入相似任务经验 + 已应用策略 ═══
       experienceInjector: {
         inject: async (goal: string, domain?: string) => {
           const { ExperienceInjectionService } = await import('./evolution/ExperienceInjectionService.js');
           const svc = new ExperienceInjectionService({ getEvents: () => container.experienceMiner.getEvents() });
-          return svc.inject(goal, domain);
+          const mined = svc.inject(goal, domain);
+          // 会话 16e：已应用策略（EvolutionApplyLoop 半自动落地）——直接影响装配提示
+          const applied = container.promptStrategyRegistry.all()
+            .map(s => `[已应用策略 v${s.version}] ${s.hint}`)
+            .join('\n');
+          const parts = [mined, applied].filter(Boolean);
+          return parts.length > 0 ? parts.join('\n') : null;
         },
       },
     });

@@ -93,6 +93,15 @@ describe('Studio REST API — 契约', () => {
     expect(typeof body.total).toBe('number');
   });
 
+  it('GET /api/evolution/changes → 演化提案/策略可见性（3-3）', async () => {
+    const { status, body } = await getJson('/api/evolution/changes');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.changes)).toBe(true);
+    expect(typeof body.pending).toBe('number');
+    expect(Array.isArray(body.strategies)).toBe(true);
+  });
+
   it('GET /api/config → version + engine', async () => {
     const { status, body } = await getJson('/api/config');
     expect(status).toBe(200);

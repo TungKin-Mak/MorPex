@@ -1053,3 +1053,28 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
 3. 进化提案落地通道（3-3）：EvolutionSandbox 提案 → 代码/提示词/策略 半自动应用
 4. 执行粒度：execution-stats 前端 UI、异常告警阈值可配置化
+
+---
+
+## ═════════ 会话 16e：1+3 执行——batch 验收 + 进化提案落地通道（2026-08-06）═════════
+
+### ① ✅ 进化提案落地通道（3-3 半自动应用闭环）
+- **闭环**：可学习事件（evolution.experience.mined）→ EvolutionApplyLoop 生成策略提案 → EvolutionSandbox 沙箱试跑 → pending_approval →（有 Gate 凭证提供者）半自动应用 → PromptStrategyRegistry 版本化落地 → 装配经验注入读取 → 影响后续行为 → 可回滚（EvolutionSandbox.rollback）
+- **新文件**：`PromptStrategyRegistry`（版本化策略库：setHint 递增版本/removeHint 回滚/all）、`EvolutionApplyLoop`（事件监听/防抖 10min/沙箱检查/gateContextProvider 半自动）
+- **接线**：ServiceContainer 建 registry+sandbox+loop（gateContextProvider 复用 Gate 两阶段）；sandbox.setEventStore 接 EventStore（initEventStore 后）；bootstrap experienceInjector 合并已应用策略提示（策略真正影响装配）；StudioServer `GET /api/evolution/changes`（提案+pending 数+策略列表）
+- 新增 `evolution-apply-loop.test.ts` **7 用例**（注册表版本化/半自动应用/pending 停留/闭环回滚/沙箱拒/防抖）；api-contract +1
+- 遵守 AGENTS.md 3.7 Verifiable Evolution：提案→沙箱→Gate→版本化→可回滚，不绕过
+
+### ② ⚠️ batch-run 验收（限额恢复后首次，本次受阻）
+- 首跑 `--limit 99 --exclude xjmcu`：**仅完成 1 任务（ok=true 187.8s）后被 heap OOM 杀死**——根因：与全量 vitest 并行导致内存竞争（batch 5 并发 + TraceRecorder 全量包装 + LLM 上下文高占用）
+- **教训**：batch-run 验收必须**独占运行**（不并行 vitest），且加 `NODE_OPTIONS=--max-old-space-size=8192` 防 OOM
+- 待办：单独重跑 batch 验收空参率（P0→P3 全链后目标 79.4% → 90%+）
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest 692 通过（+1 环境 OOM error，vitest 与 batch 并行资源竞争所致）｜ ✅ api-contract 28 通过
+
+### 遗留
+1. **batch-run 独占重跑**（加堆内存）验收空参率——P0→P3 最终验收
+2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
+3. 进化策略应用的人工审批 UI（/api/evolution/changes 已暴露 pending，审批动作未接端点）
+4. execution-stats 前端 UI / 告警阈值可配置化

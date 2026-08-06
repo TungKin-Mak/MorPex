@@ -45,6 +45,9 @@ export { LearningEventDetector } from './LearningEventDetector.js';
 export type { LearningEvent, LearningEventType, StepStats } from './LearningEventDetector.js';
 export { ExperienceInjectionService } from './ExperienceInjectionService.js';
 export type { ExperienceSource } from './ExperienceInjectionService.js';
+export { PromptStrategyRegistry } from './PromptStrategyRegistry.js';
+export { EvolutionApplyLoop } from './EvolutionApplyLoop.js';
+export type { StrategyType, AppliedStrategy } from './PromptStrategyRegistry.js';
 export { FailureAnalyzer } from './FailureAnalyzer.js';
 export type { FailureMode, FailureCategory, WorkflowFailureAnalysis, FailureAnalysisConfig } from './FailureAnalyzer.js';
 

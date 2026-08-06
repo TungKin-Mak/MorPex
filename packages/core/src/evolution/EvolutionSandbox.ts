@@ -88,6 +88,11 @@ export class EvolutionSandbox {
     this.goldenTasks = tasks;
   }
 
+  /** 会话 16e（进化落地通道）：EventStore 惰性接线（initEventStore 异步就绪后调用） */
+  setEventStore(store: IEventStore): void {
+    this.eventStore = store;
+  }
+
   /**
    * sandboxDryRun — 沙箱试跑 golden tasks（隔离/只读执行）
    * @returns 是否全部通过 + 失败清单

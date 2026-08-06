@@ -365,6 +365,21 @@ export class StudioServer {
       }
     });
 
+    // ── 会话 16e（3-3 进化落地通道）：演化提案/策略可见性 ──
+    this.app.get('/api/evolution/changes', (_req, res) => {
+      try {
+        const changes = container.evolutionSandbox.listChanges();
+        res.json({
+          ok: true,
+          changes,
+          pending: changes.filter(c => c.status === 'pending_approval').length,
+          strategies: container.promptStrategyRegistry.all(),
+        });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
     // ── 产物（L7 ArtifactFacade）──
     this.app.get('/api/artifacts', (_req, res) => {
       res.json({ artifacts: container.artifactFacade.getAll() });
