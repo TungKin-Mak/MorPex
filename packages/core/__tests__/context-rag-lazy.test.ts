@@ -148,19 +148,27 @@ describe('ContextAssemblyEngine — 4 层装配（16i RAG-lazy）', () => {
     expect(ctx.focusedSummary).toContain('【goal_graph】'); // 语义层
   });
 
-  it('每层预算截断：情境层超预算 → 截断；工作层受保护', async () => {
+  it('预算内 item 级选择：完整项优先，超预算裁整项留指针（不切片丢失关键信息）', async () => {
     const engine = makeEngine({
       focusMode: true, enableVersioning: false, enableEnrichment: false,
-      layerBudgets: { working: 200, episodic: 100, semantic: 500, procedural: 100 },
+      layerBudgets: { working: 200, episodic: 30, semantic: 500, procedural: 100 },
       retriever: {
-        retrieveRelevant: async () => [{ ref: 't1', summary: '很长'.repeat(200), score: 1 }],
+        // 3 个检索项（相关度递减）：预算 30 只装得下高相关完整项（~20 字符），其余被裁留指针
+        retrieveRelevant: async () => [
+          { ref: 't_high', summary: '高相关完整摘要', score: 3 },
+          { ref: 't_mid', summary: '中相关完整摘要', score: 1 },
+          { ref: 't_low', summary: '低相关完整摘要', score: 0.3 },
+        ],
       },
     });
     const ctx = await engine.assemble({ missionId: 'm1', goal: '目标', domain: 'd', taskRefs: ['r1'] });
-    // 情境层被截断（超 100 预算）
-    const episodicPart = ctx.focusedSummary!.split('【相关任务摘要】')[1] ?? '';
-    expect(episodicPart.length).toBeLessThanOrEqual(150); // 预算 + 段头余量
-    // 工作层永驻（保底 800，即使预算 200 也保留基础）
+
+    // 高相关项完整保留（未被切片/丢失）
+    expect(ctx.focusedSummary).toContain('- [t_high] 高相关完整摘要');
+    // 装不下的低相关项 → 保留指针（【可拉取详情】），不静默丢失
+    expect(ctx.focusedSummary).toContain('【可拉取详情】');
+    expect(ctx.focusedSummary).toContain('t_low');
+    // 工作层永驻（质量锚点不丢）
     expect(ctx.focusedSummary).toContain('【当前任务】');
   });
 

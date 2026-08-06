@@ -1218,3 +1218,25 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 2. **指针消费端**：step-agent 增加 loadByTaskRef/readArtifact 工具（目前 knowledge/file 工具可承载，未显式暴露任务召回）
 3. morpex-events.db 存量 4GB 清理（删 >1MB 快照 + VACUUM）
 4. 大样本 batch 复跑验证（装配提速 + 4 层效果 + 成功率/空参率）
+
+---
+
+## ═════════ 会话 16i·v2：装配裁剪策略修正——item 级完整选择（用户批评"硬截断会丢重要信息"）═════════
+
+### 用户批评
+"每层预算硬截断有可能会丢失重要的信息，不合理"——机械 slice 会切掉关键信息（如语义层尾部可能是当前任务状态）。
+
+### 修正（原则：宁可少装但每项完整，绝不让每项被切一半）
+1. **item 级优先级选择** `selectLayerItems`：按优先级降序逐项装**完整文本**，预算用尽则**裁整项**（不切片）
+   - 语义层：系统约束(user_profile/custom=100) > 任务状态(mission_state=80) > goal_graph(70) > artifact_lineage(60)
+   - 情境层：按检索相关度分（score×20）排序
+2. **单项蒸馏**：单 item 超 maxItemLen（语义 200/情境 120/程序 300）→ 截短保留开头（仍完整可读）
+3. **被裁项指针兜底**：装不下的项保留 ref → 拼 `【可拉取详情】ref1, ref2（按需拉取，未丢失）` → **零丢失**
+4. 工作层永驻（不截断，质量锚点）
+5. 移除旧 truncateLayer（字符切片）
+
+### 测试更新
+- context-rag-lazy：'每层预算截断' → '预算内 item 级选择'（完整项优先 + 被裁项留指针 + 工作层永驻），12 用例全绿
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest 81 文件 / 712 测试全过（含真实 LLM e2e）

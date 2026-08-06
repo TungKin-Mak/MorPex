@@ -269,14 +269,19 @@ export class ContextAssemblyEngine {
         ...(this.config.layerBudgets ?? {}),
       }
       const layers = { working: '', semantic: '', episodic: '', procedural: '' }
+      // ═══ 会话 16i·v2（用户批评后）：被裁项指针集合（零丢失兜底）═══
+      const droppedRefs: string[] = []
 
-      // ── 工作层（永驻，质量锚点）──
+      // ── 工作层（永驻，质量锚点，不截断）──
       layers.working = buildWorkingLayer(input)
 
-      // ── 语义层：当前任务片段（系统约束 + 任务级材料，带归属）──
-      layers.semantic = buildFragmentLayer(trimmedFragments)
+      // ── 语义层：item 级优先级选择（每项完整，超预算裁整项留指针，不切片）──
+      // 优先级：系统约束（user_profile/custom）> 任务状态（mission_state）> goal_graph > artifact_lineage
+      const semanticSel = selectLayerItems(buildSemanticItems(trimmedFragments), budgets.semantic, 200)
+      layers.semantic = semanticSel.text
+      droppedRefs.push(...semanticSel.droppedRefs)
 
-      // ── 情境层：相关性检索 Top-K（指针 + 蒸馏摘要；无 retriever 回退 recentSummaryReader）──
+      // ── 情境层：相关性检索 Top-K（指针 + 蒸馏摘要；item 级按相关度选择）──
       if (this.config.retriever) {
         try {
           const relevant = await this.config.retriever.retrieveRelevant(
@@ -284,7 +289,10 @@ export class ContextAssemblyEngine {
           )
           if (Array.isArray(relevant) && relevant.length > 0) {
             context.recentSummaries = relevant.map(r => ({ taskRef: r.ref, summary: r.summary, archivedAt: Date.now(), source: 'retriever' as const }))
-            layers.episodic = `【相关任务摘要】\n${relevant.map(r => `- [${r.ref}] ${r.summary}`).join('\n')}`
+            const epiItems = relevant.map(r => ({ ref: r.ref, priority: Math.max(1, Math.round(r.score * 20)), text: `- [${r.ref}] ${r.summary}` }))
+            const epiSel = selectLayerItems(epiItems, budgets.episodic, 120)
+            layers.episodic = epiSel.text ? `【相关任务摘要】\n${epiSel.text}` : ''
+            droppedRefs.push(...epiSel.droppedRefs)
           }
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 相关性检索失败（不阻断）: ${(err as Error).message}`)
@@ -294,29 +302,34 @@ export class ContextAssemblyEngine {
           const recent = await this.config.recentSummaryReader.loadRecent(this.config.recentSummaryLimit ?? 5)
           if (Array.isArray(recent) && recent.length > 0) {
             context.recentSummaries = recent
-            const lines = recent.map(r => `- [${r.taskRef}] ${r.summary}`)
-            layers.episodic = `【相关任务摘要（≤${recent.length} 条）】\n${lines.join('\n')}`
+            const epiItems = recent.map(r => ({ ref: r.taskRef, priority: 50, text: `- [${r.taskRef}] ${r.summary}` }))
+            const epiSel = selectLayerItems(epiItems, budgets.episodic, 120)
+            layers.episodic = epiSel.text ? `【相关任务摘要（≤${recent.length} 条）】\n${epiSel.text}` : ''
+            droppedRefs.push(...epiSel.droppedRefs)
           }
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 近期摘要召回失败（不阻断）: ${(err as Error).message}`)
         }
       }
 
-      // ── 程序层：经验规避 + 策略（预防性）──
+      // ── 程序层：经验规避 + 策略（item 完整，超预算蒸馏）──
       if (this.config.experienceInjector) {
         try {
           const hint = await this.config.experienceInjector.inject(input.goal ?? '', input.domain)
-          if (hint) layers.procedural = `【经验规避】\n${hint}`
+          if (hint) {
+            const procSel = selectLayerItems([{ priority: 50, text: hint }], budgets.procedural, 300)
+            layers.procedural = procSel.text ? `【经验规避】\n${procSel.text}` : ''
+          }
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 经验注入失败（不阻断）: ${(err as Error).message}`)
         }
       }
 
-      // ── 每层预算截断（工作层受保护：超预算截断但保底 800，质量锚点不丢）──
-      layers.working = truncateLayer(layers.working, Math.max(budgets.working, 800))
-      layers.semantic = truncateLayer(layers.semantic, budgets.semantic)
-      layers.episodic = truncateLayer(layers.episodic, budgets.episodic)
-      layers.procedural = truncateLayer(layers.procedural, budgets.procedural)
+      // ── 被裁项指针（零丢失兜底：只保留 ref，不丢详情）──
+      if (droppedRefs.length > 0) {
+        const refNote = `【可拉取详情】${droppedRefs.join(', ')}（被预算裁剪，按需经工具拉取，未丢失）`
+        layers.procedural = layers.procedural ? `${layers.procedural}\n${refNote}` : refNote
+      }
 
       // ── 组装（层序固定：工作 → 语义 → 情境 → 程序）──
       context.focusedSummary = [layers.working, layers.semantic, layers.episodic, layers.procedural]
@@ -745,28 +758,59 @@ function buildWorkingLayer(input: ContextAssemblyInput): string {
 }
 
 /**
- * buildFragmentLayer — 语义层（4 层装配·当前任务材料）
+ * buildSemanticItems — 语义层 item 集（4 层装配·当前任务材料）
  *
- * 内容：已收集片段精简摘要（系统约束 user_profile/custom + 任务级 goal_graph/mission_state/artifact_lineage），
- * 每片段 ≤200 字符（片段级防膨胀），任务级标注归属。
+ * 每片段 = 一个完整 item（可被单独选择/裁剪），带优先级：
+ *   系统约束（user_profile/custom）100 > 任务状态（mission_state）80 > goal_graph 70 > artifact_lineage 60
+ * 片段内容 ≤200 字符（片段级防膨胀）。
  */
-function buildFragmentLayer(fragments: ContextFragment[]): string {
-  const lines: string[] = []
-  for (const f of fragments) {
+function buildSemanticItems(fragments: ContextFragment[]): Array<{ ref?: string; priority: number; text: string }> {
+  const PRIORITY: Record<string, number> = {
+    user_profile: 100, custom: 100, mission_state: 80, goal_graph: 70, artifact_lineage: 60,
+  }
+  return fragments.map(f => {
+    let text = ''
     try {
       const data = JSON.stringify(f.data ?? {})
-      const snippet = data.length > 200 ? `${data.slice(0, 200)}…` : data
-      const ref = f.taskRef ? `（归属:${f.taskRef}）` : ''
-      lines.push(`【${f.source}】${ref}${snippet}`)
+      text = data.length > 200 ? `${data.slice(0, 200)}…` : data
     } catch {
-      // 片段序列化失败 → 跳过该片段摘要（不阻断）
+      text = '{}'
     }
-  }
-  return lines.join('\n')
+    const ref = f.taskRef ? `（归属:${f.taskRef}）` : ''
+    return { ref: f.taskRef ?? undefined, priority: PRIORITY[f.source] ?? 50, text: `【${f.source}】${ref}${text}` }
+  })
 }
 
-/** 每层预算截断（保留开头——系统约束/当前任务优先） */
-function truncateLayer(text: string, max: number): string {
-  if (!text) return ''
-  return text.length > max ? `${text.slice(0, max)}…[层截断]` : text
+/**
+ * selectLayerItems — 预算内 item 级选择（v2，用户批评后替代字符切片）
+ *
+ * 原则：**宁可少装但每项完整，绝不让每项被切一半**。
+ *   1. 按优先级降序（高优先先装）
+ *   2. 逐项装完整文本，直到预算用尽
+ *   3. 单项超 maxItemLen → 蒸馏（截短保留开头，仍完整可读）
+ *   4. 装不下的项 → 裁整项，ref 收集进 droppedRefs（由装配层拼【可拉取详情】指针，零丢失）
+ *
+ * @returns kept 完整文本 + 被裁项的 ref 列表
+ */
+function selectLayerItems(
+  items: Array<{ ref?: string; priority: number; text: string }>,
+  budget: number,
+  maxItemLen = Infinity,
+): { text: string; droppedRefs: string[] } {
+  const ordered = [...items].sort((a, b) => b.priority - a.priority)
+  const kept: string[] = []
+  const droppedRefs: string[] = []
+  let used = 0
+  for (const item of ordered) {
+    let t = item.text
+    if (t.length > maxItemLen) t = `${t.slice(0, maxItemLen)}…`
+    const add = used === 0 ? t.length : t.length + 1
+    if (used + add <= budget) {
+      kept.push(t)
+      used += add
+    } else if (item.ref) {
+      droppedRefs.push(item.ref)
+    }
+  }
+  return { text: kept.join('\n'), droppedRefs }
 }
