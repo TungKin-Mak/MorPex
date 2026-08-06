@@ -67,6 +67,27 @@ export class EvolutionApplyLoop {
     return this.sandbox.listChanges().filter(c => c.status === 'pending_approval');
   }
 
+  /**
+   * approve — 会话 16j（E1 人工审批通道）：审批并应用 pending 提案。
+   * 使用本 loop 配置的 gateContextProvider 签发凭证（无 provider/签发失败 → 不应用）。
+   * 先校验提案存在且 pending（避免对无效 id 触发昂贵的 Gate 签发）。
+   */
+  async approve(id: string): Promise<EvolutionChangeRecord | undefined> {
+    const rec = this.sandbox.getChange(id);
+    if (!rec || rec.status !== 'pending_approval') return undefined;
+    if (!this.opts.gateContextProvider) return undefined;
+    const gateContext = await this.opts.gateContextProvider();
+    if (!gateContext) return undefined;
+    const applied = await this.sandbox.approveAndApply(id, gateContext);
+    if (applied?.status === 'applied') this.appliedCount++;
+    return applied;
+  }
+
+  /** reject — 会话 16j（E1）：拒绝 pending 提案 */
+  reject(id: string, reason?: string): Promise<EvolutionChangeRecord | undefined> {
+    return this.sandbox.reject(id, reason);
+  }
+
   // ── 内部 ──
 
   private async onExperienceMined(e: {

@@ -392,16 +392,25 @@ export class PiBridge {
       }
 
       const text = this.extractText(result);
+      const usage = {
+        input: (result.usage as { input?: number })?.input ?? 0,
+        output: (result.usage as { output?: number })?.output ?? 0,
+        total: (result.usage as { totalTokens?: number })?.totalTokens ?? 0,
+      };
+
+      // ═══ 会话 16j（C1 限流检测）═══
+      // 内置 provider（builtin，如 opencode）的 complete 不暴露 onResponse → 限流/配额耗尽时
+      // 静默返回空文本 + 零 usage（实测: text='' usage=0）。检测空结果+零 usage → 显式抛
+      // RateLimitError（可重试），不再静默空返回（此前多会话遗留的静默失败源）。
+      if (params.prompt && params.prompt.trim().length > 0 && !text.trim() && usage.total === 0) {
+        throw new RateLimitError('EMPTY_RESPONSE', `LLM 返回空结果且零 usage（疑似限流/配额耗尽）——provider=${provider} model=${modelId}`);
+      }
 
       return {
         text,
         modelUsed: `${provider}/${model.id as string}`,
         finishReason: (result.stopReason as string) ?? 'unknown',
-        usage: {
-          input: (result.usage as { input?: number })?.input ?? 0,
-          output: (result.usage as { output?: number })?.output ?? 0,
-          total: (result.usage as { totalTokens?: number })?.totalTokens ?? 0,
-        },
+        usage,
       };
     } catch (err) {
       // 透传 RateLimitError（含上面构造的）；其余异常包装为带状态的上抛，避免静默空结果

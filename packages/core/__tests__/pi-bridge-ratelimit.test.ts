@@ -73,3 +73,37 @@ describe('PiBridge.generateText — 限流检测（会话 10）', () => {
     expect(r.text).toBe('ok');
   });
 });
+
+describe('PiBridge.generateText — 空结果+零 usage 检测（会话 16j C1，builtin provider 静默空）', () => {
+  it('空文本 + 零 usage（内置 provider 限流静默）→ 抛 RateLimitError（不再静默空返回）', async () => {
+    const bridge = new PiBridge();
+    (bridge as unknown as { models: unknown }).models = {
+      getModel: () => ({ id: 'deepseek-v4-flash-free', provider: 'opencode' }),
+      complete: async () => ({
+        content: [{ type: 'text', text: '' }],
+        stopReason: 'stop',
+        usage: { input: 0, output: 0, totalTokens: 0 },
+      }),
+    } as never;
+    (bridge as unknown as { initialized: boolean }).initialized = true;
+
+    await expect(bridge.generateText({ prompt: '请回答' })).rejects.toThrowError(RateLimitError);
+    try {
+      await bridge.generateText({ prompt: '请回答' });
+      expect.fail('应抛 RateLimitError');
+    } catch (e) {
+      expect((e as RateLimitError).code).toBe('EMPTY_RESPONSE');
+    }
+  });
+
+  it('空 prompt → 不抛（合法边界：空 prompt 空返回不误伤）', async () => {
+    const bridge = new PiBridge();
+    (bridge as unknown as { models: unknown }).models = {
+      getModel: () => ({ id: 'm', provider: 'p' }),
+      complete: async () => ({ content: [{ type: 'text', text: '' }], usage: { totalTokens: 0 } }),
+    } as never;
+    (bridge as unknown as { initialized: boolean }).initialized = true;
+    const r = await bridge.generateText({ prompt: '' });
+    expect(r.text).toBe('');
+  });
+});

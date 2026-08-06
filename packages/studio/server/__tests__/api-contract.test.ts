@@ -102,6 +102,20 @@ describe('Studio REST API — 契约', () => {
     expect(Array.isArray(body.strategies)).toBe(true);
   });
 
+  it('POST /api/evolution/:id/approve → 不存在提案返回 400（人工审批通道 E1）', async () => {
+    const res = await fetch(`${baseUrl}/api/evolution/nonexistent/approve`, { method: 'POST' });
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+  });
+
+  it('POST /api/evolution/:id/reject → 不存在提案返回 400', async () => {
+    const res = await fetch(`${baseUrl}/api/evolution/nonexistent/reject`, {
+      method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: '测试' }),
+    });
+    const body = await res.json();
+    expect(body.ok).toBe(false);
+  });
+
   it('GET /api/config → version + engine', async () => {
     const { status, body } = await getJson('/api/config');
     expect(status).toBe(200);

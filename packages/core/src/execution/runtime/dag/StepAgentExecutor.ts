@@ -116,6 +116,11 @@ export interface StepAgentExecutorOptions {
    * 供观测聚合端点 + 学习闭环消费；未注入则不发射。
    */
   eventBus?: EventBus;
+  /**
+   * 会话 16j（B2 指针消费端）：按 taskRef 拉取历史上下文（装配「可拉取详情」指针的消费端），
+   * 透传给 recall_task 工具。未注入 → 不暴露该工具。
+   */
+  recallTask?: (taskRef: string) => Promise<string | null>;
 }
 
 export interface StepAgentResult {
@@ -283,6 +288,8 @@ export class StepAgentExecutor {
           workspaceDir,
           // ⬅️ 会话 13：step 目标（knowledge 空 query 兜底）
           goal: this.opts.goal,
+          // ⬅️ 会话 16j（B2）：指针消费端——按 taskRef 拉取被裁详情（零丢失闭环）
+          recallTask: this.opts.recallTask,
         }),
         ...(this.opts.extraTools ?? []),
       ];

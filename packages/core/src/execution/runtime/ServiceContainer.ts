@@ -110,6 +110,32 @@ export class ServiceContainer {
     return loadMerged(this._eventStore, this.getContextPersistence(), taskRef);
   }
 
+  /**
+   * recallTaskForAgent — 会话 16j（B2 指针消费端）：按 taskRef 拉取历史上下文为精简文本，
+   * 供 step-agent 的 recall_task 工具消费（装配「可拉取详情」指针的消费端）。
+   */
+  async recallTaskForAgent(taskRef: string): Promise<string | null> {
+    if (!taskRef) return null;
+    try {
+      const merged = await this.recallTaskContext(taskRef);
+      if (!merged) return null;
+      const parts: string[] = [];
+      if (merged.archived) {
+        parts.push(`目标: ${merged.archived.goal ?? '?'}`);
+        parts.push(`结果: ${merged.archived.result ?? '?'}${typeof merged.archived.score === 'number' ? `（质量分 ${merged.archived.score}）` : ''}`);
+      }
+      if (merged.snapshots && merged.snapshots.length > 0) {
+        const snap = merged.snapshots[0];
+        if (snap.focusedSummary) parts.push(`装配摘要: ${snap.focusedSummary.slice(0, 800)}`);
+      }
+      if (parts.length === 0) return null;
+      return parts.join('\n');
+    } catch (err) {
+      console.warn(`[ServiceContainer] ⚠️ recallTaskForAgent(${taskRef}) 失败: ${(err as Error).message}`);
+      return null;
+    }
+  }
+
   /** 治理观测面板（bootstrap 挂载，供 StudioServer 显式访问） */
   governanceDashboard?: { getSystemHealth(): unknown; getCostReport(): unknown; getDeliveryMetrics(): unknown };
 
@@ -295,6 +321,8 @@ export class ServiceContainer {
       sessionStore: this.agentSessionStore,
       // ⬅️ 会话 16c（3+4）：步骤结果事件出口（execution.step.result，观测/学习数据源）
       eventBus: this.eventBus,
+      // ⬅️ 会话 16j（B2 指针消费端）：按 taskRef 拉取被裁详情（装配「可拉取详情」的消费端）
+      recallTask: (taskRef) => this.recallTaskForAgent(taskRef),
     });
     return new OrchestratorAgent({
       llm: {
@@ -377,6 +405,8 @@ export class ServiceContainer {
           sessionStore: this.agentSessionStore,
           // ⬅️ 会话 16c（3+4）：步骤结果事件出口
           eventBus: this.eventBus,
+          // ⬅️ 会话 16j（B2 指针消费端）：按 taskRef 拉取被裁详情
+          recallTask: (taskRef) => this.recallTaskForAgent(taskRef),
         });
         // 会话 4：总大脑预建的 step 会话（按节点名匹配，nodeHandler 复用同一会话）
         const stepSessions = (ctxObj.stepSessions instanceof Map ? ctxObj.stepSessions : new Map<string, { session: unknown; sessionPath: string }>());

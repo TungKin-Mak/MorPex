@@ -197,3 +197,29 @@ describe('ContextAssemblyEngine — 4 层装配（16i RAG-lazy）', () => {
     expect(ctx.focusedSummary).toContain('t_old');
   });
 });
+
+describe('ContextRetriever — 可插拔 embedding 评分器（B1）', () => {
+  it('注入 similarityScorer（embedding 余弦）→ 用它打分（替代关键词）', async () => {
+    const tasks: RecentTaskRecord[] = [
+      { taskRef: 't_price', goal: '电商价格合规', result: 'success', archivedAt: Date.now() },
+      { taskRef: 't_hw', goal: '空气检测设备', result: 'failure', archivedAt: Date.now() },
+    ];
+    // mock embedding 相似度：价格合规目标 → t_price 高相似，t_hw 低
+    const r = new ContextRetriever({
+      loadRecentTasks: async () => tasks,
+      similarityScorer: (goal, candidate) => candidate.includes('价格') ? 0.95 : 0.1,
+    });
+    const res = await r.retrieveRelevant('电商价格合规检查', 'ecommerce', 5);
+    expect(res[0].ref).toBe('t_price');
+    expect(res[0].score).toBeGreaterThan(res.find(x => x.ref === 't_hw')!.score);
+  });
+
+  it('未注入 similarityScorer → 关键词/domain 打分兜底（默认行为不变）', async () => {
+    const tasks: RecentTaskRecord[] = [
+      { taskRef: 't_price', goal: '电商价格合规检查', result: 'success', archivedAt: Date.now() },
+    ];
+    const r = new ContextRetriever({ loadRecentTasks: async () => tasks });
+    const res = await r.retrieveRelevant('电商价格合规检查', 'ecommerce', 5);
+    expect(res[0].ref).toBe('t_price');
+  });
+});

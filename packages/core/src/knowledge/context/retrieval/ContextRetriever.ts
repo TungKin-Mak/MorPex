@@ -47,6 +47,12 @@ export interface RetrieverSources {
   getEvents?: () => LearningEvent[];
   /** 已应用策略 */
   getStrategies?: () => AppliedStrategy[];
+  /**
+   * 会话 16j（B1 可插拔 embedding）：语义相似度评分器（可选）。
+   * 注入后替代默认关键词/domain 打分（更高语义精度）；返回 0-1 相似度。
+   * 未注入 → 默认关键词 + domain + 新鲜度打分。
+   */
+  similarityScorer?: (goal: string, candidate: string) => number;
 }
 
 /** goal 提取检索关键词（去停用词；中文分词近似：按常用业务词匹配） */
@@ -121,8 +127,24 @@ export class ContextRetriever {
     return results.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
-  /** 相关性打分：goal 关键词命中 + domain 匹配 + 新鲜度加权 */
+  /** 相关性打分：可插拔相似度（embedding）优先，缺省关键词/domain + 新鲜度 */
   private relevanceScore(goal: string, domain: string | undefined, candidate: string, _ref: string, archivedAt?: number): number {
+    // ═══ 会话 16j（B1）：注入 similarityScorer（如 embedding 余弦）→ 用它打分（0-1 加权）═══
+    if (this.sources.similarityScorer) {
+      try {
+        const sim = this.sources.similarityScorer(goal, candidate);
+        let score = Number.isFinite(sim) ? sim * 3 : 0; // 0-1 → 0-3 量纲（与关键词对齐）
+        if (domain && candidate.toLowerCase().includes(domain.toLowerCase())) score += 0.5;
+        if (score <= 0) return 0;
+        if (archivedAt) {
+          const ageDays = (Date.now() - archivedAt) / 86_400_000;
+          if (ageDays > 7) score *= Math.max(0.3, 1 - ageDays / 30);
+        }
+        return score;
+      } catch {
+        /* scorer 异常 → 回退关键词 */
+      }
+    }
     const c = candidate.toLowerCase();
     let score = 0;
     for (const kw of extractKeywords(goal)) {

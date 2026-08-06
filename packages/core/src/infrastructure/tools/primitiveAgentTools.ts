@@ -48,6 +48,12 @@ export interface PrimitiveToolOptions {
    * （step 目标即要查的内容），解决思考模式空参导致的 12/40 失败。
    */
   goal?: string;
+  /**
+   * 会话 16j（B2 指针消费端）：按 taskRef 拉取历史任务上下文（装配「可拉取详情」指针的消费端）。
+   * 注入后 expose `recall_task` 工具——模型可据此拉回被预算裁剪的历史详情（零丢失闭环）。
+   * 返回精简上下文文本；null/异常 → 工具返回失败（不阻断）。
+   */
+  recallTask?: (taskRef: string) => Promise<string | null>;
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -234,7 +240,46 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
     });
   }
 
+  // ═══ 会话 16j（B2 指针消费端）：追加 recall_task 工具（按 taskRef 拉取被裁详情，零丢失闭环）═══
+  const recallTool = recallTaskTool(options)
+  if (recallTool) tools.push(recallTool)
+
   return tools;
+}
+/**
+ * recallTaskTool — 指针消费端工具（会话 16j B2）：按 taskRef 拉取历史任务上下文。
+ * 装配层将预算裁剪的项保留 ref 拼成【可拉取详情】；本工具让 step-agent 能真正按 ref 拉回详情（零丢失闭环）。
+ */
+function recallTaskTool(options: PrimitiveToolOptions): AgentTool | null {
+  if (!options.recallTask) return null;
+  return {
+    name: 'recall_task',
+    label: 'recall_task',
+    description: '按任务引用 ID（taskRef）拉取该历史任务的上下文详情（目标/结果/快照）。用于装配时被预算裁剪的可拉取详情。',
+    parameters: {
+      type: 'object',
+      properties: { taskRef: { type: 'string', description: '历史任务引用 ID（形如 msn_xxx）', examples: ['msn_1786001780299_m15p'] } },
+      required: ['taskRef'],
+      additionalProperties: false,
+    },
+    execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
+      const p = (params ?? {}) as Record<string, unknown>;
+      const taskRef = typeof p.taskRef === 'string' ? p.taskRef.trim() : '';
+      if (!taskRef) {
+        return { content: [{ type: 'text', text: '缺失必需参数 "taskRef"，请【重新调用】recall_task 并提供 taskRef' }], isError: true };
+      }
+      try {
+        const text = await options.recallTask!(taskRef);
+        if (!text) {
+          return { content: [{ type: 'text', text: `未找到 taskRef=${taskRef} 的历史上下文（可能已清理或不存在）` }], isError: true };
+        }
+        return { content: [{ type: 'text', text: `taskRef=${taskRef} 的上下文详情：\n${text.slice(0, 4000)}` }], isError: false };
+      } catch (err) {
+        const msg = err instanceof Error ? err.message : String(err);
+        return { content: [{ type: 'text', text: `recall_task 拉取失败: ${msg}` }], isError: true };
+      }
+    },
+  };
 }
 
 /**

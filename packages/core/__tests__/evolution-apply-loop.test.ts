@@ -152,3 +152,40 @@ describe('EvolutionApplyLoop — 半自动应用闭环', () => {
     expect(sandbox.listChanges().filter(c => c.status === 'applied')).toHaveLength(1);
   });
 });
+
+describe('EvolutionApplyLoop — 人工审批通道（E1）', () => {
+  it('无 Gate 凭证提供者 → approve 不应用（返回 undefined）；reject 生效', async () => {
+    const bus = new EventBus();
+    const sandbox = new EvolutionSandbox();
+    const reg = new PromptStrategyRegistry();
+    const loop = new EvolutionApplyLoop(sandbox, reg, { cooldownMs: 0, sandboxCheck: async () => true });
+    loop.init(bus);
+    bus.emit(mineEvent(['empty-param']) as never);
+    await new Promise(r => setTimeout(r, 50));
+
+    const pending = loop.listPending();
+    expect(pending.length).toBe(1);
+    // 无 gateContextProvider → approve 不应用
+    const applied = await loop.approve(pending[0].id);
+    expect(applied).toBeUndefined();
+    // reject 生效
+    const rejected = await loop.reject(pending[0].id, '人工拒绝');
+    expect(rejected!.status).toBe('rejected');
+    expect(loop.listPending()).toHaveLength(0);
+  });
+
+  it('approve：手动提案（绕过 loop 自动应用）→ 用 loop.approve 应用（策略入库）', async () => {
+    const bus = new EventBus();
+    const sandbox = new EvolutionSandbox();
+    const reg = new PromptStrategyRegistry();
+    const loop = new EvolutionApplyLoop(sandbox, reg, {
+      gateContextProvider: async () => validGateContext(),
+      cooldownMs: 0, sandboxCheck: async () => true,
+    });
+    // 直接经 sandbox 提案（不带 apply/revert 动作 → 仅标记 applied；此处验证 approve 通道）
+    const rec = await sandbox.proposeChange({ summary: '手动策略提案' });
+    expect(rec.status).toBe('pending_approval');
+    const applied = await loop.approve(rec.id);
+    expect(applied!.status).toBe('applied');
+  });
+});

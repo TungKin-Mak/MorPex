@@ -1240,3 +1240,28 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 
 ### 门禁
 - ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest 81 文件 / 712 测试全过（含真实 LLM e2e）
+
+---
+
+## ═════════ 会话 16j：待办全做——指针消费端 + 4GB 清理 + 限流检测 + 可插拔 embedding + 审批端点（2026-08-06，用户"按推荐顺序全做"）═════════
+
+### 交付（5 项，按推荐顺序）
+1. **B2 指针消费端**（闭环「可拉取详情」）：`recall_task` 工具（primitiveAgentTools + StepAgentExecutor + ServiceContainer.recallTaskForAgent 按 taskRef 拉取精简上下文）；未注入不暴露
+2. **A1 4GB 清理**（需确认，用户"全做"授权）：备份 58 条 >1MB 快照元数据 → 删除 → VACUUM → **morpex-events.db 3.99GB → 85.7MB**（events 51,125 行完好、context_snapshots 336 条正常保留；EventStore context.snapshot 权威快照不受影响）
+3. **C1 内置 provider 限流检测**：generateText 检测"空文本 + 零 usage"（builtin 如 opencode 限流静默空，onResponse 不可用）→ 抛 RateLimitError（EMPTY_RESPONSE，显式可重试）；空 prompt 边界不误伤
+4. **B1 可插拔 embedding**：ContextRetriever 注入 similarityScorer（embedding 余弦）优先打分，缺省关键词/domain/新鲜度兜底
+5. **E1 进化人工审批通道**：EvolutionApplyLoop.approve/reject + StudioServer `POST /api/evolution/:id/approve|reject`（approve 先校验 pending 再签 Gate，避免无效 id 触发昂贵签发）
+
+### 新增测试（+11）
+- step-agent-tool-reliability +3（recall_task 暴露/拉取/缺参/未注入不暴露）
+- pi-bridge-ratelimit +2（空+零 usage → RateLimitError；空 prompt 不误伤）
+- context-rag-lazy +2（embedding 评分器优先/关键词兜底）
+- evolution-apply-loop +2（无凭证 approve 不应用+reject 生效；手动提案 approve）
+- api-contract +2（approve/reject 400）
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest **81 文件 / 721 测试全过** ｜ ✅ api-contract 30 通过
+
+### 剩余（下一会话）
+- D1 大样本 batch 复跑（装配提速 + 4 层效果 + 成功率/空参率终验）——本会话末尾启动
+- E2 execution-stats 前端 UI + 告警阈值可配置；E3 Session 治理前端（UI 工作量大，低优先）

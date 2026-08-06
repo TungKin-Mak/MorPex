@@ -380,6 +380,28 @@ export class StudioServer {
       }
     });
 
+    // ── 会话 16j（E1 人工审批通道）：审批/拒绝 pending 演化提案 ──
+    this.app.post('/api/evolution/:id/approve', async (req, res) => {
+      try {
+        const applied = await container.evolutionApplyLoop.approve(req.params.id);
+        if (!applied) return res.status(400).json({ ok: false, error: '审批失败：Gate 凭证不可用或提案不存在/非 pending' });
+        res.json({ ok: true, change: applied });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    this.app.post('/api/evolution/:id/reject', async (req, res) => {
+      try {
+        const reason = typeof req.body?.reason === 'string' ? req.body.reason : undefined;
+        const rejected = await container.evolutionApplyLoop.reject(req.params.id, reason);
+        if (!rejected) return res.status(400).json({ ok: false, error: '拒绝失败：提案不存在或不可拒绝' });
+        res.json({ ok: true, change: rejected });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
     // ── 产物（L7 ArtifactFacade）──
     this.app.get('/api/artifacts', (_req, res) => {
       res.json({ artifacts: container.artifactFacade.getAll() });

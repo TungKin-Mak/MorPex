@@ -157,3 +157,31 @@ describe('工具 schema 强化（enrichSchemaForTool）', () => {
     expect(params.properties?.method?.minLength).toBeUndefined();
   });
 });
+
+describe('recall_task 工具（B2 指针消费端）', () => {
+  it('注入 recallTask → 暴露 recall_task 工具并按 taskRef 拉取详情', async () => {
+    const tools = createPrimitiveAgentTools({
+      recallTask: async (taskRef) => `目标: 618价格合规\n结果: success（质量分 0.9）`,
+    });
+    const recall = tools.find(t => t.name === 'recall_task');
+    expect(recall).toBeDefined();
+    const res = await recall!.execute('tc1', { taskRef: 'msn_x' });
+    expect(res.isError).toBe(false);
+    expect(res.content[0].text).toContain('618价格合规');
+  });
+
+  it('未注入 recallTask → 不暴露 recall_task（避免无效工具）', () => {
+    const tools = createPrimitiveAgentTools({});
+    expect(tools.find(t => t.name === 'recall_task')).toBeUndefined();
+  });
+
+  it('缺 taskRef → 精确重发指引；拉取失败 → 错误返回', async () => {
+    const tools = createPrimitiveAgentTools({ recallTask: async () => null });
+    const recall = tools.find(t => t.name === 'recall_task')!;
+    const noRef = await recall.execute('tc1', {});
+    expect(noRef.isError).toBe(true);
+    expect(noRef.content[0].text).toContain('taskRef');
+    const notFound = await recall.execute('tc1', { taskRef: 'nope' });
+    expect(notFound.isError).toBe(true);
+  });
+});
