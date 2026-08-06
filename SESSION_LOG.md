@@ -1144,3 +1144,35 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 1. morpex-events.db 体积治理（4GB → 裁剪/归档/VACUUM）
 2. 大样本 batch 复跑（装配提速后任务耗时应大幅下降，重新验收成功率/空参率）
 3. 内置 provider 限流检测 / 进化策略审批 UI / execution-stats 前端
+
+---
+
+## ═════════ 会话 16h：4GB 根因剖析 + 防递归膨胀修复（2026-08-06，用户 "为什么会膨胀到4G?保存了什么数据"）═════════
+
+### 🔍 完整剖析（真实查询 morpex-events.db 4GB）
+| 数据 | 体积 | 说明 |
+|---|---|---|
+| events 表 | **50,469 行 / payload 仅 14MB** | system.entity.registered 41,483（本体图实体注册）、context.snapshot 927、mission.* 等 |
+| context_snapshots 表 | **384 行 / base_data 一列 2,793.6MB** | ⭐ 4GB 真凶 |
+| 单条最大快照 | **391.9MB** | `__focusedSummary` 179.8MB + `__recentSummaries` 196MB（仅 5 条 = 每条 ~39MB） |
+
+**根因 = 递归上下文膨胀**：
+1. recentSummaryReader 数据源①（ContextPersistence）注入**上一任务完整 focusedSummary**（非摘要）
+2. 而上一任务的 focusedSummary **已含它自己的近期摘要**（含更早任务完整 focusedSummary）
+3. → 每代 ≈ 5× 前代 → 指数级膨胀（batch 200+ 任务后单条快照 391MB）
+4. 34 条 >1MB 快照全为 batch 测试 mission（msn_17860xxx）；freelist=0、WAL 仅 4MB（非空页，是数据本身）
+
+### 修复（防未来膨胀，3 层）
+1. **bootstrap reader 数据源①：注入短摘要**（focusedSummary 截 120 字符 + [装配快照] 标记）——不再注入完整历史文本（断递归）
+2. **ContextAssemblyEngine：focusedSummary 硬上限 50KB**（安全网，超限截断保开头）
+3. （配合 16g：索引 + 单查 + TTL 缓存——膨胀减轻后装配进一步加速）
+
+### 新增测试（+2）
+- assembly-telemetry 防膨胀 2 用例（超大近期摘要 → 截断 ≤50KB；正常摘要不截断）
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest **80 文件 / 700 测试全过**（含真实 LLM e2e）
+
+### ⚠️ 存量 4GB 清理（未执行，需用户确认——破坏性）
+- 已写入的 34 条 >1MB 装配快照（batch 测试 mission）建议删除 + VACUUM 回收（可降到 ~15MB 级）
+- 选项：A) 删全部 >1MB 装配快照 + VACUUM（EventStore context.snapshot 仍在，召回不受影响）B) 仅 VACUUM（文件不缩，只整理）C) 保留不动

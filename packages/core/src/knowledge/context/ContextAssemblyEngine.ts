@@ -280,6 +280,15 @@ export class ContextAssemblyEngine {
         }
       }
 
+      // ═══ 会话 16h（4GB 根因修复·安全网）：focusedSummary 硬上限 ═══
+      // 近期摘要若仍注入完整历史文本会递归膨胀（实测单条 179MB）。硬截断兜底：
+      // 超过上限时保留开头（系统约束/当前任务身份优先），丢弃尾部（历史摘要区）。
+      const FOCUSED_SUMMARY_CAP = 50_000 // 50KB
+      if (context.focusedSummary && context.focusedSummary.length > FOCUSED_SUMMARY_CAP) {
+        console.warn(`[ContextAssemblyEngine] ⚠️ focusedSummary 超上限 ${context.focusedSummary.length} 字符 → 截断到 ${FOCUSED_SUMMARY_CAP}`)
+        context.focusedSummary = context.focusedSummary.slice(0, FOCUSED_SUMMARY_CAP)
+      }
+
       // ═══════ 功能③ 遗留项：风险分级 ═══════
       // 默认确定性分级（goal 关键词）；领域可经 config.riskGrader 覆写。
       try {

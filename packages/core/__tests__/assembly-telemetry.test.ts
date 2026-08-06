@@ -12,6 +12,7 @@ import { ContextFragmentRegistry } from '../src/knowledge/context/ContextFragmen
 import type { FragmentProvider, ContextAssemblyInput } from '../src/knowledge/context/ContextFragmentRegistry.js';
 import { ContextAssemblyEngine } from '../src/knowledge/context/ContextAssemblyEngine.js';
 import { EventBus } from '../src/infrastructure/common/EventBus.js';
+import type { RecentSummaryReader } from '../src/knowledge/context/ContextBuilder.js';
 
 function mockProvider(source: string, data: Record<string, unknown>): FragmentProvider {
   return {
@@ -78,5 +79,40 @@ describe('ContextAssemblyEngine — 装配成本监控（3+4）', () => {
 
     expect(ctx.assemblyTelemetry).toBeUndefined();
     expect(emitted).toBe(0);
+  });
+});
+
+describe('ContextAssemblyEngine — 防递归膨胀（16h）', () => {
+  it('近期摘要注入超大历史 focusedSummary → 截断到 50KB 上限（防递归膨胀）', async () => {
+    // 构造超大 recentSummaryReader：返回 5 条每条 100KB 的完整历史 focusedSummary
+    const hugeSummaries: RecentSummaryReader = {
+      loadRecent: async () => [
+        { taskRef: 't1', summary: 'x'.repeat(100_000) },
+        { taskRef: 't2', summary: 'y'.repeat(100_000) },
+        { taskRef: 't3', summary: 'z'.repeat(100_000) },
+      ],
+    };
+    const engine = makeEngine({
+      focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false,
+      recentSummaryReader: hugeSummaries, recentSummaryLimit: 5,
+    });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '目标', domain: 'hardware', taskRefs: ['r1'] });
+
+    // 硬上限 50KB 生效——不随历史膨胀
+    expect(ctx.focusedSummary!.length).toBeLessThanOrEqual(50_000);
+    expect(ctx.focusedSummary).toContain('近期任务摘要');
+  });
+
+  it('正常小型摘要 → 不截断（保留完整）', async () => {
+    const smallReader: RecentSummaryReader = {
+      loadRecent: async () => [{ taskRef: 't1', summary: '简短摘要' }],
+    };
+    const engine = makeEngine({
+      focusMode: true, maxTokens: 8000, enableVersioning: false, enableEnrichment: false,
+      recentSummaryReader: smallReader, recentSummaryLimit: 5,
+    });
+    const ctx = await engine.assemble({ missionId: 'm1', goal: '目标', domain: 'hardware', taskRefs: ['r1'] });
+    expect(ctx.focusedSummary).toContain('简短摘要');
+    expect(ctx.focusedSummary!.length).toBeLessThan(50_000);
   });
 });

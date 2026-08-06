@@ -212,6 +212,8 @@ export async function bootstrapUnified(options?: {
           }> = [];
 
           // 数据源①：ContextPersistence 装配快照（最近 N 条，SQLite LIMIT 高效查询）
+          // ⚠️ 会话 16h（4GB 根因修复）：必须截断为短摘要——注入完整 focusedSummary 会导致
+          //    递归膨胀（上任务的 focusedSummary 已含它的近期摘要 → 每代≈5×前代，实测单条快照 391MB）
           try {
             const persistence = container.getContextPersistence();
             if (persistence) {
@@ -219,7 +221,8 @@ export async function bootstrapUnified(options?: {
                 const session = (snap.layers?.session ?? {}) as Record<string, unknown>;
                 out.push({
                   taskRef: (session.taskRef as string) ?? snap.missionId,
-                  summary: snap.focusedSummary ?? `任务 ${snap.missionId}（装配快照，无聚焦摘要）`,
+                  // 短摘要：仅取 focusedSummary 开头（约 120 字符），不再注入完整文本
+                  summary: `[装配快照] ${(snap.focusedSummary ?? `任务 ${snap.missionId}`).slice(0, 120)}`,
                   archivedAt: snap.assembledAt,
                   source: 'persistence',
                 });
