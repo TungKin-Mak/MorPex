@@ -95,6 +95,9 @@ const SCHEMA_SQL = `
     PRIMARY KEY (context_id, version)
   );
   CREATE INDEX IF NOT EXISTS idx_cs_mission ON context_snapshots(mission_id);
+  -- ═══ 会话 16g（装配性能优化）：loadRecent ORDER BY assembled_at DESC 全表扫描+临时 B-tree 排序
+  --     （4GB 库实测 37s）→ 建索引降为 index scan（O(log N + limit)）═══
+  CREATE INDEX IF NOT EXISTS idx_cs_assembled ON context_snapshots(assembled_at DESC);
 
   -- ═══ v9.1: Artifact Plane ═══
   CREATE TABLE IF NOT EXISTS artifacts_v2 (

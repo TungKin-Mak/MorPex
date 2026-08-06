@@ -77,6 +77,38 @@ export async function listTaskRefs(eventStore: IEventStore | null | undefined): 
   }
 }
 
+/**
+ * listRecentArchived — 会话 16g（装配性能优化）：单次查询取最近归档快照，内存按 taskRef 聚合去重。
+ *
+ * ⚠️ 此前装配近期摘要 reader 用 listTaskRefs + 逐 ref loadByTaskRef（N+1 次全量 query），
+ * EventStore 事件多时每次装配 10-40s+（实测装配总耗时 37-82s 的主因）。本函数单查替代：
+ * 一次 query（limit 冗余）→ 按 taskRef 取最新 → 按 archivedAt 倒序取前 N。
+ */
+export async function listRecentArchived(
+  eventStore: IEventStore | null | undefined,
+  limit = 5,
+): Promise<ArchivedContext[]> {
+  if (!eventStore) return [];
+  try {
+    // 单查：limit 冗余（limit×5，避免同任务多条挤占名额）；query 本身按 seq 倒序（见 SqliteEventStore）
+    const events = await eventStore.query({ type: 'context.snapshot', limit: Math.max(limit * 5, 50) });
+    const byRef = new Map<string, ArchivedContext>();
+    for (const e of events) {
+      const p = e.payload as Partial<ArchivedContext>;
+      if (!p?.taskRef) continue;
+      const existing = byRef.get(p.taskRef);
+      if (!existing || (p.archivedAt ?? 0) > (existing.archivedAt ?? 0)) {
+        byRef.set(p.taskRef, p as ArchivedContext);
+      }
+    }
+    return [...byRef.values()]
+      .sort((a, b) => (b.archivedAt ?? 0) - (a.archivedAt ?? 0))
+      .slice(0, limit);
+  } catch {
+    return [];
+  }
+}
+
 // ═══════════════════════════════════════════════════════════════
 // 统一召回接口（功能③ Phase 2：两存储合并）
 //   EventStore 权威快照（context.snapshot，Mission 完成时抽离）

@@ -192,16 +192,26 @@ export async function bootstrapUnified(options?: {
     // 数据源① ContextPersistence 装配快照（惰性 SQLite，focusedSummary 即摘要）
     // 数据源② EventStore 权威快照（context.snapshot：goal + result + score 合成摘要；taskRef 去重优先）
     // reader 在调用时（assemble 运行时）才解析存储——EventStore 未就绪/失败 → 另一源兜底，不阻断装配。
+    // ═══ 会话 16g（装配性能优化）：单查聚合（listRecentArchived）替代 N+1（listTaskRefs+逐 ref loadByTaskRef）
+    //     + TTL 缓存（跨任务摘要变化不频繁，30s 内不重扫）——实测装配 37-82s 主因在此。
     try {
-      const { listTaskRefs, loadByTaskRef } = await import('./knowledge/context/ContextArchive.js');
+      const { listRecentArchived } = await import('./knowledge/context/ContextArchive.js');
       const { defaultRiskGrader } = await import('./knowledge/context/ContextAssemblyEngine.js');
+      // 近期摘要 TTL 缓存（30s）：装配高频调用但摘要低频变化 → 缓存命中免 EventStore/SQLite 全扫
+      let recentCache: { at: number; data: Array<{ taskRef: string; summary: string; archivedAt: number; source: 'event-store' | 'persistence' }> } | null = null;
+      const RECENT_TTL_MS = 30_000;
       assemblyEngine.setRecentSummaryReader({
         loadRecent: async (limit: number) => {
+          // 缓存命中（TTL 内）→ 直接返回
+          if (recentCache && Date.now() - recentCache.at < RECENT_TTL_MS) {
+            return recentCache.data.slice(0, limit);
+          }
+
           const out: Array<{
             taskRef: string; summary: string; keyRefs?: string[]; archivedAt: number; source: 'event-store' | 'persistence';
           }> = [];
 
-          // 数据源①：ContextPersistence 装配快照（最近 N 条）
+          // 数据源①：ContextPersistence 装配快照（最近 N 条，SQLite LIMIT 高效查询）
           try {
             const persistence = container.getContextPersistence();
             if (persistence) {
@@ -219,15 +229,12 @@ export async function bootstrapUnified(options?: {
             console.warn(`[bootstrapUnified] ⚠️ 近期摘要·装配快照源读取失败（非阻断）: ${(err as Error).message}`);
           }
 
-          // 数据源②：EventStore 权威快照（goal + result + score 合成摘要；taskRef 去重优先）
+          // 数据源②：EventStore 权威快照（单查聚合，taskRef 去重取最新，前 limit）
           try {
             const es = container.eventStore;
             if (es) {
               await (es as unknown as { init?: () => Promise<void> }).init?.();
-              const refs = await listTaskRefs(es);
-              for (const ref of refs) {
-                const snap = await loadByTaskRef(es, ref);
-                if (!snap) continue;
+              for (const snap of await listRecentArchived(es, limit)) {
                 const scoreText = typeof snap.score === 'number' ? `，质量分 ${snap.score}` : '';
                 out.push({
                   taskRef: snap.taskRef,
@@ -249,13 +256,15 @@ export async function bootstrapUnified(options?: {
               seen.set(s.taskRef, s);
             }
           }
-          return [...seen.values()]
+          const merged = [...seen.values()]
             .sort((a, b) => b.archivedAt - a.archivedAt)
             .slice(0, limit);
+          recentCache = { at: Date.now(), data: merged };
+          return merged;
         },
       });
       assemblyEngine.setRiskGrader(defaultRiskGrader);
-      console.log('[bootstrapUnified] ✅ 近期摘要读取器 + 风险分级已注入（双源：EventStore + ContextPersistence）');
+      console.log('[bootstrapUnified] ✅ 近期摘要读取器 + 风险分级已注入（双源 + 单查聚合 + 30s TTL 缓存）');
     } catch (err) {
       console.warn('[bootstrapUnified] ⚠️ 近期摘要读取器注入失败（非阻断）:', (err as Error).message);
     }

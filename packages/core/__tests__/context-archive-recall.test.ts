@@ -8,7 +8,7 @@
  */
 
 import { describe, it, expect } from 'vitest';
-import { loadMerged } from '../src/knowledge/context/ContextArchive.js';
+import { loadMerged, listRecentArchived } from '../src/knowledge/context/ContextArchive.js';
 import type { IEventStore } from '../src/infrastructure/protocol/events/store/IEventStore.js';
 import type { ExecutionContext } from '../src/knowledge/context/ContextBuilder.js';
 
@@ -40,6 +40,29 @@ function makeSnapshot(taskRef: string, assembledAt: number): Partial<ExecutionCo
     assembledAt,
   } as Partial<ExecutionContext>;
 }
+
+describe('ContextArchive.listRecentArchived — 装配性能优化（16g 单查聚合）', () => {
+  it('单查：按 taskRef 去重取最新 + archivedAt 倒序 + limit', async () => {
+    const store = mockEventStore([
+      makeArchived('task_a', 1000),
+      makeArchived('task_b', 2000),
+      makeArchived('task_a', 3000), // task_a 最新版
+      makeArchived('task_c', 500),
+    ]);
+    const recent = await listRecentArchived(store, 2);
+    expect(recent.map(r => r.taskRef)).toEqual(['task_a', 'task_b']); // 按时间倒序前 2，task_a 取最新(3000)
+    expect(recent[0].archivedAt).toBe(3000);
+  });
+
+  it('无 eventStore → 返回 []', async () => {
+    expect(await listRecentArchived(null, 5)).toEqual([]);
+  });
+
+  it('空事件 / 无 taskRef → 返回 []', async () => {
+    expect(await listRecentArchived(mockEventStore([]), 5)).toEqual([]);
+    expect(await listRecentArchived(mockEventStore([{ type: 'context.snapshot', payload: { goal: 'no-ref' } }]), 5)).toEqual([]);
+  });
+});
 
 // ── 测试 ──
 

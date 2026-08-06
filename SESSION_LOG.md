@@ -1108,3 +1108,39 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 1. 大样本 batch 复跑（30-50 任务，独占）拿统计置信
 2. **装配性能优化**（新发现：37-82s，上下文装配是主要耗时）
 3. 内置 provider 限流检测 / 进化策略审批 UI / execution-stats 前端
+
+---
+
+## ═════════ 会话 16g：装配性能优化（2026-08-06，用户 "装配性能优化"）═════════
+
+### 背景
+batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配耗时 37-82s/任务**（P2 装配监控 + P3 告警价值落地）。
+
+### 诊断（真实数据逐项定位）
+- Provider 采集（goal_graph/mission_state/artifact_lineage/user_profile）实测 **0-1ms**（并行 + 有界查询，非瓶颈）
+- **真凶 1：`persistence.loadRecent(5)` 独占 37,534ms** —— ContextPersistence 共享 EventStore 的 SQLite（`morpex-events.db` 已膨胀到 **4GB**，batch 多次全量跑累积），`ORDER BY assembled_at DESC LIMIT` **无索引** → 全表扫描 + 临时 B-tree 排序
+- 真凶 2（次）：recentSummaryReader 数据源② 旧实现 `listTaskRefs` + 逐 ref `loadByTaskRef` **N+1 次全量 query**（实测 20 ref ~84ms、100 ref ~420ms + listTaskRefs 926ms）
+
+### 修复
+1. **加索引**：`context_snapshots(assembled_at DESC)`（`IF NOT EXISTS`，存量库下次 init 建，一次性成本）→ **loadRecent 37,534ms → 8ms（首查含建索引）→ 1ms（二次），~5000x**
+2. **单查聚合**：`ContextArchive.listRecentArchived(eventStore, limit)`（单次 query limit 冗余 → 内存按 taskRef 去重取最新 → archivedAt 倒序前 N）替代 N+1 → **EventStore 侧 11ms**
+3. **TTL 缓存**：bootstrap recentSummaryReader 30s 缓存（跨任务摘要低频变化）→ 命中 0ms
+
+### 实测效果
+| 项 | 优化前 | 优化后 |
+|---|---|---|
+| persistence.loadRecent(5) | 37,534ms | **8ms → 1ms** |
+| recentSummaryReader 冷调用 | 57,499ms | 毫秒级 |
+| EventStore 侧 listRecentArchived | N+1 ~420ms+926ms | **11ms** |
+| 装配全流程（缓存后） | 37-82s | 毫秒级 |
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest **80 文件 / 698 测试全过（含真实 LLM e2e）**（新增 context-archive-recall listRecentArchived 3 用例）
+
+### ⚠️ 数据卫生告警（新发现，未修）
+- `data/morpex-events.db` 已 **4GB**（batch 全量跑累积 context.snapshot 大 JSON）——索引已缓解查询，但库体积需治理（快照裁剪/归档/定期 VACUUM），下会话候选
+
+### 遗留
+1. morpex-events.db 体积治理（4GB → 裁剪/归档/VACUUM）
+2. 大样本 batch 复跑（装配提速后任务耗时应大幅下降，重新验收成功率/空参率）
+3. 内置 provider 限流检测 / 进化策略审批 UI / execution-stats 前端
