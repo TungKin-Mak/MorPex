@@ -267,7 +267,59 @@ export async function bootstrapUnified(options?: {
         },
       });
       assemblyEngine.setRiskGrader(defaultRiskGrader);
-      console.log('[bootstrapUnified] ✅ 近期摘要读取器 + 风险分级已注入（双源 + 单查聚合 + 30s TTL 缓存）');
+
+      // ═══ 会话 16i（RAG-lazy 装配）：相关性检索器接线 ═══
+      // 源：ContextPersistence 装配快照 + EventStore 权威快照（loadRecentTasks）/ ExperienceMiner 事件 / 策略库。
+      // 情境层用语义 Top-K 摘要 + 指针，替代"最近 N 条全量注入"（省 token + 语义相关保质量）。
+      try {
+        const { ContextRetriever } = await import('./knowledge/context/retrieval/ContextRetriever.js');
+        const { ContextDistiller } = await import('./knowledge/context/retrieval/ContextDistiller.js');
+        const retriever = new ContextRetriever({
+          loadRecentTasks: async (limit: number) => {
+            const out: Array<{ taskRef: string; goal?: string; result?: 'success' | 'failure'; summary?: string; archivedAt?: number }> = [];
+            // 源① ContextPersistence 装配快照（有 focusedSummary 摘要）
+            try {
+              const persistence = container.getContextPersistence();
+              if (persistence) {
+                for (const snap of persistence.loadRecent(limit)) {
+                  const session = (snap.layers?.session ?? {}) as Record<string, unknown>;
+                  out.push({
+                    taskRef: (session.taskRef as string) ?? snap.missionId,
+                    summary: snap.focusedSummary,
+                    archivedAt: snap.assembledAt,
+                  });
+                }
+              }
+            } catch { /* 单源失败不阻断 */ }
+            // 源② EventStore 权威快照（goal + result）
+            try {
+              const es = container.eventStore;
+              if (es) {
+                await (es as unknown as { init?: () => Promise<void> }).init?.();
+                for (const snap of await listRecentArchived(es, limit)) {
+                  out.push({
+                    taskRef: snap.taskRef,
+                    goal: snap.goal,
+                    result: snap.result,
+                    archivedAt: snap.archivedAt,
+                  });
+                }
+              }
+            } catch { /* 单源失败不阻断 */ }
+            return out;
+          },
+          getEvents: () => container.experienceMiner.getEvents(),
+          getStrategies: () => container.promptStrategyRegistry.all(),
+        }, new ContextDistiller());
+        assemblyEngine.setRetriever({
+          retrieveRelevant: (goal: string, domain?: string, topK?: number) => retriever.retrieveRelevant(goal, domain, topK),
+        });
+        console.log('[bootstrapUnified] ✅ 相关性检索器已注入（RAG-lazy：情境层语义 Top-K + 指针）');
+      } catch (err) {
+        console.warn('[bootstrapUnified] ⚠️ 相关性检索器注入失败（回退最近 N 全量）:', (err as Error).message);
+      }
+
+      console.log('[bootstrapUnified] ✅ 近期摘要读取器 + 风险分级 + 检索器已注入（双源 + 单查聚合 + 30s TTL 缓存）');
     } catch (err) {
       console.warn('[bootstrapUnified] ⚠️ 近期摘要读取器注入失败（非阻断）:', (err as Error).message);
     }

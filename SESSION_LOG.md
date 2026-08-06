@@ -1176,3 +1176,45 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 ### ⚠️ 存量 4GB 清理（未执行，需用户确认——破坏性）
 - 已写入的 34 条 >1MB 装配快照（batch 测试 mission）建议删除 + VACUUM 回收（可降到 ~15MB 级）
 - 选项：A) 删全部 >1MB 装配快照 + VACUUM（EventStore context.snapshot 仍在，召回不受影响）B) 仅 VACUUM（文件不缩，只整理）C) 保留不动
+
+---
+
+## ═════════ 会话 16i：RAG-lazy 上下文装配（4 层 + 检索 + 指针 + 蒸馏）——整套完整交付（2026-08-06，用户要求完整实现）═════════
+
+### 目标
+"省 token + 装配效果好"——核心洞察：效果好 = 装对的（相关性检索）+ 装指针（详情按需拉）+ 关键信息永驻（工作记忆）。
+
+### 交付（RAG-lazy 4 层装配）
+1. **`ContextRetriever`**（新，knowledge/context/retrieval/）：按 goal 语义/domain 打分检索 Top-K 上下文（任务快照 + 经验事件 + 已应用策略），替代"最近 N 条按时间全量注入"；输出 ref 指针 + 蒸馏摘要 + 相关度分
+2. **`ContextDistiller`**（新）：摘要蒸馏 ≤maxLen（LLM 蒸馏可选 + 确定性关键行提取兜底）
+3. **`ContextAssemblyEngine` 4 层重构**：
+   - 工作层 working（goal/身份/domain/taskRefs）——**永驻保护**（预算保底 800，质量锚点）
+   - 语义层 semantic（当前任务片段 system+task，每片段 ≤200 字符）
+   - 情境层 episodic（**retriever Top-K 指针 + 蒸馏摘要**，替代 recent N 全量；无 retriever 回退 recentSummaryReader）
+   - 程序层 procedural（经验规避 + 策略）
+   - **每层独立预算截断** + 层序固定 + **分节遥测**（assemblyTelemetry.layers 每层字符量）
+4. **bootstrap 接线**：retriever（容器存储源：ContextPersistence + EventStore + ExperienceMiner + 策略库）+ distiller + layerBudgets
+5. **架构白名单**：`/knowledge/context/retrieval/`（蒸馏受控生成点，有确定性兜底）
+
+### 新增测试（context-rag-lazy 12 用例 + 更新 3 个旧断言）
+- ContextDistiller：确定性提取/LLM/兜底/短文本不截断（4）
+- ContextRetriever：语义排序/经验匹配/策略注入/Top-K 限制（4）
+- 4 层装配：retriever 情境层指针/预算截断/分节遥测/回退兼容（4）
+- 旧测试段头更新（近期任务摘要→相关任务摘要；相似任务经验规避提示→经验规避）
+
+### 效果（设计目标）
+| 维度 | 旧（最近 N 全量注入） | 新（RAG-lazy 4 层） |
+|---|---|---|
+| token | 历史越长越大（曾 391MB/条）| 每层预算截断（工作 3K/语义 6K/情境 1.5K/程序 1.2K）|
+| 相关性 | 按时间（可能无关）| 按语义 Top-K（只装相关）|
+| 完整性 | 截断误伤 | 指针按需拉取（ContextArchive.loadByTaskRef 等工具）|
+| 防膨胀 | 递归（已修）| 分层预算 + 指针 + 蒸馏（结构性防）|
+
+### 门禁（全部亲测）
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core vitest **81 文件 / 712 测试全过（含真实 LLM e2e）**
+
+### 遗留（下一会话候选）
+1. **embedding 检索升级**：ContextRetriever 目前确定性关键词/domain 打分；可接 embedding 向量相似度（更高语义精度）
+2. **指针消费端**：step-agent 增加 loadByTaskRef/readArtifact 工具（目前 knowledge/file 工具可承载，未显式暴露任务召回）
+3. morpex-events.db 存量 4GB 清理（删 >1MB 快照 + VACUUM）
+4. 大样本 batch 复跑验证（装配提速 + 4 层效果 + 成功率/空参率）

@@ -204,7 +204,7 @@ describe('近期摘要消费端拼接 + 风险分级（功能③ 遗留项）', 
     };
   }
 
-  it('focusMode + reader → recentSummaries 注入 + focusedSummary 含【近期任务摘要】节', async () => {
+  it('focusMode + reader → recentSummaries 注入 + focusedSummary 含【相关任务摘要】节', async () => {
     const engine = makeEngine({
       focusMode: true,
       maxTokens: 8000,
@@ -223,7 +223,7 @@ describe('近期摘要消费端拼接 + 风险分级（功能③ 遗留项）', 
     expect(ctx.recentSummaries!.length).toBe(2);
     expect(ctx.recentSummaries![0].taskRef).toBe('t1');
     expect(ctx.recentSummaries![0].source).toBe('event-store');
-    expect(ctx.focusedSummary).toContain('【近期任务摘要（≤2 条）】');
+    expect(ctx.focusedSummary).toContain('【相关任务摘要（≤2 条）】');
     expect(ctx.focusedSummary).toContain('- [t1] 完成空气检测设备设计');
   });
 
@@ -239,7 +239,7 @@ describe('近期摘要消费端拼接 + 风险分级（功能③ 遗留项）', 
     const ctx = await engine.assemble({ missionId: 'm1', goal: '开发硬件' });
     expect(ctx.contextId).toBeTruthy(); // 装配成功
     expect(ctx.recentSummaries).toBeUndefined();
-    expect(ctx.focusedSummary).not.toContain('近期任务摘要');
+    expect(ctx.focusedSummary).not.toContain('相关任务摘要');
   });
 
   it('无 reader → 不注入（向后兼容）', async () => {

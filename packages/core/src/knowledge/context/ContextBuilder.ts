@@ -31,7 +31,7 @@ export interface RecentSummary {
   /** 归档时间戳 */
   archivedAt: number
   /** 来源存储：EventStore 权威快照 / ContextPersistence 装配快照 */
-  source: 'event-store' | 'persistence'
+  source: 'event-store' | 'persistence' | 'retriever'
 }
 
 /** 近期摘要读取器（装配引擎消费端；实现方聚合 EventStore + ContextPersistence） */
@@ -76,6 +76,8 @@ export interface ExecutionContext {
     totalChars: number
     focusedSummaryChars: number
     infoDensity: number
+    /** 会话 16i：4 层装配每层字符量（工作/语义/情境/程序） */
+    layers?: { working: number; semantic: number; episodic: number; procedural: number }
   }
   /** 组装时间 */
   assembledAt: number

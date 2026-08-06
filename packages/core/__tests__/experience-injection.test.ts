@@ -62,13 +62,13 @@ describe('ContextAssemblyEngine — experienceInjector 接入', () => {
     return new ContextAssemblyEngine(registry, undefined, undefined, undefined, undefined, config);
   }
 
-  it('注入器返回提示 → focusedSummary 含【相似任务经验规避提示】', async () => {
+  it('注入器返回提示 → focusedSummary 含【经验规避】', async () => {
     const engine = makeEngine({
       focusMode: true, enableVersioning: false, enableEnrichment: false,
       experienceInjector: { inject: async () => '⚠️ 历史任务多次因工具参数为空失败' },
     });
     const ctx = await engine.assemble({ missionId: 'm1', goal: '生成报告', domain: 'software', taskRefs: ['r1'] });
-    expect(ctx.focusedSummary).toContain('相似任务经验规避提示');
+    expect(ctx.focusedSummary).toContain('经验规避');
     expect(ctx.focusedSummary).toContain('工具参数为空');
   });
 
@@ -78,7 +78,7 @@ describe('ContextAssemblyEngine — experienceInjector 接入', () => {
       experienceInjector: { inject: async () => null },
     });
     const ctx = await engine.assemble({ missionId: 'm1', goal: '生成报告', domain: 'software', taskRefs: ['r1'] });
-    expect(ctx.focusedSummary).not.toContain('相似任务经验规避提示');
+    expect(ctx.focusedSummary).not.toContain('经验规避');
   });
 
   it('注入器异常 → 不阻断装配', async () => {

@@ -58,6 +58,15 @@ export interface ContextAssemblyConfig {
    * 注入聚焦上下文（预防性）。未配置/返回 null → 不注入。
    */
   experienceInjector?: { inject(goal: string, domain?: string): string | null | Promise<string | null> }
+  /**
+   * 会话 16i（RAG-lazy 装配）：相关性检索器——按 goal 语义检索 Top-K 任务上下文/经验/策略，
+   * 替代"最近 N 条按时间全量注入"（省 token + 语义相关保质量）。未配置 → 回退 recentSummaryReader。
+   */
+  retriever?: {
+    retrieveRelevant(goal: string, domain?: string, topK?: number): Promise<Array<{ ref: string; summary: string; score: number }>> | Array<{ ref: string; summary: string; score: number }>
+  }
+  /** 会话 16i：4 层装配每层字符预算（working 受保护永驻；超预算截断） */
+  layerBudgets?: { working?: number; episodic?: number; semantic?: number; procedural?: number }
 }
 
 const DEFAULT_CONFIG: ContextAssemblyConfig = {
@@ -133,6 +142,8 @@ export class ContextAssemblyEngine {
   async assemble(input: ContextAssemblyInput): Promise<ExecutionContext> {
     // ═══ 会话 16c（3+4）：装配成本监控——记录开始时间 ═══
     const assembleStart = this.config.enableTelemetry === false ? 0 : Date.now();
+    // ═══ 会话 16i：4 层字符量（focus 块填充，attachAssemblyTelemetry 合并）═══
+    const layerSizes = { working: 0, semantic: 0, episodic: 0, procedural: 0 };
 
     // 1. 选择模板
     const template = this.selectTemplate(input)
@@ -247,42 +258,79 @@ export class ContextAssemblyEngine {
     const context = this.builder.build(input.missionId)
 
     // 功能③ 聚焦模式：生成聚焦摘要（系统约束 + goal + domain + taskRefs + 片段精简摘要）
+    // ═══ 会话 16i：重构为 4 层装配（RAG-lazy）═══
+    //   工作层 working    = goal/身份/domain/taskRefs（永驻保护）
+    //   语义层 semantic   = 当前任务片段（system + task fragments，按预算截断）
+    //   情境层 episodic   = ContextRetriever 相关性 Top-K（指针 + 蒸馏摘要）替代"最近 N 条全量"
+    //   程序层 procedural = 经验规避 + 已应用策略（按预算截断）
     if (focusMode) {
-      context.focusedSummary = buildFocusedSummary(input, trimmedFragments)
+      const budgets = {
+        working: 3000, episodic: 1500, semantic: 6000, procedural: 1200,
+        ...(this.config.layerBudgets ?? {}),
+      }
+      const layers = { working: '', semantic: '', episodic: '', procedural: '' }
 
-      // ═══════ 功能③ 遗留项：近期摘要消费端拼接 ═══════
-      // 设计哲学：工作上下文 = 系统约束 + Goal/Plan/Task + ontologyRefs + ≤N 条近期摘要。
-      // 抽离侧（Mission 完成 → EventStore context.snapshot / ContextPersistence 装配快照）已归档，
-      // 装配侧在此召回 ≤N 条最近任务摘要注入工作上下文（reader 异常/空 → 不阻断不注入）。
-      if (this.config.recentSummaryReader) {
+      // ── 工作层（永驻，质量锚点）──
+      layers.working = buildWorkingLayer(input)
+
+      // ── 语义层：当前任务片段（系统约束 + 任务级材料，带归属）──
+      layers.semantic = buildFragmentLayer(trimmedFragments)
+
+      // ── 情境层：相关性检索 Top-K（指针 + 蒸馏摘要；无 retriever 回退 recentSummaryReader）──
+      if (this.config.retriever) {
+        try {
+          const relevant = await this.config.retriever.retrieveRelevant(
+            input.goal ?? '', input.domain, this.config.recentSummaryLimit ?? 5,
+          )
+          if (Array.isArray(relevant) && relevant.length > 0) {
+            context.recentSummaries = relevant.map(r => ({ taskRef: r.ref, summary: r.summary, archivedAt: Date.now(), source: 'retriever' as const }))
+            layers.episodic = `【相关任务摘要】\n${relevant.map(r => `- [${r.ref}] ${r.summary}`).join('\n')}`
+          }
+        } catch (err) {
+          console.warn(`[ContextAssemblyEngine] ⚠️ 相关性检索失败（不阻断）: ${(err as Error).message}`)
+        }
+      } else if (this.config.recentSummaryReader) {
         try {
           const recent = await this.config.recentSummaryReader.loadRecent(this.config.recentSummaryLimit ?? 5)
           if (Array.isArray(recent) && recent.length > 0) {
             context.recentSummaries = recent
             const lines = recent.map(r => `- [${r.taskRef}] ${r.summary}`)
-            context.focusedSummary = `${context.focusedSummary ?? ''}\n\n【近期任务摘要（≤${recent.length} 条）】\n${lines.join('\n')}`.trim()
+            layers.episodic = `【相关任务摘要（≤${recent.length} 条）】\n${lines.join('\n')}`
           }
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 近期摘要召回失败（不阻断）: ${(err as Error).message}`)
         }
       }
 
-      // ═══════ 会话 16d（P2）：任务间经验主动注入 ═══════
-      // 按 goal/domain 匹配已沉淀可学习事件（空参/安全拦截等）→ 注入规避提示（预防性，比事后拦截省钱）。
+      // ── 程序层：经验规避 + 策略（预防性）──
       if (this.config.experienceInjector) {
         try {
           const hint = await this.config.experienceInjector.inject(input.goal ?? '', input.domain)
-          if (hint) {
-            context.focusedSummary = `${context.focusedSummary ?? ''}\n\n【相似任务经验规避提示】\n${hint}`.trim()
-          }
+          if (hint) layers.procedural = `【经验规避】\n${hint}`
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 经验注入失败（不阻断）: ${(err as Error).message}`)
         }
       }
 
+      // ── 每层预算截断（工作层受保护：超预算截断但保底 800，质量锚点不丢）──
+      layers.working = truncateLayer(layers.working, Math.max(budgets.working, 800))
+      layers.semantic = truncateLayer(layers.semantic, budgets.semantic)
+      layers.episodic = truncateLayer(layers.episodic, budgets.episodic)
+      layers.procedural = truncateLayer(layers.procedural, budgets.procedural)
+
+      // ── 组装（层序固定：工作 → 语义 → 情境 → 程序）──
+      context.focusedSummary = [layers.working, layers.semantic, layers.episodic, layers.procedural]
+        .filter(Boolean)
+        .join('\n\n')
+
+      // ── 分节遥测（每层字符量，防膨胀可观测）──
+      layerSizes.working = layers.working.length
+      layerSizes.semantic = layers.semantic.length
+      layerSizes.episodic = layers.episodic.length
+      layerSizes.procedural = layers.procedural.length
+
       // ═══ 会话 16h（4GB 根因修复·安全网）：focusedSummary 硬上限 ═══
-      // 近期摘要若仍注入完整历史文本会递归膨胀（实测单条 179MB）。硬截断兜底：
-      // 超过上限时保留开头（系统约束/当前任务身份优先），丢弃尾部（历史摘要区）。
+      // 各层预算已截断，此兜底防极端失控（如 fragment 数据异常）。
       const FOCUSED_SUMMARY_CAP = 50_000 // 50KB
       if (context.focusedSummary && context.focusedSummary.length > FOCUSED_SUMMARY_CAP) {
         console.warn(`[ContextAssemblyEngine] ⚠️ focusedSummary 超上限 ${context.focusedSummary.length} 字符 → 截断到 ${FOCUSED_SUMMARY_CAP}`)
@@ -316,7 +364,7 @@ export class ContextAssemblyEngine {
     }
 
     // ═══ 会话 16c（3+4）：装配成本遥测（耗时/片段/字符/信息密度 + 事件）═══
-    this.attachAssemblyTelemetry(enrichedContext, trimmedFragments, assembleStart)
+    this.attachAssemblyTelemetry(enrichedContext, trimmedFragments, assembleStart, layerSizes)
 
     // 11. 版本快照（可选）
     if (this.config.enableVersioning) {
@@ -344,7 +392,12 @@ export class ContextAssemblyEngine {
    * ═══ 会话 16c（3+4）：装配成本遥测 ═══
    * 在上下文构建完成、增强前调用：记录耗时/片段数/字符数/信息密度 + 发射 context.assembly.telemetry。
    */
-  private attachAssemblyTelemetry(context: ExecutionContext, trimmedFragments: ContextFragment[], assembleStart: number): void {
+  private attachAssemblyTelemetry(
+    context: ExecutionContext,
+    trimmedFragments: ContextFragment[],
+    assembleStart: number,
+    layerSizes?: { working: number; semantic: number; episodic: number; procedural: number },
+  ): void {
     if (this.config.enableTelemetry === false || assembleStart === 0) return;
     const durationMs = Date.now() - assembleStart;
     const totalChars = trimmedFragments.reduce((acc, f) => {
@@ -360,6 +413,8 @@ export class ContextAssemblyEngine {
       totalChars,
       focusedSummaryChars,
       infoDensity,
+      // ═══ 会话 16i：4 层字符量 ═══
+      ...(layerSizes ? { layers: layerSizes } : {}),
     };
     // 发射事件（观测聚合端点数据源）
     this.config.eventBus?.emit({
@@ -443,6 +498,14 @@ export class ContextAssemblyEngine {
    */
   setRecentSummaryReader(reader: RecentSummaryReader | undefined): void {
     this.config.recentSummaryReader = reader
+  }
+
+  /**
+   * setRetriever — 注入相关性检索器（会话 16i RAG-lazy：情境层语义 Top-K，替代最近 N 全量）
+   * 覆写 config.retriever；不注入 → 回退 recentSummaryReader。
+   */
+  setRetriever(retriever: NonNullable<ContextAssemblyConfig['retriever']> | undefined): void {
+    this.config.retriever = retriever
   }
 
   /**
@@ -658,13 +721,12 @@ function estimateFragmentTokens(fragment: ContextFragment): number {
 }
 
 /**
- * buildFocusedSummary — 生成聚焦摘要（功能③ 聚焦模式产物）
+ * buildWorkingLayer — 工作层（4 层装配·永驻质量锚点）
  *
- * 内容：系统级材料（用户画像/既定规则/系统约束）+ 当前任务身份（goal/domain/taskRefs）
- *      + 已收集片段精简摘要（任务级片段标注归属）。
- * 不含历史对话/中间推理（原则①聚焦；历史抽离需则召回）。
+ * 内容：当前任务身份（goal/domain/taskRefs）+ 任务身份 ID。
+ * 永驻保护（预算截断保底），不随历史增长。
  */
-function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFragment[]): string {
+function buildWorkingLayer(input: ContextAssemblyInput): string {
   const lines: string[] = []
   lines.push(`【当前任务】${input.goal ?? input.missionId}`)
   if (input.currentTask) {
@@ -679,6 +741,17 @@ function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFrag
   if (input.taskRefs && input.taskRefs.length > 0) {
     lines.push(`【必需知识引用】${input.taskRefs.join(', ')}`)
   }
+  return lines.join('\n')
+}
+
+/**
+ * buildFragmentLayer — 语义层（4 层装配·当前任务材料）
+ *
+ * 内容：已收集片段精简摘要（系统约束 user_profile/custom + 任务级 goal_graph/mission_state/artifact_lineage），
+ * 每片段 ≤200 字符（片段级防膨胀），任务级标注归属。
+ */
+function buildFragmentLayer(fragments: ContextFragment[]): string {
+  const lines: string[] = []
   for (const f of fragments) {
     try {
       const data = JSON.stringify(f.data ?? {})
@@ -690,4 +763,10 @@ function buildFocusedSummary(input: ContextAssemblyInput, fragments: ContextFrag
     }
   }
   return lines.join('\n')
+}
+
+/** 每层预算截断（保留开头——系统约束/当前任务优先） */
+function truncateLayer(text: string, max: number): string {
+  if (!text) return ''
+  return text.length > max ? `${text.slice(0, max)}…[层截断]` : text
 }

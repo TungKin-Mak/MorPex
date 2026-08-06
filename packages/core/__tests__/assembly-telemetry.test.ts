@@ -98,9 +98,9 @@ describe('ContextAssemblyEngine — 防递归膨胀（16h）', () => {
     });
     const ctx = await engine.assemble({ missionId: 'm1', goal: '目标', domain: 'hardware', taskRefs: ['r1'] });
 
-    // 硬上限 50KB 生效——不随历史膨胀
+    // 硬上限 50KB 生效——不随历史膨胀（4 层装配：情境层段头为「相关任务摘要」）
     expect(ctx.focusedSummary!.length).toBeLessThanOrEqual(50_000);
-    expect(ctx.focusedSummary).toContain('近期任务摘要');
+    expect(ctx.focusedSummary).toContain('相关任务摘要');
   });
 
   it('正常小型摘要 → 不截断（保留完整）', async () => {

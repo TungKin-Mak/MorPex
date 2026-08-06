@@ -247,6 +247,7 @@ const GENERATION_ALLOWLIST = [
   '/infrastructure/tools/ToolFactory.ts',                     // 通用工具工厂（动态 schema 生成，非领域生成）
   '/knowledge/ontology/prompts/',                        // L2 prompt 构建（非生成）
   '/gate/rules/',                                        // 功能② 规则提炼（L3 内部受控生成点，产物 pending 须人工确认，不触达外部）
+  '/knowledge/context/retrieval/',                     // 会话 16i 上下文摘要蒸馏（L4 受控生成点：情境层蒸馏摘要，有确定性兜底不依赖 LLM）
   '/bootstrap',                                // bootstrap 注入 piBridge
 ];
 
