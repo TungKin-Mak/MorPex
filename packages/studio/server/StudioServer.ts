@@ -240,6 +240,9 @@ export class StudioServer {
           goal: String(goal),
           departmentId: req.body?.departmentId,
           context: req.body?.context,
+          // ═══ 会话 16d（P3 人机协同）：人工介入/重跑参考提示 ═══
+          contextHint: typeof req.body?.contextHint === 'string' ? req.body.contextHint : undefined,
+          maxTaskRerun: typeof req.body?.maxTaskRerun === 'number' ? req.body.maxTaskRerun : undefined,
         });
         return res.json(r);
       } catch (err) {
@@ -314,6 +317,49 @@ export class StudioServer {
             generatedAt: Date.now(),
           },
         });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── 会话 16d（P3 运维）：异常告警查询 ──
+    this.app.get('/api/anomalies', (_req, res) => {
+      try {
+        const limit = Number(_req.query?.limit) || 50;
+        res.json({ ok: true, anomalies: container.anomalyDetector.getAnomalies(limit) });
+      } catch (err) {
+        res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── 会话 16d（P3 运维）：成本与延迟归因（每任务 token/耗时/步骤/成功）──
+    this.app.get('/api/execution-stats/tasks', (_req, res) => {
+      try {
+        const limit = Number(_req.query?.limit) || 20;
+        const history = container.eventBus?.getHistory?.() ?? [];
+        const started = history.filter((e: { type: string }) => e.type === 'execution.engine.started');
+        const completed = history.filter((e: { type: string }) => e.type === 'execution.engine.completed' || e.type === 'execution.engine.failed');
+        const tokenEvts = history.filter((e: { type: string }) => e.type === 'execution.gate.token_usage');
+
+        // token 按 executionId 聚合
+        const tokensByExec = new Map<string, number>();
+        for (const e of tokenEvts as Array<{ executionId?: string; payload?: { tokens?: number } }>) {
+          const id = e.executionId ?? 'orch'; // orchestrator token 事件 executionId 前缀为 orch_
+          tokensByExec.set(id, (tokensByExec.get(id) ?? 0) + (e.payload?.tokens ?? 0));
+        }
+
+        const tasks = completed
+          .map((e: { executionId?: string; payload?: { goal?: string; ok?: boolean; duration?: number; mode?: string } }) => ({
+            executionId: e.executionId,
+            goal: (e.payload?.goal ?? '').slice(0, 60),
+            ok: e.payload?.ok ?? false,
+            durationMs: e.payload?.duration ?? 0,
+            mode: e.payload?.mode ?? 'auto',
+            tokens: tokensByExec.get(e.executionId ?? '') ?? 0,
+          }))
+          .slice(-limit);
+
+        res.json({ ok: true, tasks, total: completed.length });
       } catch (err) {
         res.status(500).json({ ok: false, error: (err as Error).message });
       }

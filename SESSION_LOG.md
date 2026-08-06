@@ -1017,3 +1017,39 @@ P0（工具空参根治）→ P1（salvage+重试+经验闭环）→ P2 → P3�
 3. **进化提案落地通道**（3-3）：EvolutionSandbox 提案 → 代码/提示词/策略 半自动应用闭环（评估后单列）
 4. P2 剩余：任务间经验主动注入（基于 embedding/任务类型注入相似经验——16c 已产出可学习事件可作数据源）、规划动态性（动态重规划/规划质量评估）
 5. P3 剩余：异常告警（空参率突升/原语持续失败）、execution-stats 前端 UI
+
+---
+
+## ═════════ 会话 16d：P2 + P3 完成（2026-08-06，用户 "完成p2,p3"）═════════
+
+> ⏫ **里程碑：opencode free API 限额恢复**——core vitest 79 文件 / 688 测试**全通过（含 full-closed-loop 3 个真实 LLM e2e）**！
+> P0 beforeToolCall + P1 重试/salvage + 16c 任务级重跑 + P2/P3 全链路在真实 LLM 下验证通过（此前连续多会话被限额阻塞）。
+
+### 交付（P2 + P3 剩余项）
+1. **P2-2 任务间经验主动注入**（沉淀→注入闭环）：
+   - 新 `ExperienceInjectionService`（evolution/）：按 goal/domain 匹配已沉淀可学习事件 → 规避提示（空参→填全参数 / 安全拦截→先取 Gate 凭证 / 高重试→一次填全；无 embedding，确定性匹配）
+   - `ContextAssemblyEngine.experienceInjector` config → 聚焦摘要追加【相似任务经验规避提示】；bootstrap 接线（容器 ExperienceMiner.getEvents 为源）
+2. **P2 规划动态性**：
+   - **动态重规划**：OrchestratorAgent 步骤失败 + 审计 fail → 触发 REPLAN（REPLAN_PROMPT 带失败上下文重新拆解，替换原计划，有界 replan=1；重规划时清除旧失败防误走 salvage）+ `orchestration.replan` 会话条目
+   - **规划质量评估**：`planQuality`（plannedSteps/executedSteps/iterations/failedSteps/replanned/success）→ 引擎发射 `evolution.planning.quality`
+3. **P3-2 异常告警**：新 `AnomalyDetector`（governance/）——监听 step/装配事件流：空参率突升（近 20 步 retryable>30%）/ 同节点连续失败≥3 / 装配耗时>5000ms → `observability.anomaly` + 30s 冷却去抖 + `getAnomalies`；ServiceContainer 接线 + `GET /api/anomalies`
+4. **P3-3 成本与延迟归因 + 人机协同**：`GET /api/execution-stats/tasks`（每任务 goal/ok/duration/tokens，token 按 executionId 聚合）；engine `contextHint` + `/api/execute` 支持 contextHint/maxTaskRerun → **人工介入重跑通道**（带人工修正意见重跑）
+
+### 新增测试（21 用例）
+- `experience-injection.test.ts` **7**（注入匹配/ContextAssemblyEngine 接入/异常容错）
+- `anomaly-detector.test.ts` **6**（空参突升/正常不误报/连续失败/装配超时/冷却去抖）
+- `orchestrator-salvage` +2（P2 动态重规划：失败→replan→恢复；planQuality）
+- api-contract +2（/api/anomalies、/api/execution-stats/tasks）
+
+### 门禁（全部亲测）
+- ✅ **tsc 0** ｜ ✅ **validate-architecture 100%** ｜ ✅ **depcheck 0** ｜ ✅ **production-check 8/8** ｜ ✅ **core vitest 79 文件 / 688 测试全通过零失败（含真实 LLM e2e）** ｜ ✅ studio api-contract 27 通过
+- 文档：AICOS_CORE_FILE_REGISTRY（governance 28→29 + AnomalyDetector；evolution 21→22 + ExperienceInjectionService）；barrel governance/evolution 导出
+
+### 会话 15 清单总达成
+- **P0 工具空参根治** ✅ ｜ **P1 失败降级/任务级恢复** ✅（重试精细化+salvage+自动重跑+经验沉淀触发条件）｜ **P2 上下文装配/规划动态性** ✅（装配监控+经验注入+动态重规划+规划质量）｜ **P3 可观测/运维** ✅（观测聚合+异常告警+成本归因）
+
+### 遗留（下一会话候选）
+1. **batch-run 实测空参率**（限额已恢复！P0→P3 全链后重跑 100 任务，验证 79.4% → 90%+）
+2. 内置 provider 限流检测（空结果+零 usage → 显式抛错）
+3. 进化提案落地通道（3-3）：EvolutionSandbox 提案 → 代码/提示词/策略 半自动应用
+4. 执行粒度：execution-stats 前端 UI、异常告警阈值可配置化

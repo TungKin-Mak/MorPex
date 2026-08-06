@@ -3,6 +3,8 @@ export type { SystemHealthReport, CostReport, ComplianceReport, GovernanceReport
 export { RuntimeManager } from './RuntimeManager.js';
 export { CostController } from './CostController.js';
 export { AlertEngine } from './AlertEngine.js';
+export { AnomalyDetector } from './AnomalyDetector.js';
+export type { Anomaly, AnomalyType } from './AnomalyDetector.js';
 export type { RuntimeContext } from './RuntimeManager.js';
 export type { Alert, AlertLevel } from './AlertEngine.js';
 

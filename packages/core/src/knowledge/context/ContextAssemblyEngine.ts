@@ -53,6 +53,11 @@ export interface ContextAssemblyConfig {
   enableTelemetry?: boolean
   /** 会话 16c（3+4）：EventBus（可选）——发射 context.assembly.telemetry 供观测聚合 */
   eventBus?: EventBus
+  /**
+   * 会话 16d（P2）：任务间经验主动注入器——按 goal/domain 返回相似任务规避提示，
+   * 注入聚焦上下文（预防性）。未配置/返回 null → 不注入。
+   */
+  experienceInjector?: { inject(goal: string, domain?: string): string | null | Promise<string | null> }
 }
 
 const DEFAULT_CONFIG: ContextAssemblyConfig = {
@@ -259,6 +264,19 @@ export class ContextAssemblyEngine {
           }
         } catch (err) {
           console.warn(`[ContextAssemblyEngine] ⚠️ 近期摘要召回失败（不阻断）: ${(err as Error).message}`)
+        }
+      }
+
+      // ═══════ 会话 16d（P2）：任务间经验主动注入 ═══════
+      // 按 goal/domain 匹配已沉淀可学习事件（空参/安全拦截等）→ 注入规避提示（预防性，比事后拦截省钱）。
+      if (this.config.experienceInjector) {
+        try {
+          const hint = await this.config.experienceInjector.inject(input.goal ?? '', input.domain)
+          if (hint) {
+            context.focusedSummary = `${context.focusedSummary ?? ''}\n\n【相似任务经验规避提示】\n${hint}`.trim()
+          }
+        } catch (err) {
+          console.warn(`[ContextAssemblyEngine] ⚠️ 经验注入失败（不阻断）: ${(err as Error).message}`)
         }
       }
 

@@ -43,6 +43,8 @@ export { ExperienceMiner } from './ExperienceMiner.js';
 export { PatternExtractor } from './PatternExtractor.js';
 export { LearningEventDetector } from './LearningEventDetector.js';
 export type { LearningEvent, LearningEventType, StepStats } from './LearningEventDetector.js';
+export { ExperienceInjectionService } from './ExperienceInjectionService.js';
+export type { ExperienceSource } from './ExperienceInjectionService.js';
 export { FailureAnalyzer } from './FailureAnalyzer.js';
 export type { FailureMode, FailureCategory, WorkflowFailureAnalysis, FailureAnalysisConfig } from './FailureAnalyzer.js';
 

@@ -52,6 +52,11 @@ export interface ExecutionRequest {
    * 时带上次失败上下文重跑；0 = 禁用。
    */
   maxTaskRerun?: number;
+  /**
+   * 会话 16d（P3 人机协同）：外部注入的上文提示（如人工修正意见 / 上次失败原因）——
+   * 透传给 orchestrator 的分析阶段。
+   */
+  contextHint?: string;
   /** 任务 ID（可选） */
   taskId?: string;
   /** 进度回调（Phase 4.6） */
@@ -98,6 +103,8 @@ export interface OrchestratorAgentLike {
     stepResults: Map<string, unknown>;
     /** 会话 15 P1-②：部分成功 salvage 失败报告 */
     failureReport?: Array<{ step: string; error: string }>;
+    /** 会话 16d（P2 规划质量评估）：规划 vs 执行指标 */
+    planQuality?: { plannedSteps: number; executedSteps: number; iterations: number; failedSteps: number; replanned: boolean; success: boolean };
     error?: string;
     duration: number;
   }>;
@@ -331,7 +338,8 @@ export class UnifiedExecutionEngine {
           : p;
       };
 
-      let result = await runOnce();
+      // 首跑带外部注入 hint（人工修正 / 重跑参考），自动重跑 hint 在内部覆盖
+      let result = await runOnce(request.contextHint);
       let reran = false;
       const maxTaskRerun = request.maxTaskRerun ?? 1;
       if (!result.success && maxTaskRerun > 0 && result.failureReport && this.hasRetryableFailure(result.failureReport)) {
@@ -339,6 +347,21 @@ export class UnifiedExecutionEngine {
         console.warn(`[UnifiedExecutionEngine] 🔁 任务级自动重跑（retryable 失败）…`);
         result = await runOnce(hint);
         reran = true;
+      }
+
+      // ═══ 会话 16d（P2 规划质量评估）：发射规划质量事件（规划步数 vs 实际/失败率）═══
+      if (result.planQuality) {
+        this.eventBus.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: 'evolution.planning.quality',
+          timestamp: Date.now(),
+          executionId,
+          source: 'unified-execution-engine',
+          payload: {
+            goal: request.goal.slice(0, 120),
+            ...result.planQuality,
+          },
+        });
       }
 
       return {
@@ -355,6 +378,8 @@ export class UnifiedExecutionEngine {
           audit: result.auditLog,
           // ⬅️ 会话 16c（3+4）：失败步骤报告透传（经验沉淀/观测消费）
           failureReport: result.failureReport,
+          // ⬅️ 会话 16d（P2 规划质量）：规划 vs 执行指标透传
+          planQuality: result.planQuality,
           // ⬅️ 会话 16c：是否经过任务级自动重跑
           ...(reran ? { reran: true } : {}),
         },

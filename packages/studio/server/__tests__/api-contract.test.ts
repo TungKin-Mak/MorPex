@@ -78,6 +78,21 @@ describe('Studio REST API — 契约', () => {
     expect(typeof body.stats.cost.totalTokens).toBe('number');
   });
 
+  it('GET /api/anomalies → 异常告警查询（P3）', async () => {
+    const { status, body } = await getJson('/api/anomalies');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.anomalies)).toBe(true);
+  });
+
+  it('GET /api/execution-stats/tasks → 成本与延迟归因（P3）', async () => {
+    const { status, body } = await getJson('/api/execution-stats/tasks?limit=5');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.tasks)).toBe(true);
+    expect(typeof body.total).toBe('number');
+  });
+
   it('GET /api/config → version + engine', async () => {
     const { status, body } = await getJson('/api/config');
     expect(status).toBe(200);

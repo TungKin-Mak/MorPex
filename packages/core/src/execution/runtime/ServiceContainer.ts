@@ -7,6 +7,7 @@ import { ArtifactFacade } from '../../knowledge/artifact/ArtifactFacade.js';
 import { VerificationEngine } from '../../evaluation/verification/VerificationEngine.js';
 import { ComplianceChecker } from '../../governance/ComplianceChecker.js';
 import { ApprovalGate } from '../../governance/ApprovalGate.js';
+import { AnomalyDetector } from '../../governance/AnomalyDetector.js';
 import { ExperienceMiner } from '../../evolution/ExperienceMiner.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
 import { MorPexRuntime } from './MorPexRuntime.js';
@@ -49,6 +50,8 @@ export class ServiceContainer {
   readonly complianceChecker: ComplianceChecker;
   readonly approvalGate: ApprovalGate;
   readonly experienceMiner: ExperienceMiner;
+  /** 会话 16d（P3 运维）：异常告警检测器（空参率突升/原语连续失败/装配超时） */
+  readonly anomalyDetector: AnomalyDetector;
   readonly simulator: ExecutionSimulator;
   /** L3 全功能实现：真实 MissionRuntime（供 DeliveryPlanner 接入规划阶段；构造器内赋值） */
   missionRuntime!: import('./mission/MissionRuntime.js').MissionRuntime;
@@ -126,6 +129,9 @@ export class ServiceContainer {
     this.complianceChecker = new ComplianceChecker();
     this.approvalGate = new ApprovalGate(this.eventBus);
     this.experienceMiner = new ExperienceMiner(this.eventBus);
+    // ═══ 会话 16d（P3 运维）：异常告警检测器（监听 step/装配事件流）═══
+    this.anomalyDetector = new AnomalyDetector(this.eventBus);
+    this.anomalyDetector.init(this.eventBus);
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();

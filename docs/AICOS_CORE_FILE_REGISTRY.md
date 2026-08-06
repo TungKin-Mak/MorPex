@@ -21,7 +21,7 @@
 | `facade/index.ts`                      | facade — CEO 高层操作入口模块 Phase 0 / 基础设施层 CompanyFacade = 一人虚拟公司的"CEO 控制台" /                                                                                                                                                                                             | 编排与协议适配；不承载业务/认知/存储逻辑                                                                                                                                                                                                                                                |
 
 
-## `governance/`（28 文件）
+## `governance/`（29 文件）
 
 > 层边界规则：目标级授权；不推理/不执行/不直接查知识
 
@@ -32,6 +32,7 @@
 | `governance/AuditTrail.ts` | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  | AuditTrail — 审计追踪层 Phase 8 / MorPex v8: 不可篡改的治理决策记录。 职责： 1. 记录所有风险分析结果 2. 记录所有审批决策（approve/deny/expire） 3. 记录所有执行状态变更 4. 提供审计报告生成 5. 支持按 Mission/类型/时间范围查询 设计原则： - 只追加（append-only）：已有条目不可修改或删除 - 不可篡改：每条记录包含时间戳和执行者信息 - 高效查询：使用 Map 索引优化按 Mission 和类型的查询 - 内存优先：支持  |
 | `governance/ComplianceChecker.ts` | ComplianceChecker — 合规检查引擎 v15: 按领域执行策略规则检查，返回 PASS/WARNING/BLOCK / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/CostController.ts` | CostController — 成本控制器（基于 EventBus） | 目标级授权；不推理/不执行/不直接查知识 |
+| `governance/AnomalyDetector.ts` | AnomalyDetector — 异常告警（v16d P3）：监听 step/装配事件流，检测空参率突升/原语连续失败/装配超时 → observability.anomaly + 冷却去抖 + 历史查询 | 目标级授权；只监测不干预 |
 | `governance/GovernanceDashboard.ts` | GovernanceDashboard — 治理看板 v13 VCOS 100: 将 Observability & Governance 从 8→10 提供三个维度的治理视图: - SystemHealth: 系统健康度（模块状态、延迟、错误率） - CostReport: 成本追踪（LLM 调用、token 消耗） - ComplianceReport: 合规状态（PiBridge 隔离、barrel 完整性） 所有数据通过 EventBus 事件驱动采集，无需主动轮询。 / | 目标级授权；不推理/不执行/不直接查知识 |
 | `governance/PermissionModel.ts` | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe | PermissionModel — 权限模型 Phase 7 / MorPex v8.5: 细粒度用户权限管理。 职责: 1. 基于用户的权限集控制操作许可 2. 支持按领域（domain）和工具（tool）的细粒度控制 3. 支持最大风险等级控制（高于此等级的操作默认拒绝） 4. 按用户管理：每个用户拥有独立的 PermissionSet 设计原则: - 用户中心: 权限以用户为单位，而非以角色为单位 - 细粒度: 权限、领域、工具、风险四个维度 - 可过期: 临时权限可设置过期时间 使用方式: const pe |
 | `governance/PolicyEngine.ts` | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 | PolicyEngine — 策略引擎（P2 收敛：policy/PolicyEngine.ts 已删除，本类为唯一权威实现） PolicyEngine — 策略引擎 Phase 7 / MorPex v8.5: 基于风险等级 + 规则策略的自动化决策引擎。 职责: 1. 根据 ActionProposal 匹配预定义规则 2. 输出 PolicyDecision（auto_approve / notify_and_execute / require_approval / block） 3. 执行决策结果（自动批准 |
@@ -272,7 +273,7 @@
 | `evaluation/verification/RepairPlanner.ts` | RepairPlanner — 基于 VerificationResult 的修复计划 | L6 评价/验证权威 |
 
 
-## `evolution/`（21 文件）
+## `evolution/`（22 文件）
 
 > 层边界规则：提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2
 
@@ -285,6 +286,7 @@
 | `evolution/EvolutionSandbox.ts` | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 | EvolutionSandbox — 演化安全沙箱（Verifiable Evolution 最小闭环） L7：禁止「分析完直接改生产行为」。演化产物必须先： 1. 沙箱试跑（dry-run golden tasks，隔离 Runtime） 2. 版本化落地（version ledger，EventStore 持久化） 3. 人工审批（未批准 = proposal 状态 pending） 4. 自动回滚（L7：携带 revert() 的具体变更真正撤销 + verify() 校验； 失败可重试，不产生 |
 | `evolution/ExperienceMiner.ts` | ExperienceMiner — 经验挖掘器 v16: 任务完成后自动挖掘经验，更新 CapabilityRegistry。v16c（3+4）经验沉淀触发条件：消费 failureReport/stepStats → LearningEventDetector 识别可学习事件 → 发射 evolution.experience.mined | L7 演化唯一所有者；只产经验与事件，不执行 |
 | `evolution/LearningEventDetector.ts` | LearningEventDetector — 可学习事件识别（v16c 3+4）：空参模式/安全拦截/高重试/部分失败 → LearningEvent 结构化记录 + summarize 聚合（观测/学习数据源，纯函数） | L7 演化唯一所有者；纯函数无副作用 |
+| `evolution/ExperienceInjectionService.ts` | ExperienceInjectionService — 任务间经验主动注入（v16d P2）：按 goal/domain 匹配已沉淀可学习事件 → 规避提示注入聚焦上下文（沉淀→注入闭环） | L7 演化唯一所有者；只产提示不执行 |
 | `evolution/FailureAnalyzer.ts` | FailureAnalyzer — v11 Failure Analysis Engine Analyzes workflow execution failures to identify root causes, failure patterns, and recovery recommendations. Flow: Execution History → Failure Detection → Root Cause Analysis → Recommendations @packageDocumentatio | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/KnowledgeGapListener.ts` | KnowledgeGapListener — 知识缺失监听器（QueryMiss → Feedback → Evolution） vNext+ 演化安全闭环的一部分： Ontology Gate 无结果（QueryMiss）不能静默失败。 本监听器订阅 EventBus 的 `ontology.query.miss` 事件： 1. 将每次知识缺失写入 FeedbackService（Feedback 对象，source='query_miss'） 2. 聚合缺失统计（按 tier / reason / goal）， | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |
 | `evolution/PatternExtractor.ts` | PatternExtractor — 模式提取器 (v16) 从完成任务提取模式，写入合并后的 CapabilityRegistry / | 提案→沙箱→审批→迁移；须过Gate/不绕过Governance/晋升才写Tier-2 |

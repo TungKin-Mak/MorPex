@@ -92,6 +92,17 @@ export interface OrchestrationResult {
    * 存在时 success=false，但 output 仍为基于成功步骤的降级交付物（显式，非静默）。
    */
   failureReport?: Array<{ step: string; error: string }>;
+  /**
+   * 会话 16d（P2 规划质量评估）：规划 vs 执行指标——供引擎发射 evolution.planning.quality。
+   */
+  planQuality?: {
+    plannedSteps: number;
+    executedSteps: number;
+    iterations: number;
+    failedSteps: number;
+    replanned: boolean;
+    success: boolean;
+  };
   /** 会话 4：各步骤持久化会话路径（stepName → sessionPath；跨会话讨论锚点） */
   stepSessions: Map<string, string>;
   /** 会话 4：总大脑会话 ID/路径 */
@@ -194,6 +205,24 @@ ${resultsText}
 只输出 JSON：
 {"pass":true|false,"issues":["问题1"],"supplementaryTasks":[{"name":"补做步骤","description":"补做内容","deps":[]}],"reasoning":"审计理由"}`;
 
+// ═══ 会话 16d（P2 规划动态性·动态重规划）：失败后重新拆解（带失败上下文，替换原计划）═══
+const REPLAN_PROMPT = (goal: string, resultsText: string, failuresText: string): string => `你是 MorPex 总大脑。原计划执行中出现步骤失败，请重新规划。
+
+目标: ${goal}
+
+已产出的成果:
+${resultsText}
+
+失败的步骤与原因:
+${failuresText}
+
+要求：
+1. 基于已有成果 + 失败原因重新拆解 2-6 步（避免重蹈失败路径；可复用已成功成果）。
+2. 每步一个职责，deps 引用步骤 name。
+
+只输出 JSON：
+{"complexity":"simple|complex","steps":[{"name":"步骤名","description":"步骤详细描述","deps":["上游步骤名"]}],"reasoning":"重规划理由"}`;
+
 const SYNTHESIS_PROMPT = (goal: string, resultsText: string): string => `你是 MorPex 总大脑。请汇总所有步骤成果，生成最终交付物（完整报告/文档/代码说明）。
 
 目标: ${goal}
@@ -275,6 +304,8 @@ export class OrchestratorAgent {
     let steps = analysis.steps;
     let iterations = 0;
     let stepsExecuted = 0;
+    // ═══ 会话 16d（P2 规划动态性）：动态重规划标记（有界 replan=1）═══
+    let replanned = false;
 
     // ── ② 执行 + 审计迭代 ──
     // ═══ 会话 15 P1-②：跨轮累积硬失败（供最终 salvage 报告）═══
@@ -323,6 +354,31 @@ export class OrchestratorAgent {
         });
       }
 
+      // ═══ 会话 16d（P2 规划动态性·动态重规划）═══
+      // 有硬失败步骤 + 未重规划 → 优先触发重新规划（带失败上下文），用新计划替换原计划（有界 replan=1）。
+      if (stepFailures.size > 0 && !replanned) {
+        const failuresText = [...stepFailures.entries()].map(([s, e]) => `${s}: ${e}`).join('；');
+        const replanRes = await this.llm.generateText({ prompt: REPLAN_PROMPT(goal, resultsText, failuresText), temperature: 0 });
+        this.opts.onTokenUsage?.(tokenCount(replanRes));
+        const replanJson = replanRes ? extractJsonObject(replanRes.text) : null;
+        if (!replanJson) throw new Error('[OrchestratorAgent] 重规划响应无法解析为 JSON');
+        const replannedAnalysis = parseAnalysis(replanJson);
+        console.warn(`[OrchestratorAgent] 🔄 动态重规划（失败 ${stepFailures.size} 步）→ ${replannedAnalysis.steps.length} 步新计划`);
+        if (orchSession && this.opts.sessionStore) {
+          await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.replan', {
+            failures: failuresText,
+            steps: replannedAnalysis.steps,
+            reasoning: replannedAnalysis.reasoning,
+          });
+        }
+        steps = replannedAnalysis.steps;
+        replanned = true;
+        // 新计划取代旧计划：清除旧计划内的失败（避免误走 salvage；新计划失败会重新累积）
+        for (const k of stepFailures.keys()) stepResults.delete(k);
+        stepFailures.clear();
+        continue; // 直接用新计划再执行一轮
+      }
+
       if (audit.pass || audit.supplementaryTasks.length === 0) break;
       steps = audit.supplementaryTasks; // fail → 补充任务再分发
     }
@@ -349,6 +405,14 @@ export class OrchestratorAgent {
         });
       }
       const failureReport = [...stepFailures.entries()].map(([step, error]) => ({ step, error }));
+      const planQuality = {
+        plannedSteps: analysis.steps.length,
+        executedSteps: stepsExecuted,
+        iterations,
+        failedSteps: failureReport.length,
+        replanned,
+        success: false,
+      };
       return {
         success: false,
         output: partialOutput,
@@ -358,6 +422,7 @@ export class OrchestratorAgent {
         stepResults,
         stepSessions,
         failureReport,
+        planQuality,
         sessionId: orchSession?.sessionId,
         sessionPath: orchSession?.path,
         error: `部分步骤失败（${failureReport.length}）：${failureReport[0].error}`,
@@ -379,6 +444,14 @@ export class OrchestratorAgent {
     }
 
     const failed = [...stepResults.values()].length === 0;
+    const planQuality = {
+      plannedSteps: analysis.steps.length,
+      executedSteps: stepsExecuted,
+      iterations,
+      failedSteps: stepFailures.size,
+      replanned,
+      success: !failed,
+    };
     return {
       success: !failed,
       output: finalOutput,
@@ -387,6 +460,7 @@ export class OrchestratorAgent {
       auditLog,
       stepResults,
       stepSessions,
+      planQuality,
       sessionId: orchSession?.sessionId,
       sessionPath: orchSession?.path,
       error: failed ? '所有步骤均未产出成果' : undefined,

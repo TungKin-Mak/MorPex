@@ -162,6 +162,14 @@ export async function bootstrapUnified(options?: {
       maxTokens: 8000,
       enableTelemetry: true, // ═══ 会话 16c（3+4）：装配成本监控
       eventBus: container.eventBus, // ═══ 会话 16c：context.assembly.telemetry 事件出口
+      // ═══ 会话 16d（P2）：任务间经验主动注入——装配时注入相似任务规避提示 ═══
+      experienceInjector: {
+        inject: async (goal: string, domain?: string) => {
+          const { ExperienceInjectionService } = await import('./evolution/ExperienceInjectionService.js');
+          const svc = new ExperienceInjectionService({ getEvents: () => container.experienceMiner.getEvents() });
+          return svc.inject(goal, domain);
+        },
+      },
     });
     // ═══ 功能③ 遗留项：装配快照持久化接线（惰性 provider）═══
     // 此前引擎构造未传 persistence → assemble() 的 this.persistence 恒空 → ContextPersistence

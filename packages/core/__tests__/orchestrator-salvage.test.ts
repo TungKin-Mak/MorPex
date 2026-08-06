@@ -127,5 +127,58 @@ describe('OrchestratorAgent — 部分成功 salvage（P1-②）', () => {
     expect(res.success).toBe(true);
     expect(res.failureReport).toBeUndefined();
     expect(res.output).toBe('最终交付物');
+    // P2 规划质量：正常路径有 planQuality
+    expect(res.planQuality).toBeDefined();
+    expect(res.planQuality!.success).toBe(true);
+    expect(res.planQuality!.replanned).toBe(false);
+  });
+
+  it('P2 动态重规划：步骤失败 + 审计 fail → 触发重规划（replanned=true）并恢复', async () => {
+    let replanCalled = false;
+    let stepCall = 0;
+    const llm = mockLlm([
+      {
+        match: '总大脑（编排 Agent）',
+        reply: JSON.stringify({ complexity: 'simple', steps: [{ name: '调研', description: '调研需求', deps: [] }], reasoning: '单步' }),
+      },
+      {
+        match: '重新规划', // REPLAN_PROMPT
+        reply: () => {
+          replanCalled = true;
+          return JSON.stringify({ complexity: 'simple', steps: [{ name: '重调研', description: '重新调研（带失败规避）', deps: [] }], reasoning: '重规划' });
+        },
+      },
+      {
+        match: '审计 Agent',
+        reply: () => {
+          if (!replanCalled) return JSON.stringify({ pass: false, issues: ['调研失败'], supplementaryTasks: [], reasoning: '需重做' });
+          return JSON.stringify({ pass: true, issues: [], supplementaryTasks: [], reasoning: 'ok' });
+        },
+      },
+      { match: '汇总', reply: '重规划后的交付物' },
+    ]);
+
+    const orchestrator = new OrchestratorAgent({
+      llm,
+      stepExecutor: {
+        executeStep: async () => {
+          stepCall++;
+          // 第一轮（调研）失败 retryable；重规划后（重调研）成功
+          if (stepCall === 1) {
+            return { success: false, mode: 'agent' as const, error: '缺失必需参数 "query"', duration: 50 };
+          }
+          return { success: true, mode: 'agent' as const, output: { text: '调研成果' }, duration: 50 };
+        },
+      },
+      maxIterations: 3,
+    });
+
+    const res = await orchestrator.run('调研并生成方案');
+    expect(replanCalled).toBe(true);
+    expect(res.success).toBe(true);
+    expect(res.planQuality!.replanned).toBe(true);
+    // 重规划恢复：当前计划失败 0（旧失败已被新计划取代）
+    expect(res.planQuality!.failedSteps).toBe(0);
+    expect(res.output).toBe('重规划后的交付物');
   });
 });
