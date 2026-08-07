@@ -520,8 +520,9 @@ export class ServiceContainer {
     if (this.piBridgeInitialized) return;
     this.piBridgeInitialized = true;
     try {
-      const { PiBridge } = await import('../../infrastructure/adapters/pi-bridge/PiBridge.js');
-      this.piBridge = new PiBridge();
+      // ═══ 会话 16l（P0-2 连接复用）：复用进程级共享单例（此前每次 new + init）
+      const { getSharedPiBridge } = await import('../../infrastructure/adapters/pi-bridge/PiBridge.js');
+      this.piBridge = getSharedPiBridge();
       await this.piBridge.init();
       console.log('[ServiceContainer] ✅ PiBridge 已初始化 (真实 LLM 模式)');
     } catch (err) {

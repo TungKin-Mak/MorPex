@@ -35,11 +35,21 @@ export class ArtifactFacade {
   /**
    * restoreFromEvents — 从 EventStore 事件重建产物状态
    * 遍历 ARTIFACT_CREATED / ARTIFACT_UPDATED 事件恢复所有产物
+   *
+   * ═══ P0 修复（会话 16l）：显式分页拉全量（此前默认 limit=100 只恢复 100 个产物）
    */
   async restoreFromEvents(eventStore: IEventStore): Promise<void> {
     this.artifacts.clear();
 
-    const createdEvents = await eventStore.query({ type: EventType.ARTIFACT_CREATED });
+    const PAGE_SIZE = 5000;
+    const createdEvents: import('../../infrastructure/protocol/events/BaseEvent.js').BaseEvent[] = [];
+    let offset = 0;
+    for (;;) {
+      const page = await eventStore.query({ type: EventType.ARTIFACT_CREATED, limit: PAGE_SIZE, offset });
+      createdEvents.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
     for (const evt of createdEvents) {
       const p = evt.payload as { artifactId?: string; type?: string; name?: string; version?: number; sourceTask?: string } | undefined;
       if (p?.artifactId) {
@@ -60,7 +70,14 @@ export class ArtifactFacade {
     }
 
     // 应用状态转换事件（按时间顺序回放）
-    const updatedEvents = await eventStore.query({ type: EventType.ARTIFACT_UPDATED });
+    const updatedEvents: import('../../infrastructure/protocol/events/BaseEvent.js').BaseEvent[] = [];
+    offset = 0;
+    for (;;) {
+      const page = await eventStore.query({ type: EventType.ARTIFACT_UPDATED, limit: PAGE_SIZE, offset });
+      updatedEvents.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
     updatedEvents.sort((a, b) => a.timestamp - b.timestamp);
     for (const evt of updatedEvents) {
       const p = evt.payload as { artifactId?: string; status?: import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactLifecycleStatus } | undefined;

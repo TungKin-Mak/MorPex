@@ -7,7 +7,7 @@
  * @packageDocumentation
  */
 
-import { PiBridge, DEFAULT_MODEL } from '@morpex/core';
+import { getSharedPiBridge, DEFAULT_MODEL, type PiBridge } from '@morpex/core';
 
 // ═══════════════════════════════════════════════════════════════════
 // 公开类型
@@ -37,7 +37,8 @@ export class PiModelRegistry {
   private apiKey: boolean;
 
   constructor(model = DEFAULT_MODEL) {
-    this.bridge = new PiBridge(model);
+    // ═══ 会话 16l（P0-2 连接复用）：复用进程级共享单例（此前每次 new + init）
+    this.bridge = getSharedPiBridge(model);
     this.modelName = model;
     this.apiKey = !!(process.env.OPENCODE_API_KEY ?? process.env.GLM_API_KEY ?? process.env.OPENAI_API_KEY);
     console.log(`[PiModelRegistry] ✅ ${model}${this.apiKey ? '' : ' (无 API key)'}`);

@@ -468,7 +468,7 @@ export { MorPexConfigSchema } from '../config/MorPexConfig.js';
 export type { MorPexConfig, ConfigChangeListener } from '../config/MorPexConfig.js';
 
 // ── PiBridge（v11 稳定抽象层）
-export { PiBridge, DEFAULT_MODEL, RateLimitError, resolveDefaultModel } from './infrastructure/adapters/pi-bridge/index.js';
+export { PiBridge, DEFAULT_MODEL, RateLimitError, resolveDefaultModel, getSharedPiBridge, resetSharedPiBridge } from './infrastructure/adapters/pi-bridge/index.js';
 export type { GenerateParams, GenerateResult, ModelInfo as PiModelInfo } from './infrastructure/adapters/pi-bridge/index.js';
 
 

@@ -13,7 +13,7 @@
  */
 
 import type { AgentTool } from './pi-bridge/index.js';
-import { PiBridge } from './pi-bridge/index.js';
+import { getSharedPiBridge } from './pi-bridge/index.js';
 
 export type { AgentTool } from './pi-bridge/index.js';
 
@@ -73,12 +73,11 @@ export const agentSpawner = {
     prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
     abort: () => Promise<void>;
   }> {
-    // 未指定时让 PiBridge 构造器解析默认模型（网关启用 → 网关模型；否则 GLM-4.7-Flash）
-    const bridge = new PiBridge(
-      params.provider && params.modelId
-        ? `${params.provider}/${params.modelId}`
-        : undefined,
-    );
+    // ═══ 会话 16l（P0-2 连接复用）：复用进程级共享 PiBridge 单例（此前每次 spawn 都 new + init）
+    //     单例的 defaultModel 由 config/morpex.yaml 解析（config 是唯一模型来源）；
+    //     调用方显式指定 provider/modelId 时通过 config.model 透传，行为与独立实例一致。
+    //     createAgentHarness 内部懒 init，此处无需显式 init。
+    const bridge = getSharedPiBridge();
 
     const config: {
       tools: Array<{ name: string; description: string; parameters: Record<string, unknown>; execute?: (p: Record<string, unknown>) => Promise<unknown> }>;

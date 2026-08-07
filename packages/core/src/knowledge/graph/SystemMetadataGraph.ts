@@ -26,10 +26,36 @@ export interface Relation {
   metadata?: Record<string, unknown>;
 }
 
+/**
+ * 时间戳类易变字段（去重比较时忽略）——同 key 重复注册事件差异仅在这些字段时视为无业务变化，跳过 append。
+ */
+const VOLATILE_FIELDS = ['createdAt', 'recordedAt', 'updatedAt', 'recorded_at', 'updated_at'];
+
+/**
+ * 递归剔除易变时间戳字段后序列化（用于重复注册判定）。
+ * metadata 内嵌的 recordedAt/updatedAt 同样忽略。
+ */
+function stableKey(payload: unknown): string {
+  if (Array.isArray(payload)) {
+    return '[' + payload.map(stableKey).join(',') + ']';
+  }
+  if (payload && typeof payload === 'object') {
+    const copy: Record<string, unknown> = {};
+    for (const [k, v] of Object.entries(payload as Record<string, unknown>)) {
+      if (VOLATILE_FIELDS.includes(k)) continue;
+      copy[k] = stableKey(v);
+    }
+    return JSON.stringify(copy);
+  }
+  return JSON.stringify(payload);
+}
+
 export class SystemMetadataGraph {
   private entities: Map<string, Entity> = new Map();
   private relations: Relation[] = [];
   private eventStore?: IEventStore;
+  /** id → 最近一次已 append 事件的稳定 payload（去重判定依据） */
+  private registeredPayloads: Map<string, string> = new Map();
 
   /**
    * setEventStore — 注入 EventStore（启用事件写入 + 可重建）
@@ -41,12 +67,25 @@ export class SystemMetadataGraph {
   /**
    * restoreFromEvents — 从 EventStore 事件重建完整图状态
    * 遍历 SYSTEM_ENTITY_REGISTERED 和 SYSTEM_RELATION_ADDED 事件
+   *
+   * ═══ P0 修复（会话 16l）：此前未传 limit → SqliteEventStore.query 默认 limit=100
+   *     实际只恢复 100 个实体（42k 的 0.2%）。改为显式传大 limit 分页拉全量。
    */
   async restoreFromEvents(eventStore: IEventStore): Promise<void> {
     this.entities.clear();
     this.relations = [];
+    this.registeredPayloads.clear();
 
-    const entityEvents = await eventStore.query({ type: EventType.SYSTEM_ENTITY_REGISTERED });
+    // 分页拉全量（避免默认 limit=100 截断）
+    const PAGE_SIZE = 5000;
+    const entityEvents: BaseEvent[] = [];
+    let offset = 0;
+    for (;;) {
+      const page = await eventStore.query({ type: EventType.SYSTEM_ENTITY_REGISTERED, limit: PAGE_SIZE, offset });
+      entityEvents.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
     for (const evt of entityEvents) {
       const p = evt.payload as { entityId?: string; entityType?: string; name?: string; metadata?: Record<string, unknown>; createdAt?: number } | undefined;
       if (p?.entityId) {
@@ -60,7 +99,14 @@ export class SystemMetadataGraph {
       }
     }
 
-    const relEvents = await eventStore.query({ type: EventType.SYSTEM_RELATION_ADDED });
+    const relEvents: BaseEvent[] = [];
+    offset = 0;
+    for (;;) {
+      const page = await eventStore.query({ type: EventType.SYSTEM_RELATION_ADDED, limit: PAGE_SIZE, offset });
+      relEvents.push(...page);
+      if (page.length < PAGE_SIZE) break;
+      offset += PAGE_SIZE;
+    }
     for (const evt of relEvents) {
       const p = evt.payload as { fromId?: string; toId?: string; relationType?: string; weight?: number; createdAt?: number; metadata?: Record<string, unknown> } | undefined;
       if (p?.fromId && p?.toId) {
@@ -76,20 +122,38 @@ export class SystemMetadataGraph {
     }
 
     console.log(`[SystemMetadataGraph] ✅ 从 EventStore 重建: ${this.entities.size} 实体, ${this.relations.length} 关系`);
+
+    // ═══ 会话 16l：restore 后重建去重基准（否则 restore 完首个 upsert 会误判为首次注册重新 append）
+    for (const e of this.entities.values()) {
+      this.registeredPayloads.set(e.id, stableKey({ entityId: e.id, entityType: e.type, name: e.name, metadata: e.metadata }));
+    }
   }
 
+  /**
+   * registerEntity — 注册/更新实体（upsert 语义）
+   *
+   * ═══ P0 去重（会话 16l）：同 key 重复注册且业务字段（entityType/name/metadata 剔除时间戳）
+   *     无变化时跳过 append——restore 语义本就是「最新覆盖」，中间重复事件对状态恢复零价值
+   *     （实测 44,377 事件 → 唯一 3,900，重复率 91%）。业务变化仍 append（记录最新状态快照）。
+   */
   registerEntity(id: string, type: EntityType, name: string, metadata?: Record<string, unknown>): void {
     this.entities.set(id, { id, type, name, metadata: metadata || {}, createdAt: Date.now() });
-    // EventStore 写入
+    // EventStore 写入（去重）
     if (this.eventStore) {
-      this.eventStore.append({
-        id: `evt_${id}_registered_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
-        type: EventType.SYSTEM_ENTITY_REGISTERED,
-        timestamp: Date.now(),
-        executionId: id,
-        source: 'system-metadata-graph',
-        payload: { entityId: id, entityType: type, name, metadata: metadata || {}, createdAt: Date.now() },
-      }).catch((err: Error) => console.warn('[SystemMetadataGraph] EventStore append failed:', err.message));
+      const key = stableKey({ entityId: id, entityType: type, name, metadata: metadata || {} });
+      const last = this.registeredPayloads.get(id);
+      // 首次注册 或 业务有实质变化 → append；纯时间戳差异 → 跳过
+      if (last === undefined || last !== key) {
+        this.registeredPayloads.set(id, key);
+        this.eventStore.append({
+          id: `evt_${id}_registered_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+          type: EventType.SYSTEM_ENTITY_REGISTERED,
+          timestamp: Date.now(),
+          executionId: id,
+          source: 'system-metadata-graph',
+          payload: { entityId: id, entityType: type, name, metadata: metadata || {}, createdAt: Date.now() },
+        }).catch((err: Error) => console.warn('[SystemMetadataGraph] EventStore append failed:', err.message));
+      }
     }
   }
 

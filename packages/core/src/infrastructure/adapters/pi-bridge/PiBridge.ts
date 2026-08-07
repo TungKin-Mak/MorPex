@@ -581,3 +581,38 @@ export class PiBridge {
       .join('');
   }
 }
+
+// ═══════════════════════════════════════════════════════════════
+// 进程级共享单例（会话 16l P0-2：PiBridge 连接复用）
+// ═══════════════════════════════════════════════════════════════
+//
+// PiBridge 是「配置驱动 + 无每实例可变状态」的客户端：
+//   - 构造器从 config/morpex.yaml 解析默认模型（config 是唯一来源）
+//   - init() 加载 builtinModels / 网关 provider（模块级共享）
+//   - createAgentHarness / generateText 均为纯函数（models 只在内部读）
+// 因此同进程所有调用方（agent-spawner / ServiceContainer / bootstrap）应复用同一实例，
+// 避免每次 spawn/启动都 new + init（模型表重复加载、网关重复注册）。
+//
+// 与 memory/activationRegistry 的全局注册表模式一致（setGlobal/getGlobal 成对暴露）。
+
+let sharedPiBridge: PiBridge | null = null;
+
+/**
+ * getSharedPiBridge — 获取进程级共享 PiBridge 实例（懒创建，重复调用返回同一实例）
+ *
+ * 参数 defaultModel 仅当首次创建时生效（此后以 config/morpex.yaml 解析结果为准，
+ * config 是唯一模型来源，各调用方解析结果一致，无需按调用方区分）。
+ */
+export function getSharedPiBridge(defaultModel = DEFAULT_MODEL): PiBridge {
+  if (!sharedPiBridge) {
+    sharedPiBridge = new PiBridge(defaultModel);
+  }
+  return sharedPiBridge;
+}
+
+/**
+ * resetSharedPiBridge — 重置共享单例（测试用；业务代码不应调用）
+ */
+export function resetSharedPiBridge(): void {
+  sharedPiBridge = null;
+}

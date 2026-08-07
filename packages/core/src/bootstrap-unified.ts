@@ -407,8 +407,9 @@ export async function bootstrapUnified(options?: {
   const piBridgeWrapper = {
     generateText: async (params: { system?: string; prompt: string; temperature?: number; maxTokens?: number }) => {
       if (!piBridgeInstance) {
-        const { PiBridge, DEFAULT_MODEL } = await import('./infrastructure/adapters/pi-bridge/PiBridge.js');
-        piBridgeInstance = new PiBridge(DEFAULT_MODEL);
+        // ═══ 会话 16l（P0-2 连接复用）：复用进程级共享单例（此前每次 bootstrap 都 new + init）
+        const { getSharedPiBridge } = await import('./infrastructure/adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = getSharedPiBridge();
         await piBridgeInstance.init();
       }
       return piBridgeInstance.generateText({
