@@ -66,6 +66,16 @@ export interface OrchestratorOptions {
   stepExecutor: StepAgentExecutor;
   /** 审计迭代上限（默认 3，防止无限补充循环） */
   maxIterations?: number;
+  /**
+   * ═══ P2-8（会话 16l·3）：步骤数上限（默认 8）——LLM 拆解失控时截断保底，
+   *     呼应 Bounded Autonomy 铁律（超限终止不空转）。分析/重规划/补充任务产出的 steps 均受此约束。
+   */
+  maxSteps?: number;
+  /**
+   * ═══ P2-8（会话 16l·3）：编排总 token 预算（默认 200k）——分析/审计/重规划/汇总累计，
+   *     超限抛错 fail loud（不静默截断产物）。0 = 不设限（兼容旧行为）。
+   */
+  maxTotalTokens?: number;
   /** token 用量回调（可选，接入 CostController） */
   onTokenUsage?: (tokens: number) => void;
   /** 会话 4（Session 化）：组件会话仓库——总大脑/step-agent 独立持久化会话 */
@@ -251,6 +261,23 @@ export class OrchestratorAgent {
   async run(goal: string, opts: { departmentId?: string; contextHint?: string } = {}): Promise<OrchestrationResult> {
     const start = Date.now();
     const maxIterations = this.opts.maxIterations ?? 3;
+    // ═══ P2-8（会话 16l·3）：步骤数 cap + 总 token 预算 ═══
+    const maxSteps = this.opts.maxSteps ?? 8;
+    const maxTotalTokens = this.opts.maxTotalTokens ?? 200_000;
+    let totalTokens = 0;
+    // 累计 token 并检查总预算（超限 → fail loud，不空转）
+    const chargeTokens = (tokens: number): void => {
+      totalTokens += tokens;
+      if (maxTotalTokens > 0 && totalTokens > maxTotalTokens) {
+        throw new Error(`[OrchestratorAgent] 编排 token 预算超限（${totalTokens} > ${maxTotalTokens}）——终止以防失控`);
+      }
+    };
+    // 步骤 cap：截断 + 警告（LLM 拆解失控时保底，不静默丢弃关键前置步骤的语义）
+    const capSteps = (steps: OrchestratorStep[]): OrchestratorStep[] => {
+      if (steps.length <= maxSteps) return steps;
+      console.warn(`[OrchestratorAgent] ⚠️ 步骤数 ${steps.length} 超过上限 ${maxSteps} → 截断（Bounded Autonomy）`);
+      return steps.slice(0, maxSteps);
+    };
     const auditLog: OrchestrationResult['auditLog'] = [];
     const stepResults = new Map<string, unknown>();
     const stepSessions = new Map<string, string>();
@@ -292,7 +319,9 @@ export class OrchestratorAgent {
       : ANALYSIS_PROMPT(goal);
     const res = await this.llm.generateText({ prompt: analysisPrompt, temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(res));
+    chargeTokens(tokenCount(res));
     const analysis = parseAnalysis(res ? extractJsonObject(res.text) : null);
+    analysis.steps = capSteps(analysis.steps);
     if (orchSession && this.opts.sessionStore) {
       await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.analysis', {
         complexity: analysis.complexity,
@@ -324,6 +353,7 @@ export class OrchestratorAgent {
       const resultsText = this.formatResults(round.results);
       const auditRes = await this.llm.generateText({ prompt: AUDIT_PROMPT(goal, resultsText), temperature: 0 });
       this.opts.onTokenUsage?.(tokenCount(auditRes));
+      chargeTokens(tokenCount(auditRes));
       const json = auditRes ? extractJsonObject(auditRes.text) : null;
       if (!json) {
         throw new Error('[OrchestratorAgent] 审计响应无法解析为 JSON（禁止静默 pass）');
@@ -360,9 +390,11 @@ export class OrchestratorAgent {
         const failuresText = [...stepFailures.entries()].map(([s, e]) => `${s}: ${e}`).join('；');
         const replanRes = await this.llm.generateText({ prompt: REPLAN_PROMPT(goal, resultsText, failuresText), temperature: 0 });
         this.opts.onTokenUsage?.(tokenCount(replanRes));
+        chargeTokens(tokenCount(replanRes));
         const replanJson = replanRes ? extractJsonObject(replanRes.text) : null;
         if (!replanJson) throw new Error('[OrchestratorAgent] 重规划响应无法解析为 JSON');
         const replannedAnalysis = parseAnalysis(replanJson);
+        replannedAnalysis.steps = capSteps(replannedAnalysis.steps);
         console.warn(`[OrchestratorAgent] 🔄 动态重规划（失败 ${stepFailures.size} 步）→ ${replannedAnalysis.steps.length} 步新计划`);
         if (orchSession && this.opts.sessionStore) {
           await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.replan', {
@@ -380,7 +412,7 @@ export class OrchestratorAgent {
       }
 
       if (audit.pass || audit.supplementaryTasks.length === 0) break;
-      steps = audit.supplementaryTasks; // fail → 补充任务再分发
+      steps = capSteps(audit.supplementaryTasks); // fail → 补充任务再分发（受步骤 cap 约束）
     }
 
     // ── ③ 汇总 ──
@@ -394,6 +426,7 @@ export class OrchestratorAgent {
       try {
         const synth = await this.llm.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
         this.opts.onTokenUsage?.(tokenCount(synth));
+        chargeTokens(tokenCount(synth));
         partialOutput = synth?.text?.trim() ?? resultsText;
       } catch {
         partialOutput = resultsText;
@@ -433,6 +466,7 @@ export class OrchestratorAgent {
     // 正常路径：LLM 生成最终交付物（失败 → 抛错，fail loud）
     const synthRes = await this.llm.generateText({ prompt: SYNTHESIS_PROMPT(goal, resultsText), temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(synthRes));
+    chargeTokens(tokenCount(synthRes));
     const finalOutput = synthRes?.text?.trim() ?? '';
     if (!finalOutput) {
       throw new Error('[OrchestratorAgent] 汇总 LLM 未产出交付物');

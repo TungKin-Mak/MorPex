@@ -52,6 +52,55 @@ const autoRetryIdx = args.indexOf('--retries');
 const autoRetries = autoRetryIdx >= 0 ? parseInt(args[autoRetryIdx + 1], 10) : 2; // 429/5XX 自动重试次数
 const concurrencyIdx = args.indexOf('--concurrency');
 const concurrency = concurrencyIdx >= 0 ? parseInt(args[concurrencyIdx + 1], 10) : 5; // 并发数
+// ═══ P2-9（会话 16l·3）：并发自适应开关（--adaptive 显式启用；显式 --concurrency 时自适应不生效）
+const adaptiveIdx = args.indexOf('--adaptive');
+const adaptiveEnabled = adaptiveIdx >= 0 && concurrencyIdx < 0; // 显式 concurrency → 尊重用户
+const adaptiveMin = adaptiveIdx >= 0 ? parseInt(String(args[adaptiveIdx + 1] ?? '2'), 10) : 2;
+
+// ═══ P2-9（会话 16l·3）：并发自适应——内存感知 + 限流感知，防并行 OOM / 限流风暴 ═══
+// 曾 OOM（关键教训 #5）：batch + vitest 并行堆爆。自适应在每批前根据可用内存动态降并发；
+// 批内大量限流 → 下批自动降并发（减少配额风暴），恢复后回升。
+const os = require('node:os');
+
+export interface AdaptiveConcurrencyConfig {
+  enabled: boolean;
+  maxConcurrency: number;
+  minConcurrency: number;
+}
+
+/**
+ * currentAdaptiveConcurrency — 计算本批应使用的并发数（纯函数，可测试）
+ *
+ * @param cfg 自适应配置（enabled/maxConcurrency/minConcurrency）
+ * @param batchIdx 当前批序号（0 起）
+ * @param rateLimitedInLastBatch 上一批限流任务数
+ * @param batchSize 上一批大小（用于限流占比计算）
+ */
+export function currentAdaptiveConcurrency(
+  cfg: AdaptiveConcurrencyConfig,
+  batchIdx: number,
+  rateLimitedInLastBatch: number,
+  batchSize: number,
+): number {
+  const { enabled, maxConcurrency, minConcurrency } = cfg;
+  if (!enabled) return maxConcurrency;
+  let eff = maxConcurrency;
+
+  // 1. 内存感知：可用内存 < 1.5GB → 降为 2；< 3GB → 降为 3；堆占用 > 80% → 降为 2
+  const freeMemGb = os.freemem() / (1024 ** 3);
+  const heapUsedRatio = process.memoryUsage().heapUsed / (process.memoryUsage().heapTotal || 1);
+  if (freeMemGb < 1.5 || heapUsedRatio > 0.8) eff = Math.min(eff, 2);
+  else if (freeMemGb < 3) eff = Math.min(eff, 3);
+
+  // 2. 限流感知：上一批 >50% 限流 → 下批减半（不低于 min）；上一批零限流 → 回升
+  if (batchIdx > 0 && rateLimitedInLastBatch / Math.max(batchSize, 1) > 0.5) {
+    eff = Math.max(Math.floor(eff / 2), minConcurrency);
+  } else if (batchIdx > 0 && rateLimitedInLastBatch === 0) {
+    eff = Math.min(eff + 1, maxConcurrency); // 恢复上限
+  }
+
+  return Math.max(minConcurrency, Math.min(eff, maxConcurrency));
+}
 
 /** 延时 */
 function sleep(ms: number): Promise<void> {
@@ -166,10 +215,6 @@ async function main(): Promise<void> {
 
   // 5. 单任务执行（抽取为函数，支持并发）
   async function runOneTask(num: number, task: BatchTask): Promise<TaskResult> {
-  // 5. 循环执行
-  const results: TaskResult[] = [];
-  const startAll = Date.now();
-
     console.log(`─── 任务 ${num}/${tasks.length} ───`);
     console.log(`  [${task.departmentName}] ${task.goal.slice(0, 60)}…`);
 
@@ -268,14 +313,31 @@ async function main(): Promise<void> {
 
 
 
-  // 5'. 并发执行（默认 5 并发；每批 Promise.all）
+  // 5'. 并发执行（默认 5 并发；--adaptive 时内存/限流自适应防 OOM 与限流风暴）
   const results: TaskResult[] = [];
   const startAll = Date.now();
+  let batchIdx = 0;
+  let rateLimitedInLastBatch = 0;
   for (let i = 0; i < tasks.length; i += concurrency) {
-    const batch = tasks.slice(i, i + concurrency);
+    // ═══ P2-9（会话 16l·3）：每批动态并发（内存/限流感知）═══
+    const effConcurrency = currentAdaptiveConcurrency(
+      { enabled: adaptiveEnabled, maxConcurrency: concurrency, minConcurrency: adaptiveMin },
+      batchIdx,
+      rateLimitedInLastBatch,
+      concurrency,
+    );
+    const batch = tasks.slice(i, i + effConcurrency);
     const batchResults = await Promise.all(
       batch.map((task, j) => runOneTask(i + j + 1, task)),
     );
+    if (adaptiveEnabled) {
+      const rl = batchResults.filter(r => !r.ok && r.error?.startsWith('RATE_LIMITED')).length;
+      rateLimitedInLastBatch = rl;
+      if (batchIdx === 0 || rl > 0) {
+        console.log(`  [batch] 第 ${batchIdx + 1} 批：并发 ${effConcurrency}（限流 ${rl}/${batch.length}，可用内存 ${(os.freemem() / 1024 ** 3).toFixed(1)}GB）`);
+      }
+      batchIdx++;
+    }
     results.push(...batchResults);
   }
   // 6. 生成报告

@@ -335,6 +335,10 @@ export class ServiceContainer {
       dagRuntime,
       stepExecutor,
       maxIterations: 3,
+      // ═══ P2-8（会话 16l·3）：Bounded Autonomy——步骤数 cap + 编排总 token 预算 ═══
+      // 复杂任务拆解失控（实测单任务 4.5h）时截断保底 + 超预算 fail loud，不空转。
+      maxSteps: 8,
+      maxTotalTokens: 200_000,
       // 会话 4（Session 化）：总大脑会话 + step 会话追踪
       sessionStore: this.agentSessionStore,
       // ⑤ 全链路计费：编排 LLM token 经事件总线上报（CostController 监听 execution.gate.token_usage）

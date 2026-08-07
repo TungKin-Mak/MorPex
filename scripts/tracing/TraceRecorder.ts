@@ -55,12 +55,42 @@ export interface TraceSession {
   report(): TraceCall[];
   /** 调用总数 */
   size(): number;
+  /** ═══ P2-10：采样/丢弃统计 */
+  stats(): { recorded: number; droppedBySample: number; droppedByCap: number; enabled: boolean; sampleRate: number; maxCalls: number };
 }
 
-export function createTraceSession(taskId: string): TraceSession {
+export interface TraceOptions {
+  /** 总开关（默认 true）；false → 零记录、零开销（wrap 仍可调用但内部直接跳过） */
+  enabled?: boolean;
+  /** 采样率 0-1（默认 1=全量）；如 0.1 = 10% 调用被记录 */
+  sampleRate?: number;
+  /** 单任务最大记录条数（默认 0=不限）；超出后停止记录（防内存膨胀） */
+  maxCalls?: number;
+}
+
+export function createTraceSession(taskId: string, options?: TraceOptions): TraceSession {
+  const enabled = options?.enabled ?? true;
+  const sampleRate = Math.min(1, Math.max(0, options?.sampleRate ?? 1));
+  const maxCalls = options?.maxCalls ?? 0;
   const calls: TraceCall[] = [];
   let seq = 0;
+  let droppedBySample = 0;
+  let droppedByCap = 0;
   const wrapped = new Set<string>();
+
+  // ═══ P2-10（会话 16l·3）：采样判断（仅当需要记录时调）
+  function shouldRecord(): boolean {
+    if (!enabled) return false;
+    if (maxCalls > 0 && calls.length >= maxCalls) {
+      droppedByCap++;
+      return false;
+    }
+    if (sampleRate < 1 && Math.random() > sampleRate) {
+      droppedBySample++;
+      return false;
+    }
+    return true;
+  }
 
   function record(call: TraceCall): void {
     calls.push(call);
@@ -82,6 +112,8 @@ export function createTraceSession(taskId: string): TraceSession {
       const callSeq = seq;
       const argsSummary = args.map((a) => summarize(a)).join(' | ').slice(0, 200);
       const finish = (result: unknown, ok: boolean, durationMs: number): void => {
+        // ═══ P2-10（会话 16l·3）：采样/上限判断——不记录时零存储开销
+        if (!shouldRecord()) return;
         record({
           seq: callSeq,
           fn: key,
@@ -118,7 +150,7 @@ export function createTraceSession(taskId: string): TraceSession {
   }
 
   function wrap(instance: unknown, label: string, methods?: string[]): void {
-    if (!instance) return;
+    if (!instance || !enabled) return; // ═══ P2-10：disabled → 跳过包装（零开销）
     const names: string[] = methods ?? [];
     if (names.length === 0) {
       // 只收集原型链上的方法（数据属性），不收集实例 own 字段——
@@ -141,6 +173,15 @@ export function createTraceSession(taskId: string): TraceSession {
     wrap,
     report: () => [...calls],
     size: () => calls.length,
+    // ═══ P2-10（会话 16l·3）：采样/丢弃统计（可观测性）
+    stats: () => ({
+      recorded: calls.length,
+      droppedBySample,
+      droppedByCap,
+      enabled,
+      sampleRate,
+      maxCalls,
+    }),
   };
 }
 
