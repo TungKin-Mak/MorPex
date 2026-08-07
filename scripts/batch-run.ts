@@ -60,7 +60,7 @@ const adaptiveMin = adaptiveIdx >= 0 ? parseInt(String(args[adaptiveIdx + 1] ?? 
 // ═══ P2-9（会话 16l·3）：并发自适应——内存感知 + 限流感知，防并行 OOM / 限流风暴 ═══
 // 曾 OOM（关键教训 #5）：batch + vitest 并行堆爆。自适应在每批前根据可用内存动态降并发；
 // 批内大量限流 → 下批自动降并发（减少配额风暴），恢复后回升。
-const os = require('node:os');
+import { freemem } from 'node:os';
 
 export interface AdaptiveConcurrencyConfig {
   enabled: boolean;
@@ -87,7 +87,7 @@ export function currentAdaptiveConcurrency(
   let eff = maxConcurrency;
 
   // 1. 内存感知：可用内存 < 1.5GB → 降为 2；< 3GB → 降为 3；堆占用 > 80% → 降为 2
-  const freeMemGb = os.freemem() / (1024 ** 3);
+  const freeMemGb = freemem() / (1024 ** 3);
   const heapUsedRatio = process.memoryUsage().heapUsed / (process.memoryUsage().heapTotal || 1);
   if (freeMemGb < 1.5 || heapUsedRatio > 0.8) eff = Math.min(eff, 2);
   else if (freeMemGb < 3) eff = Math.min(eff, 3);
@@ -334,7 +334,7 @@ async function main(): Promise<void> {
       const rl = batchResults.filter(r => !r.ok && r.error?.startsWith('RATE_LIMITED')).length;
       rateLimitedInLastBatch = rl;
       if (batchIdx === 0 || rl > 0) {
-        console.log(`  [batch] 第 ${batchIdx + 1} 批：并发 ${effConcurrency}（限流 ${rl}/${batch.length}，可用内存 ${(os.freemem() / 1024 ** 3).toFixed(1)}GB）`);
+        console.log(`  [batch] 第 ${batchIdx + 1} 批：并发 ${effConcurrency}（限流 ${rl}/${batch.length}，可用内存 ${(freemem() / 1024 ** 3).toFixed(1)}GB）`);
       }
       batchIdx++;
     }
