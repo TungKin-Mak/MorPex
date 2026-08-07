@@ -9,12 +9,13 @@
 
 ---
 
-## 当前状态（2026-08-06，会话 16k·4 后）
+## 当前状态（2026-08-07，会话 16l 后）
 
 - **架构**：AICOS-Core 8 层纯净架构；多 Agent 编排（OrchestratorAgent→step-agent）+ 单执行引擎（UnifiedExecutionEngine v3）；RAG-lazy 上下文装配（Dense bge-m3 + Sparse BM25 → RRF → Cross-Encoder bge-reranker 重排）。
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **82 文件 / 736 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **83 文件 / 745 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
 - **LLM**：opencode/deepseek-v4-flash-free（config 驱动）；**Embedding/Rerank**：SiliconFlow（config/embeddingconfig.yaml，SILICONFLOW_API_KEY env）。
-- **数据**：morpex-events.db 已从 4GB 清理至 85.7MB（删 58 条 >1MB 装配快照 + VACUUM，备份 backup-20260806-big-snapshots.json）。
+- **数据**：morpex-events.db 从 4GB→85.7MB（会话 16j）→ 本会话实体注册去重 47,897→3,904，**92MB→60MB**（备份 morpex-events.db.bak-full-20260807-1956）。
+- **P0 优化（会话 16l）**：实体注册去重（stableKey 剔时间戳，同 key 无变化不 append）+ restore 分页全量（修复 limit=100 只恢复 100 实体的隐藏 bug，restore 2.1s→43ms）+ PiBridge 进程级共享单例（getSharedPiBridge 四处复用）。
 - **batch 终验**：74 任务真实成功率 **31/31=100%**、空参 0（历史 40/199）、耗时 65-133s（提速 60%+）；43 非成功全为 opencode 配额（C1 显式化），0 系统缺陷。
 
 ## 会话历史摘要（紧凑）
@@ -44,6 +45,7 @@
 | 16k·2 | 接真实 embedding（SiliconFlow BAAI/bge-m3，config 驱动） | ✅ |
 | 16k·3 | 装配检索定为 RAG 语义为主 + 确定性加成 | ✅ |
 | 16k·4 | **Dense+Sparse(BM25)→RRF→Cross-Encoder 完整流水线** | ✅ 808ms 语义正确 |
+| 16l | **P0 三项完成**：①实体注册去重（47,897→3,904，DB 92→60MB）②PiBridge 进程级共享单例（agent-spawner/ServiceContainer/bootstrap/PiModelRegistry 四处复用）③restore limit bug 修复（只恢复 100 实体→分页全量，restore 2.1s→43ms）+ ArtifactFacade 同修 | ✅ 745 通过 |
 
 ## 当前开放决策
 
@@ -53,18 +55,18 @@
 
 ## 待办（按优先级）
 
-- **数据治理**：morpex-events.db 会再增长（快照归档策略 + 定期 VACUUM）；system.entity.registered 42k 事件（实体去重/批量注册）
-- **运行时性能**：PiBridge/agent-spawner 每次 spawn 新建（连接复用）；bootstrap 每次重建 Ontology（42k 实体，启动慢）；rerank 结果缓存
+- **数据治理**：morpex-events.db 会再增长（快照归档策略 + 定期 VACUUM）；✅ system.entity.registered 去重已完成（scripts/compact-entity-events.cjs 可复用）
+- **运行时性能**：✅ PiBridge 进程级共享单例（getSharedPiBridge）；✅ bootstrap restore 分页全量（43ms）+ 去重后无臃肿；rerank 结果缓存（P1-4 候选）
 - **健壮性**：core 内 Gate/planner 调用方未统一退避重试（batch 有）；execution-stats 用内存 history（长期运行需持久化指标）
 - **UI（低优先）**：execution-stats 前端 / 异常告警阈值可配置 / Session 治理前端 / 进化审批 UI 已完成
 - **验证**：opencode 配额冷却后复跑 full-closed-loop + 大样本 batch（装配+检索升级后）
 
-## 架构优化候选（2026-08-06 审计产出，用户暂缓实施）
+## 架构优化候选（2026-08-06 审计产出）
 
-**P0 高价值（数据膨胀/运行时持续消耗）**：
-1. 实体注册去重/批量：system.entity.registered 42,469 条（events 82%）→ 同 key 覆盖不重复 append + 事件瘦身
-2. PiBridge/连接复用：agent-spawner 每次 new PiBridge+init → 进程级共享单例
-3. bootstrap 启动重建：42k 实体 restore → 实体缓存持久化（快照文件加载）
+**P0 高价值（✅ 会话 16l 已完成）**：
+1. ✅ 实体注册去重/批量：同 key 覆盖不重复 append（stableKey 剔时间戳）+ 存量清理（compact-entity-events.cjs，47,897→3,904，restore 零丢失）+ restore 分页全量（修复 limit=100 只恢复 100 实体的隐藏 bug）
+2. ✅ PiBridge 连接复用：getSharedPiBridge 进程级单例（agent-spawner/ServiceContainer/bootstrap/PiModelRegistry 复用）
+3. ✅ bootstrap 启动重建：42k 实体 restore 2.1s→43ms（去重+分页，不引入快照文件——EventStore 保持真相源）
 
 **P1 性能/资源**：
 4. rerank 结果缓存（query+docs 指纹 TTL 30s，当前每装配 808ms）
