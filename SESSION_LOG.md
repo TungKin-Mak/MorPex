@@ -55,6 +55,27 @@
 - **UI（低优先）**：execution-stats 前端 / 异常告警阈值可配置 / Session 治理前端 / 进化审批 UI 已完成
 - **验证**：opencode 配额冷却后复跑 full-closed-loop + 大样本 batch（装配+检索升级后）
 
+## 架构优化候选（2026-08-06 审计产出，用户暂缓实施）
+
+**P0 高价值（数据膨胀/运行时持续消耗）**：
+1. 实体注册去重/批量：system.entity.registered 42,469 条（events 82%）→ 同 key 覆盖不重复 append + 事件瘦身
+2. PiBridge/连接复用：agent-spawner 每次 new PiBridge+init → 进程级共享单例
+3. bootstrap 启动重建：42k 实体 restore → 实体缓存持久化（快照文件加载）
+
+**P1 性能/资源**：
+4. rerank 结果缓存（query+docs 指纹 TTL 30s，当前每装配 808ms）
+5. queryObjects 无索引（O(n) 全扫）→ graph 按 type 建索引 Map<type, Entity[]>
+6. core 内 Gate/planner 限流退避未统一（RateLimitError → retry-with-backoff）
+7. execution-stats 内存聚合 → 指标持久化（SQLite 周期汇总）
+
+**P2 架构/体验**：
+8. 复杂任务超长（4.5h 无步骤上限）→ Orchestrator 步骤数 cap + 每步 token 预算
+9. batch 5 并发无资源上限（曾 OOM）→ worker 并发自适应
+10. TraceRecorder 全量包装（1956 调用/任务）→ 采样/开关
+11. 已应用策略全局注入 → 按 goal 语义过滤（复用 reranker）
+
+**P3 低优先**：execution-stats 前端 UI、告警阈值可配置、Session 治理前端、结构修正器 tsc 型校验
+
 ## 关键教训（避免重蹈）
 
 1. **嵌套 Mission 卡死**：DAG 节点无 Agent 能力 → 总大脑编排（不建嵌套 Mission）
