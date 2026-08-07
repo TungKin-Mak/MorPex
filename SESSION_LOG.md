@@ -9,14 +9,15 @@
 
 ---
 
-## 当前状态（2026-08-07，会话 16l·2 后）
+## 当前状态（2026-08-07，会话 16l·3 后）
 
 - **架构**：AICOS-Core 8 层纯净架构；多 Agent 编排（OrchestratorAgent→step-agent）+ 单执行引擎（UnifiedExecutionEngine v3）；RAG-lazy 上下文装配（Dense bge-m3 + Sparse BM25 → RRF → Cross-Encoder bge-reranker 重排）。
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **86 文件 / 757 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **88 文件 / 771 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
 - **LLM**：opencode/deepseek-v4-flash-free（config 驱动）；**Embedding/Rerank**：SiliconFlow（config/embeddingconfig.yaml，SILICONFLOW_API_KEY env）。
 - **数据**：morpex-events.db 4GB→85.7MB（16j）→实体去重 92MB→60MB（16l）；restore 2.1s→43ms。
-- **P0 优化（16l）**：实体注册去重（stableKey 剔时间戳）+ restore 分页全量（修复 limit=100 bug）+ PiBridge 进程级单例。
-- **P1 优化（16l·2）**：rerank 结果缓存（指纹 TTL 30s）+ type 索引（getEntities O(1) 桶查）+ Gate 限流退避（RetryPolicy name 匹配增强 + 3 处接入）；execution-stats 持久化评估后不做（内存有界 history 合理）。
+- **P0（16l）**：实体注册去重 + restore 分页全量 + PiBridge 进程级单例。
+- **P1（16l·2）**：rerank 缓存 + type 索引 + Gate 限流退避（execution-stats 持久化评估后不做）。
+- **P2（16l·3）**：复杂任务 cap（maxSteps=8 + maxTotalTokens=200k）+ batch 并发自适应（--adaptive）+ TraceRecorder 采样/开关（策略按 goal 过滤评估后不做）。
 - **batch 终验**：74 任务真实成功率 **31/31=100%**、空参 0（历史 40/199）、耗时 65-133s（提速 60%+）；43 非成功全为 opencode 配额（C1 显式化），0 系统缺陷。
 
 ## 会话历史摘要（紧凑）
@@ -48,6 +49,7 @@
 | 16k·4 | **Dense+Sparse(BM25)→RRF→Cross-Encoder 完整流水线** | ✅ 808ms 语义正确 |
 | 16l | **P0 三项完成**：①实体注册去重（47,897→3,904，DB 92→60MB）②PiBridge 进程级共享单例（agent-spawner/ServiceContainer/bootstrap/PiModelRegistry 四处复用）③restore limit bug 修复（只恢复 100 实体→分页全量，restore 2.1s→43ms）+ ArtifactFacade 同修 | ✅ 745 通过 |
 | 16l·2 | **P1 三项完成 + 一项评估**：①rerank 结果缓存（query+docs SHA256 指纹 TTL 30s，docs 排序无关）②type 索引（getEntities(type) O(n)→O(桶内)，单引用保 WeakMap 缓存一致）③Gate 限流退避（RetryPolicy 增强 name 匹配 + withGateRetry 包 3 处 generateText）④execution-stats 持久化评估→不做（实时仪表盘用内存有界 history 是合理设计） | ✅ 757 通过 |
+| 16l·3 | **P2 三项完成 + 一项评估**：①复杂任务 cap（maxSteps 截断 + maxTotalTokens 预算，Bounded Autonomy）②batch 并发自适应（内存/限流感知，防 OOM）③TraceRecorder 采样/开关（disabled/sampleRate/maxCalls）④策略按 goal 过滤评估→不做（仅 3 类通用防错规则，无语义维度可过滤，全量注入正确） | ✅ 771 通过 |
 
 ## 当前开放决策
 
@@ -76,11 +78,11 @@
 6. ✅ core 内 Gate/planner 限流退避：RetryPolicy 增强 error.name 匹配（RateLimitError 标识在 name 字段，原仅匹配 message 会漏）+ Gate 3 处 generateText 接入 withGateRetry（指数退避 3 次）
 7. ⏸️ execution-stats 内存 → 持久化：评估后不做——实时仪表盘用内存有界 history（maxHistory 防膨胀）是合理设计，改 EventStore 持久化需全链路 emit 改造、价值未验证
 
-**P2 架构/体验**：
-8. 复杂任务超长（4.5h 无步骤上限）→ Orchestrator 步骤数 cap + 每步 token 预算
-9. batch 5 并发无资源上限（曾 OOM）→ worker 并发自适应
-10. TraceRecorder 全量包装（1956 调用/任务）→ 采样/开关
-11. 已应用策略全局注入 → 按 goal 语义过滤（复用 reranker）
+**P2 架构/体验（✅ 会话 16l·3 已完成）**：
+8. ✅ 复杂任务超长（4.5h 无步骤上限）→ Orchestrator maxSteps=8 截断 + maxTotalTokens=200k 预算（分析/审计/重规划/汇总累计，超限 fail loud）——呼应 Bounded Autonomy 铁律
+9. ✅ batch 5 并发无资源上限（曾 OOM）→ 并发自适应（--adaptive：内存感知降并发防 OOM + 限流感知降并发防配额风暴；显式 --concurrency 尊重用户）
+10. ✅ TraceRecorder 全量包装（1956 调用/任务）→ 采样/开关（enabled/sampleRate/maxCalls + stats()，disabled 零开销）
+11. ⏸️ 已应用策略全局注入 → 按 goal 语义过滤：评估后不做——策略仅 3 类通用防错规则（空参/安全拦截/高重试），无语义维度可过滤，任何 goal 都可能触发 → 全量注入正确，reranker 语义过滤无实义
 
 **P3 低优先**：execution-stats 前端 UI、告警阈值可配置、Session 治理前端、结构修正器 tsc 型校验
 
