@@ -1315,3 +1315,23 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 ### 遗留
 - E2（execution-stats 前端 UI + 告警阈值可配置）、E3（Session 治理前端）——UI 工作量大，低优先
 - 长跑需分片/配额管理（opencode free 撑不住 99 任务连续 6.7h）
+
+---
+
+## ═════════ 会话 16k：引擎性能审计 + OntologyService 高频调用优化（2026-08-06，用户"需要"）═════════
+
+### ① 引擎性能审计（74 任务 trace 报告聚合）
+- **时间去向**：UnifiedExecutionEngine 61.3%（LLM 真实执行，固有）｜ MorPexRuntime 22.5% ｜ CompanyFacade 16.1% ｜ **OntologyService 0.1%（但 147,499 次调用）** ｜ **ContextAssemblyEngine 0.0%（装配 65ms 均耗，优化前 37-82s）**
+- **结论**：非 LLM 链路全毫秒级，引擎无代码级瓶颈；仅 LLM 固有耗时 + 外部 opencode 配额
+- **观察项**：OntologyService.toOntologyObject 129,197 次调用（74 任务 ≈1700 次/任务），纯转换高频低耗（总 32s=0.43s/任务）
+
+### ② OntologyService 缓存优化（用户确认做）
+- **toOntologyObject WeakMap 缓存**（按实体对象引用）：registerEntity/upsert 总是替换新对象引用 → 旧引用自动 GC，**零失效逻辑、零 stale 风险**；129k 次重建 → 同实体重复读取同一引用
+- 新增 ontology-cache.test.ts **4 用例**（同实体同引用/upsert 后新引用无 stale/异实体独立/queryObjects 复用）
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core **82 文件 / 722 测试通过**（含 ontology-cache 4）+ 3 个 full-closed-loop = opencode 配额再次耗尽（6.7h batch 刚耗尽），非缓存回归（错误明确为 RateLimitError 快速抛出）
+
+### 遗留
+- E2（execution-stats 前端 UI + 告警阈值可配置）、E3（Session 治理前端）——UI 低优先
+- opencode free 配额需冷却后复跑 full-closed-loop 验证（此前恢复即全绿）

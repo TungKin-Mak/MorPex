@@ -31,6 +31,13 @@ export class OntologyService {
    */
   private entityCache = new Map<string, { id: string; type: string; name: string; metadata: Record<string, unknown>; createdAt: number }>();
 
+  /**
+   * 会话 16k（性能优化）：toOntologyObject 转换结果缓存（WeakMap 按实体引用）。
+   * 每次实体读取都重建 OntologyObject（实测 129k 次/74 任务）→ 分配 churn；
+   * registerEntity/upsert 总是【替换新对象引用】→ 旧引用自动 GC，零失效逻辑、零 stale 风险。
+   */
+  private objectCache = new WeakMap<object, OntologyObject>();
+
   constructor(
     private readonly graph: SystemMetadataGraph,
     private readonly typeRegistry?: ObjectTypeRegistry,
@@ -330,8 +337,11 @@ export class OntologyService {
   // ---------- 适配层 ----------
 
   private toOntologyObject(entity: { id: string; type: string; name: string; metadata: Record<string, unknown>; createdAt: number }): OntologyObject {
+    // ═══ 会话 16k：缓存命中（实体引用未变 → 直接返回同一对象，零重建）═══
+    const cached = this.objectCache.get(entity);
+    if (cached) return cached;
     const metadata = entity.metadata ?? {};
-    return {
+    const obj: OntologyObject = {
       id: entity.id,
       type: entity.type,
       properties: { name: entity.name, ...metadata },
@@ -341,6 +351,8 @@ export class OntologyService {
       updatedAt: (metadata.updatedAt as number | undefined) ?? entity.createdAt,
       metadata,
     };
+    this.objectCache.set(entity, obj);
+    return obj;
   }
 
   private toRelation(rel: { fromId: string; toId: string; type: string; weight: number; createdAt: number; metadata?: Record<string, unknown> }): OntologyRelation {
