@@ -310,11 +310,14 @@ export async function bootstrapUnified(options?: {
           },
           getEvents: () => container.experienceMiner.getEvents(),
           getStrategies: () => container.promptStrategyRegistry.all(),
+          // ═══ 会话 16k（接真实 embedding 模型）：embeddingconfig.yaml 配置驱动，非硬编码 ═══
+          // 可用（enabled+apiKey）→ 注入 similarityScorer（向量余弦，异步）；不可用 → 关键词回退。
+          similarityScorer: await buildEmbeddingScorer(),
         }, new ContextDistiller());
         assemblyEngine.setRetriever({
           retrieveRelevant: (goal: string, domain?: string, topK?: number) => retriever.retrieveRelevant(goal, domain, topK),
         });
-        console.log('[bootstrapUnified] ✅ 相关性检索器已注入（RAG-lazy：情境层语义 Top-K + 指针）');
+        console.log('[bootstrapUnified] ✅ 相关性检索器已注入（RAG-lazy：情境层语义 Top-K + 指针 + embedding）');
       } catch (err) {
         console.warn('[bootstrapUnified] ⚠️ 相关性检索器注入失败（回退最近 N 全量）:', (err as Error).message);
       }
@@ -324,7 +327,7 @@ export async function bootstrapUnified(options?: {
       console.warn('[bootstrapUnified] ⚠️ 近期摘要读取器注入失败（非阻断）:', (err as Error).message);
     }
 
-    console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式 + 持久化 provider + 近期摘要/风险分级）');
+    console.log('[bootstrapUnified] ✅ ContextAssemblyEngine 已注入（聚焦模式 + 持久化 provider + 近期摘要/风险分级 + embedding 检索）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);
   }
@@ -773,4 +776,39 @@ export async function bootstrapUnified(options?: {
     artifactProjector,
     feedbackService,
   };
+}
+
+/**
+ * buildEmbeddingScorer — 会话 16k：从 embeddingconfig.yaml 构建相似度评分器（非硬编码）。
+ *
+ * enabled=true 且 apiKey 可用 → 返回 EmbeddingProvider 向量余弦评分器（可异步）；否则 undefined（关键词回退）。
+ * goal 向量按 goal 文本缓存（一次检索只 embedding 一次 goal）。
+ */
+async function buildEmbeddingScorer(): Promise<((goal: string, candidate: string) => Promise<number>) | undefined> {
+  try {
+    const { loadEmbeddingConfig } = await import('./infrastructure/adapters/pi-bridge/yamlConfig.js');
+    const cfg = loadEmbeddingConfig();
+    const ctx = cfg?.contextRetrieval;
+    if (!cfg?.enabled || !ctx?.enabled) return undefined;
+    const { EmbeddingProvider } = await import('./infrastructure/adapters/embedding/EmbeddingProvider.js');
+    const provider = new EmbeddingProvider(cfg);
+    if (!provider.ready) {
+      console.warn('[bootstrapUnified] ⚠️ embedding 未就绪（缺 apiKey）→ 回退关键词检索');
+      return undefined;
+    }
+    let goalVecCache: { goal: string; vec: number[] } | null = null;
+    const minScore = ctx.minScore ?? 0.3;
+    console.log(`[bootstrapUnified] ✅ embedding 检索已启用: model=${provider.model}（minScore=${minScore}）`);
+    return async (goal: string, candidate: string): Promise<number> => {
+      if (!goalVecCache || goalVecCache.goal !== goal) {
+        goalVecCache = { goal, vec: await provider.embedOne(goal) };
+      }
+      const cv = await provider.embedOne(candidate);
+      const sim = provider.cosine(goalVecCache.vec, cv);
+      return Number.isFinite(sim) && sim >= minScore ? sim : 0;
+    };
+  } catch (err) {
+    console.warn(`[bootstrapUnified] ⚠️ embedding 构建失败（回退关键词检索）: ${(err as Error).message}`);
+    return undefined;
+  }
 }

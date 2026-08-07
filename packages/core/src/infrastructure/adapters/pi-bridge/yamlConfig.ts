@@ -17,6 +17,22 @@ import { resolve } from 'node:path';
 import { execSync } from 'node:child_process';
 
 /** LLM 配置（config/morpex.yaml 的 llm 块） */
+
+export interface EmbeddingConfigYaml {
+  enabled?: boolean;
+  provider?: string;
+  baseUrl?: string;
+  apiKey?: string;
+  model?: string;
+  dimensions?: number;
+  batchSize?: number;
+  contextRetrieval?: { enabled?: boolean; topK?: number; minScore?: number };
+}
+
+/** 顶层配置（config/embeddingconfig.yaml） */
+interface EmbeddingRootYaml {
+  embedding?: EmbeddingConfigYaml;
+}
 export interface LlmGatewayConfig {
   enabled?: boolean;
   /** 会话 11：模型来源——'builtin'=pi-ai 内置 provider（provider/model 从 config 读）；'gateway'=自定义 OpenAI 兼容网关 */
@@ -158,6 +174,31 @@ export function loadMorpexConfig(path?: string): MorpexConfig | null {
       }
     }
     return parsed;
+  } catch {
+    return null;
+  }
+}
+
+/**
+ * loadEmbeddingConfig — 读取并解析 config/embeddingconfig.yaml（会话 16k 向量检索）
+ *
+ * 复用 parseYaml + resolveEnvRefs（${VAR} 环境变量引用 + Windows 用户级兜底）。
+ * 文件不存在/解析失败 → null（不抛错；调用方回退关键词检索）。
+ */
+export function loadEmbeddingConfig(path?: string): EmbeddingConfigYaml | null {
+  const configPath = path ?? resolve(process.cwd(), 'config/embeddingconfig.yaml');
+  try {
+    const text = readFileSync(configPath, 'utf-8');
+    const parsed = parseYaml(text) as EmbeddingRootYaml;
+    const emb = parsed.embedding ?? {};
+    // 环境变量引用解析（字符串字段）
+    for (const key of ['provider', 'baseUrl', 'apiKey', 'model'] as const) {
+      const v = emb[key];
+      if (typeof v === 'string' && v.includes('${')) {
+        emb[key] = resolveEnvRefs(v);
+      }
+    }
+    return emb;
   } catch {
     return null;
   }

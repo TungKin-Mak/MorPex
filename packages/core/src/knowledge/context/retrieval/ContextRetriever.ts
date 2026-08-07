@@ -48,11 +48,11 @@ export interface RetrieverSources {
   /** 已应用策略 */
   getStrategies?: () => AppliedStrategy[];
   /**
-   * 会话 16j（B1 可插拔 embedding）：语义相似度评分器（可选）。
+   * 会话 16j/16k（B1 可插拔 embedding + 16k 接真实模型）：语义相似度评分器（可选，可异步）。
    * 注入后替代默认关键词/domain 打分（更高语义精度）；返回 0-1 相似度。
    * 未注入 → 默认关键词 + domain + 新鲜度打分。
    */
-  similarityScorer?: (goal: string, candidate: string) => number;
+  similarityScorer?: (goal: string, candidate: string) => number | Promise<number>;
 }
 
 /** goal 提取检索关键词（去停用词；中文分词近似：按常用业务词匹配） */
@@ -85,7 +85,7 @@ export class ContextRetriever {
     try {
       const tasks = await this.sources.loadRecentTasks(Math.max(topK * 3, 15));
       for (const t of tasks) {
-        const score = this.relevanceScore(goal, domain, `${t.goal ?? ''} ${t.summary ?? ''}`, t.taskRef, t.archivedAt);
+        const score = await this.relevanceScore(goal, domain, `${t.goal ?? ''} ${t.summary ?? ''}`, t.taskRef, t.archivedAt);
         if (score <= 0) continue;
         const raw = t.summary && t.summary.length > 0 ? t.summary : (t.goal ?? `任务 ${t.taskRef}`);
         results.push({
@@ -127,13 +127,13 @@ export class ContextRetriever {
     return results.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
-  /** 相关性打分：可插拔相似度（embedding）优先，缺省关键词/domain + 新鲜度 */
-  private relevanceScore(goal: string, domain: string | undefined, candidate: string, _ref: string, archivedAt?: number): number {
-    // ═══ 会话 16j（B1）：注入 similarityScorer（如 embedding 余弦）→ 用它打分（0-1 加权）═══
+  /** 相关性打分：可插拔相似度（embedding，可异步）优先，缺省关键词/domain + 新鲜度 */
+  private async relevanceScore(goal: string, domain: string | undefined, candidate: string, _ref: string, archivedAt?: number): Promise<number> {
+    // ═══ 会话 16j/16k：注入 similarityScorer（embedding 余弦，可异步）→ 用它打分（0-1 加权）═══
     if (this.sources.similarityScorer) {
       try {
-        const sim = this.sources.similarityScorer(goal, candidate);
-        let score = Number.isFinite(sim) ? sim * 3 : 0; // 0-1 → 0-3 量纲（与关键词对齐）
+        const sim = await this.sources.similarityScorer(goal, candidate);
+        let score = Number.isFinite(sim) ? (sim as number) * 3 : 0; // 0-1 → 0-3 量纲（与关键词对齐）
         if (domain && candidate.toLowerCase().includes(domain.toLowerCase())) score += 0.5;
         if (score <= 0) return 0;
         if (archivedAt) {

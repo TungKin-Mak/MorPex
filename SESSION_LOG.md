@@ -1335,3 +1335,35 @@ batch 验收（会话 16f）P3 异常告警实测暴露真实瓶颈：**装配�
 ### 遗留
 - E2（execution-stats 前端 UI + 告警阈值可配置）、E3（Session 治理前端）——UI 低优先
 - opencode free 配额需冷却后复跑 full-closed-loop 验证（此前恢复即全绿）
+
+---
+
+## ═════════ 会话 16k·2：接入真实 embedding 模型（SiliconFlow BAAI/bge-m3，配置驱动非硬编码，2026-08-06）═════════
+
+### 交付（用户要求：接自己的 embedding 向量模型，embeddingconfig.yaml 配置，不硬编码）
+1. **`config/embeddingconfig.yaml`**（新）：embedding 块（enabled/provider/baseUrl/apiKey:${SILICONFLOW_API_KEY}/model:BAAI/bge-m3/dimensions/batchSize/contextRetrieval.topK+minScore）——**零硬编码**，apiKey 环境变量引用（复用 readEnv Windows 用户级兜底）
+2. **`EmbeddingProvider`**（新，infrastructure/adapters/embedding/）：调用 OpenAI 兼容 `POST {baseUrl}/embeddings`（SiliconFlow 文档），批量/单向量/余弦相似度/超时/错误/向量数校验
+3. **yamlConfig 扩展**：`loadEmbeddingConfig()`（复用 parseYaml + resolveEnvRefs）
+4. **ContextRetriever 支持异步 similarityScorer**（embedding 需 await）
+5. **bootstrap 接线** `buildEmbeddingScorer()`：enabled+apiKey 可用 → 注入（goal 向量按文本缓存防重复 embedding）；不可用 → 关键词/domain 回退（默认行为不变）
+
+### 实测（真实 SiliconFlow API）
+- 配置加载 ✓（model=BAAI/bge-m3、apiKey 从 env 解析 sk-vcg...）
+- **向量 1024 维 ✓**（bge-m3）
+- **cosine(价格合规, 定价合规) = 0.78（语义相似，关键词会漏）**
+- **cosine(价格合规, 空气检测) = 0.40（正确区分）**——embedding 比关键词检索提升语义召回
+
+### 新增测试（embedding-provider.test.ts 5 用例）
+- embed 调用/请求体/Authorization/批量（mock fetch）
+- cosine（相同=1/正交=0/空向量=0）
+- 缺 key → ready=false + embed 抛错
+- HTTP 失败/向量数不匹配 → 抛错
+- 空输入 → 空数组
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core **82 文件 / 727 测试通过**（+embedding 5）
+- ⚠️ 3 个 full-closed-loop = opencode 配额耗尽（刚 6.7h batch），非 embedding 回归（错误明确 RateLimitError）
+
+### 切换说明
+- 需要 embedding 检索 → embeddingconfig.yaml enabled:true（已配）+ SILICONFLOW_API_KEY 环境变量
+- 想回退关键词 → enabled:false / 删 apiKey → 自动回退（零代码改动）
