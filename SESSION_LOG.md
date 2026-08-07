@@ -1393,3 +1393,43 @@ semantic 余弦 ×3（RAG 语义为主）
   + 领域 +0.5 + 新鲜度衰减
 = 智能语义召回 + 精确命中靠前 + 时效优先
 ```
+
+---
+
+## ═════════ 会话 16k·4：RAG 完整流水线——Dense + Sparse(BM25) → RRF → Cross-Encoder 重排（2026-08-06，用户指定架构）═════════
+
+### 用户指定架构
+"向量检索（Dense）+ 关键字检索/BM25（Sparse）→ Cross-Encoder"——经典 RAG 混合流水线
+
+### 交付
+1. **SparseRetriever**（新，BM25 纯 JS）：中文重叠双字分词 + ASCII 单词，IDF 基于候选集统计，精确词项召回（专有名词/型号/ID）
+2. **Reranker**（新，Cross-Encoder）：调用 OpenAI 兼容 `POST /rerank`（SiliconFlow BAAI/bge-reranker-v2-m3），(query,doc) 联合打分精排
+3. **ContextRetriever 升级为流水线**：候选集 → Dense(bge-m3 余弦，可缺省) + Sparse(BM25 内置恒可用) → **RRF 融合**（双路排名 Σ1/(60+rank)）→ **Cross-Encoder 重排**（可缺省，重排融合后前 topK×3 对）→ 领域加成 + 新鲜度衰减 + Top-K
+   - 领域匹配经验/全局策略加 **baseScore 保底**（无词项重叠也计入，防被 BM25 过滤）
+   - 无 embedding → 仅 Sparse(BM25) + 领域/新鲜度（无外部依赖降级）
+4. **config 扁平化**（embeddingconfig.yaml 2 层，对齐极简 parseYaml）：retrievalEnabled/topK/minScore + rerankerEnabled/rerankerModel/rerankerTopN
+5. bootstrap：buildRetrievalComponents 返回 { similarityScorer, reranker }（配置驱动非硬编码）
+
+### 实测（真实 SiliconFlow 全流水线，808ms）
+```
+Dense(bge-m3) + Sparse(BM25) → RRF → bge-reranker-v2-m3 精排:
+  t1 电商价格合规检查  score=1.000
+  t2 商品定价规则审计  score=0.721   ← 语义相关（关键词会漏）
+  t3 开发空气检测设备  score=0.050   ← 正确区分
+```
+
+### 新增测试（retrieval-pipeline 7 用例 + 更新）
+- SparseRetriever：双字分词/IDF/精确词项召回（3）
+- ContextRetriever：仅 Sparse 召回/双路 RRF/Cross-Encoder 重排精排/baseScore 保底（4）
+
+### 门禁
+- ✅ tsc 0 ｜ ✅ validate-architecture 100% ｜ ✅ depcheck 0 ｜ ✅ production-check 8/8 ｜ ✅ core **82 文件 / 736 测试通过**（+7）
+- ⚠️ 3 个 full-closed-loop = opencode 配额（非回归）
+
+### 检索策略最终形态（配置驱动）
+```
+Dense(bge-m3) ─┐
+               ├→ RRF 融合 → Cross-Encoder(bge-reranker) 精排 → 领域+新鲜度 → Top-K
+Sparse(BM25) ──┘
+```
+- rerankerEnabled:false / 缺 apiKey → 自动降级（仅 BM25 或 BM25+Dense），零代码改动

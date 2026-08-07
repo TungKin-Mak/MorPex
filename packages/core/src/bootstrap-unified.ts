@@ -310,9 +310,10 @@ export async function bootstrapUnified(options?: {
           },
           getEvents: () => container.experienceMiner.getEvents(),
           getStrategies: () => container.promptStrategyRegistry.all(),
-          // ═══ 会话 16k（接真实 embedding 模型）：embeddingconfig.yaml 配置驱动，非硬编码 ═══
-          // 可用（enabled+apiKey）→ 注入 similarityScorer（向量余弦，异步）；不可用 → 关键词回退。
-          similarityScorer: await buildEmbeddingScorer(),
+          // ═══ 会话 16k·4（Dense+Sparse+Cross-Encoder 流水线）：embeddingconfig.yaml 配置驱动 ═══
+          // 可用（enabled+apiKey）→ 注入 similarityScorer（bge-m3 向量）+ reranker（bge-reranker 精排）；
+          // 不可用 → 仅 Sparse(BM25) + 领域/新鲜度（SparseRetriever 内置，恒可用）。
+          ...(await buildRetrievalComponents()),
         }, new ContextDistiller());
         assemblyEngine.setRetriever({
           retrieveRelevant: (goal: string, domain?: string, topK?: number) => retriever.retrieveRelevant(goal, domain, topK),
@@ -784,39 +785,62 @@ export async function bootstrapUnified(options?: {
  * enabled=true 且 apiKey 可用 → 返回 EmbeddingProvider 向量余弦评分器（可异步）；否则 undefined（关键词回退）。
  * goal 向量按 goal 文本缓存（一次检索只 embedding 一次 goal）。
  */
-async function buildEmbeddingScorer(): Promise<((goal: string, candidate: string) => Promise<number>) | undefined> {
+/**
+ * buildRetrievalComponents — 会话 16k·4：从 embeddingconfig.yaml 构建检索组件（非硬编码）。
+ *
+ * 返回 { similarityScorer?, reranker? }：
+ *   - enabled + apiKey 可用 → Dense(bge-m3 向量余弦) + Cross-Encoder(bge-reranker 重排)
+ *   - 否则 → undefined（ContextRetriever 回退 Sparse BM25 + 领域/新鲜度）
+ * goal 向量按 goal 文本缓存；候选向量 Map 缓存（≤200 清空）。
+ */
+async function buildRetrievalComponents(): Promise<{
+  similarityScorer?: (goal: string, candidate: string) => Promise<number>;
+  reranker?: (query: string, docs: string[]) => Promise<Array<{ index: number; score: number }>>;
+}> {
+  const out: { similarityScorer?: (goal: string, candidate: string) => Promise<number>; reranker?: (query: string, docs: string[]) => Promise<Array<{ index: number; score: number }>> } = {};
   try {
     const { loadEmbeddingConfig } = await import('./infrastructure/adapters/pi-bridge/yamlConfig.js');
     const cfg = loadEmbeddingConfig();
-    const ctx = cfg?.contextRetrieval;
-    if (!cfg?.enabled || !ctx?.enabled) return undefined;
+    if (!cfg?.enabled || !cfg?.retrievalEnabled) return out;
     const { EmbeddingProvider } = await import('./infrastructure/adapters/embedding/EmbeddingProvider.js');
     const provider = new EmbeddingProvider(cfg);
     if (!provider.ready) {
-      console.warn('[bootstrapUnified] ⚠️ embedding 未就绪（缺 apiKey）→ 回退关键词检索');
-      return undefined;
+      console.warn('[bootstrapUnified] ⚠️ embedding 未就绪（缺 apiKey）→ 仅 Sparse(BM25) 检索');
+      return out;
     }
+    // ── Dense：bi-encoder 余弦（goal 向量 + 候选向量缓存）──
     let goalVecCache: { goal: string; vec: number[] } | null = null;
-    // ═══ 会话 16k·3：候选向量缓存（同进程重复装配复用，减少 embedding API 调用）═══
     const candVecCache = new Map<string, number[]>();
     const MAX_CAND_CACHE = 200;
-    const minScore = ctx.minScore ?? 0.3;
-    console.log(`[bootstrapUnified] ✅ embedding 检索已启用: model=${provider.model}（minScore=${minScore}）`);
-    return async (goal: string, candidate: string): Promise<number> => {
+    const minScore = cfg.minScore ?? 0.3;
+    out.similarityScorer = async (goal: string, candidate: string): Promise<number> => {
       if (!goalVecCache || goalVecCache.goal !== goal) {
         goalVecCache = { goal, vec: await provider.embedOne(goal) };
       }
       let cv = candVecCache.get(candidate);
       if (!cv) {
         cv = await provider.embedOne(candidate);
-        if (candVecCache.size >= MAX_CAND_CACHE) candVecCache.clear(); // 简单容量控制
+        if (candVecCache.size >= MAX_CAND_CACHE) candVecCache.clear();
         candVecCache.set(candidate, cv);
       }
       const sim = provider.cosine(goalVecCache.vec, cv);
       return Number.isFinite(sim) && sim >= minScore ? sim : 0;
     };
+    // ── Cross-Encoder：bge-reranker 重排（Dense+Sparse RRF 后精排 Top-N）──
+    if (cfg.rerankerEnabled && cfg.apiKey && cfg.baseUrl && cfg.rerankerModel) {
+      try {
+        const { Reranker } = await import('./knowledge/context/retrieval/Reranker.js');
+        const reranker = new Reranker({ baseUrl: cfg.baseUrl, apiKey: cfg.apiKey, model: cfg.rerankerModel, topN: cfg.rerankerTopN ?? 12 });
+        out.reranker = async (query: string, docs: string[]): Promise<Array<{ index: number; score: number }>> => reranker.rerank(query, docs);
+        console.log(`[bootstrapUnified] ✅ Cross-Encoder 重排已启用: model=${cfg.rerankerModel}`);
+      } catch (err) {
+        console.warn(`[bootstrapUnified] ⚠️ 重排器构建失败（跳过重排）: ${(err as Error).message}`);
+      }
+    }
+    console.log(`[bootstrapUnified] ✅ Dense 检索已启用: model=${provider.model}（minScore=${minScore}）`);
+    return out;
   } catch (err) {
-    console.warn(`[bootstrapUnified] ⚠️ embedding 构建失败（回退关键词检索）: ${(err as Error).message}`);
-    return undefined;
+    console.warn(`[bootstrapUnified] ⚠️ 检索组件构建失败（回退 Sparse BM25）: ${(err as Error).message}`);
+    return out;
   }
 }

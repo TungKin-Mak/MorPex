@@ -26,7 +26,13 @@ export interface EmbeddingConfigYaml {
   model?: string;
   dimensions?: number;
   batchSize?: number;
-  contextRetrieval?: { enabled?: boolean; topK?: number; minScore?: number };
+  /** 会话 16k·4：装配检索（扁平化，parseYaml 仅 2 层） */
+  retrievalEnabled?: boolean;
+  topK?: number;
+  minScore?: number;
+  rerankerEnabled?: boolean;
+  rerankerModel?: string;
+  rerankerTopN?: number;
 }
 
 /** 顶层配置（config/embeddingconfig.yaml） */

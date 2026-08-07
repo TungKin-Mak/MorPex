@@ -1,19 +1,24 @@
-# MorPex Embedding 配置（会话 16k：RAG-lazy 装配的向量检索增强）
-# 参考: https://api-docs.siliconflow.cn/docs/api/embeddings-post
+# MorPex Embedding 配置（会话 16k：RAG-lazy 装配向量检索）
+# 参考: https://api-docs.siliconflow.cn/docs/api/embeddings-post 与 /rerank（cross-encoder）
 #
-# embedding.enabled=true + apiKey 可用 → ContextRetriever 注入 similarityScorer（BAAI/bge-m3 向量余弦）
-# 否则 → 回退关键词/domain 确定性检索（默认行为不变）
+# 检索流水线（会话 16k·4）：Dense（bge-m3 向量）+ Sparse（BM25 内置）→ RRF 融合 → Cross-Encoder 重排（bge-reranker-v2-m3）
+# embedding.enabled=false / 缺 apiKey → 回退仅 Sparse(BM25) + 领域/新鲜度（确定性，无外部依赖）
 #
+# ⚠️ 极简 parseYaml 仅支持 2 层嵌套（embedding: + 标量子项），勿加第 3 层嵌套
 # apiKey 支持 ${VAR} 环境变量引用（process.env → Windows 用户级兑底），敏感值不写明文
 embedding:
   enabled: true
-  provider: siliconflow        # 向量服务商标识（仅作记录，不硬编码进代码）
-  baseUrl: https://api.siliconflow.cn/v1   # OpenAI 兼容 embeddings 端点（POST {baseUrl}/embeddings）
+  provider: siliconflow                    # 服务商标识（仅记录，不硬编码）
+  baseUrl: https://api.siliconflow.cn/v1   # OpenAI 兼容端点（embeddings + rerank）
   apiKey: ${SILICONFLOW_API_KEY}           # ← 环境变量 SILICONFLOW_API_KEY
-  model: BAAI/bge-m3                       # 向量模型（1024 维）
+  model: BAAI/bge-m3                       # Dense bi-encoder 向量模型（1024 维）
   dimensions: 1024
   batchSize: 8                             # 单次请求批量 embedding 数
-  contextRetrieval:
-    enabled: true                          # 装配检索注入开关
-    topK: 5                                # Top-K 召回数
-    minScore: 0.3                          # 相似度阈值（低于不召回）
+  # ── 装配检索（ContextRetriever 注入）──
+  retrievalEnabled: true                   # 装配检索注入开关
+  topK: 5                                  # Top-K 召回数
+  minScore: 0.3                            # Dense 相似度阈值（低于不召回）
+  # ── Cross-Encoder 重排（Dense+Sparse RRF 后精排）──
+  rerankerEnabled: true                    # 重排开关
+  rerankerModel: BAAI/bge-reranker-v2-m3   # cross-encoder 重排模型
+  rerankerTopN: 12                         # 重排候选数（融合后前 N 对）

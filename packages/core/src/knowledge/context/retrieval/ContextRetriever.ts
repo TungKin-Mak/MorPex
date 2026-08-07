@@ -1,16 +1,17 @@
 /**
- * ContextRetriever — 上下文相关性检索器（会话 16i · RAG-lazy 装配：情境层语义召回）
+ * ContextRetriever — 上下文相关性检索器（会话 16i RAG-lazy · 16k·4 升级为 Dense+Sparse+Cross-Encoder）
  *
- * 目的：装配时按 goal 语义相关性检索 Top-K 上下文（替代"最近 N 条按时间全量注入"），
- * 只装相关（省 token）+ 保证质量（语义相关而非时间相关）。
+ * 检索流水线（经典 RAG）：
+ *   1. Dense（bi-encoder 向量，similarityScorer 注入，如 bge-m3 余弦）——语义召回
+ *   2. Sparse（BM25，内置纯 JS，中文双字分词）——精确词项召回（专有名词/型号/ID）
+ *   3. Fusion：RRF（Reciprocal Rank Fusion）融合两路排名
+ *   4. Cross-Encoder 重排（reranker 注入，如 bge-reranker-v2-m3）——精排 Top-N
+ *   5. 领域加成 + 新鲜度衰减 + Top-K 截断
  *
- * 检索源（组合打分）：
- *   1. 任务上下文（装配快照 + EventStore 权威快照）：goal 关键词/domain 相关 + 新鲜度加权
- *   2. 经验事件（LearningEvent：空参/安全拦截/高重试）——按 capability/domain 匹配
- *   3. 已应用策略（PromptStrategyRegistry）——全局注入（跨领域通用痛点）
- *
- * 输出：RelevantContext[]（含 ref 指针 + 蒸馏摘要 + 相关度分），装配层拼成【相关任务摘要】节。
- * 详情按需拉取（ContextArchive.loadByTaskRef 等工具），指针化不注入全文。
+ * 组件全部可插拔/可缺省：
+ *   - 无 embedding（similarityScorer）→ 仅 Sparse(BM25) + 领域/新鲜度
+ *   - 无 reranker → 跳过精排（Dense+Sparse RRF 已可用）
+ *   - 输出 ref 指针 + 摘要，装配层拼【相关任务摘要】；详情按需拉取（指针化）
  *
  * @packageDocumentation
  */
@@ -18,6 +19,7 @@
 import type { LearningEvent } from '../../../evolution/LearningEventDetector.js';
 import type { AppliedStrategy } from '../../../evolution/PromptStrategyRegistry.js';
 import { ContextDistiller } from './ContextDistiller.js';
+import { SparseRetriever } from './SparseRetriever.js';
 
 export type RelevantContextType = 'task' | 'experience' | 'strategy';
 
@@ -48,124 +50,161 @@ export interface RetrieverSources {
   /** 已应用策略 */
   getStrategies?: () => AppliedStrategy[];
   /**
-   * 会话 16j/16k（B1 可插拔 embedding + 16k 接真实模型）：语义相似度评分器（可选，可异步）。
-   * 注入后替代默认关键词/domain 打分（更高语义精度）；返回 0-1 相似度。
-   * 未注入 → 默认关键词 + domain + 新鲜度打分。
+   * Dense：bi-encoder 语义相似度（可异步，如 bge-m3 余弦）。注入 → 语义召回；未注入 → 仅 Sparse。
    */
   similarityScorer?: (goal: string, candidate: string) => number | Promise<number>;
+  /**
+   * Cross-Encoder 重排（可异步，如 bge-reranker-v2-m3）。注入 → RRF 融合后精排 Top-N。
+   * @param query 查询文本
+   * @param docs 候选文档（与融合后候选顺序一致）
+   * @returns 按相关度降序 [{ index, score }]
+   */
+  reranker?: (query: string, docs: string[]) => Promise<Array<{ index: number; score: number }>>;
 }
 
-/** goal 提取检索关键词（去停用词；中文分词近似：按常用业务词匹配） */
-const STOPWORDS = new Set(['的', '了', '和', '并', '以及', '与', '一个', '生成', '输出', '完成', '提供', '需要', '请', '给', '出']);
+/** RRF 融合常数 */
+const RRF_K = 60;
 
-function extractKeywords(goal: string): string[] {
-  return goal
-    .split(/[\s,，。；;、:：/\\\n]+/)
-    .map(s => s.trim().toLowerCase())
-    .filter(s => s.length >= 2 && !STOPWORDS.has(s))
-    .slice(0, 20);
+/** 检索候选（流水线中间形态） */
+interface Candidate {
+  ref: string;
+  type: RelevantContextType;
+  /** 用于 dense/sparse/rerank 的检索文本 */
+  text: string;
+  /** 蒸馏后摘要（任务源） */
+  summary?: string;
+  archivedAt?: number;
+  /** 保底分（领域匹配经验/全局策略——即使 BM25/Dense 无重叠也计入） */
+  baseScore?: number;
 }
 
 export class ContextRetriever {
   private sources: RetrieverSources;
   private distiller: ContextDistiller;
+  private sparse: SparseRetriever;
 
   constructor(sources: RetrieverSources, distiller?: ContextDistiller) {
     this.sources = sources;
     this.distiller = distiller ?? new ContextDistiller();
+    this.sparse = new SparseRetriever();
   }
 
   /**
-   * retrieveRelevant — 按 goal 语义相关性检索 Top-K 上下文
+   * retrieveRelevant — RAG 流水线：Dense + Sparse → RRF → Cross-Encoder → 领域/新鲜度 → Top-K
    */
   async retrieveRelevant(goal: string, domain?: string, topK = 5): Promise<RelevantContext[]> {
-    const results: RelevantContext[] = [];
+    // 1. 候选集（任务 + 经验 + 策略）
+    const candidates = await this.gatherCandidates(goal, domain);
 
-    // 1. 任务上下文（语义相关打分）
-    try {
-      const tasks = await this.sources.loadRecentTasks(Math.max(topK * 3, 15));
-      for (const t of tasks) {
-        const score = await this.relevanceScore(goal, domain, `${t.goal ?? ''} ${t.summary ?? ''}`, t.taskRef, t.archivedAt);
-        if (score <= 0) continue;
-        const raw = t.summary && t.summary.length > 0 ? t.summary : (t.goal ?? `任务 ${t.taskRef}`);
-        results.push({
-          ref: t.taskRef,
-          type: 'task',
-          summary: await this.distiller.distill(raw, 120),
-          score,
-        });
+    // 2. Dense + Sparse 打分
+    const texts = candidates.map(c => c.text);
+    // Sparse：BM25（纯 JS，恒可用）
+    const sparseScores = this.sparse.scoreAll(goal, texts);
+    // Dense：bi-encoder（可缺省）
+    let denseScores: number[] | null = null;
+    if (this.sources.similarityScorer) {
+      try {
+        denseScores = await Promise.all(texts.map(t => this.sources.similarityScorer!(goal, t)));
+      } catch {
+        denseScores = null; // Dense 失败 → 仅 Sparse
       }
-    } catch {
-      /* 任务源失败 → 其余源兜底 */
     }
 
-    // 2. 经验事件（按 capability/domain 匹配）
-    for (const ev of this.sources.getEvents?.() ?? []) {
-      const cap = ev.capability.toLowerCase();
-      const dom = (domain ?? '').toLowerCase();
-      const matched = (dom && (cap.includes(dom) || dom.includes(cap))) || (goal.toLowerCase().includes(cap) && cap.length > 2);
-      if (!matched) continue;
-      results.push({
-        ref: `exp:${ev.type}`,
-        type: 'experience',
-        summary: ev.detail.slice(0, 120),
-        score: 0.7,
-      });
+    // 3. Fusion：RRF（两路排名融合）或单路直取
+    let fused = this.fuse(candidates, denseScores, sparseScores);
+
+    // 4. Cross-Encoder 重排（可缺省）
+    if (this.sources.reranker && fused.length > 0) {
+      try {
+        const rerankN = Math.min(fused.length, Math.max(topK * 3, 6));
+        const docs = fused.slice(0, rerankN).map(c => c.text);
+        const ranked = await this.sources.reranker(goal, docs);
+        // 按 rerank 分重建顺序（index → 原 fused 位置）
+        const newOrder = ranked.map(r => ({ ...fused[r.index], score: Math.max(0.05, r.score) }));
+        for (let i = 0; i < newOrder.length; i++) fused[i] = newOrder[i];
+        // 未返回的候选（rerank top_n 限制）→ 保留原顺序尾部
+      } catch {
+        /* 重排失败 → 用融合结果 */
+      }
     }
 
-    // 3. 已应用策略（跨领域通用，注入有分）
-    for (const s of this.sources.getStrategies?.() ?? []) {
-      results.push({
-        ref: `strategy:${s.type}`,
-        type: 'strategy',
-        summary: s.hint.slice(0, 120),
-        score: 0.5,
-      });
+    // 5. 领域加成 + 新鲜度衰减 + 过滤 + Top-K
+    const results: RelevantContext[] = [];
+    for (const c of fused) {
+      // 融合分 + 保底分（领域匹配经验/全局策略）
+      let score = (c.score ?? 0) + (c.baseScore ?? 0);
+      if (score <= 0) continue;
+      // 领域加成
+      if (domain && c.text.toLowerCase().includes(domain.toLowerCase())) score += 0.5;
+      // 新鲜度衰减（7 天内全权重）
+      if (c.archivedAt) {
+        const ageDays = (Date.now() - c.archivedAt) / 86_400_000;
+        if (ageDays > 7) score *= Math.max(0.3, 1 - ageDays / 30);
+      }
+      const summary = c.summary && c.summary.length > 0
+        ? await this.distiller.distill(c.summary, 120)
+        : (await this.distiller.distill(c.text, 120));
+      results.push({ ref: c.ref, type: c.type, summary, score });
     }
-
-    // 按相关度降序取 Top-K
     return results.sort((a, b) => b.score - a.score).slice(0, topK);
   }
 
-  /** 相关性打分：可插拔相似度（embedding，可异步）优先，缺省关键词/domain + 新鲜度 */
-  private async relevanceScore(goal: string, domain: string | undefined, candidate: string, _ref: string, archivedAt?: number): Promise<number> {
-    // ═══ 会话 16k·3：语义为主（embedding 余弦，可异步）+ 确定性加成（关键词/领域/新鲜度）═══
-    // 用户确认：RAG 语义匹配为默认（智能、灵活），确定性做轻量强化（精确命中/领域/时效），
-    // 非替代——语义捕捉跨词义相关性（价格合规↔定价合规），关键词/领域提升精确命中排序。
-    const c = candidate.toLowerCase();
-    if (this.sources.similarityScorer) {
-      try {
-        const sim = await this.sources.similarityScorer(goal, candidate);
-        if (!Number.isFinite(sim) || (sim as number) <= 0) return 0;
-        // 语义基分（0-1 → 0-3 量纲）
-        let score = (sim as number) * 3;
-        // 关键词精确命中加成（语义为主，精确词强化）
-        for (const kw of extractKeywords(goal)) {
-          if (c.includes(kw)) score += 1.0;
-        }
-        // 领域加成
-        if (domain && c.includes(domain.toLowerCase())) score += 0.5;
-        // 新鲜度衰减
-        if (archivedAt) {
-          const ageDays = (Date.now() - archivedAt) / 86_400_000;
-          if (ageDays > 7) score *= Math.max(0.3, 1 - ageDays / 30);
-        }
-        return score;
-      } catch {
-        /* scorer 异常 → 回退关键词 */
+  // ── 内部 ──
+
+  /** 收集候选（任务/经验/策略），附检索文本 */
+  private async gatherCandidates(goal: string, domain?: string): Promise<Candidate[]> {
+    const cands: Candidate[] = [];
+    // 任务源
+    try {
+      const tasks = await this.sources.loadRecentTasks(Math.max((this.sources.reranker ? 20 : 15), 10));
+      for (const t of tasks) {
+        if (!t.taskRef) continue;
+        cands.push({
+          ref: t.taskRef,
+          type: 'task',
+          text: `${t.goal ?? ''} ${t.summary ?? ''}`.trim(),
+          summary: t.summary || t.goal,
+          archivedAt: t.archivedAt,
+        });
+      }
+    } catch { /* 任务源失败 → 其余源 */ }
+    // 经验源（按 capability/domain 匹配才进候选）
+    const dom = (domain ?? '').toLowerCase();
+    for (const ev of this.sources.getEvents?.() ?? []) {
+      const cap = ev.capability.toLowerCase();
+      const matched = (dom && (cap.includes(dom) || dom.includes(cap))) || (goal.toLowerCase().includes(cap) && cap.length > 2);
+      if (matched) {
+        cands.push({ ref: `exp:${ev.type}`, type: 'experience', text: `${ev.capability} ${ev.detail}`, baseScore: 0.7 });
       }
     }
-    let score = 0;
-    for (const kw of extractKeywords(goal)) {
-      if (c.includes(kw)) score += 1.5;
+    // 策略源（全局）
+    for (const s of this.sources.getStrategies?.() ?? []) {
+      cands.push({ ref: `strategy:${s.type}`, type: 'strategy', text: `策略 ${s.type}：${s.hint}`, baseScore: 0.5 });
     }
-    if (domain && c.includes(domain.toLowerCase())) score += 1;
-    if (score === 0) return 0;
-    // 新鲜度加权（7 天内全权重，之后衰减）
-    if (archivedAt) {
-      const ageDays = (Date.now() - archivedAt) / 86_400_000;
-      if (ageDays > 7) score *= Math.max(0.3, 1 - ageDays / 30);
+    return cands;
+  }
+
+  /** 融合：Dense+Sparse 双路 → RRF；单路 → 直取 */
+  private fuse(cands: Candidate[], dense: number[] | null, sparse: number[]): Array<Candidate & { score: number }> {
+    if (dense) {
+      // 双路 RRF
+      const rankDense = this.rankBy(cands, dense);
+      const rankSparse = this.rankBy(cands, sparse);
+      return cands.map((c, i) => ({
+        ...c,
+        score: (rankDense.get(c.ref) !== undefined ? 1 / (RRF_K + rankDense.get(c.ref)!) : 0)
+          + (rankSparse.get(c.ref) !== undefined ? 1 / (RRF_K + rankSparse.get(c.ref)!) : 0),
+      })).sort((a, b) => b.score - a.score);
     }
-    return score;
+    // 仅 Sparse（无 embedding）
+    return cands.map((c, i) => ({ ...c, score: sparse[i] })).sort((a, b) => b.score - a.score);
+  }
+
+  /** 按分数排名（高 → rank 0；0 分不入榜） */
+  private rankBy(cands: Candidate[], scores: number[]): Map<string, number> {
+    const ranked = cands.map((c, i) => ({ ref: c.ref, s: scores[i] ?? 0 }))
+      .filter(x => x.s > 0)
+      .sort((a, b) => b.s - a.s);
+    return new Map(ranked.map((x, i) => [x.ref, i]));
   }
 }

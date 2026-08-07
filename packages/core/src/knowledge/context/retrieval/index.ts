@@ -1,5 +1,5 @@
 /**
- * knowledge/context/retrieval — 上下文检索与蒸馏（会话 16i RAG-lazy 装配）
+ * knowledge/context/retrieval — 上下文检索与蒸馏（会话 16i RAG-lazy · 16k·4 Dense+Sparse+Cross-Encoder）
  *
  * @packageDocumentation
  */
@@ -13,3 +13,6 @@ export type {
   RecentTaskRecord,
   RetrieverSources,
 } from './ContextRetriever.js';
+export { SparseRetriever, tokenize } from './SparseRetriever.js';
+export { Reranker } from './Reranker.js';
+export type { RerankerConfig } from './Reranker.js';
