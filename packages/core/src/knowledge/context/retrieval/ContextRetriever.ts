@@ -129,13 +129,23 @@ export class ContextRetriever {
 
   /** 相关性打分：可插拔相似度（embedding，可异步）优先，缺省关键词/domain + 新鲜度 */
   private async relevanceScore(goal: string, domain: string | undefined, candidate: string, _ref: string, archivedAt?: number): Promise<number> {
-    // ═══ 会话 16j/16k：注入 similarityScorer（embedding 余弦，可异步）→ 用它打分（0-1 加权）═══
+    // ═══ 会话 16k·3：语义为主（embedding 余弦，可异步）+ 确定性加成（关键词/领域/新鲜度）═══
+    // 用户确认：RAG 语义匹配为默认（智能、灵活），确定性做轻量强化（精确命中/领域/时效），
+    // 非替代——语义捕捉跨词义相关性（价格合规↔定价合规），关键词/领域提升精确命中排序。
+    const c = candidate.toLowerCase();
     if (this.sources.similarityScorer) {
       try {
         const sim = await this.sources.similarityScorer(goal, candidate);
-        let score = Number.isFinite(sim) ? (sim as number) * 3 : 0; // 0-1 → 0-3 量纲（与关键词对齐）
-        if (domain && candidate.toLowerCase().includes(domain.toLowerCase())) score += 0.5;
-        if (score <= 0) return 0;
+        if (!Number.isFinite(sim) || (sim as number) <= 0) return 0;
+        // 语义基分（0-1 → 0-3 量纲）
+        let score = (sim as number) * 3;
+        // 关键词精确命中加成（语义为主，精确词强化）
+        for (const kw of extractKeywords(goal)) {
+          if (c.includes(kw)) score += 1.0;
+        }
+        // 领域加成
+        if (domain && c.includes(domain.toLowerCase())) score += 0.5;
+        // 新鲜度衰减
         if (archivedAt) {
           const ageDays = (Date.now() - archivedAt) / 86_400_000;
           if (ageDays > 7) score *= Math.max(0.3, 1 - ageDays / 30);
@@ -145,7 +155,6 @@ export class ContextRetriever {
         /* scorer 异常 → 回退关键词 */
       }
     }
-    const c = candidate.toLowerCase();
     let score = 0;
     for (const kw of extractKeywords(goal)) {
       if (c.includes(kw)) score += 1.5;

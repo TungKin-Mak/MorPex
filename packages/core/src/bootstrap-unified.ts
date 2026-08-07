@@ -797,13 +797,21 @@ async function buildEmbeddingScorer(): Promise<((goal: string, candidate: string
       return undefined;
     }
     let goalVecCache: { goal: string; vec: number[] } | null = null;
+    // ═══ 会话 16k·3：候选向量缓存（同进程重复装配复用，减少 embedding API 调用）═══
+    const candVecCache = new Map<string, number[]>();
+    const MAX_CAND_CACHE = 200;
     const minScore = ctx.minScore ?? 0.3;
     console.log(`[bootstrapUnified] ✅ embedding 检索已启用: model=${provider.model}（minScore=${minScore}）`);
     return async (goal: string, candidate: string): Promise<number> => {
       if (!goalVecCache || goalVecCache.goal !== goal) {
         goalVecCache = { goal, vec: await provider.embedOne(goal) };
       }
-      const cv = await provider.embedOne(candidate);
+      let cv = candVecCache.get(candidate);
+      if (!cv) {
+        cv = await provider.embedOne(candidate);
+        if (candVecCache.size >= MAX_CAND_CACHE) candVecCache.clear(); // 简单容量控制
+        candVecCache.set(candidate, cv);
+      }
       const sim = provider.cosine(goalVecCache.vec, cv);
       return Number.isFinite(sim) && sim >= minScore ? sim : 0;
     };

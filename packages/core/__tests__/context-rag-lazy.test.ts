@@ -223,3 +223,36 @@ describe('ContextRetriever — 可插拔 embedding 评分器（B1）', () => {
     expect(res[0].ref).toBe('t_price');
   });
 });
+
+describe('ContextRetriever — 语义为主 + 确定性加成混合打分（16k·3）', () => {
+  it('embedding 相似 + 关键词精确命中 → 关键词命中项排前（语义为主，确定性强化）', async () => {
+    const tasks: RecentTaskRecord[] = [
+      // 两者语义都相近（cos 0.8），但 t_exact 含 goal 精确关键词
+      { taskRef: 't_exact', goal: '电商价格合规检查', result: 'success', archivedAt: Date.now() },
+      { taskRef: 't_sem', goal: '定价规则审计', result: 'success', archivedAt: Date.now() },
+    ];
+    const r = new ContextRetriever({
+      loadRecentTasks: async () => tasks,
+      // mock embedding：两者都 0.8 相似（语义相近）
+      similarityScorer: async () => 0.8,
+    });
+    const res = await r.retrieveRelevant('电商价格合规检查', 'ecommerce', 5);
+    // 关键词精确命中（电商价格合规检查）→ t_exact 获得关键词加成，排前
+    expect(res[0].ref).toBe('t_exact');
+    expect(res[0].score).toBeGreaterThan(res.find(x => x.ref === 't_sem')!.score);
+  });
+
+  it('语义相似但无共享关键词 → 仍被召回（语义匹配价值）', async () => {
+    const tasks: RecentTaskRecord[] = [
+      { taskRef: 't_cross', goal: '定价规则审计', result: 'success', archivedAt: Date.now() },
+    ];
+    const r = new ContextRetriever({
+      loadRecentTasks: async () => tasks,
+      // goal='价格合规检查' 与 candidate='定价规则审计' 无共享关键词，但 embedding 相似 0.78
+      similarityScorer: async () => 0.78,
+    });
+    const res = await r.retrieveRelevant('价格合规检查', 'ecommerce', 5);
+    expect(res.length).toBeGreaterThan(0); // 语义召回（关键词会漏）
+    expect(res[0].ref).toBe('t_cross');
+  });
+});
