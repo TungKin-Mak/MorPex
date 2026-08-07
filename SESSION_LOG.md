@@ -20,6 +20,7 @@
 - **P2（16l·3）**：复杂任务 cap（maxSteps=8 + maxTotalTokens=200k）+ batch 并发自适应（--adaptive）+ TraceRecorder 采样/开关（策略按 goal 过滤评估后不做）。
 - **batch 终验**：74 任务真实成功率 **31/31=100%**、空参 0（历史 40/199）、耗时 65-133s（提速 60%+）；43 非成功全为 opencode 配额（C1 显式化），0 系统缺陷。
 - **GLM-4-Flash-250414 试跑（16l·4）**：10 轮 **成功 9/10**、限流 0、总耗时 376s；唯一失败=跨境电商物流方案（依赖外部 mock API api.example.com 检索失败，非模型问题）；平均 22,823 函数/任务（TraceRecorder 全量）。期间暴露并修复 batch-run ESM bug（require→import）。配置已恢复 opencode。
+- **GLM-4-Flash-250414 50 轮（16l·5）**：**成功 28/50（56%）**、限流跳过 3、失败 19、总耗时 2845s（47min）；失败主因=GLM 工具空参（query/command 空 7 次）+ 部分步骤失败 9 + 限流 3——验证 GLM 空参弱点（会话 9 已知）。★首跑 5 并发 TraceRecorder 全量记录（2-8 万调用/任务）→ **4GB 堆 OOM 崩溃**（关键教训 #5 再现）；修复：batch-run 加 --trace-max 5000 采样限制 + 8GB 堆重启，内存受控零 OOM。配置已恢复 opencode。
 
 ## 会话历史摘要（紧凑）
 
@@ -52,6 +53,7 @@
 | 16l·2 | **P1 三项完成 + 一项评估**：①rerank 结果缓存（query+docs SHA256 指纹 TTL 30s，docs 排序无关）②type 索引（getEntities(type) O(n)→O(桶内)，单引用保 WeakMap 缓存一致）③Gate 限流退避（RetryPolicy 增强 name 匹配 + withGateRetry 包 3 处 generateText）④execution-stats 持久化评估→不做（实时仪表盘用内存有界 history 是合理设计） | ✅ 757 通过 |
 | 16l·3 | **P2 三项完成 + 一项评估**：①复杂任务 cap（maxSteps 截断 + maxTotalTokens 预算，Bounded Autonomy）②batch 并发自适应（内存/限流感知，防 OOM）③TraceRecorder 采样/开关（disabled/sampleRate/maxCalls）④策略按 goal 过滤评估→不做（仅 3 类通用防错规则，无语义维度可过滤，全量注入正确） | ✅ 771 通过 |
 | 16l·4 | **GLM-4-Flash-250414 试跑 10 轮**：成功 9/10、限流 0、耗时 376s；唯一失败=依赖外部 mock API 的任务（非模型问题）；暴露并修复 batch-run ESM require bug | ✅ 9/10 |
+| 16l·5 | **GLM-4-Flash-250414 50 轮**：成功 28/50（56%）、限流 3、失败 19、耗时 2845s；失败主因=GLM 工具空参+限流（会话 9 已知弱点）；★首跑 OOM（TraceRecorder 全量）→ 加 --trace-max 采样修复，零 OOM | ✅ 28/50 |
 
 ## 当前开放决策
 

@@ -52,6 +52,10 @@ const autoRetryIdx = args.indexOf('--retries');
 const autoRetries = autoRetryIdx >= 0 ? parseInt(args[autoRetryIdx + 1], 10) : 2; // 429/5XX 自动重试次数
 const concurrencyIdx = args.indexOf('--concurrency');
 const concurrency = concurrencyIdx >= 0 ? parseInt(args[concurrencyIdx + 1], 10) : 5; // 并发数
+// ═══ 会话 16l·4：TraceRecorder 每任务最大记录数（防并行 OOM——5 并发×每任务 2-8 万调用全量记录
+//     曾 4GB 堆耗尽崩溃；限制后保留调用链可观测性但内存有界）。0 = 不限（旧行为）。
+const traceMaxIdx = args.indexOf('--trace-max');
+const traceMaxCalls = traceMaxIdx >= 0 ? parseInt(String(args[traceMaxIdx + 1]), 10) : 5000;
 // ═══ P2-9（会话 16l·3）：并发自适应开关（--adaptive 显式启用；显式 --concurrency 时自适应不生效）
 const adaptiveIdx = args.indexOf('--adaptive');
 const adaptiveEnabled = adaptiveIdx >= 0 && concurrencyIdx < 0; // 显式 concurrency → 尊重用户
@@ -218,7 +222,7 @@ async function main(): Promise<void> {
     console.log(`─── 任务 ${num}/${tasks.length} ───`);
     console.log(`  [${task.departmentName}] ${task.goal.slice(0, 60)}…`);
 
-    const trace = createTraceSession(`task-${num}`);
+    const trace = createTraceSession(`task-${num}`, { maxCalls: traceMaxCalls });
     // 包装核心服务实例（覆盖全功能模块）
     trace.wrap(companyFacade, 'CompanyFacade', ['executeGoal']);
     trace.wrap(container.controlPlane, 'ControlPlane');
