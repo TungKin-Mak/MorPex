@@ -56,6 +56,8 @@ export class SystemMetadataGraph {
   private eventStore?: IEventStore;
   /** id → 最近一次已 append 事件的稳定 payload（去重判定依据） */
   private registeredPayloads: Map<string, string> = new Map();
+  /** ═══ P1-5（会话 16l·2）：按 type 的实体索引（避免 getEntities(type) O(n) 全扫） */
+  private entitiesByType: Map<EntityType, Entity[]> = new Map();
 
   /**
    * setEventStore — 注入 EventStore（启用事件写入 + 可重建）
@@ -73,6 +75,7 @@ export class SystemMetadataGraph {
    */
   async restoreFromEvents(eventStore: IEventStore): Promise<void> {
     this.entities.clear();
+    this.entitiesByType.clear();
     this.relations = [];
     this.registeredPayloads.clear();
 
@@ -126,6 +129,10 @@ export class SystemMetadataGraph {
     // ═══ 会话 16l：restore 后重建去重基准（否则 restore 完首个 upsert 会误判为首次注册重新 append）
     for (const e of this.entities.values()) {
       this.registeredPayloads.set(e.id, stableKey({ entityId: e.id, entityType: e.type, name: e.name, metadata: e.metadata }));
+      // ═══ P1-5：同步重建 type 索引
+      const bucket = this.entitiesByType.get(e.type);
+      if (bucket) bucket.push(e);
+      else this.entitiesByType.set(e.type, [e]);
     }
   }
 
@@ -137,7 +144,27 @@ export class SystemMetadataGraph {
    *     （实测 44,377 事件 → 唯一 3,900，重复率 91%）。业务变化仍 append（记录最新状态快照）。
    */
   registerEntity(id: string, type: EntityType, name: string, metadata?: Record<string, unknown>): void {
-    this.entities.set(id, { id, type, name, metadata: metadata || {}, createdAt: Date.now() });
+    // ═══ P1-5（会话 16l·2）：单对象引用同时入 Map + type 索引桶（保证 getEntities(type) 与
+    //     getEntities()/entities Map 返回同一引用 → OntologyService WeakMap 缓存一致性）
+    const entity: Entity = { id, type, name, metadata: metadata || {}, createdAt: Date.now() };
+    // 更新 type 索引：先移除旧 type 桶中的该实体，再加到新 type 桶（覆盖 type 变化场景）
+    const prev = this.entities.get(id);
+    if (prev && prev.type !== type) {
+      const oldBucket = this.entitiesByType.get(prev.type);
+      if (oldBucket) {
+        const idx = oldBucket.findIndex(e => e.id === id);
+        if (idx !== -1) oldBucket.splice(idx, 1);
+      }
+    }
+    const bucket = this.entitiesByType.get(type);
+    if (bucket) {
+      const idx = bucket.findIndex(e => e.id === id);
+      if (idx === -1) bucket.push(entity);
+      else bucket[idx] = entity;
+    } else {
+      this.entitiesByType.set(type, [entity]);
+    }
+    this.entities.set(id, entity);
     // EventStore 写入（去重）
     if (this.eventStore) {
       const key = stableKey({ entityId: id, entityType: type, name, metadata: metadata || {} });
@@ -186,7 +213,11 @@ export class SystemMetadataGraph {
   }
 
   getEntities(type?: EntityType): Entity[] {
-    return type ? [...this.entities.values()].filter(e => e.type === type) : [...this.entities.values()];
+    // ═══ P1-5（会话 16l·2）：type 命中走索引 O(桶内) ；无 type 全量返回
+    if (type) {
+      return [...(this.entitiesByType.get(type) ?? [])];
+    }
+    return [...this.entities.values()];
   }
 
   getAllRelations(): Relation[] { return [...this.relations]; }

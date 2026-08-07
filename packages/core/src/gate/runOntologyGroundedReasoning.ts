@@ -38,6 +38,42 @@ import {
   createRuleDowngradedEvent,
 } from './rules/ruleEvents.js';
 import type { RuleDowngradedEvent } from './rules/ruleEvents.js';
+import { RetryPolicy } from '../infrastructure/common/resilience/RetryPolicy.js';
+
+/**
+ * ═══ 会话 16l·2（P1-6）：Gate 内部 LLM 限流退避——复用已有 RetryPolicy
+ * 仅重试 RateLimitError（显式限流/过载信号），指数退避；非限流错误直接上抛（fail loud）。
+ * 最大 3 次（含首次），1s base 指数退避（与 batch 的 429/5xx 退避一致）。
+ */
+const gateRetryPolicy = new RetryPolicy({
+  maxAttempts: 3,
+  baseDelayMs: 1000,
+  strategy: 'exponential',
+  maxDelayMs: 30000,
+  retryableErrors: ['RateLimitError'],
+});
+
+async function withGateRetry<T>(fn: () => Promise<T>, label: string): Promise<T> {
+  let lastErr: unknown;
+  for (let attempt = 0; attempt < gateRetryPolicy.maxAttempts; attempt++) {
+    try {
+      return await fn();
+    } catch (err) {
+      lastErr = err;
+      const e = err as Error;
+      if (!gateRetryPolicy.shouldRetry(e) || attempt >= gateRetryPolicy.maxAttempts - 1) {
+        if (gateRetryPolicy.shouldRetry(e)) {
+          console.warn(`[GroundedReasoning] ⚠️ ${label} 限流重试耗尽（${gateRetryPolicy.maxAttempts} 次）`);
+        }
+        throw err;
+      }
+      const wait = gateRetryPolicy.getDelay(attempt);
+      console.warn(`[GroundedReasoning] ⚠️ ${label} 限流（第 ${attempt + 1} 次失败）→ 等待 ${(wait / 1000).toFixed(1)}s 退避重试`);
+      await new Promise(resolve => setTimeout(resolve, wait));
+    }
+  }
+  throw lastErr;
+}
 import type { RuleEntity, RuleViolation } from './rules/types.js';
 
 export interface GroundedReasoningOptions {
@@ -248,11 +284,14 @@ export async function runOntologyGroundedReasoning(
     `- ontology_getCurrentState(missionId)`,
   ].join('\n');
 
-  const queryResponse = await piBridge.generateText({
-    system: FORCED_QUERY_SYSTEM_PROMPT,
-    prompt: queryPrompt,
-    temperature: 0.2,
-  });
+  const queryResponse = await withGateRetry(
+    () => piBridge.generateText({
+      system: FORCED_QUERY_SYSTEM_PROMPT,
+      prompt: queryPrompt,
+      temperature: 0.2,
+    }),
+    'Phase 1 强制查询',
+  );
   // Phase 2 E：预算接线——Phase 1 查询 token 回调（精确：usage.total 优先，缺失估算）；回调异常不影响主流程
   try {
     options.onTokenUsage?.(countTokens(queryResponse, queryPrompt));
@@ -401,12 +440,15 @@ export async function runOntologyGroundedReasoning(
             )
             .join('\n')}`;
 
-    const reasoningResponse = await piBridge.generateText({
-      system: FORCED_QUERY_SYSTEM_PROMPT,
-      prompt: attempt === 0 ? reasoningUser : reasoningUser + constraintSuffix,
-      // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
-      temperature: attempt === 0 ? 0.3 : 0.2,
-    });
+    const reasoningResponse = await withGateRetry(
+      () => piBridge.generateText({
+        system: FORCED_QUERY_SYSTEM_PROMPT,
+        prompt: attempt === 0 ? reasoningUser : reasoningUser + constraintSuffix,
+        // 重试轮降低温度：携带明确约束时更确定性（方案文档 §5）
+        temperature: attempt === 0 ? 0.3 : 0.2,
+      }),
+      'Phase 2 推理',
+    );
     // Phase 2 E：预算接线——Phase 2 推理 + 每次规则重试 token 回调（精确：usage.total 优先）；回调异常不影响主流程
     try {
       options.onTokenUsage?.(countTokens(reasoningResponse, reasoningUser));
@@ -872,7 +914,10 @@ async function semanticJudgement(
   ].join('\n');
 
   try {
-    const resp = await piBridge.generateText({ system, prompt, temperature: 0.2 });
+    const resp = await withGateRetry(
+      () => piBridge.generateText({ system, prompt, temperature: 0.2 }),
+      '语义判断',
+    );
     // 预算可观测性：语义判断的 LLM 调用同样计入 onTokenUsage（精确：usage.total 优先）
     try {
       onTokenUsage?.(countTokens(resp, prompt));

@@ -89,19 +89,23 @@ export class RetryPolicy {
    *
    * 优先检查 nonRetryableErrors 黑名单，再检查 retryableErrors 白名单。
    * 白名单为空时默认全部可重试。
+   *
+   * ═══ 会话 16l·2（P1-6）：同时匹配 error.name 与 error.message——RateLimitError 的
+   *     标识在 name 字段（message 是描述文案），仅匹配 message 会漏掉限流信号。
    */
   shouldRetry(error: Error): boolean {
     const msg = error.message;
+    const name = error.name;
 
-    // 黑名单: 匹配则永不重试
+    // 黑名单: 匹配则永不重试（name 或 message）
     for (const pattern of this.nonRetryableErrors) {
-      if (msg.includes(pattern)) return false;
+      if (msg.includes(pattern) || name.includes(pattern)) return false;
     }
 
-    // 白名单: 非空时只有匹配才重试
+    // 白名单: 非空时只有匹配才重试（name 或 message）
     if (this.retryableErrors.length > 0) {
       for (const pattern of this.retryableErrors) {
-        if (msg.includes(pattern)) return true;
+        if (msg.includes(pattern) || name.includes(pattern)) return true;
       }
       return false;
     }
