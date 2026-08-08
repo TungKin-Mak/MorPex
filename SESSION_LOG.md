@@ -9,21 +9,15 @@
 
 ---
 
-## 当前状态（2026-08-07，会话 16l·3 后）
+## 当前状态（2026-08-08，会话 16l·7b 后）
 
 - **架构**：AICOS-Core 8 层纯净架构；多 Agent 编排（OrchestratorAgent→step-agent）+ 单执行引擎（UnifiedExecutionEngine v3）；RAG-lazy 上下文装配（Dense bge-m3 + Sparse BM25 → RRF → Cross-Encoder bge-reranker 重排）。
-- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **88 文件 / 771 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
-- **LLM**：opencode/deepseek-v4-flash-free（config 驱动）；**Embedding/Rerank**：SiliconFlow（config/embeddingconfig.yaml，SILICONFLOW_API_KEY env）。
+- **门禁**：tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ production-check 8/8 ｜ core vitest **89 文件 / 775 通过 + 3 限额 e2e** ｜ api-contract 30 通过。
+- **LLM**：opencode/deepseek-v4-flash-free（config 驱动，当前配置）；**Embedding/Rerank**：SiliconFlow（config/embeddingconfig.yaml，SILICONFLOW_API_KEY env）。
 - **数据**：morpex-events.db 4GB→85.7MB（16j）→实体去重 92MB→60MB（16l）；restore 2.1s→43ms。
-- **P0（16l）**：实体注册去重 + restore 分页全量 + PiBridge 进程级单例。
-- **P1（16l·2）**：rerank 缓存 + type 索引 + Gate 限流退避（execution-stats 持久化评估后不做）。
-- **P2（16l·3）**：复杂任务 cap（maxSteps=8 + maxTotalTokens=200k）+ batch 并发自适应（--adaptive）+ TraceRecorder 采样/开关（策略按 goal 过滤评估后不做）。
-- **batch 终验**：74 任务真实成功率 **31/31=100%**、空参 0（历史 40/199）、耗时 65-133s（提速 60%+）；43 非成功全为 opencode 配额（C1 显式化），0 系统缺陷。
-- **GLM-4-Flash-250414 试跑（16l·4）**：10 轮 **成功 9/10**、限流 0、总耗时 376s；唯一失败=跨境电商物流方案（依赖外部 mock API api.example.com 检索失败，非模型问题）；平均 22,823 函数/任务（TraceRecorder 全量）。期间暴露并修复 batch-run ESM bug（require→import）。配置已恢复 opencode。
-- **GLM-4-Flash-250414 50 轮（16l·5）**：**成功 28/50（56%）**、限流跳过 3、失败 19、总耗时 2845s（47min）；失败主因=GLM 工具空参（query/command 空 7 次）+ 部分步骤失败 9 + 限流 3——验证 GLM 空参弱点（会话 9 已知）。★首跑 5 并发 TraceRecorder 全量记录（2-8 万调用/任务）→ **4GB 堆 OOM 崩溃**（关键教训 #5 再现）；修复：batch-run 加 --trace-max 5000 采样限制 + 8GB 堆重启，内存受控零 OOM。配置已恢复 opencode。
-- **opencode 50 轮（16l·6，部分完成 23/50）**：额度恢复后开跑，**23 轮时免费额度再次耗尽**（HTTP 429 FreeUsageLimitError）→ 暂停。已完成 23 轮：成功 15、失败 8（其中 **5 个为额度耗尽后限流**，非模型问题）；排除限流后真实 **15/19=79%**，空参仅 1 次（vs GLM 7 次）——opencode 质量优势验证。待额度恢复补跑剩余 27 轮。
-- **通用空参保险（16l·7）**：彻查空参根因——★发现架构缺陷：pi-ai `validateToolArguments` 在 `beforeToolCall`（goal 兜底所在）**之前**执行，空参（minLength:1）直接 throw → goal 兜底永远执行不到。★修复：用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**运行）做模型无关保险——knowledge 空 query 注入 goal、file 空 path 注入默认路径；打通 3 层透传（createPrimitiveAgentTools→agentSpawner.mapToolForAgent→PiBridge.createAgentHarness）。对任意模型（GLM/opencode/未来）生效，不依赖 LLM 是否乖乖填参。新增 4 用例。
-- **GLM 空参保险验证（16l·7b）**：GLM-4-Flash-250414 跑 10 轮 → **9/10 成功、限流 0**；空参保险 0 次触发（GLM 本次未传空参，但空参失败从历史 7/50 → 0/10）；唯一失败=「跨境电商物流方案」任务（依赖真实物流数据/外部 API，多轮次均同因失败，与模型/保险无关）。
+- **P0-P2（16l~16l·3）全完成**：实体去重/restore 分页/PiBridge 单例（P0）+ rerank 缓存/type 索引/Gate 限流退避（P1）+ 复杂任务 cap/batch 并发自适应/TraceRecorder 采样（P2）。
+- **★通用空参保险（16l·7，模型无关根治）**：彻查根因——pi-ai `validateToolArguments` 在 `beforeToolCall` 前执行，空参（minLength:1）直接 throw 使 goal 兜底永远失效；用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**）注入可推断值（knowledge→goal / file→path），打通 3 层透传，任意模型生效（不依赖 LLM 乖乖填参）。新增 4 用例。
+- **模型试跑总结**：GLM-4-Flash 50 轮 28/50（空参 7 次）→ 保险后 10 轮 9/10（空参 0，限流 0）；opencode 23/50（额度再耗尽暂停，排除限流真实 79%，空参 1 次）。失败共性=「物流方案」任务依赖外部真实数据（多轮次同因失败，与模型无关）。
 
 ## 会话历史摘要（紧凑）
 
@@ -64,16 +58,15 @@
 ## 当前开放决策
 
 1. 微信接入（企业微信 vs 个人微信）——**用户排除**，未决策
-2. 装配检索 rerank 是否需结果缓存（同 query+docs 指纹）——待定
-3. 复杂任务超长（4.5h outliers）是否设步骤/并行上限——待定
+2. 装配检索 rerank 是否需结果缓存——✅ 已做（P1-4：query+docs 指纹 TTL 30s）
+3. 复杂任务超长（4.5h outliers）是否设步骤/并行上限——✅ 已做（P2-8：maxSteps=8 + maxTotalTokens=200k）
 
 ## 待办（按优先级）
 
 - **数据治理**：morpex-events.db 会再增长（快照归档策略 + 定期 VACUUM）；✅ system.entity.registered 去重已完成（scripts/compact-entity-events.cjs 可复用）
-- **运行时性能**：✅ PiBridge 进程级共享单例（getSharedPiBridge）；✅ bootstrap restore 分页全量（43ms）+ 去重后无臃肿；rerank 结果缓存（P1-4 候选）
-- **健壮性**：core 内 Gate/planner 调用方未统一退避重试（batch 有）；execution-stats 用内存 history（长期运行需持久化指标）
+- **健壮性**：execution-stats 用内存 history（长期运行需持久化指标）；core 内 planner（DeliveryPlanner/HierarchicalPlanner）限流退避未接入（Gate 已接入，P1-6 只做了 Gate）
+- **验证（待 opencode 配额冷却）**：①复跑 full-closed-loop ②续跑 opencode 50 轮剩余 27 轮 ③大样本 batch（装配+检索+空参保险升级后）
 - **UI（低优先）**：execution-stats 前端 / 异常告警阈值可配置 / Session 治理前端 / 进化审批 UI 已完成
-- **验证**：opencode 配额冷却后复跑 full-closed-loop + 大样本 batch（装配+检索升级后）
 
 ## 架构优化候选（2026-08-06 审计产出）
 
@@ -102,5 +95,6 @@
 2. **工具空参**：TypeBox required 只查键不查非空 → minLength:1 + beforeToolCall 拦截
 3. **递归上下文膨胀**：装配产物当输入摘要（每代≈5×）→ 短摘要+分层预算+指针
 4. **静默限流**：内置 provider 空+零 usage → C1 显式 RateLimitError
-5. **并行 OOM**：batch + vitest 并行会堆爆 → 独占运行 + 加大堆
+5. **并行 OOM**：batch + vitest 并行会堆爆 → 独占运行 + 加大堆 + --trace-max 采样
 6. **e2e 污染**：step-agent 工具写仓库根 → 沙箱隔离 + git status 自查
+7. **★兜底时序缺陷（16l·7）**：MorPex 的 goal 兜底在 beforeToolCall/execute（validate **之后**），而 pi-ai validateToolArguments 对空参直接 throw → 兜底永远执行不到。修复：用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**）做模型无关保险。教训：**兜底钩子必须在校验之前，否则形同虚设**
