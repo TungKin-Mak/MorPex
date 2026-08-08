@@ -26,10 +26,14 @@
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
 - **AICOS-Core 8 层架构**（详见 docs/AICOS_CORE_ARCHITECTURE.md）：
-  Entry/Governance · Ontology Gate ★ · Planning · Cognition/Brain · Execution · Tools/Primitives · Knowledge/Memory · Evolution · Workflow Plugin · Infrastructure
-- **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全 10 层装配）
-- **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine（v3 单路径：简单操作类→原语快路径；其余→OrchestratorAgent 总大脑编排）
-- **原语注册中心**：`DomainPrimitiveRegistry`（19 原语 = 5 通用 + 14 插件），`executeAuto` 消费 + NL→参数提取
+  L1 Governance · L2 Knowledge · L3 Ontology Gate ★ · L4 Cognition&Planning · L5 Execution · L6 Evaluation · L7 Evolution · L8 Infrastructure（领域插件在 packages/workflows/）
+- **统一运行时**：`packages/core/src/bootstrap-unified.ts`（`bootstrapUnified()` 全层装配，含 RAG-lazy 上下文装配 + PiBridge + 全模块接线）
+- **核心执行链**：`CompanyFacade.executeGoal` → ControlPlane 门禁 → Ontology Gate(真实 LLM，tier-0/1/2 分级) → UnifiedExecutionEngine（简单→原语快路径；复杂→OrchestratorAgent 总大脑编排 step-agent）
+- **上下文装配（RAG-lazy）**：Dense(bge-m3 向量) + Sparse(BM25) → RRF 融合 → Cross-Encoder(bge-reranker) 重排 → 领域/新鲜度 → Top-K 指针+蒸馏（`knowledge/context/`）
+- **通用空参保险（模型无关，16l·7）**：pi-agent-core `prepareArguments` 钩子在 schema 校验前注入可推断值（knowledge 空 query→goal / file 空 path→沙箱），对任意 LLM 生效——定位：`infrastructure/tools/primitiveAgentTools.ts`（见 SESSION_LOG 关键教训 #7）
+- **原语注册中心**：`DomainPrimitiveRegistry`（5 通用 + 14 插件原语），`executeAuto` 消费 + NL→参数提取
+- **模型配置**：`config/morpex.yaml` 是唯一模型来源（builtin=pi-ai 内置 provider / gateway=OpenAI 兼容网关，如智谱 GLM）；Embedding/Rerank 见 `config/embeddingconfig.yaml`（SiliconFlow）。详见 docs/MODEL_CONFIG.md
+- **状态源**：`morpex-events.db`（EventStore 事件溯源，实体注册已去重 + restore 分页全量）
 
 ## 3. 架构铁律
 
@@ -156,13 +160,13 @@ EventBus 是唯一通信通道；禁止模块间直接调用。
 CEO 层:       CompanyFacade (统一入口)
 治理层:       ControlPlane (Goal/Policy/Resource/Agent/Evolution 5 控制器)
 大脑层:       cognition/BrainFacade (Reflection/MetaLearner/SelfImprovementLoop)
-规划层:       planner/DeliveryPlanner + HierarchicalPlanner + Arbitration
-执行层:       execution/UnifiedExecutionEngine (mission/dag/fabric/auto) + SubAgentFork
+规划层:       cognition/planning/DeliveryPlanner + HierarchicalPlanner + Arbitration
+执行层:       execution/UnifiedExecutionEngine + OrchestratorAgent + StepAgentExecutor + DAGRuntime
 原语层:       tools/DomainPrimitiveRegistry + tools/primitives (5 通用原语)
-知识层:       ontology/(Gate) + metadata/SystemMetadataGraph + memory/MemoryWiki + EventStore
+知识层:       knowledge/(ontology + graph/SystemMetadataGraph + artifact + memory + context/RAG-lazy)
 演化层:       evolution/(ExperienceMiner/FailureAnalyzer/ActiveEvolutionTrigger/EvolutionSandbox/KnowledgeGapListener)
 插件层:       packages/workflows/<domain>/ (xjmcu/ecommerce/hardware/software — 14 领域原语)
-基础设施:     common/EventBus(唯一通道) + connectors/ + governance/(Dashboard/CostController/AlertEngine)
+基础设施:     common/EventBus(唯一通道) + infrastructure/(adapters/pi-bridge + observability + protocol) + connectors/
 ```
 
 **Facade 模式**：Facade 不替代被包裹模块、零破坏、优雅降级、通过接口依赖（`Like` 后缀）。
@@ -177,7 +181,7 @@ CEO 层:       CompanyFacade (统一入口)
 npx tsc --noEmit -p tsconfig.json          # 编译 0 错误
 node scripts/validate-architecture.js      # 架构对齐（当前 100%，0/0）
 node scripts/production-check.cjs          # 生产就绪（8/8）
-npx vitest run                             # 全量单元/集成（568 用例，S22-S37 已扩）
+npx vitest run                             # 全量单元/集成（89 文件 / 775 用例，3 个 e2e 为 opencode 配额非回归）
 # 完整门禁（推荐）：npm run test:full      # 25 步全绿（tsc/架构/vitest/生产/CLI）
 # 覆盖率：npm run test:coverage            # 行覆盖 37%+，阈值防回退
 # 可观测验证（后端启动后）：curl localhost:8080/api/observability/audit

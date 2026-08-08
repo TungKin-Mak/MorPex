@@ -129,6 +129,8 @@ ontology/
 
 ## Quick Start
 
+> 模型/LLM/Embedding 配置与切换见 **`docs/MODEL_CONFIG.md`**（含 GLM/opencode 切换、batch 试跑参数、防 OOM 要点）。
+
 ### 启动后端（推荐）
 
 ```bash
@@ -150,7 +152,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 ### 测试
 
 ```bash
-npm run test:full        # 一键全部（25 步：tsc/架构/vitest 568 用例/生产/CLI）
+npm run test:full        # 一键全部（tsc/架构/vitest 775 用例/生产/CLI）
 npm run test:quick       # 快速回归（~11s）
 npm run test:coverage    # 覆盖率报告（行覆盖 37%+，阈值防回退）
 npx vitest run           # 仅单元/集成
@@ -160,7 +162,9 @@ npx vitest run           # 仅单元/集成
 
 ## 测试体系与架构可观测（S22-S37）
 
-**测试**：568 用例 / 60 文件，覆盖矩阵 8 层 ❌ 清零；一键 `npm run test:full`（25 步 25/25 绿）；覆盖率行覆盖 37%+（vitest 阈值 34/27/32/36 防回退）。详见 `docs/TESTING_PLAN.md`。
+**测试**：**775 用例 / 89 文件**（core 774 + e2e），覆盖矩阵 8 层 ❌ 清零；一键 `npm run test:full` 全绿；覆盖率行覆盖 37%+（vitest 阈值防回退）。详见 `docs/TESTING_PLAN.md`。
+
+**近期特性（16l~16l·7）**：实体注册去重 + restore 分页全量（2.1s→43ms）、PiBridge 进程级单例、rerank 结果缓存、type 索引、Gate 限流退避、复杂任务 cap（maxSteps+token 预算）、batch 并发自适应、TraceRecorder 采样、**通用空参保险（prepareArguments，模型无关）**、RAG-lazy 上下文装配（Dense+BM25+RRF+Cross-Encoder）。详见 `SESSION_LOG.md` 会话历史。
 
 **架构可观测**（真实执行黑盒→可观测）：后端启动后访问 `/api/observability/*`——
 

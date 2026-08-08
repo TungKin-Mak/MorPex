@@ -16,9 +16,11 @@
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
 - **AICOS-Core 8 层架构**（L1 治理/L2 知识/L3 Gate/L4 认知规划/L5 执行/L6 评价/L7 演化/L8 基础设施）；统一运行时 `packages/core/src/bootstrap-unified.ts`
-- 执行链：`CompanyFacade.executeGoal` → ControlPlane → 编排 → 仿真 → Ontology Gate(真实 LLM) → UnifiedExecutionEngine
-- 原语注册中心 `DomainPrimitiveRegistry`（19 原语）+ `executeAuto` 兜底 + NL→参数提取
-- 分层：Entry/Governance · Ontology Gate · Planning · Cognition · Execution · Tools/Primitives · Knowledge/Memory · Evolution · Workflow Plugin · Infrastructure
+- 执行链：`CompanyFacade.executeGoal` → ControlPlane → Ontology Gate(真实 LLM，tier 分级) → UnifiedExecutionEngine（简单→原语快路径；复杂→OrchestratorAgent 总大脑编排 step-agent）
+- **上下文装配（RAG-lazy）**：Dense(bge-m3) + Sparse(BM25) → RRF → Cross-Encoder(bge-reranker) 重排 → Top-K 指针+蒸馏（`knowledge/context/`）
+- **通用空参保险（16l·7，模型无关）**：prepareArguments 钩子在 schema 校验前注入可推断值（`infrastructure/tools/primitiveAgentTools.ts`）
+- 原语注册中心 `DomainPrimitiveRegistry`（5 通用 + 14 插件）；模型配置 `config/morpex.yaml`（builtin/gateway 两模式）+ `config/embeddingconfig.yaml`（SiliconFlow）
+- 分层：L1-L8 物理目录见 `docs/AICOS_CORE_ARCHITECTURE.md`
 
 ## 2. 硬性约束（违反即失败）
 
