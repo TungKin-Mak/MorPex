@@ -5,11 +5,23 @@
 
 ---
 
-## 0. 会话第一步（强制）
+## 0. 会话启动协议（强制，不可跳过）
 
-**最小上下文**：只读 `SESSION_LOG.md`（项目状态/上轮摘要/待办/关键路径）+ `AGENTS.md`（项目规则）。不读 = 对项目一无所知；**禁止新会话开始时把架构/注册表/流程等大文档全部读入**（按需加载，规则见 AGENTS.md §1）。工具不自动读时显式 `cat AGENTS.md SESSION_LOG.md`。
+> 本文件（.pi/SYSTEM.md）是 pi-coding-agent **必然自动加载**的 system prompt 源。
+> ⚠️ **重要**：AGENTS.md / Cursor 等其它入口文件 pi-coding-agent **不会自动读取**。
+> 因此本文件是「唯一可靠入口」——所有关键规则在此内嵌，且必须显式读取其它文件。
 
-**按需加载**：涉及架构改动才读 `docs/AICOS_CORE_ARCHITECTURE.md` + `docs/AICOS_CORE_FILE_REGISTRY.md`；涉及执行链/模型配置/测试分别读 `docs/AICOS_FLOW.md` / `docs/MODEL_CONFIG.md` / `docs/TESTING_PLAN.md`（详见 AGENTS.md §1 按需表）。
+**第 0 步（必须执行）**：
+```
+先读取这两个文件（用 read/cat 工具，LLM 主动去读，不要等用户提示）：
+  1. SESSION_LOG.md   → 项目状态 / 上轮摘要 / 待办 / 关键路径
+  2. AGENTS.md        → 项目完整规则 / 铁律 / 按需加载表
+读取完成前，不开始任何任务。
+```
+
+**为什么必须读 AGENTS.md**：本文件只是薄壳（速览+硬约束摘要），完整规则（§1 按需加载 / §8.5 文档同步 / 架构铁律细节 / 模块分层）在 AGENTS.md。不读 AGENTS.md = 缺失关键规则。
+
+**按需加载**（不默认全读）：涉及架构改动才读 `docs/AICOS_CORE_ARCHITECTURE.md` + `docs/AICOS_CORE_FILE_REGISTRY.md`；涉及执行链/模型配置/测试分别读 `docs/AICOS_FLOW.md` / `docs/MODEL_CONFIG.md` / `docs/TESTING_PLAN.md`（详见 AGENTS.md §1 按需表）。读完即弃，不长期占用上下文。
 
 会话结束必须更新 `SESSION_LOG.md` 的「会话历史」与「当前待办」——**过时/冗余信息丢弃**（只留当前状态+最近进度+决策+待办，历史细节以 git 为准），保持精简。
 

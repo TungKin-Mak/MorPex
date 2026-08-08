@@ -7,7 +7,11 @@
 
 ## 0. 会话交接约定（铁律）
 
-- **发现机制**：本文件（AGENTS.md）是主流 Agent 工具（Cursor/Codex/Claude Code/pi-coding-agent）自动发现的标准入口；项目级 `.pi/SYSTEM.md` 是 pi-coding-agent 专属系统入口。均指向 `SESSION_LOG.md`。
+- **发现机制（重要）**：
+  - `AGENTS.md` 是 Cursor / Codex / 新版 Claude Code 自动发现的标准入口。
+  - **pi-coding-agent 不会自动发现 AGENTS.md**——它必然加载 `.pi/SYSTEM.md`（system prompt 源），由 `.pi/SYSTEM.md` 第 0 步**强制引导显式读取本文件 + SESSION_LOG.md**。
+  - 其它工具若不自动发现，需在会话开始时显式 `cat AGENTS.md SESSION_LOG.md`。
+  - 均指向 `SESSION_LOG.md`。
 - **会话开始【必读最小上下文】**：必须读且只读两个文件——`AGENTS.md`（本文件=规则）+ `SESSION_LOG.md`（进度/待办/关键路径）。禁止对项目一无所知地开始；**禁止新会话开始时把架构/注册表/流程等大文档全部读入上下文**（它们体积大、大多与当前任务无关，读入即浪费上下文窗口）。工具不自动读文件时，显式执行 `cat AGENTS.md SESSION_LOG.md`。
 - **按需加载**：其余文档（架构/文件注册表/数据流/模型配置）**只在任务实际涉及时才读取**，触发条件见 §1 按需加载表。读完用完即止，不长期占用上下文。
 - **会话结束**：必须更新 `SESSION_LOG.md` 的「会话历史」（追加摘要+提交）与「当前待办」（勾选/新增），确保下个会话零上下文丢失。

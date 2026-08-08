@@ -19,7 +19,8 @@
 - **★通用空参保险（16l·7，模型无关根治）**：彻查根因——pi-ai `validateToolArguments` 在 `beforeToolCall` 前执行，空参（minLength:1）直接 throw 使 goal 兜底永远失效；用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**）注入可推断值（knowledge→goal / file→path），打通 3 层透传，任意模型生效（不依赖 LLM 乖乖填参）。新增 4 用例。
 - **模型试跑总结**：GLM-4-Flash 50 轮 28/50（空参 7 次）→ 保险后 10 轮 9/10（空参 0，限流 0）；opencode 23/50（额度再耗尽暂停，排除限流真实 79%，空参 1 次）。失败共性=「物流方案」任务依赖外部真实数据（多轮次同因失败，与模型无关）。
 - **★文档精简（16l·8）**：docs/ 从 22 文件 → 6 核心（ARCHITECTURE / FILE_REGISTRY / AICOS_FLOW / MODEL_CONFIG / TESTING_PLAN）+ archive/ 6 历史 + guides/ 3；删除 4 过时、合并 3 flow → AICOS_FLOW、归档 6 运维。
-- **★文档读取策略（16l·9）**：AGENTS.md 新增「最小上下文 + 按需加载」——会话开始只读 AGENTS.md + SESSION_LOG.md；其余文档按 §1 触发条件按需读（不默认全塞上下文）；新增 §8.5 文档同步协议——代码改动经人工审核确认后才更新对应文档，文档与代码同次提交。
+- **★文档读取策略（16l·9）**：AGENTS.md 新增「最小上下文 + 按需加载」——会话开始只读 AGENTS.md + SESSION_LOG.md；其余文档按 §1 触发条件按需读；新增 §8.5 文档同步协议（人工审核确认后才更新文档，文档随代码同提交）。
+- **★pi 工具发现机制修正（16l·9b）**：确认真实机制——pi-coding-agent **必然加载 .pi/SYSTEM.md 但不自动发现 AGENTS.md**（AGENTS 自证「必读」无效）；修复：.pi/SYSTEM.md 改为「会话启动协议」（第 0 步强制显式读 SESSION_LOG + AGENTS，明确『AGENTS 不会被自动读，本文件是唯一可靠入口』），且核心硬约束已内嵌（即使不读 AGENTS 也够用，双保险）；AGENTS.md §0 同步真实发现机制。
 
 ## 会话历史摘要（紧凑）
 
@@ -58,6 +59,7 @@
 | 16l·7b | **GLM 空参保险验证 10 轮**：9/10 成功、限流 0；空参失败 7/50→0/10（保险生效），唯一失败=物流任务（依赖外部数据，与模型无关） | ✅ 9/10 |
 | 16l·8 | **文档精简（22→6 核心）**：删 4 过时 + 合并 3 flow→AICOS_FLOW + 归档 6 运维；AGENTS/.pi/README 速览更新至当前架构；核心链 AGENTS→SESSION_LOG→ARCHITECTURE→FILE_REGISTRY→AICOS_FLOW→MODEL_CONFIG | ✅ 零上下文可续作 |
 | 16l·9 | **文档读取策略（最小上下文+按需加载）**：AGENTS.md §0 改为「会话只读 AGENTS+SESSION_LOG」；§1 改为按需加载表（触发条件）；新增 §8.5 文档同步协议（人工审核确认后才更新文档，文档随代码同提交）；.pi/SYSTEM.md 同步 | ✅ 上下文省 80%+ |
+| 16l·9b | **pi 工具发现机制修正**：pi-coding-agent 必加载 .pi/SYSTEM.md 但不自动发现 AGENTS.md（AGENTS 自证无效）；.pi/SYSTEM.md 改「启动协议」第0步强制读 SESSION_LOG+AGENTS + 硬约束内嵌双保险；AGENTS §0 同步真实机制 | ✅ 必读生效 |
 
 ## 当前开放决策
 
