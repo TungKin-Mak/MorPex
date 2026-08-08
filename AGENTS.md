@@ -18,8 +18,9 @@
 0. 读 SESSION_LOG.md → 项目状态 / 上轮摘要 / 待办（会话记忆入口）
 1. 读本文件 → 项目规则
 2. 读 docs/AICOS_CORE_ARCHITECTURE.md → AICOS-Core 8 层架构唯一真相源 + docs/AICOS_CORE_FILE_REGISTRY.md（逐文件职责边界）
-3. grep 搜索相关代码 → 确认影响范围
-4. 再动手改
+3. 运行/数据流细节 → docs/AICOS_FLOW.md（实证执行链 + 机制速查 + Gate 强制链）；模型配置 → docs/MODEL_CONFIG.md
+4. grep 搜索相关代码 → 确认影响范围
+5. 再动手改
 ```
 
 ## 2. 项目速览

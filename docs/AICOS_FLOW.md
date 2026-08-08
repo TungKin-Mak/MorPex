@@ -1,4 +1,11 @@
-# MorPex 真实任务数据流与架构（基于 199 任务实测日志重现）
+# MorPex 执行与数据流（AICOS Flow）
+
+> 合并自：`AICOS_REAL_FLOW.md`（实证）+ `AICOS_HARNESS_FLOW.md`（机制）+ `AICOS_DATA_FLOW.md`（Gate/依赖约束），2026-08-08。
+> 与 `docs/AICOS_CORE_ARCHITECTURE.md`（层定义真相源）互补：本文专注**运行时数据流/执行机制/实测证据**。
+
+---
+
+> 以下为基于 199 任务实测日志的真实数据流（实证，非设计文档）：
 
 > 数据来源：`data/batch-runs/*.log`（5 批次，GLM 99 + opencode 109）+ `data/trace-reports/task-*.md`（99 份函数级调用追踪）
 > 本文档 100% 基于实测日志中的真实调用序列，非设计文档。
@@ -283,3 +290,99 @@ pie title 失败原因分布（48 工具空参明细）
 - 核心 8 层链路每任务必经（99/99），架构通路 100%
 - 真实任务成功率 79.4%（158/199），瓶颈 = LLM 工具空参（非架构）
 - 安全层（PrimitiveGate / shell 白名单 / 沙箱）全部实测生效
+
+---
+
+## 附 A：Harness 关键机制速查表
+
+
+| 机制 | Harness 组件 | 实测行为 |
+|---|---|---|
+| Agent 执行循环 | pi-agent-core AgentHarness（agentSpawner 创建）| LLM 思考 ↔ 工具调用循环 |
+| 工具桥 | primitiveAgentTools（5 原语→AgentTool）| execute 真正调原语，含参数校验 |
+| Gate 凭证 | GroundedReasoning → requireKnowledgeContext | queryCallCount≥1 强校验，破坏性操作解锁 |
+| 审计循环 | OrchestratorAgent 审计 Agent | pass/fail ≤3 轮，fail 补充任务再分发 |
+| 沙箱隔离 | StepAgentExecutor workspaceDir | 产物落 data/agent-workspace/，零污染 |
+| 会话持久化 | JsonlSessionRepo（PiBridge 注入）| 对话/工具调用 JSONL 落盘，跨重启 |
+| 空参自愈 | validateRequiredParams + goal 兜底 | knowledge 空 query 用 step goal 兜底 |
+| 判空防御 | extractText + 纠正性重试 | 空 content 重试 1 次再降级 |
+| 令牌计费 | onTokenUsage → CostController | Gate/编排 LLM 调用 usage.total 精确计 |
+| 持久化召回 | EventStore + ContextPersistence | loadMerged 双源合并按 taskRef |
+
+---
+
+---
+
+## 附 B：Gate 强制链 / 知识写入流 / 依赖方向
+
+### Gate 强制链（L3 — 运行时硬拦截）
+
+```
+runOntologyGroundedReasoning(goal, {riskTier, ontology, guard})
+  ├─ Phase 1 强制查询：LLM 输出查询计划 → 执行 ontology 工具 → 记录 QueryTrace
+  │    └─ 无结果 → QueryMiss 事件（→ L7 KnowledgeGapListener 订阅）
+  ├─ Phase 2 引用校验：proposal.referenced_object_ids ⊆ 已检索集合
+  │    └─ 失败 → ReferenceValidationFailed 事件
+  └─ 签发 KnowledgeContextPackage（executionId + queryCallCount + referenceCheck + retrievedIds）
+       │
+       ├─ 原语 execute：ForcedQueryGuard.assertQueried（tier-0/1 缺查询即拒）
+       ├─ ArtifactRegistry.register/update：TierWriteGuard
+       │    ├─ Tier-3 禁止覆盖 Tier-0/1
+       │    └─ Tier-2 仅 L7 晋升结果（promotedByEvolution=true）可写
+       ├─ EvolutionProposal.create（tier-0/1 必须持有包）
+       └─ EvolutionSandbox.approveAndApply（缺包直接抛 GateContextRequiredError）
+```
+
+---
+
+### 知识权威写入流（L2）
+
+```
+写入方                                    L2 写入接口 (ArtifactRegistry/Knowledge)
+  ├─ 普通执行产物      → Tier-3（无凭证 → WARN 计数，不静默）
+  ├─ 规划/正式产物     → Tier-1（必须持有 Gate 凭证，缺包抛错）
+  ├─ 演化晋升结果      → Tier-2（仅 L7 EvolutionSandbox 晋升，promotedByEvolution=true）
+  └─ 权威/架构数据     → Tier-0（必须持有 Gate 凭证 + 引用校验）
+```
+
+---
+
+### 依赖方向约束（validate-architecture.js 强制）
+
+| 规则 | 强制级别 |
+|------|---------|
+| L4 禁副作用：cognition/ 不得 import 可执行 Primitive/演化实现 | ERROR |
+| L7 边界：evolution/ 不得 import cognition/（仅白名单只读符号） | ERROR |
+| L6-L7 解耦：L6 只发事件，L7 只消费事件 | ERROR |
+| control-plane 瘦身：禁止重新引入演化/执行逻辑 | ERROR |
+| 层间禁止直接 import 内部实现（只能公开 barrel/接口/EventBus） | ERROR |
+| 领域隔离：packages/core 内禁止业务领域硬编码（领域逻辑只能在 workflows 插件） | ERROR |
+| 全 5 Primitive 必须绑定 Gate | ERROR |
+| 跨层 import 白名单（只读符号） | 白名单 |
+
+---
+
+### 关键时序（一次完整闭环）
+
+```
+t0   executeGoal → ControlPlane.checkAll（L1 授权）
+t1   DeliveryPlanner.createPlan（L4 规划 + L3 Gate 强制查询）
+t2   UnifiedExecutionEngine → MissionRuntime（L5 执行）
+t3   执行中原语调用 → L3 Gate（KnowledgeContextPackage 签发）
+t4   产物注册 → L2 ArtifactRegistry（TierWriteGuard）
+t5   执行结束 → EventBus 发 mission.completed（L8）
+t6   BrainFacade.learn → LearningLoop（L4 学习）
+t7   EvaluationEngine.evaluate → evaluation.scored/low_score（L6）
+t8   ActiveEvolutionTrigger 消费事件 → SIL 产提案（L7）
+t9   EvolutionSandbox.approveAndApply（Gate 硬校验）→ 晋升写 Tier-2（L7→L2）
+```
+
+---
+
+### 与历史架构的差异（纯净现架构要点）
+
+- **演化单轨**：唯一路径 = AET 事件驱动 → SIL 只产提案 → EvolutionSandbox 晋升（L4/L1/L5 演化逻辑全部剥离）
+- **单一学习入口**：LearningLoop（程序性 + 声明性合并，原 MetaLearner 已删除）
+- **单一事件存储**：UnifiedEventStore（IEventStore 契约；旧 EventStore 已删）
+- **零兼容垫片**：全仓 0 个 @deprecated（Wave 9 清除）
+- **评价权威**：L6 = 质量 + 本体合规 + 血缘健康三合一
