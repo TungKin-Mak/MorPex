@@ -18,7 +18,8 @@
 - **P0-P2（16l~16l·3）全完成**：实体去重/restore 分页/PiBridge 单例（P0）+ rerank 缓存/type 索引/Gate 限流退避（P1）+ 复杂任务 cap/batch 并发自适应/TraceRecorder 采样（P2）。
 - **★通用空参保险（16l·7，模型无关根治）**：彻查根因——pi-ai `validateToolArguments` 在 `beforeToolCall` 前执行，空参（minLength:1）直接 throw 使 goal 兜底永远失效；用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**）注入可推断值（knowledge→goal / file→path），打通 3 层透传，任意模型生效（不依赖 LLM 乖乖填参）。新增 4 用例。
 - **模型试跑总结**：GLM-4-Flash 50 轮 28/50（空参 7 次）→ 保险后 10 轮 9/10（空参 0，限流 0）；opencode 23/50（额度再耗尽暂停，排除限流真实 79%，空参 1 次）。失败共性=「物流方案」任务依赖外部真实数据（多轮次同因失败，与模型无关）。
-- **★文档精简（16l·8）**：docs/ 从 22 文件 → 6 核心（ARCHITECTURE / FILE_REGISTRY / AICOS_FLOW / MODEL_CONFIG / TESTING_PLAN）+ archive/ 6 历史 + guides/ 3；删除 4 过时（testing-guide/PROJECT_TREE/performance-checklist/docs-README）、合并 3 flow → AICOS_FLOW（实证+机制+Gate链）、归档 6 运维；AGENTS.md/.pi/SYSTEM.md/README 速览更新至当前架构（RAG 装配/空参保险/模型配置），门禁数字刷新（775 用例）。新 LLM 零上下文续作核心链：AGENTS→SESSION_LOG→ARCHITECTURE→FILE_REGISTRY→AICOS_FLOW→MODEL_CONFIG。
+- **★文档精简（16l·8）**：docs/ 从 22 文件 → 6 核心（ARCHITECTURE / FILE_REGISTRY / AICOS_FLOW / MODEL_CONFIG / TESTING_PLAN）+ archive/ 6 历史 + guides/ 3；删除 4 过时、合并 3 flow → AICOS_FLOW、归档 6 运维。
+- **★文档读取策略（16l·9）**：AGENTS.md 新增「最小上下文 + 按需加载」——会话开始只读 AGENTS.md + SESSION_LOG.md；其余文档按 §1 触发条件按需读（不默认全塞上下文）；新增 §8.5 文档同步协议——代码改动经人工审核确认后才更新对应文档，文档与代码同次提交。
 
 ## 会话历史摘要（紧凑）
 
@@ -56,6 +57,7 @@
 | 16l·7 | **通用空参保险（模型无关根治）**：彻查根因——validate 在 beforeToolCall 前 throw 使 goal 兜底失效；用 prepareArguments 钩子在 validate 前注入可推断值，打通 3 层透传，任意模型生效 | ✅ 775 通过 |
 | 16l·7b | **GLM 空参保险验证 10 轮**：9/10 成功、限流 0；空参失败 7/50→0/10（保险生效），唯一失败=物流任务（依赖外部数据，与模型无关） | ✅ 9/10 |
 | 16l·8 | **文档精简（22→6 核心）**：删 4 过时 + 合并 3 flow→AICOS_FLOW + 归档 6 运维；AGENTS/.pi/README 速览更新至当前架构；核心链 AGENTS→SESSION_LOG→ARCHITECTURE→FILE_REGISTRY→AICOS_FLOW→MODEL_CONFIG | ✅ 零上下文可续作 |
+| 16l·9 | **文档读取策略（最小上下文+按需加载）**：AGENTS.md §0 改为「会话只读 AGENTS+SESSION_LOG」；§1 改为按需加载表（触发条件）；新增 §8.5 文档同步协议（人工审核确认后才更新文档，文档随代码同提交）；.pi/SYSTEM.md 同步 | ✅ 上下文省 80%+ |
 
 ## 当前开放决策
 

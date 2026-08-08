@@ -7,10 +7,13 @@
 
 ## 0. 会话第一步（强制）
 
-**先读 `SESSION_LOG.md`**（项目状态 / 上轮摘要 / 当前待办 / 关键路径）。不读 = 对项目一无所知。
-紧随读 `AGENTS.md`（项目规则，跨工具入口）→ `docs/AICOS_CORE_ARCHITECTURE.md`（AICOS-Core 8 层架构唯一真相源）+ `docs/AICOS_CORE_FILE_REGISTRY.md`（逐文件注册表）。
+**最小上下文**：只读 `SESSION_LOG.md`（项目状态/上轮摘要/待办/关键路径）+ `AGENTS.md`（项目规则）。不读 = 对项目一无所知；**禁止新会话开始时把架构/注册表/流程等大文档全部读入**（按需加载，规则见 AGENTS.md §1）。工具不自动读时显式 `cat AGENTS.md SESSION_LOG.md`。
+
+**按需加载**：涉及架构改动才读 `docs/AICOS_CORE_ARCHITECTURE.md` + `docs/AICOS_CORE_FILE_REGISTRY.md`；涉及执行链/模型配置/测试分别读 `docs/AICOS_FLOW.md` / `docs/MODEL_CONFIG.md` / `docs/TESTING_PLAN.md`（详见 AGENTS.md §1 按需表）。
 
 会话结束必须更新 `SESSION_LOG.md` 的「会话历史」与「当前待办」——**过时/冗余信息丢弃**（只留当前状态+最近进度+决策+待办，历史细节以 git 为准），保持精简。
+
+**文档同步**：代码改动后，人工审核确认 → 才更新对应文档（FILE_REGISTRY/ARCHITECTURE/AICOS_FLOW/MODEL_CONFIG/TESTING_PLAN），文档与代码同次提交（详见 AGENTS.md §8.5）。
 
 ## 1. 项目速览
 
