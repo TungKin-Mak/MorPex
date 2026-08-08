@@ -54,11 +54,15 @@ export function mapToolForAgent(t: AgentTool): {
   description: string;
   parameters: Record<string, unknown>;
   execute?: (p: Record<string, unknown>) => Promise<unknown>;
+  /** ═══ 会话 16l·7（通用空参保险）：透传 prepareArguments（校验前处理参数）═══ */
+  prepareArguments?: (args: unknown) => unknown;
 } {
   return {
     name: t.name,
     description: t.description,
     parameters: t.parameters ?? {},
+    // ═══ 会话 16l·7：透传 prepareArguments——agent 层在 schema 校验前调用，空参注入可推断值
+    prepareArguments: (t as { prepareArguments?: (args: unknown) => unknown }).prepareArguments,
     execute: t.execute
       ? async (p: Record<string, unknown>) => {
           // 保留原契约参数：toolCallId 由执行框架生成，此处不消费，传空串占位

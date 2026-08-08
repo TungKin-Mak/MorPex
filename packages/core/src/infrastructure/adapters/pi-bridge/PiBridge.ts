@@ -152,6 +152,11 @@ export interface AgentToolDescriptor {
   description: string;
   parameters: Record<string, unknown>;
   execute?: (params: Record<string, unknown>) => Promise<unknown>;
+  /**
+   * ═══ 会话 16l·7（通用空参保险）：在 schema 校验前处理参数（空参注入可推断值）。
+   *     模型无关——任意 LLM 的空参都可在校验前被保险层兜住。
+   */
+  prepareArguments?: (args: unknown) => unknown;
 }
 
 export interface AgentSession {
@@ -461,6 +466,9 @@ export class PiBridge {
       name: t.name,
       description: t.description,
       parameters: t.parameters,
+      // ═══ 会话 16l·7（通用空参保险）：透传 prepareArguments——在 schema 校验前处理参数
+      //     （空参注入 goal 等可推断值），使任意模型（含老模型 GLM）的空参都能被保险层兜住。
+      prepareArguments: (t as { prepareArguments?: (args: unknown) => unknown }).prepareArguments,
       // ⬅️ 多 Agent 框架（会话 3）：透传 execute——之前只传 name/description/parameters，
       //    pi-agent-core Agent 声明的工具没有执行函数 → 工具调用循环空转（DAG 节点卡死根因之一）。
       execute: t.execute

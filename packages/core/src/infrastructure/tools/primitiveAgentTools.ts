@@ -187,8 +187,17 @@ export function buildMissingParamMessage(toolLabel: string, missing: string[]): 
  * @param options - 部门/用户上下文（原语执行注入）
  * @returns 可直接传给 agentSpawner.spawn 的 AgentTool[]
  */
+/**
+ * ═══ 会话 16l·7（通用空参保险）：本地扩展类型——在类型系统不识别 AgentTool.prepareArguments
+ *     （bundler 模式下 pi-ai Tool 基类遮蔽）时，仍声明该字段供构建。运行时 pi-agent-core
+ *     prepareToolCallArguments 读取 tool.prepareArguments（运行时属性，与类型无关）。
+ */
+interface PrimitiveAgentTool extends AgentTool {
+  prepareArguments?: (args: unknown) => unknown;
+}
+
 export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): AgentTool[] {
-  const tools: AgentTool[] = [];
+  const tools: PrimitiveAgentTool[] = [];
 
   for (const def of PRIMITIVE_TOOL_DEFS) {
     const primitive = DomainPrimitiveRegistry.get(def.name);
@@ -200,6 +209,22 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
       label: primitive.name,
       description: primitive.description,
       parameters: schema,
+      // ═══ 会话 16l·7（通用空参保险 L0）：prepareArguments——在 schema 校验之前运行，
+      //     用任务上下文智能填充可推断参数。模型无关（不依赖 LLM 是否乖乖填参，MorPex 主动兜底），
+      //     对任意模型（含 GLM 等老模型）生效。不可推断的参数保持原样 → 由 L1 校验报错强制重发。
+      prepareArguments: (rawArgs: unknown) => {
+        const args = (rawArgs ?? {}) as Record<string, unknown>;
+        // knowledge：query 缺失/空 → 注入 step goal（step 目标即要查的内容）
+        if (def.label === 'knowledge' && isEmptyValue(args.query) && options.goal) {
+          args.query = options.goal;
+          console.warn(`[primitiveAgentTools] 🛡️ 通用保险：knowledge query 为空 → 注入 step goal 兜底: ${String(options.goal).slice(0, 60)}…`);
+        }
+        // file：path 缺失/空且有沙箱目录 → 注入默认路径（相对路径落沙箱）
+        if (def.label === 'file' && isEmptyValue(args.path) && options.workspaceDir) {
+          args.path = '.'; // 相对路径由 file 原语落沙箱
+        }
+        return args;
+      },
       execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
         const p = (params ?? {}) as Record<string, unknown>;
         // ═══ 会话 13：knowledge 空 query → 用 step goal 兜底（step 目标即要查的内容）═══
@@ -242,9 +267,11 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
 
   // ═══ 会话 16j（B2 指针消费端）：追加 recall_task 工具（按 taskRef 拉取被裁详情，零丢失闭环）═══
   const recallTool = recallTaskTool(options)
-  if (recallTool) tools.push(recallTool)
+  if (recallTool) tools.push(recallTool as unknown as PrimitiveAgentTool)
 
-  return tools;
+  // ═══ 会话 16l·7：PrimitiveAgentTool 运行时含 prepareArguments（pi-agent-core 运行时读取），
+  //     类型层面以 AgentTool[] 对外（bundler 模式类型遮蔽规避）
+  return tools as unknown as AgentTool[];
 }
 /**
  * recallTaskTool — 指针消费端工具（会话 16j B2）：按 taskRef 拉取历史任务上下文。

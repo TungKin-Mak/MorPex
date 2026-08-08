@@ -22,6 +22,7 @@
 - **GLM-4-Flash-250414 试跑（16l·4）**：10 轮 **成功 9/10**、限流 0、总耗时 376s；唯一失败=跨境电商物流方案（依赖外部 mock API api.example.com 检索失败，非模型问题）；平均 22,823 函数/任务（TraceRecorder 全量）。期间暴露并修复 batch-run ESM bug（require→import）。配置已恢复 opencode。
 - **GLM-4-Flash-250414 50 轮（16l·5）**：**成功 28/50（56%）**、限流跳过 3、失败 19、总耗时 2845s（47min）；失败主因=GLM 工具空参（query/command 空 7 次）+ 部分步骤失败 9 + 限流 3——验证 GLM 空参弱点（会话 9 已知）。★首跑 5 并发 TraceRecorder 全量记录（2-8 万调用/任务）→ **4GB 堆 OOM 崩溃**（关键教训 #5 再现）；修复：batch-run 加 --trace-max 5000 采样限制 + 8GB 堆重启，内存受控零 OOM。配置已恢复 opencode。
 - **opencode 50 轮（16l·6，部分完成 23/50）**：额度恢复后开跑，**23 轮时免费额度再次耗尽**（HTTP 429 FreeUsageLimitError）→ 暂停。已完成 23 轮：成功 15、失败 8（其中 **5 个为额度耗尽后限流**，非模型问题）；排除限流后真实 **15/19=79%**，空参仅 1 次（vs GLM 7 次）——opencode 质量优势验证。待额度恢复补跑剩余 27 轮。
+- **通用空参保险（16l·7）**：彻查空参根因——★发现架构缺陷：pi-ai `validateToolArguments` 在 `beforeToolCall`（goal 兜底所在）**之前**执行，空参（minLength:1）直接 throw → goal 兜底永远执行不到。★修复：用 pi-agent-core 官方 `prepareArguments` 钩子（validate **之前**运行）做模型无关保险——knowledge 空 query 注入 goal、file 空 path 注入默认路径；打通 3 层透传（createPrimitiveAgentTools→agentSpawner.mapToolForAgent→PiBridge.createAgentHarness）。对任意模型（GLM/opencode/未来）生效，不依赖 LLM 是否乖乖填参。新增 4 用例。
 
 ## 会话历史摘要（紧凑）
 
@@ -56,6 +57,7 @@
 | 16l·4 | **GLM-4-Flash-250414 试跑 10 轮**：成功 9/10、限流 0、耗时 376s；唯一失败=依赖外部 mock API 的任务（非模型问题）；暴露并修复 batch-run ESM require bug | ✅ 9/10 |
 | 16l·5 | **GLM-4-Flash-250414 50 轮**：成功 28/50（56%）、限流 3、失败 19、耗时 2845s；失败主因=GLM 工具空参+限流（会话 9 已知弱点）；★首跑 OOM（TraceRecorder 全量）→ 加 --trace-max 采样修复，零 OOM | ✅ 28/50 |
 | 16l·6 | **opencode 50 轮（部分 23/50）**：额度恢复开跑，23 轮时免费额度再耗尽（429）暂停；完成 23 轮成功 15（排除 5 个额度限流后真实 15/19=79%），空参仅 1 次（vs GLM 7）——质量优势验证 | ⏸️ 23/50 |
+| 16l·7 | **通用空参保险（模型无关根治）**：彻查根因——validate 在 beforeToolCall 前 throw 使 goal 兜底失效；用 prepareArguments 钩子在 validate 前注入可推断值，打通 3 层透传，任意模型生效 | ✅ 775 通过 |
 
 ## 当前开放决策
 
