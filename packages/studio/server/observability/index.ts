@@ -26,6 +26,9 @@ export type { TracerConfig, TaskSpan } from './execution-tracer.js';
 export { instrumentDAGDispatcher } from './dag-tracer.js';
 export { instrumentFSM } from './fsm-tracer.js';
 export { instrumentAgentScheduler, instrumentCollaborationManager } from './agent-tracer.js';
+// ═══ 去黑盒化（黑盒⑬）：LLM 交互追踪 ═══
+export { LlmTracer, llmTracer } from './llm-tracer.js';
+export type { LlmTraceEntry, LlmTraceFilter, LlmTraceStats } from './llm-tracer.js';
 export { instrumentSandbox, instrumentVerifier } from './tool-tracer.js';
 export { ArchitectureAuditor } from './architecture-auditor.js';
 export type { AuditFinding, ArchitectureAuditReport } from './architecture-auditor.js';

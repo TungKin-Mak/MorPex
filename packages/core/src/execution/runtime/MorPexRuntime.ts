@@ -6,6 +6,7 @@ import type { ExecutionRequest } from '../../execution/UnifiedExecutionEngine.js
 import { ArtifactFacade } from '../../knowledge/artifact/ArtifactFacade.js';
 import { VerificationEngine } from '../../evaluation/verification/VerificationEngine.js';
 import { ComplianceChecker } from '../../governance/ComplianceChecker.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { ApprovalGate } from '../../governance/ApprovalGate.js';
 import { ExperienceMiner } from '../../evolution/ExperienceMiner.js';
 import { ExecutionSimulator } from './simulation/ExecutionSimulator.js';
@@ -258,6 +259,25 @@ export class MorPexRuntime {
                 source: 'gate',
                 payload: { tokens, goal: context.goal.objective, domain: context.goal.domain },
               });
+              // ═══ 去黑盒化（黑盒⑧）：异步 token 上报持久化双写（重启后成本可追溯）═══
+              try {
+                getSharedDeblackboxRecorder().record({
+                  category: 'cost.llm.call',
+                  source: 'gate-token-usage',
+                  executionId: context.mission.missionId,
+                  level: 'L1',
+                  isError: false,
+                  summary: {
+                    tokens,
+                    goal: context.goal.objective,
+                    domain: context.goal.domain ?? null,
+                    decision: 'token 上报持久化',
+                    reasoning: '门禁 LLM 调用 token 异步上报，双写持久化（重启可追溯）',
+                  },
+                });
+              } catch (err) {
+                console.warn('[MorPexRuntime] ⚠️ token 上报持久化失败（忽略）:', err instanceof Error ? err.message : String(err));
+              }
             },
           });
           ontologyProposal = result.proposal;

@@ -18,6 +18,7 @@ import type {
 } from '../../gate/types.js';
 import type { SystemMetadataGraph, EntityType, RelationType } from '../../knowledge/graph/SystemMetadataGraph.js';
 import { ObjectTypeRegistry } from './ObjectTypeRegistry.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 /**
  * OntologyService — 迭代1 轻量本体服务
@@ -296,6 +297,35 @@ export class OntologyService {
 
     const obj = await this.getObject(id);
     if (!obj) throw new Error(`[OntologyService] upsert 失败: ${id}`);
+
+    // ═══ 去黑盒化（黑盒⑮）：知识写入审计（L1 永久）——每条知识可追溯"谁/为何/来源"═══
+    try {
+      const meta = obj.metadata as Record<string, unknown> | undefined;
+      getSharedDeblackboxRecorder().record({
+        category: 'knowledge.write',
+        source: 'ontology-service',
+        executionId: id,
+        level: 'L1',
+        isError: false,
+        summary: {
+          objectId: id,
+          type: entityType,
+          name,
+          source: (meta?.source as string | undefined) ?? 'system',
+          confidence: (meta?.confidence as number | undefined) ?? 0.5,
+          version: (meta?.version as number | undefined) ?? 1,
+          conflict: (meta?.conflict as boolean | undefined) === true,
+          conflictDetail: (meta?.conflictDetail as string | undefined) ?? null,
+          validationResult: 'passed',
+          recordedAt: (meta?.recordedAt as number | undefined) ?? Date.now(),
+          decision: '知识写入',
+          reasoning: `写入 ${entityType} 对象（来源=${meta?.source ?? 'system'}，置信度=${meta?.confidence ?? 0.5}，版本=v${meta?.version ?? 1}）`,
+        },
+      });
+    } catch (err) {
+      console.warn('[OntologyService] ⚠️ 知识写入审计失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     return obj;
   }
 

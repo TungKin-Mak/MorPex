@@ -3,6 +3,7 @@
  * 能力驱动: Goal → CapabilityDiscovery → WorkflowSelection → TeamFormation → Execution
  */
 import { TeamBuilder } from './TeamBuilder.js';
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { AgentAllocator } from './AgentAllocator.js';
 import { DependencyCoordinator } from './DependencyCoordinator.js';
 import { CapabilityDiscoverer } from '../governance/capability/CapabilityDiscoverer.js';
@@ -75,6 +76,23 @@ export class DynamicTeamOrchestrator {
 
     const graph = DependencyCoordinator.buildDependencyGraph(teams);
     teams.forEach(t => { t.dependencies = graph; });
+
+    // ═══ 去黑盒化（黑盒⑨）：团队内存态快照（L1 永久，重启可查）═══
+    try {
+      getSharedDeblackboxRecorder().recordStateSnapshot({
+        name: 'dynamic-teams',
+        executionId: goalCtx.goalId,
+        trigger: 'orchestrate',
+        state: {
+          teamCount: teams.length,
+          teamIds: teams.map(t => t.id),
+          memberCount: teams.reduce((sum, t) => sum + t.members.length, 0),
+          totalTeamsInMemory: this.teams.size,
+        },
+      });
+    } catch (err) {
+      console.warn('[DynamicTeamOrchestrator] ⚠️ 团队快照失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
 
     return { teams, graph, capabilities: discovery.matched, workflows };
   }

@@ -19,6 +19,10 @@ import { DEFAULT_MODULES } from './types';
 import { ObservationCollector } from './observation.js';
 import { exerciseAllFromGlobal, getExerciseContext } from './exercise-all.js';
 import { RuntimeInvoker } from './runtime-invoker.js';
+// ═══ 去黑盒化（黑盒⑬）：LLM 交互追踪端点 ═══
+import { llmTracer } from './llm-tracer.js';
+import { getSharedDeblackboxRecorder } from '../../../core/src/infrastructure/observability/deblackbox/DeblackboxRecorder.js';
+// ═══ 去黑盒化（黑盒⑨）：内存态快照查询 ═══
 
 export function createObservabilityRouter(): Router {
   const router = Router();
@@ -146,6 +150,36 @@ export function createObservabilityRouter(): Router {
   // ════════════════════════════════════════════════════════════════
   // Stats & System
   // ════════════════════════════════════════════════════════════════
+
+  // GET /api/observability/llm-trace — LLM 交互调用链（去黑盒化黑盒⑬）
+  // 查询参数：caller / model / success / executionId / limit
+  router.get('/llm-trace', (req: Request, res: Response) => {
+    const q = req.query;
+    const entries = llmTracer.query({
+      caller: typeof q.caller === 'string' ? q.caller : undefined,
+      model: typeof q.model === 'string' ? q.model : undefined,
+      success: q.success !== undefined ? q.success === 'true' || q.success === '1' : undefined,
+      executionId: typeof q.executionId === 'string' ? q.executionId : undefined,
+      limit: q.limit !== undefined ? parseInt(String(q.limit), 10) || 100 : 100,
+    });
+    res.json({ ok: true, count: entries.length, stats: llmTracer.stats(), entries });
+  });
+
+  // GET /api/observability/memory-state — 内存态数据快照（去黑盒化黑盒⑨：重启后可查上次团队/能力/步骤状态）
+  router.get('/memory-state', (req: Request, res: Response) => {
+    const q = req.query;
+    const limit = q.limit !== undefined ? parseInt(String(q.limit), 10) || 50 : 50;
+    const name = typeof q.name === 'string' ? q.name : undefined;
+    const snapshots = getSharedDeblackboxRecorder()
+      .getRecent('memory.state.snapshot', limit)
+      .filter((s) => (name ? s.summary.name === name : true));
+    const counts: Record<string, number> = {};
+    for (const s of snapshots) {
+      const n = String(s.summary.name ?? 'unknown');
+      counts[n] = (counts[n] ?? 0) + 1;
+    }
+    res.json({ ok: true, count: snapshots.length, counts, snapshots });
+  });
 
   // GET /api/observability/stats — overall system stats
   router.get('/stats', (_req: Request, res: Response) => {

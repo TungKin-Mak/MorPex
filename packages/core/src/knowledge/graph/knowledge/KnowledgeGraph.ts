@@ -127,7 +127,9 @@ export class KnowledgeGraph {
               'INSERT OR REPLACE INTO kg_entities (id, name, type, tags, ref_id, metadata, created_at) VALUES (?,?,?,?,?,?,?)',
             ).run(e.id, e.name, e.type, e.tags ? JSON.stringify(e.tags) : null, e.refId ?? null,
               e.metadata ? JSON.stringify(e.metadata) : null, e.createdAt);
-          } catch {}
+          } catch (err) {
+            console.warn(`[KnowledgeGraph] ⚠️ 旧 JSONL 实体迁移插入失败 (line=${line.slice(0, 80)}):`, err instanceof Error ? err.message : String(err));
+          }
         }
       }
       if (fs.existsSync(relationsFile)) {
@@ -139,7 +141,9 @@ export class KnowledgeGraph {
             this.db.prepare(
               'INSERT OR REPLACE INTO kg_relations (id, source, target, type, metadata, created_at) VALUES (?,?,?,?,?,?)',
             ).run(r.id, r.source, r.target, r.type, r.metadata ? JSON.stringify(r.metadata) : null, r.createdAt);
-          } catch {}
+          } catch (err) {
+            console.warn(`[KnowledgeGraph] ⚠️ 旧 JSONL 关系迁移插入失败 (line=${line.slice(0, 80)}):`, err instanceof Error ? err.message : String(err));
+          }
         }
       }
     });

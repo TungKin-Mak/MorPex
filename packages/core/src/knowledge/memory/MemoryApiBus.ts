@@ -8,6 +8,7 @@
  */
 
 import type { MemoryApi, MemoryHit } from '../../infrastructure/adapters/memory/index.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { MemoryBus } from './MemoryHooks.js';
 import type { MemoryActivationSource } from './MemoryActivationEngine.js';
 import type { MemoryRecord } from '../../execution/harness/types.js';
@@ -20,6 +21,28 @@ export function createMemoryApiBus(memoryApi: MemoryApi): MemoryBus {
         tags: params.tags,
         importance: params.importance,
       });
+      // ═══ 去黑盒化（黑盒⑮）：记忆写入审计（L1 永久）——可追溯来源 ═══
+      try {
+        getSharedDeblackboxRecorder().record({
+          category: 'knowledge.write',
+          source: 'memory-api-bus',
+          executionId: params.sourceId || 'kernel',
+          level: 'L1',
+          isError: false,
+          summary: {
+            content: params.content.substring(0, 200),
+            contentLength: params.content.length,
+            source: params.source,
+            sourceId: params.sourceId,
+            tags: params.tags,
+            importance: params.importance,
+            decision: '记忆写入',
+            reasoning: `情景记忆写入（来源=${params.source}，重要度=${params.importance}）`,
+          },
+        });
+      } catch (err) {
+        console.warn('[MemoryApiBus] ⚠️ 记忆写入审计失败（忽略）:', err instanceof Error ? err.message : String(err));
+      }
     },
     async recall(params: { text: string; topK: number }): Promise<string[]> {
       const r = await memoryApi.query({ text: params.text, limit: params.topK });

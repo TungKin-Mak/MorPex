@@ -90,6 +90,14 @@ export class StudioServer {
     wireObservabilityServices();
     startObservabilityBridge(container.eventBus);
 
+    // ═══ 去黑盒化（黑盒⑬）：LLM 交互追踪订阅（消费核心 DeblackboxRecorder 的 llm.call）═══
+    try {
+      const { llmTracer } = await import('./observability/llm-tracer.js');
+      llmTracer.start();
+    } catch (err) {
+      console.warn('[Studio] ⚠️ llm-tracer 启动失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     // 运行时 API（RuntimeAPI：FSM/DAG/ArtifactGraph/Learning/SSE）
     // ⚠️ S24 修复：此前 registerRuntimeRoutes 从未被挂载 → 11 个路由全部不可达（死代码面）
     registerRuntimeRoutes(this.app);

@@ -100,6 +100,23 @@ export async function bootstrapUnified(options?: {
   // ⬅️ 尽早等待 EventStore 就绪，避免后续注册/写入竞态
   await container.ready;
 
+  // ═══ 去黑盒化：接入统一记录器（L0/L1/L2 三层；ServiceContainer 已接，此处对
+  //     外部传入的独立 EventStore 刷新配置，保证外部注入场景也留痕）═══
+  const { getSharedDeblackboxRecorder } = await import('./infrastructure/observability/deblackbox/DeblackboxRecorder.js');
+  getSharedDeblackboxRecorder().configure({ eventStore: eventStore ?? container.eventStore });
+
+  // ═══ 去黑盒化（数据生命周期）：启动 L2 详情 TTL 清理任务（unref 定时器，不拖住进程退出）═══
+  try {
+    const { RecordCleaner } = await import('./infrastructure/observability/deblackbox/RecordCleaner.js');
+    const recorder = getSharedDeblackboxRecorder();
+    const cleaner = new RecordCleaner(recorder.getRecordPolicy(), recorder.getDetailStore());
+    cleaner.schedule(24 * 60 * 60 * 1000);
+    console.log('[bootstrapUnified] ✅ 去黑盒 L2 详情 TTL 清理任务已启动（24h 周期，unref）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ 去黑盒 TTL 清理任务启动失败（不阻断）:', (err as Error).message);
+  }
+
+
   // 3. 注册 WorkflowRegistry + 加载 Workflow 插件（理想架构第 9 层）
   try {
     container.teamOrchestrator.setWorkflowRegistry(WorkflowPluginRegistry);
@@ -733,25 +750,29 @@ export async function bootstrapUnified(options?: {
   eventBus.on(EventType.MISSION_CREATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
-      try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
+      try { await missionProjector.projectOne(p.id ?? p.missionId); }
+      catch (err) { console.warn(`[bootstrapUnified] ⚠️ MISSION_CREATED 增量投影失败 (id=${p.id ?? p.missionId}):`, (err as Error).message); }
     }
   });
   eventBus.on(EventType.MISSION_UPDATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.missionId) {
-      try { await missionProjector.projectOne(p.id ?? p.missionId); } catch {}
+      try { await missionProjector.projectOne(p.id ?? p.missionId); }
+      catch (err) { console.warn(`[bootstrapUnified] ⚠️ MISSION_UPDATED 增量投影失败 (id=${p.id ?? p.missionId}):`, (err as Error).message); }
     }
   });
   eventBus.on(EventType.ARTIFACT_CREATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
-      try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
+      try { await artifactProjector.projectOne(p.id ?? p.artifactId); }
+      catch (err) { console.warn(`[bootstrapUnified] ⚠️ ARTIFACT_CREATED 增量投影失败 (id=${p.id ?? p.artifactId}):`, (err as Error).message); }
     }
   });
   eventBus.on(EventType.ARTIFACT_UPDATED, async (event: any) => {
     const p = event.payload;
     if (p?.id || p?.artifactId) {
-      try { await artifactProjector.projectOne(p.id ?? p.artifactId); } catch {}
+      try { await artifactProjector.projectOne(p.id ?? p.artifactId); }
+      catch (err) { console.warn(`[bootstrapUnified] ⚠️ ARTIFACT_UPDATED 增量投影失败 (id=${p.id ?? p.artifactId}):`, (err as Error).message); }
     }
   });
 

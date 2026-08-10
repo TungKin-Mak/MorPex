@@ -18,3 +18,14 @@ export type { HealthStatus, HealthCheck } from './HealthCheckService.js'
 
 export { bootstrapObservability } from './ObservabilityBootstrap.js'
 export type { ObservabilityConfig } from './ObservabilityBootstrap.js'
+
+// ── 去黑盒化公共基础设施（L0/L1/L2 三层记录，docs/DEBLACKBOX_PLAN.md）──
+export { RecordPolicy } from './deblackbox/index.js'
+export type { DeblackboxLevel, RecordPolicySnapshot } from './deblackbox/index.js'
+export { DEBLACKBOX_DEFAULT_TTL, DEBLACKBOX_DEFAULT_SAMPLING } from './deblackbox/index.js'
+export { DeblackboxDetailStore } from './deblackbox/index.js'
+export type { DeblackboxDetailRecord } from './deblackbox/index.js'
+export { DeblackboxRecorder, getSharedDeblackboxRecorder, resetSharedDeblackboxRecorder } from './deblackbox/index.js'
+export type { DeblackboxRecord } from './deblackbox/index.js'
+export { RecordCleaner } from './deblackbox/index.js'
+export type { RecordCleanerResult } from './deblackbox/index.js'

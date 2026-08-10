@@ -1,4 +1,5 @@
 import { EventBus } from '../../infrastructure/common/EventBus.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 // ── Ontology 迭代2: 可选 grounded reasoning ──
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
@@ -204,6 +205,41 @@ export class HierarchicalPlanner {
           departmentId: context?.departmentId,
         },
       });
+
+      // ═══ 去黑盒化（黑盒⑤）：规划理由记录（L1 决策单永久）——回答"为什么这么规划"═══
+      try {
+        const groundingFailed = (context as Record<string, unknown> | undefined)?.ontologyGroundingFailed === true;
+        getSharedDeblackboxRecorder().record({
+          category: 'planner.decision',
+          source: 'hierarchical-planner',
+          executionId: planId,
+          level: 'L1',
+          isError: false,
+          summary: {
+            goal,
+            planId,
+            subGoalCount: subGoals.length,
+            steps: subGoals.map((sg) => ({
+              id: sg.id,
+              description: sg.description,
+              priority: sg.priority,
+              estimatedDuration: sg.estimatedDuration,
+              dependencies: sg.dependencies ?? [],
+            })),
+            complexity,
+            riskLevel,
+            mode: subGoals.length <= 3 ? 'quick' : 'full',
+            estimatedTotalDuration: totalDuration,
+            ontologyRefs: plan.ontologyRefs?.length ?? 0,
+            ontologyGrounding: groundingFailed ? 'failed' : (plan.ontologyRefs?.length ?? 0) > 0 ? 'grounded' : 'not-grounded',
+            durationMs: Date.now() - startTime,
+            decision: '创建分层计划',
+            reasoning: `按复杂度(${complexity})/风险(${riskLevel})将目标拆解为 ${subGoals.length} 个子目标`,
+          },
+        });
+      } catch (err) {
+        console.warn('[HierarchicalPlanner] ⚠️ 规划理由记录失败（忽略）:', (err as Error).message);
+      }
 
       return plan;
     } catch (err) {

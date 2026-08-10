@@ -23,6 +23,8 @@ import { ContextTemplateRepository } from './ContextTemplateRepository.js'
 import { ContextEnricherPipeline } from './ContextEnricher.js'
 import type { ContextPersistence } from './ContextPersistence.js'
 import type { EventBus } from '../../infrastructure/common/EventBus.js'
+// ═══ 去黑盒化（黑盒③ 检索决策记录）═══
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 // ── ContextAssemblyConfig — 组装配置 ──
 
@@ -398,7 +400,50 @@ export class ContextAssemblyEngine {
       }
     }
 
+    // ═══ 去黑盒化（黑盒③）：检索决策留痕（为什么是这些材料）═══
+    this.recordRetrievalDecision(input, enrichedContext, trimmedFragments, layerSizes, assembleStart, template?.templateId ?? '')
+
     return enrichedContext
+  }
+
+  /** ═══ 去黑盒化（黑盒③）：检索决策记录（L1 决策单永久）——回答"工作台里为什么是这些材料" */
+  private recordRetrievalDecision(
+    input: ContextAssemblyInput,
+    enrichedContext: ExecutionContext,
+    trimmedFragments: Array<{ source: string }>,
+    layerSizes: Record<string, number>,
+    assembleStart: number,
+    templateId: string,
+  ): void {
+    try {
+      // 各源命中数（最终入选的片段按来源汇总）
+      const sourceHits: Record<string, number> = {}
+      for (const f of trimmedFragments) {
+        sourceHits[f.source] = (sourceHits[f.source] ?? 0) + 1
+      }
+      getSharedDeblackboxRecorder().record({
+        category: 'context.retrieval',
+        source: 'context-assembly-engine',
+        executionId: input.missionId ?? 'kernel',
+        level: 'L1',
+        summary: {
+          goal: input.goal ?? '',
+          missionId: input.missionId,
+          template: templateId,
+          focusMode: this.config.focusMode === true,
+          totalCandidates: enrichedContext.fragments?.length ?? trimmedFragments.length,
+          selectedFragments: trimmedFragments.length,
+          sourceHits,
+          layerSizes,
+          durationMs: Date.now() - assembleStart,
+          domain: input.domain ?? '',
+          decision: '装配完成',
+          reasoning: '按模板/聚焦模式选定片段并分层入工作台，来源命中数见 sourceHits',
+        },
+      })
+    } catch (err) {
+      console.warn('[ContextAssemblyEngine] ⚠️ 检索决策记录失败（忽略）:', err instanceof Error ? err.message : String(err))
+    }
   }
 
   /**

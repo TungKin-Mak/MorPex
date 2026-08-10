@@ -24,6 +24,8 @@
 
 import { EventBus } from '../infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../infrastructure/common/types.js';
+// ═══ 去黑盒化（黑盒⑦ 后台行为记录）═══
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { ReflectionEngineLike, BrainReflectionState, BrainReflectionResult } from './ReflectionEngine.js';
 import type { TaskRecord, LearningResult } from './learning/LearningLoop.js';
 
@@ -316,6 +318,11 @@ export class BrainFacade {
           this.totalInsights += result.insights.length;
           console.log(`[BrainFacade] 主动反思(深度): 发现 ${result.insights.length} 条洞察`);
         }
+        // ═══ 去黑盒化（黑盒⑦）：后台行为留痕 ═══
+        this.recordBackground('active-reflect', `ReflectionEngine 深度反思：产出 ${result.insights.length} 条洞察`, {
+          engine: 'reflection-engine',
+          insightCount: result.insights.length,
+        });
         return;
       } catch (err) {
         console.warn('[BrainFacade] ReflectionEngine 反思失败，降级:', (err as Error).message);
@@ -336,6 +343,11 @@ export class BrainFacade {
       this.totalInsights += insights.length;
       console.log(`[BrainFacade] 主动反思(基础): 发现 ${insights.length} 条洞察`);
     }
+    // ═══ 去黑盒化（黑盒⑦）：后台行为留痕（基础反思/降级路径）═══
+    this.recordBackground('active-reflect', `基础反思：产出 ${insights.length} 条洞察`, {
+      engine: this.reflectionEngine ? 'reflection-engine-fallback' : 'legacy-reflect',
+      insightCount: insights.length,
+    });
   }
 
   stop(): void {
@@ -649,6 +661,14 @@ export class BrainFacade {
     this.totalExperiences++;
     this.lastLearningAt = Date.now();
 
+    // ═══ 去黑盒化（黑盒⑦）：后台学习行为留痕 ═══
+    this.recordBackground('learn', `任务 ${experience.result} 学习完成（耗时 ${Date.now() - startTime}ms，提取 ${patternsExtracted} 个模式）`, {
+      taskId: experience.taskId,
+      goal: experience.goal.substring(0, 80),
+      result: experience.result,
+      patternsExtracted,
+    });
+
     // 4.5. SOPEngine — 成功经验 → SOP（Phase 5）
     if (experience.result === 'success' && this.sopEngine) {
       try {
@@ -854,6 +874,8 @@ export class BrainFacade {
     );
 
     if (oldItems.length === 0) {
+      // ═══ 去黑盒化（黑盒⑦）：后台整合行为留痕（无可整合项）═══
+      this.recordBackground('consolidate', '自动整合：无可整合记忆（0 条）', { consolidated: 0, summariesCreated: 0, freedEntries: 0, departmentId: departmentId ?? null });
       return { consolidated: 0, summariesCreated: 0, freedEntries: 0 };
     }
 
@@ -892,6 +914,14 @@ export class BrainFacade {
       executionId: 'brain',
       source: 'brain-facade',
       payload: { consolidated: oldItems.length, summariesCreated, freedEntries, departmentId },
+    });
+
+    // ═══ 去黑盒化（黑盒⑦）：后台整合行为留痕 ═══
+    this.recordBackground('consolidate', `自动整合：${oldItems.length} 条 → ${summariesCreated} 条摘要，释放 ${freedEntries} 条`, {
+      consolidated: oldItems.length,
+      summariesCreated,
+      freedEntries,
+      departmentId: departmentId ?? null,
     });
 
     return { consolidated: oldItems.length, summariesCreated, freedEntries };
@@ -1142,5 +1172,26 @@ export class BrainFacade {
         memoryActivation: !!this.memoryActivationEngine,
       },
     };
+  }
+
+  /** ═══ 去黑盒化（黑盒⑦）：后台行为留痕（L1 决策单永久）——回答"定时反思/巩固/学习做了什么" ═══ */
+  private recordBackground(action: string, summary: string, detail: Record<string, unknown>): void {
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'brain.background',
+        source: 'brain-facade',
+        executionId: 'brain',
+        level: 'L1',
+        summary: {
+          action,
+          triggeredAt: new Date().toISOString(),
+          ...detail,
+          decision: `后台动作: ${action}`,
+          reasoning: summary,
+        },
+      });
+    } catch (err) {
+      console.warn('[BrainFacade] ⚠️ 后台行为记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
   }
 }

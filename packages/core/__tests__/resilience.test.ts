@@ -128,9 +128,9 @@ async function run() {
   // 3.4 circuit breaker blocks when open
   const cb4 = new CircuitBreaker('breaker-test', { failureThreshold: 2, openTimeoutMs: 50000 });
   ehs.registerBreaker('breaker-stage', cb4);
-  // trigger open
-  try { await ehs.executeWithRecovery(async () => { throw new Error('fail1'); }, { stage: 'breaker-stage', missionId: 'm4', operation: 'op4' }); } catch {}
-  try { await ehs.executeWithRecovery(async () => { throw new Error('fail2'); }, { stage: 'breaker-stage', missionId: 'm4', operation: 'op4' }); } catch {}
+  // trigger open（故意抛错触发熔断，抛错被有意捕获以继续断言）
+  try { await ehs.executeWithRecovery(async () => { throw new Error('fail1'); }, { stage: 'breaker-stage', missionId: 'm4', operation: 'op4' }); } catch { /* 预期抛错（触发熔断），有意忽略 */ }
+  try { await ehs.executeWithRecovery(async () => { throw new Error('fail2'); }, { stage: 'breaker-stage', missionId: 'm4', operation: 'op4' }); } catch { /* 预期抛错（触发熔断），有意忽略 */ }
   eq(cb4.getState(), 'OPEN', 'breaker is OPEN');
 
   // third call should be blocked immediately

@@ -4,6 +4,7 @@
  * 复用 BehaviorTwin/DecisionTwin/PreferenceModel 作为个体基础
  */
 import { BehaviorTwin } from './BehaviorTwin.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { DecisionTwin } from '../decision/DecisionTwin.js';
 import { DecisionMemory } from '../memory/DecisionMemory.js';
 import { PreferenceModel } from './PreferenceModel.js';
@@ -84,6 +85,30 @@ export class OrganizationTwin {
     this.simulationHistory.push({
       scenario: title, outcome: `${decision.status} (${decision.approvedBy.length}/${decision.requiredApprovals.length})`, timestamp: Date.now(),
     });
+
+    // ═══ 去黑盒化（黑盒⑪）：审批决策留痕（L1 永久）——回答"谁批/何时/为何"═══
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'approval.decision',
+        source: 'organization-twin',
+        executionId: decision.decisionId,
+        level: 'L1',
+        summary: {
+          title,
+          description: description.substring(0, 200),
+          proposedBy: decision.proposedBy,
+          riskLevel,
+          requiredApprovals: decision.requiredApprovals,
+          approvedBy: decision.approvedBy,
+          status: decision.status,
+          decision: `审批结果: ${decision.status}`,
+          reasoning: `风险=${riskLevel}，按各审批人风险容忍度自动判定（${decision.approvedBy.length}/${decision.requiredApprovals.length} 同意）`,
+        },
+      });
+    } catch (err) {
+      console.warn('[OrganizationTwin] ⚠️ 审批决策记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     return decision;
   }
 

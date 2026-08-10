@@ -11,6 +11,7 @@
 
 import type { IEventStore } from '../infrastructure/protocol/events/store/IEventStore.js';
 import { requireKnowledgeContext, type KnowledgeContextPackage } from '../gate/context.js';
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 export interface EvolutionChangeRecord {
   id: string;
@@ -135,6 +136,30 @@ export class EvolutionSandbox {
     // 动作侧表（不进记录，保持记录可序列化进 EventStore）
     this.actions.set(record.id, { apply: input.apply, revert: input.revert, verify: input.verify });
 
+    // ═══ 去黑盒化（黑盒⑭）：演化理由留痕（L1 永久）——回答"为什么它自我改了这个"═══
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'evolution.proposal',
+        source: 'evolution-sandbox',
+        executionId: record.id,
+        level: 'L1',
+        isError: !record.sandboxPassed,
+        summary: {
+          proposalId: input.proposalId ?? null,
+          changeId: record.id,
+          version: record.version,
+          summary: input.summary,
+          sandboxPassed: record.sandboxPassed,
+          sandboxFailures: record.sandboxFailures,
+          status: record.status,
+          reasoning: input.summary,
+          decision: `演化提案: ${record.status}`,
+        },
+      });
+    } catch (err) {
+      console.warn('[EvolutionSandbox] ⚠️ 演化理由记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     // EventStore 持久化（可回放/审计）
     if (this.eventStore) {
       try {
@@ -193,6 +218,30 @@ export class EvolutionSandbox {
     } finally {
       this.inflight.delete(id);
     }
+
+    // ═══ 去黑盒化（黑盒⑭）：演化落地结果留痕 ═══
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'evolution.proposal',
+        source: 'evolution-sandbox',
+        executionId: id,
+        level: 'L1',
+        isError: rec.applyOutcome === 'failed',
+        summary: {
+          changeId: id,
+          status: rec.status,
+          applyOutcome: rec.applyOutcome ?? null,
+          applyError: rec.applyError ?? null,
+          version: rec.version,
+          summary: rec.summary,
+          reasoning: rec.applyError ? `落地失败（可回滚）: ${rec.applyError}` : '审批通过，演化已落地（版本化）',
+          decision: `演化落地: ${rec.status}`,
+        },
+      });
+    } catch (err) {
+      console.warn('[EvolutionSandbox] ⚠️ 演化落地记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     return rec;
   }
 

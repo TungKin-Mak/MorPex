@@ -128,7 +128,9 @@ export class BrainPersistor {
           return all.filter((i: any) => i.id && i.id.startsWith(prefix)).map((i: any) => i.data || i);
         }
       }
-    } catch {}
+    } catch (err) {
+      console.warn(`[BrainPersistor] ⚠️ queryLayer(${layer}) 读取记忆失败（返回空）:`, err instanceof Error ? err.message : String(err));
+    }
     return [];
   }
 }

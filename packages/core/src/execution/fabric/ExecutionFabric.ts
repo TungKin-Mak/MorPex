@@ -9,6 +9,7 @@
  */
 
 import type { ConnectorRegistry } from '@morpex/connectors/ConnectorRegistry.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { ActionRequest, ActionResult } from '@morpex/connectors/types.js';
 import type { IActionConnector } from '@morpex/connectors/IActionConnector.js';
 
@@ -131,6 +132,25 @@ export class ExecutionFabric {
       status: 'available',
     });
     this.invalidateCache();
+    this.snapshotMemoryState('registerAgent');
+  }
+
+  /** ═══ 去黑盒化（黑盒⑨）：内存态快照（agentPool/capabilityCache，L1 永久）═══ */
+  private snapshotMemoryState(trigger: string): void {
+    try {
+      getSharedDeblackboxRecorder().recordStateSnapshot({
+        name: 'execution-fabric',
+        trigger,
+        state: {
+          agentPoolSize: this.agentPool.size,
+          agentIds: [...this.agentPool.keys()],
+          capabilityCacheSize: this.capabilityCache.size,
+          cacheTimestampCount: this.cacheTimestamps.size,
+        },
+      });
+    } catch (err) {
+      console.warn('[ExecutionFabric] ⚠️ 内存态快照失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
   }
 
   /**

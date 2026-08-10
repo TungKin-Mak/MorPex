@@ -327,8 +327,8 @@ async function run() {
     }
 
   } finally {
-    // Cleanup
-    try { rmSync(tmpDir, { recursive: true, force: true }); } catch {}
+    // Cleanup（尽力而为：临时目录已由 OS 回收，忽略清理错误）
+    try { rmSync(tmpDir, { recursive: true, force: true }); } catch { /* 有意忽略清理错误（best-effort teardown） */ }
   }
 
   // ── Summary ──

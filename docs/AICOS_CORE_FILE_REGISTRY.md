@@ -425,6 +425,19 @@
 - 新增 **20+ 测试文件 / 568 用例**（vitest 60 文件），覆盖矩阵 10 层 ❌ 清零
 - 统一执行器 `scripts/run-everything.ts`（`npm run test:full` 25 步）+ 覆盖率（c8，阈值防回退）
 - 验证测试：`observability-bridge.test.ts`（/audit 绕过检测 + 全链 8 层可观测）
+### 去黑盒化（16n，L0/L1/L2 三层记录 + 观测端点）
+| 文件 | 功能 |
+|------|------|
+| `infrastructure/observability/deblackbox/DeblackboxRecorder.ts` | 统一去黑盒记录入口（进程级单例；L0 摘要/L1 决策单永久/L2 详情采样 10%+异常全记；内部 pub-sub 供 llm-tracer 订阅） |
+| `infrastructure/observability/deblackbox/RecordPolicy.ts` | 采样率/TTL 配置中心（L0/L1 永久、L2 详情 30 天/异常 365 天；运行时可调） |
+| `infrastructure/observability/deblackbox/DeblackboxDetailStore.ts` | L2 详情持久化（共享 SQLite deblackbox_detail 表，隔离主事件流；无 DB 内存回退） |
+| `infrastructure/observability/deblackbox/RecordCleaner.ts` | L2 详情 TTL 清理（24h unref 定时，不拖住进程退出） |
+| `infrastructure/observability/deblackbox/index.ts` | （barrel：统一导出） |
+| `studio/server/observability/llm-tracer.ts` | LLM 交互追踪（订阅 llm.call，调用链内存缓冲 + 查询/统计；/llm-trace 端点） |
+| `__tests__/deblackbox-smoke.test.ts` | 去黑盒记录器冒烟测试（L1/L2/L0、采样、TTL 清理、on 订阅、策略） |
+
+> **16n 埋点分布（16 处黑盒）**：`PiBridge.ts`(llm.call ①②) / `gateBinding.ts`+`runOntologyGroundedReasoning.ts`(gate.decision ④⑯) / `ContextAssemblyEngine.ts`(context.retrieval ③) / `HierarchicalPlanner.ts`+`DeliveryPlanner.ts`(planner.decision ⑤) / `UnifiedExecutionEngine.ts`(execution.path ⑥) / `BrainFacade.ts`(brain.background ⑦) / `DynamicTeamOrchestrator.ts`+`ExecutionFabric.ts`+`OrchestratorAgent.ts`(memory.state.snapshot ⑨) / `OrganizationTwin.ts`(approval.decision ⑪) / `MorPexConfig.ts`(config.change ⑫) / `EvolutionSandbox.ts`+`EvolutionApplyLoop.ts`(evolution.proposal ⑭) / `OntologyService.ts`+`MemoryApiBus.ts`(knowledge.write ⑮) / `MorPexRuntime.ts`+`ServiceContainer.ts`(cost.llm.call 双写 ⑧) / `observability-api.ts`(/llm-trace /memory-state 端点 ⑬⑨)。方案 `docs/archive/DEBLACKBOX_PLAN.md`
+
 
 ---
 **当前文件数：约 370+（346 基线 + S22-S37 新增，以 `git ls-files | wc -l` 为准）。**

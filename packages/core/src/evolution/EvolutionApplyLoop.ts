@@ -18,6 +18,7 @@ import type { EventBus } from '../infrastructure/common/EventBus.js';
 import type { KnowledgeContextPackage } from '../gate/context.js';
 import { EvolutionSandbox, type EvolutionChangeRecord } from './EvolutionSandbox.js';
 import { PromptStrategyRegistry, type StrategyType } from './PromptStrategyRegistry.js';
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 /** 策略类型 → 生成的规避提示（"落地为提示词"的默认策略） */
 const STRATEGY_HINTS: Record<StrategyType, string> = {
@@ -122,6 +123,31 @@ export class EvolutionApplyLoop {
       apply: () => { this.registry.setHint(type, hint); },
       revert: () => { this.registry.removeHint(type); },
     });
+
+    // ═══ 去黑盒化（黑盒⑭）：演化根因链留痕（触发反馈/根因分析/补丁/沙箱/版本）═══
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'evolution.proposal',
+        source: 'evolution-apply-loop',
+        executionId: record.id,
+        level: 'L1',
+        isError: record.status !== 'pending_approval',
+        summary: {
+          changeId: record.id,
+          triggerEvent: type,
+          rootCause: `经验挖掘发现 ${type} 类失败模式（空参/安全拦截/高重试）→ 注入提示词规避策略`,
+          patch: { type, hint },
+          sandboxResult: record.sandboxPassed ? 'passed' : `failed: ${record.sandboxFailures.join('; ')}`,
+          version: record.version,
+          status: record.status,
+          decision: `演化提案(根因链): ${type}`,
+          reasoning: `触发=${type}，根因=${record.sandboxPassed ? '策略生效' : '沙箱未过'}，版本=v${record.version}`,
+        },
+      });
+    } catch (err) {
+      console.warn('[EvolutionApplyLoop] ⚠️ 演化根因记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
     if (record.status !== 'pending_approval') return; // 沙箱未过 → rejected
 
     // 半自动应用：有 Gate 凭证提供者 → 自动批准；否则停留 pending（人工审批）

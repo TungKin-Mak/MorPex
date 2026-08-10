@@ -152,7 +152,7 @@ const result = await companyFacade.executeGoal("设计产品并销售到 Amazon"
 ### 测试
 
 ```bash
-npm run test:full        # 一键全部（tsc/架构/vitest 775 用例/生产/CLI）
+npm run test:full        # 一键全部（tsc/架构/vitest 780 用例/生产/CLI）
 npm run test:quick       # 快速回归（~11s）
 npm run test:coverage    # 覆盖率报告（行覆盖 37%+，阈值防回退）
 npx vitest run           # 仅单元/集成
@@ -162,7 +162,7 @@ npx vitest run           # 仅单元/集成
 
 ## 测试体系与架构可观测（S22-S37）
 
-**测试**：**775 用例 / 89 文件**（core 774 + e2e），覆盖矩阵 8 层 ❌ 清零；一键 `npm run test:full` 全绿；覆盖率行覆盖 37%+（vitest 阈值防回退）。详见 `docs/TESTING_PLAN.md`。
+**测试**：**780 用例 / 90 文件**（core 775 + e2e，含去黑盒化 16n +5 用例），覆盖矩阵 8 层 ❌ 清零；一键 `npm run test:full` 全绿；覆盖率行覆盖 37%+（vitest 阈值防回退）。详见 `docs/TESTING_PLAN.md`。
 
 **近期特性（16l~16l·7）**：实体注册去重 + restore 分页全量（2.1s→43ms）、PiBridge 进程级单例、rerank 结果缓存、type 索引、Gate 限流退避、复杂任务 cap（maxSteps+token 预算）、batch 并发自适应、TraceRecorder 采样、**通用空参保险（prepareArguments，模型无关）**、RAG-lazy 上下文装配（Dense+BM25+RRF+Cross-Encoder）。详见 `SESSION_LOG.md` 会话历史。
 
@@ -225,7 +225,7 @@ npx vitest run           # 仅单元/集成
 | Event types | **34**（全域 Event Sourcing） |
 | Policy rules | **5**（PolicyEngine 默认风险规则）+ 工作流/Agent 策略 |
 | Capability nodes | **27** (4 domains) |
-| **测试用例** | **589**（vitest 60 文件，覆盖矩阵 ❌ 清零） |
+| **测试用例** | **780**（vitest 90 文件，覆盖矩阵 ❌ 清零；含去黑盒化 16n） |
 | **一键测试** | `npm run test:full`（25 步全绿） |
 | **行覆盖** | **37%+**（阈值 34/27/32/36 防回退） |
 | **架构可观测** | `/api/observability/*`（audit 绕过检测 + 8 层事件链） |

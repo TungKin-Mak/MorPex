@@ -32,6 +32,7 @@ import { EventBus } from '../../infrastructure/common/EventBus.js';
 import type { MorPexEvent } from '../../infrastructure/common/types.js';
 import { DepartmentContext } from '../../governance/control-plane/DepartmentContext.js';
 import type { DepartmentId } from '../../governance/control-plane/department-types.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js';
 
 // ── Ontology 迭代1/2 ──
@@ -354,6 +355,40 @@ export class DeliveryPlanner {
           riskLevel: (plan.metadata?.riskLevel as 'low' | 'medium' | 'high') ?? 'low',
         },
       });
+
+      // ═══ 去黑盒化（黑盒⑤）：规划理由记录（L1 决策单永久）——回答"为什么这么规划"═══
+      try {
+        const ctx = request.context as Record<string, unknown> | undefined;
+        const modeReason = (() => {
+          const sug = ctx?.suggestedMode as string | undefined;
+          if (sug) return `历史经验建议 ${sug}（失败 ${ctx?.failureCount ?? 0} / 成功 ${ctx?.successCount ?? 0} 条）`;
+          if (mode === 'quick') return '目标简短/单步，走 quick 快路径';
+          if (mode === 'full') return '目标复杂/多步，走 full 全量规划';
+          return 'auto 自动判定';
+        })();
+        getSharedDeblackboxRecorder().record({
+          category: 'planner.decision',
+          source: 'delivery-planner',
+          executionId: planId,
+          level: 'L1',
+          isError: false,
+          summary: {
+            goal: request.goal,
+            planId,
+            mode,
+            taskCount: plan.tasks.length,
+            steps: plan.tasks.map((t) => ({ id: t.id, description: t.description, capabilities: t.capabilities, deps: t.deps })),
+            sopHints: sopHints.length,
+            experienceHints: experienceHints.length,
+            suggestedMode: ctx?.suggestedMode ?? null,
+            departmentId: request.departmentId ?? null,
+            decision: '创建交付计划',
+            reasoning: `模式=${mode}，${modeReason}，拆解 ${plan.tasks.length} 个任务`,
+          },
+        });
+      } catch (err) {
+        console.warn('[DeliveryPlanner] ⚠️ 规划理由记录失败（忽略）:', (err as Error).message);
+      }
 
       return plan;
     } catch (err) {

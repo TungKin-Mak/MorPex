@@ -1,4 +1,6 @@
 import { EventBus } from '../../infrastructure/common/EventBus.js';
+// ═══ 去黑盒化（黑盒⑧/②）：异步 token 上报持久化 ═══
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { MissionController } from './mission/MissionController.js';
 import { DynamicTeamOrchestrator } from '../../execution/DynamicTeamOrchestrator.js';
 import { UnifiedExecutionEngine } from '../../execution/UnifiedExecutionEngine.js';
@@ -288,6 +290,8 @@ export class ServiceContainer {
     try {
       const { UnifiedEventStore } = await import('../../infrastructure/protocol/events/store/UnifiedEventStore.js');
       this._eventStore = new UnifiedEventStore();      // 严格模式包装
+      // ═══ 会话 16n（去黑盒化）：接入统一去黑盒记录器（L0/L1/L2 三层）═══
+      getSharedDeblackboxRecorder().configure({ eventStore: this._eventStore });
       if (process.env.MORPEX_STRICT_EVENTSTORE === '1') {
         console.log('[ServiceContainer] 🔒 EventStore 严格模式已启用 (MORPEX_STRICT_EVENTSTORE=1)');
       }
@@ -352,6 +356,23 @@ export class ServiceContainer {
           source: 'orchestrator',
           payload: { tokens },
         });
+        // ═══ 去黑盒化（黑盒⑧）：异步 token 上报持久化双写（重启后成本可追溯）═══
+        try {
+          getSharedDeblackboxRecorder().record({
+            category: 'cost.llm.call',
+            source: 'orchestrator-token-usage',
+            executionId: 'kernel',
+            level: 'L1',
+            isError: false,
+            summary: {
+              tokens,
+              decision: 'token 上报持久化',
+              reasoning: '编排 LLM 调用 token 异步上报，双写持久化（重启可追溯）',
+            },
+          });
+        } catch (err) {
+          console.warn('[ServiceContainer] ⚠️ token 上报持久化失败（忽略）:', err instanceof Error ? err.message : String(err));
+        }
       },
       // 会话 4（执行肢解锁）：Gate 两阶段签发凭证（经 runOntologyGroundedReasoning）
       gateRunner: async (goal: string, departmentId?: string) => {

@@ -56,6 +56,10 @@ export function resolveDefaultModel(configPath?: string): string {
 // YAML 配置（LLM 网关）
 import { loadMorpexConfig, type LlmGatewayConfig } from './yamlConfig.js';
 
+// ═══ 去黑盒化（黑盒① LLM 交互记录 + 黑盒② 成本落库）：统一记录入口 ═══
+// PiBridge 不直接依赖 EventStore，经进程级共享单例旁路写入（未配置时内存缓冲，永不阻断）。
+import { getSharedDeblackboxRecorder } from '../../observability/deblackbox/DeblackboxRecorder.js';
+
 // ═══════════════════════════════════════════════════════════════════
 // pi-agent-core 运行时导入
 // ★★ PiBridge 是唯一直接导入 pi-agent-core 的文件 ★★
@@ -106,6 +110,10 @@ export interface GenerateParams {
   prompt: string;
   temperature?: number;
   maxTokens?: number;
+  /** 去黑盒化：调用方标识（规划/执行/反思/参数提取…），随 llm.call 决策单记录 */
+  caller?: string;
+  /** 去黑盒化：关联执行 ID（任务级成本/交互溯源） */
+  executionId?: string;
 }
 
 export interface GenerateResult {
@@ -362,6 +370,33 @@ export class PiBridge {
    * 内部使用 Models.complete（pi-ai 0.81.x 新 API）
    */
   async generateText(params: GenerateParams): Promise<GenerateResult> {
+    // ═══ 16m·2 全局限流自愈：RateLimitError 自动退避重试（覆盖 grounding 之外的
+    //     step-agent/参数提取/反思/编排等所有 generateText 调用），模型无关 ═══
+    //     GLM-4-Flash 免费模型密集调用时频繁限流（HTTP 429 / EMPTY_RESPONSE），
+    //     此前仅 gate 层 withGateRetry 退避，非 gate 调用直接失败 → 复杂任务多步受挫。
+    const MAX_RETRY = 4; // 最多 4 次尝试（含首次），退避 2s→4s→8s 封顶 30s
+    let lastErr: unknown;
+    for (let attempt = 0; attempt < MAX_RETRY; attempt++) {
+      try {
+        return await this.generateTextOnce(params, attempt);
+      } catch (err) {
+        if (!(err instanceof RateLimitError) || attempt >= MAX_RETRY - 1) throw err;
+        lastErr = err;
+        const wait = Math.min(30_000, 2_000 * 2 ** attempt);
+        console.warn(`[PiBridge] ⚠️ 限流退避重试（${attempt + 1}/${MAX_RETRY - 1}）→ 等待 ${wait / 1000}s：${(err as Error).message.slice(0, 80)}`);
+        await new Promise((r) => setTimeout(r, wait));
+      }
+    }
+    throw lastErr;
+  }
+
+  /** generateText 单次执行（含限流检测/抛错），供外层全局限流重试包装
+   *
+   * 去黑盒化：每次调用（含重试 attempt）都记录 llm.call 决策单（摘要永久 + 全文 L2 采样），
+   * 异常/失败强制全记。
+   */
+  private async generateTextOnce(params: GenerateParams, attempt = 0): Promise<GenerateResult> {
+    const startedAt = Date.now();
     if (!this.models) {
       await this.init();
       if (!this.models) throw new Error('PiBridge not initialized');
@@ -411,17 +446,110 @@ export class PiBridge {
         throw new RateLimitError('EMPTY_RESPONSE', `LLM 返回空结果且零 usage（疑似限流/配额耗尽）——provider=${provider} model=${modelId}`);
       }
 
-      return {
+      const resultObj: GenerateResult = {
         text,
         modelUsed: `${provider}/${model.id as string}`,
         finishReason: (result.stopReason as string) ?? 'unknown',
         usage,
       };
+
+      // ═══ 去黑盒化：记录 LLM 交互（成功）═══
+      this.recordLlmCall(params, {
+        provider,
+        modelId,
+        startedAt,
+        attempt,
+        result: resultObj,
+        estimatedCost: this.estimateCost(model, usage),
+      });
+
+      return resultObj;
     } catch (err) {
+      // ═══ 去黑盒化：记录 LLM 交互（失败/异常，强制全记）═══
+      this.recordLlmCall(params, {
+        provider,
+        modelId,
+        startedAt,
+        attempt,
+        error: err,
+        estimatedCost: 0,
+      });
       // 透传 RateLimitError（含上面构造的）；其余异常包装为带状态的上抛，避免静默空结果
       if (err instanceof RateLimitError) throw err;
       throw err;
     }
+  }
+
+  /**
+   * recordLlmCall — 去黑盒化黑盒①/②：记录每次 LLM 交互（摘要 L1 永久 + 全文 L2 采样 + 成本）
+   *
+   * 摘要字段：调用方/模型/prompt 摘要/响应摘要/耗时/输入输出 token/成本估算/成败/失败原因/重试序号
+   */
+  private recordLlmCall(
+    params: GenerateParams,
+    info: {
+      provider: string;
+      modelId: string;
+      startedAt: number;
+      attempt: number;
+      result?: GenerateResult;
+      error?: unknown;
+      estimatedCost: number;
+    }
+  ): void {
+    try {
+      const recorder = getSharedDeblackboxRecorder();
+      const isError = info.error !== undefined;
+      const usage = info.result?.usage;
+      recorder.record({
+        category: 'llm.call',
+        source: 'pi-bridge',
+        executionId: params.executionId ?? 'kernel',
+        level: 'L1',
+        isError,
+        summary: {
+          caller: params.caller ?? 'unknown',
+          model: info.result?.modelUsed ?? `${info.provider}/${info.modelId}`,
+          promptSummary: params.prompt.slice(0, 200),
+          responseSummary: info.result ? info.result.text.slice(0, 200) : '',
+          durationMs: Date.now() - info.startedAt,
+          inputTokens: usage?.input ?? 0,
+          outputTokens: usage?.output ?? 0,
+          totalTokens: usage?.total ?? 0,
+          estimatedCost: info.estimatedCost,
+          finishReason: info.result?.finishReason ?? 'error',
+          attempt: info.attempt,
+          success: !isError,
+          error: isError ? (info.error instanceof Error ? info.error.message.slice(0, 300) : String(info.error).slice(0, 300)) : '',
+          reasoning: isError ? 'LLM 调用失败（重试中/最终失败）' : 'LLM 交互成功',
+        },
+        // L2 详情（采样；异常全记）：prompt/系统/响应全文 + 重试序号
+        detail: {
+          caller: params.caller ?? 'unknown',
+          system: params.system ?? '',
+          prompt: params.prompt,
+          response: info.result?.text ?? '',
+          attempt: info.attempt,
+        },
+      });
+    } catch (err) {
+      // 记录器自身异常绝不影响 LLM 主流程
+      console.warn('[PiBridge] ⚠️ LLM 交互记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /**
+   * estimateCost — 估算一次调用的成本（美元）
+   *
+   * 模型 cost 字段约定（pi-ai / 网关）：{ input, output, cacheRead, cacheWrite }，单位 = 每百万 token 价格。
+   * 缺失时按 0 计（成本未知也如实记录为 0，避免虚报）。
+   */
+  private estimateCost(model: Record<string, unknown>, usage: { input: number; output: number }): number {
+    const cost = model.cost as { input?: number; output?: number } | undefined;
+    if (!cost || typeof cost !== 'object') return 0;
+    const inputPrice = typeof cost.input === 'number' ? cost.input : 0;
+    const outputPrice = typeof cost.output === 'number' ? cost.output : 0;
+    return (usage.input / 1_000_000) * inputPrice + (usage.output / 1_000_000) * outputPrice;
   }
 
   // ═══════════════════════════════════════════════════════════════

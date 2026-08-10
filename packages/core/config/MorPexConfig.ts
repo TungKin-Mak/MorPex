@@ -15,6 +15,7 @@
  */
 
 import { z } from 'zod';
+import { getSharedDeblackboxRecorder } from '../src/infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 // ═══════════════════════════════════════════════════════════════
 // Zod Schema — 每个子配置独立定义以便复用
@@ -277,6 +278,34 @@ class MorPexConfigManager {
     }
 
     this.values = MorPexConfigSchema.parse(merged);
+
+    // ═══ 去黑盒化（黑盒⑫）：配置变更审计留痕（L1 永久）——回答"改了配置无记录"═══
+    try {
+      // 记录变更的键与旧/新值（只记顶层变更键，避免全量快照噪音）
+      const changedKeys: Array<{ key: string; old: unknown; new: unknown }> = [];
+      for (const [k, v] of Object.entries(partial)) {
+        const oldV = (oldValues as Record<string, unknown>)[k];
+        if (JSON.stringify(oldV) !== JSON.stringify(v)) {
+          changedKeys.push({ key: k, old: oldV, new: v });
+        }
+      }
+      getSharedDeblackboxRecorder().record({
+        category: 'config.change',
+        source: 'morpex-config',
+        executionId: 'kernel',
+        level: 'L1',
+        isError: false,
+        summary: {
+          changedKeys,
+          changedCount: changedKeys.length,
+          updatedAt: Date.now(),
+          decision: '配置变更',
+          reasoning: `运行时配置更新（${changedKeys.length} 个键变更）`,
+        },
+      });
+    } catch (err) {
+      console.warn('[MorPexConfig] ⚠️ 配置变更记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
 
     // 通知监听器
     for (const listener of this.listeners) {

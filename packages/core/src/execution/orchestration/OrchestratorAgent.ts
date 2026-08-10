@@ -24,6 +24,7 @@
  */
 
 import type { DAGRuntimeLike } from '../UnifiedExecutionEngine.js';
+import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { StepAgentExecutor } from '../runtime/dag/StepAgentExecutor.js';
 import type { AgentSessionStore, AgentSessionHandle } from './AgentSessionStore.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
@@ -446,6 +447,8 @@ export class OrchestratorAgent {
         replanned,
         success: false,
       };
+      // ═══ 去黑盒化（黑盒⑨）：步骤结果内存态快照（失败路径）═══
+      this.snapshotStepResults(goal, stepResults, stepFailures.size, stepsExecuted, iterations, replanned, false);
       return {
         success: false,
         output: partialOutput,
@@ -486,6 +489,8 @@ export class OrchestratorAgent {
       replanned,
       success: !failed,
     };
+    // ═══ 去黑盒化（黑盒⑨）：步骤结果内存态快照（正常路径）═══
+    this.snapshotStepResults(goal, stepResults, stepFailures.size, stepsExecuted, iterations, replanned, !failed);
     return {
       success: !failed,
       output: finalOutput,
@@ -545,10 +550,18 @@ export class OrchestratorAgent {
         { goal, departmentId, stepSessions: handles, gateContext: gateContext ?? undefined },
       );
       // 失败节点 → 收集进 failures（不伪装，不阻断成功节点成果）
-      const dagMeta = dagResult as unknown as { success?: boolean; failedNodes?: number; errors?: Array<{ error?: string }> };
+      const dagMeta = dagResult as unknown as { success?: boolean; failedNodes?: number; errors?: Array<{ error?: string }>; nodeResults?: Map<string, unknown> };
       if (dagMeta.success === false || (typeof dagMeta.failedNodes === 'number' && dagMeta.failedNodes > 0)) {
-        const errText = dagMeta.errors?.[0]?.error ?? `${dagMeta.failedNodes} 个节点失败`;
-        failures.set('__dag__', errText);
+        const failedCount = dagMeta.failedNodes ?? 0;
+        const producedOutputs = dagMeta.nodeResults?.size ?? 0;
+        // ═══ 16m·2 修复：failedNodes=0 且已有产物产出 → DAG 状态统计残留误判（节点非 failed 态但
+        //     整体未判 success，如 skipped/pending 残留），任务实际已成功产出，不标记失败 ═══
+        if (failedCount === 0 && producedOutputs > 0) {
+          // 实际成功（有产物），不标记失败
+        } else {
+          const errText = dagMeta.errors?.[0]?.error ?? `${failedCount} 个节点失败`;
+          failures.set('__dag__', errText);
+        }
       }
       // nodeResults: Map<nodeId, output> — 合并到按步骤名索引的结果
       const raw = (dagResult as unknown as { nodeResults?: Map<string, unknown> }).nodeResults;
@@ -595,5 +608,35 @@ export class OrchestratorAgent {
       lines.push(`### ${name}\n${text}`);
     }
     return lines.join('\n\n');
+  }
+
+  /** ═══ 去黑盒化（黑盒⑨）：步骤结果内存态快照（L1 永久，重启可查）═══ */
+  private snapshotStepResults(
+    goal: string,
+    stepResults: Map<string, unknown>,
+    failedSteps: number,
+    stepsExecuted: number,
+    iterations: number,
+    replanned: boolean,
+    success: boolean,
+  ): void {
+    try {
+      getSharedDeblackboxRecorder().recordStateSnapshot({
+        name: 'orchestrator-step-results',
+        trigger: 'orchestration-complete',
+        state: {
+          goal: goal.substring(0, 80),
+          success,
+          stepResultCount: stepResults.size,
+          stepKeys: [...stepResults.keys()],
+          failedSteps,
+          stepsExecuted,
+          iterations,
+          replanned,
+        },
+      });
+    } catch (err) {
+      console.warn('[OrchestratorAgent] ⚠️ 步骤快照失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
   }
 }

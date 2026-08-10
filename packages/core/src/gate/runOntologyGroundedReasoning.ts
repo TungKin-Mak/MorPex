@@ -39,6 +39,8 @@ import {
 } from './rules/ruleEvents.js';
 import type { RuleDowngradedEvent } from './rules/ruleEvents.js';
 import { RetryPolicy } from '../infrastructure/common/resilience/RetryPolicy.js';
+// ═══ 去黑盒化（黑盒④ 门禁判定留痕）：统一记录入口 ═══
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 /**
  * ═══ 会话 16l·2（P1-6）：Gate 内部 LLM 限流退避——复用已有 RetryPolicy
@@ -46,10 +48,10 @@ import { RetryPolicy } from '../infrastructure/common/resilience/RetryPolicy.js'
  * 最大 3 次（含首次），1s base 指数退避（与 batch 的 429/5xx 退避一致）。
  */
 const gateRetryPolicy = new RetryPolicy({
-  maxAttempts: 3,
-  baseDelayMs: 1000,
+  maxAttempts: 5,          // ═══ 16m·2：3→5（GLM 密集限流需更长恢复窗口）═══
+  baseDelayMs: 3000,       // ═══ 16m·2：1s→3s ═══
   strategy: 'exponential',
-  maxDelayMs: 30000,
+  maxDelayMs: 60000,       // ═══ 16m·2：30s→60s ═══
   retryableErrors: ['RateLimitError'],
 });
 
@@ -300,7 +302,21 @@ export async function runOntologyGroundedReasoning(
   }
 
   // 解析查询计划（改进：平衡括号匹配 + 失败默认查询）
-  const queryPlan = parseQueryPlanRobust(queryResponse.text);
+  let queryPlan = parseQueryPlanRobust(queryResponse.text);
+
+  // ═══ 16m·2：GLM-4-Flash 偶发输出无效 JSON → 重试一次生成查询计划（再失败才降级默认查询）═══
+  if (queryPlan.queries.length === 0) {
+    console.warn('[GroundedReasoning] ⚠️ 查询计划解析为空，重试一次生成…');
+    try {
+      const retryResp = await withGateRetry(
+        () => piBridge.generateText({ system: FORCED_QUERY_SYSTEM_PROMPT, prompt: queryPrompt, temperature: 0.2 }),
+        'Phase 1 强制查询（计划重试）',
+      );
+      queryPlan = parseQueryPlanRobust(retryResp.text);
+    } catch (err) {
+      console.warn('[GroundedReasoning] ⚠️ 查询计划重试失败，将降级默认查询:', (err as Error).message);
+    }
+  }
 
   if (queryPlan.queries.length === 0) {
     // ═══════════════════════════════════════════════════════════
@@ -757,6 +773,52 @@ export async function runOntologyGroundedReasoning(
 
   // ⭐ P2.7: 写入缓存
   setCachedResult(cacheKey, result);
+
+  // ═══ 去黑盒化（黑盒④）：门禁判定留痕（L1 决策单永久；异常/拦截强制全记）═══
+  try {
+    const queryCount = trace?.toolCalls.length ?? 0;
+    const hits = retrievedIds.length;
+    const errorViolations = ruleViolations.filter((v) => v.severity === 'ERROR');
+    let verdict = 'allow';
+    let verdictReason = '查询到有效依据且引用校验通过，允许有依据生成';
+    if (!check.valid) {
+      verdict = 'block';
+      verdictReason = `引用校验失败（缺失 ${check.missing.length} 个 ID），需人工复核`;
+    } else if (errorViolations.length > 0) {
+      verdict = 'block-rules';
+      verdictReason = `规则强制校验失败（${errorViolations.length} 个 ERROR 违规）`;
+    } else if (queryMiss) {
+      verdict = 'allow-with-uncertainty';
+      verdictReason = `存在 QueryMiss（${queryMiss.reason}），${queryMiss.controlledExploration ? 'tier-2 受控探索放行' : '结果带残余不确定性'}`;
+    }
+    getSharedDeblackboxRecorder().record({
+      category: 'gate.decision',
+      source: 'ontology-gate',
+      executionId,
+      level: 'L1',
+      isError: verdict.startsWith('block'),
+      summary: {
+        goal,
+        riskTier,
+        scenario: scenario ?? null,
+        queryCount,
+        hits,
+        hasUsefulFacts,
+        queryMiss: queryMiss ? { reason: queryMiss.reason, tier: queryMiss.tier, controlledExploration: queryMiss.controlledExploration } : null,
+        referenceValid: check.valid,
+        missingRefs: check.missing ?? [],
+        ruleViolationCount: ruleViolations.length,
+        downgradedRuleCount: downgradedEvents.length,
+        verdict,
+        verdictReason,
+        readonly: false,
+        decision: verdict,
+        reasoning: verdictReason,
+      },
+    });
+  } catch (err) {
+    console.warn('[GroundedReasoning] ⚠️ 门禁判定记录失败（忽略）:', (err as Error).message);
+  }
 
   return result;
 }

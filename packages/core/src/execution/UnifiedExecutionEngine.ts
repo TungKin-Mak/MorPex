@@ -24,6 +24,8 @@ import { makeProgressEvent } from '../infrastructure/common/ProgressCallback.js'
 import type { DepartmentId } from '../governance/control-plane/department-types.js';
 import type { ProgressCallback } from '../infrastructure/common/ProgressCallback.js';
 import { DomainPrimitiveRegistry } from '../infrastructure/tools/DomainPrimitiveRegistry.js';
+// ═══ 去黑盒化（黑盒⑥ 执行路径记录）═══
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 /**
  * 生成类原语判断：生成类（artifact_generation）用户要求"做东西"（报表/代码/文档）——内容由
@@ -421,6 +423,8 @@ export class UnifiedExecutionEngine {
           taskId: executionId, departmentId: request.departmentId,
           metadata: { reason: primMatch.reason },
         }));
+        // ═══ 去黑盒化（黑盒⑥）：执行路径留痕——原语快路径 ═══
+        this.recordExecutionPath(request, executionId, 'primitive-fast', `复杂度=${complexity}，匹配原语 ${primName}（置信度 ${(primMatch.confidence * 100).toFixed(0)}%，非生成类）`);
         const primParams: Record<string, unknown> = { goal: request.goal, ...(request.context as Record<string, unknown>) };
         if (this.paramExtractor) {
           try {
@@ -439,6 +443,15 @@ export class UnifiedExecutionEngine {
           primParams,
           { departmentId: request.departmentId },
         );
+        // ═══ 16m·2 修复：快路径破坏性原语被 Gate 硬拦（无凭证）→ 降级多 Agent 编排（编排会签发 Gate 凭证）═══
+        //     GLM-4.7-Flash 等强模型在简单任务上会用 python3/git 等合法破坏性命令，快路径无凭证必拦；
+        //     此类任务本应走编排路径（step-agent 已签发凭证），而非直接失败。
+        if (!primResult.success && /Gate 硬拦|KnowledgeContextPackage|需要知识凭证/.test(primResult.error ?? '')) {
+          console.warn(`[UnifiedExecutionEngine] 快路径 ${primName} 被 Gate 硬拦（${primResult.error}）→ 降级多 Agent 编排（签发凭证）`);
+          // ═══ 去黑盒化（黑盒⑥）：执行路径留痕——快路径→编排降级 ═══
+          this.recordExecutionPath(request, executionId, 'primitive-fast→orchestrator-downgrade', `快路径 ${primName} 被 Gate 硬拦（${primResult.error}），降级编排以签发凭证`);
+          return this.executeViaOrchestrator(request, executionId);
+        }
         return {
           ok: primResult.success,
           executionId,
@@ -456,7 +469,37 @@ export class UnifiedExecutionEngine {
       taskId: executionId, departmentId: request.departmentId,
       metadata: { complexity },
     }));
+    // ═══ 去黑盒化（黑盒⑥）：执行路径留痕——编排路径 ═══
+    this.recordExecutionPath(request, executionId, 'orchestrator', `复杂度=${complexity}${complexity === 'simple' ? '（简单但无高置信非生成原语匹配）' : '（复杂/生成类）'}，走总大脑多 Agent 编排`);
     return this.executeViaOrchestrator(request, executionId);
+  }
+
+  /** ═══ 去黑盒化（黑盒⑥）：执行路径决策记录（L1 决策单永久）——回答"为什么走这条路、为什么重试/降级" */
+  private recordExecutionPath(
+    request: ExecutionRequest,
+    executionId: string,
+    path: string,
+    reason: string,
+  ): void {
+    try {
+      getSharedDeblackboxRecorder().record({
+        category: 'execution.path',
+        source: 'unified-execution-engine',
+        executionId,
+        level: 'L1',
+        summary: {
+          goal: request.goal,
+          path,
+          complexity: this.analyzeComplexity(request),
+          reason,
+          departmentId: request.departmentId ?? null,
+          decision: `执行路径: ${path}`,
+          reasoning: reason,
+        },
+      });
+    } catch (err) {
+      console.warn('[UnifiedExecutionEngine] ⚠️ 执行路径记录失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
   }
 
   /** 带超时的 Promise 执行（timeoutMs<=0/未设置 → 不设限；超时 → reject 由调用方转失败） */
