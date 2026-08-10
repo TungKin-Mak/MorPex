@@ -81,7 +81,7 @@
 - **健壮性**：execution-stats 用内存 history（长期运行需持久化指标）；core 内 planner（DeliveryPlanner/HierarchicalPlanner）限流退避未接入（Gate 已接入，P1-6 只做了 Gate）
 - **验证**：确定性 mock 套件（16m）已替代「每次跑 50 轮真实任务」作为默认回归（50/50、~80s、可复现）；真实任务抽样 10 轮（glm-4-flash）8/10 已完成；待 opencode 配额冷却后续跑 opencode 50 轮 + 大样本 batch（装配+检索+空参保险升级后）可选做
 - **覆盖盲区专项**：8 个已知盲区类（OrchestratorAgent 复杂路径/EvolutionSandbox 演化/MemoryApi 记忆等）已有独立测试，若需在 mock 套件内覆盖可后续补针对性任务
-- **★全量去黑盒化（16n+16n·2+16n·3 全部完成）**：16 处黑盒全部打开（P0：空catch/LLM+成本/门禁/tracer；P1：检索/规划/执行路径/后台/内存态；P2：异步持久化/审批/配置/演化/知识审计），方案已归档 `docs/archive/DEBLACKBOX_PLAN.md`。文档同步（FILE_REGISTRY/TESTING_PLAN/README）待人工审核确认后按 §8.5 执行
+- **★全量去黑盒化（16n~16n·4 全部完成✅）**：16 处黑盒全部打开（P0：空catch/LLM+成本/门禁/tracer；P1：检索/规划/执行路径/后台/内存态；P2：异步持久化/审批/配置/演化/知识审计）；方案归档 `docs/archive/DEBLACKBOX_PLAN.md`；文档同步（FILE_REGISTRY/TESTING_PLAN/README）已于 16n·4 完成并随提交（d12729c/6c8320c/22d83a8）落地，工作树干净
 - **UI（低优先）**：execution-stats 前端 / 异常告警阈值可配置 / Session 治理前端 / 进化审批 UI 已完成
 
 ## 架构优化候选（2026-08-06 审计产出）
