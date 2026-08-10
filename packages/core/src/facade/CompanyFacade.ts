@@ -14,6 +14,8 @@ import type { CreateDepartmentParams } from '../governance/control-plane/departm
 import type { GoalContext } from '../infrastructure/protocol/contracts/goal.js';
 import type { MorPexRuntime, RunOptions } from '../execution/runtime/MorPexRuntime.js';
 import type { ControlPlane } from '../governance/control-plane/ControlPlane.js';
+// ═══ 去黑盒化（L0 任务摘要，方案定义层首次落地）═══
+import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 
 export interface ExecuteGoalOptions {
   simulationHardFail?: boolean;
@@ -191,6 +193,30 @@ export class CompanyFacade {
         } catch {
           // Brain 学习失败不阻断主流程
         }
+      }
+      // ═══ 去黑盒化（L0 任务摘要，永久）：任务级 目标/结果/耗时/成败（成本明细在 llm.call 决策单，按 executionId 关联）═══
+      try {
+        getSharedDeblackboxRecorder().record({
+          category: 'task.summary',
+          source: 'company-facade',
+          executionId: result.context?.executionId ?? `exec_${Date.now()}`,
+          level: 'L0',
+          isError: !result.ok,
+          summary: {
+            goal: goal.substring(0, 300),
+            missionId: result.context?.mission?.missionId ?? null,
+            team: result.context?.team?.name ?? null,
+            artifactsCount: result.artifacts?.length ?? 0,
+            durationMs: Date.now() - startTime,
+            success: result.ok,
+            errors: result.ok ? [] : result.errors,
+            departmentId: runOpts.departmentId ?? null,
+            decision: result.ok ? '任务成功' : '任务失败',
+            reasoning: `耗时 ${Date.now() - startTime}ms，产物 ${result.artifacts?.length ?? 0} 个${result.ok ? '' : `，错误 ${result.errors.join('; ')}`}`,
+          },
+        });
+      } catch (err) {
+        console.warn('[CompanyFacade] ⚠️ L0 任务摘要记录失败（忽略）:', err instanceof Error ? err.message : String(err));
       }
       return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: undefined };
     } catch (err) {

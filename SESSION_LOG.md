@@ -68,6 +68,7 @@
 | 16n·2 | **去黑盒化 P1（三大为什么 + 内存态）**：③检索决策（context.retrieval，装配选材原因/来源命中/分层预算）⑤规划理由（planner.decision，Hierarchical 拆解子目标 + Delivery 模式/经验建议）⑥执行路径（execution.path，快路径/编排/降级原因）⑦后台行为（brain.background，反思/巩固/学习留痕）⑨内存态快照（memory.state.snapshot，teams/agentPool/stepResults + /memory-state 端点）。门禁：tsc 0 ｜ 架构 100% ｜ P1 区域 43/43 ｜ 回归 27+70 全绿 | ✅ P1 完成 |
 | 16n·3 | **去黑盒化 P2（治理完善收官）**：⑧异步 token 双写持久化（MorPexRuntime/ServiceContainer onTokenUsage→cost.llm.call）⑪审批决策（OrganizationTwin→approval.decision）⑫配置变更审计（MorPexConfig.update→config.change）⑭演化理由根因链（EvolutionSandbox/ApplyLoop→evolution.proposal 含触发/补丁/沙箱/版本）⑮知识写入审计（OntologyService/MemoryApiBus→knowledge.write 含 source/confidence/conflict/version）。**16 处黑盒全部打开，方案已归档 docs/archive/**。门禁：tsc 0 ｜ 架构 100% ｜ P2 区域 62/62 ｜ 回归 18/18 | ✅ P2 完成 |
 | 16n·5 | **遗留待办推进**：①健壮性②核实过时——planner 限流退避已被 16m·2 PiBridge 全局自愈覆盖（planner 经 piBridgeWrapper→generateText，MAX_RETRY=4 退避），不重复实现；②数据治理①接线——SqliteEventStore.enableAutoCompaction 此前零调用（幽灵功能）→ UnifiedEventStore 加透传 enableAutoCompaction/disableAutoCompaction + ServiceContainer.initEventStore 启用 12h 自动压缩+VACUUM（清旧事件/每 Mission 最新快照保留/产物版本保留）。门禁：tsc 0 ｜ 架构 100% ｜ 回归 14/14 ｜ 冒烟通过 | ✅ 待办推进 |
+| 16n·6 | **L0 任务摘要补触发 + execution-stats 待办关闭**：方案 L0 层（任务级目标/结果/耗时/成败，永久）此前零调用（代码审计确认）→ 在 CompanyFacade.executeGoal 任务完成点落地（deblackbox.task.summary，含 missionId/团队/产物数/耗时/成败/错误/executionId 关联成本明细）；execution-stats 持久化评估关闭——执行指标已由 L0/L1 决策单持久化覆盖（无需全链路 emit 改造）。门禁：tsc 0 ｜ 回归 10/10 | ✅ L0 落地 |
 | 16n·4 | **收尾**：文档同步（FILE_REGISTRY 登记去黑盒化新文件+埋点分布 / TESTING_PLAN+README 测试数 780·90 / 方案归档）已按 §8.5 审核确认执行；提交 d12729c（16m 补）+ 6c8320c（去黑盒化全量），工作树干净 | ✅ 已提交 |
 
 ## 当前开放决策
@@ -79,7 +80,7 @@
 ## 待办（按优先级）
 
 - **数据治理**：✅ 定期 VACUUM+清理已接线（16n·5：UnifiedEventStore.enableAutoCompaction 透传 + ServiceContainer 启用 12h 周期——清旧事件/快照归档/超阈值 VACUUM；此前是幽灵功能从未调用）；✅ system.entity.registered 去重已完成（scripts/compact-entity-events.cjs 可复用）
-- **健壮性**：execution-stats 用内存 history（长期运行需持久化指标）——开放项；✅ planner 限流退避已被 16m·2 PiBridge 全局自愈覆盖（planner 经 piBridgeWrapper→PiBridge.generateText，RateLimitError 退避 4 次），待办过时（16n·5 验证确认）
+- **健壮性**：✅ execution-stats 持久化关闭（16n·6 评估：执行指标已由去黑盒化 L0 任务摘要 + L1 决策单（execution.path/llm.call/gate/planner）持久化覆盖，内存有界 history 作实时仪表盘数据源合理，无需全链路 emit 改造）；✅ planner 限流退避已被 16m·2 PiBridge 全局自愈覆盖（16n·5 验证）
 - **验证**：确定性 mock 套件（16m）已替代「每次跑 50 轮真实任务」作为默认回归（50/50、~80s、可复现）；真实任务抽样 10 轮（glm-4-flash）8/10 已完成；待 opencode 配额冷却后续跑 opencode 50 轮 + 大样本 batch（装配+检索+空参保险升级后）可选做
 - **覆盖盲区专项**：8 个已知盲区类（OrchestratorAgent 复杂路径/EvolutionSandbox 演化/MemoryApi 记忆等）已有独立测试，若需在 mock 套件内覆盖可后续补针对性任务
 - **★全量去黑盒化（16n~16n·4 全部完成✅）**：16 处黑盒全部打开（P0：空catch/LLM+成本/门禁/tracer；P1：检索/规划/执行路径/后台/内存态；P2：异步持久化/审批/配置/演化/知识审计）；方案归档 `docs/archive/DEBLACKBOX_PLAN.md`；文档同步（FILE_REGISTRY/TESTING_PLAN/README）已于 16n·4 完成并随提交（d12729c/6c8320c/22d83a8）落地，工作树干净
