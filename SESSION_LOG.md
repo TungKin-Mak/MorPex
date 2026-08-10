@@ -67,6 +67,7 @@
 | 16n | **去黑盒化 P0（方案落地第 1 期）**：公共基建（DeblackboxRecorder/RecordPolicy/DetailStore/RecordCleaner，L0/L1/L2 三层 + 24h unref TTL 清理）+ ①空 catch 清零 ②PiBridge LLM 交互+成本落库（llm.call） ③门禁判定留痕（gate.decision + 只读放行/破坏性拦截） ④llm-tracer（/api/observability/llm-trace）。门禁：tsc 0 ｜ 架构 100% ｜ production-check 8/8 ｜ deblackbox 5/5 ｜ pi-bridge 16/16 ｜ gate 26/26 ｜ mock 4/4 | ✅ P0 完成 |
 | 16n·2 | **去黑盒化 P1（三大为什么 + 内存态）**：③检索决策（context.retrieval，装配选材原因/来源命中/分层预算）⑤规划理由（planner.decision，Hierarchical 拆解子目标 + Delivery 模式/经验建议）⑥执行路径（execution.path，快路径/编排/降级原因）⑦后台行为（brain.background，反思/巩固/学习留痕）⑨内存态快照（memory.state.snapshot，teams/agentPool/stepResults + /memory-state 端点）。门禁：tsc 0 ｜ 架构 100% ｜ P1 区域 43/43 ｜ 回归 27+70 全绿 | ✅ P1 完成 |
 | 16n·3 | **去黑盒化 P2（治理完善收官）**：⑧异步 token 双写持久化（MorPexRuntime/ServiceContainer onTokenUsage→cost.llm.call）⑪审批决策（OrganizationTwin→approval.decision）⑫配置变更审计（MorPexConfig.update→config.change）⑭演化理由根因链（EvolutionSandbox/ApplyLoop→evolution.proposal 含触发/补丁/沙箱/版本）⑮知识写入审计（OntologyService/MemoryApiBus→knowledge.write 含 source/confidence/conflict/version）。**16 处黑盒全部打开，方案已归档 docs/archive/**。门禁：tsc 0 ｜ 架构 100% ｜ P2 区域 62/62 ｜ 回归 18/18 | ✅ P2 完成 |
+| 16n·4 | **收尾**：文档同步（FILE_REGISTRY 登记去黑盒化新文件+埋点分布 / TESTING_PLAN+README 测试数 780·90 / 方案归档）已按 §8.5 审核确认执行；提交 d12729c（16m 补）+ 6c8320c（去黑盒化全量），工作树干净 | ✅ 已提交 |
 
 ## 当前开放决策
 
