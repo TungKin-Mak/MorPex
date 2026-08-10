@@ -165,4 +165,25 @@ export class UnifiedEventStore implements IEventStore {
   getDatabase(): unknown {
     return (this.inner as unknown as { getDatabase?: () => unknown })?.getDatabase?.();
   }
+
+  /**
+   * enableAutoCompaction — 启用定时自动压缩 + VACUUM（数据治理：快照归档 + 定期清理）
+   *
+   * 委托给底层 SqliteEventStore：定时清理旧事件/保留每 Mission 最新快照/保留每产物最新版本，
+   * 清理量或库体积超阈值时 VACUUM 回收磁盘（morpex-events.db 增长治理）。
+   *
+   * @param intervalMs - 运行间隔（默认 12 小时）
+   */
+  async enableAutoCompaction(intervalMs?: number): Promise<void> {
+    const db = await this.ensureDb();
+    db.enableAutoCompaction(intervalMs);
+  }
+
+  /**
+   * disableAutoCompaction — 停止定时自动压缩
+   */
+  async disableAutoCompaction(): Promise<void> {
+    const db = await this.ensureDb();
+    db.disableAutoCompaction();
+  }
 }

@@ -292,6 +292,15 @@ export class ServiceContainer {
       this._eventStore = new UnifiedEventStore();      // 严格模式包装
       // ═══ 会话 16n（去黑盒化）：接入统一去黑盒记录器（L0/L1/L2 三层）═══
       getSharedDeblackboxRecorder().configure({ eventStore: this._eventStore });
+      // ═══ 会话 16n（数据治理）：启用 EventStore 定时自动压缩 + VACUUM（12h，快照归档+清理回收）═══
+      //     此前 SqliteEventStore.enableAutoCompaction 从未接线（幽灵功能）→ morpex-events.db 只增不减
+      try {
+        const withCompaction = this._eventStore as unknown as { enableAutoCompaction?: (intervalMs?: number) => Promise<void> };
+        await withCompaction.enableAutoCompaction?.();
+        console.log('[ServiceContainer] ✅ EventStore 自动压缩已启用（12h 周期：清旧事件/快照归档/超阈值 VACUUM）');
+      } catch (err) {
+        console.warn('[ServiceContainer] ⚠️ EventStore 自动压缩启用失败（不影响主流程）:', (err as Error).message);
+      }
       if (process.env.MORPEX_STRICT_EVENTSTORE === '1') {
         console.log('[ServiceContainer] 🔒 EventStore 严格模式已启用 (MORPEX_STRICT_EVENTSTORE=1)');
       }
