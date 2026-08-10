@@ -104,7 +104,7 @@ export class ShellExecutionPrimitive implements ActionPrimitive {
     if (!ShellExecutionPrimitive.allowedCommands.includes(baseCmd)) {
       return {
         success: false,
-        error: `ShellExecutionPrimitive: 命令 "${baseCmd}" 不在允许列表中。允许的命令: ${ShellExecutionPrimitive.allowedCommands.join(', ')}`,
+        error: `ShellExecutionPrimitive: 命令 "${baseCmd}" 不在允许列表中。允许的命令: ${ShellExecutionPrimitive.allowedCommands.join(', ')}。请改用 knowledge 查询信息或 file/artifact 产出文档，不要尝试白名单之外的命令`,
       };
     }
 

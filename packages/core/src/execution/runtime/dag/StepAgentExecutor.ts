@@ -154,7 +154,8 @@ function buildStepSystemPrompt(node: StepNodeInfo, opts: StepAgentExecutorOption
     '',
     '【工作守则】',
     '1. 知识优先：任何生成/创建前，先用 knowledge 工具查询知识库；查询有结果再行动。',
-    '2. 使用工具完成动手工作：file 读写文件、shell 执行命令、api 调用接口、artifact 生成产物。',
+    '2. 使用工具完成动手工作：file 读写文件、shell 执行命令（⚠️ 仅限白名单命令：ls, cat, head, tail, echo, pwd, which, gcc, make, cmake, python3, node, tsc, npx, git, docker, pip, npm，其他命令会被安全拦截）、api 调用接口、artifact 生成产物。',
+    '2.5 ⚠️ 评估/分析/审查/合规/方案类任务不需要执行 shell 命令——用 knowledge 查询信息 + file/artifact 产出文档即可；shell 仅用于确实需要编译/构建/运行代码的步骤，且只调白名单命令，禁止编造命令名。',
     '3. artifact 工具负责把最终产物落盘（代码/文档/数据/报告），并报告产物路径与内容摘要。',
     // 会话 12：沙箱工作目录——告诉 agent 产物应写到沙箱，不在仓库根
     ...(workspaceDir
@@ -328,15 +329,15 @@ export class StepAgentExecutor {
       if (firstClass === 'non-retryable') {
         throw new Error(`[StepAgentExecutor] 步骤被安全拦截（不可重试）: ${text.slice(0, 200)}`);
       }
-      if (firstClass === 'retryable' && (this.opts.correctiveRetries ?? 1) > 0) {
-        const retries = this.opts.correctiveRetries ?? 1;
+      if (firstClass === 'retryable' && (this.opts.correctiveRetries ?? 2) > 0) {
+        const retries = this.opts.correctiveRetries ?? 2; // ═══ 16m·2：1→2（GLM-4-Flash 弱函数调用，多一次纠正机会）═══
         for (let attempt = 1; attempt <= retries; attempt++) {
           retriesUsed = attempt;
-          const correctiveInput = text.trim()
+          const correctiveInput = text.trim() && !/不在允许列表中|安全拦截|权限不足|被 Gate 硬拦/.test(text)
             ? [
                 '你的上一步工具调用失败或参数不完整（见上述错误反馈）。',
                 '你必须【重新调用】对应工具并填全所有必需参数，一次调用填全，不要省略、不要留空、不要改为输出文字：',
-                '- knowledge 需 query、shell 需 command、api 需 url+method、file 需 operation+path、artifact 需 type+specification。',
+                '- knowledge 需 query、shell 需 command（⚠️ shell 仅限白名单命令：ls, cat, head, tail, echo, pwd, which, gcc, make, cmake, python3, node, tsc, npx, git, docker, pip, npm；禁止编造/猜测命令名，否则会被安全拦截）、api 需 url+method、file 需 operation+path、artifact 需 type+specification。',
                 '工具成功返回后再以 "## 交付摘要" 开头输出最终总结（含产物路径、关键决策、遗留风险）。',
               ].join('\n')
             : [
@@ -353,6 +354,16 @@ export class StepAgentExecutor {
         }
       }
 
+      // ═══ 16m·2 最终兜底：纠正重试耗尽仍无效 → 强制无工具直出交付摘要
+      //     （GLM-4-Flash 顽固工具调用/编造命令时，防止节点因工具反复失败而失败）═══
+      if (!text.trim() || classifyStepOutput(text) !== 'none') {
+        console.warn('[StepAgentExecutor] ⚠️ 纠正重试耗尽，强制无工具直出摘要（最终兜底）…');
+        const finalRaw = await this.withTimeout(
+          agent.prompt('不要调用任何工具。直接以 "## 交付摘要" 开头输出本步骤的最终总结（基于已有知识/上下文，包含关键决策、结果、遗留风险）。不要输出工具调用 JSON，不要留空。'),
+          this.opts.timeoutMs,
+        );
+        text = extractText(finalRaw.content);
+      }
       if (!text.trim() || classifyStepOutput(text) !== 'none') {
         throw new Error(`[StepAgentExecutor] Agent 未产出有效结果（class=${classifyStepOutput(text)}）`);
       }

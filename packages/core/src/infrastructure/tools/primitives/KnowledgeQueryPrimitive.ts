@@ -148,7 +148,18 @@ export class KnowledgeQueryPrimitive implements ActionPrimitive {
     context?: { departmentId?: string; userId?: string; executionId?: string; missionId?: string }
   ): Promise<ActionResult> {
     const deptId = context?.departmentId || 'global';
-    const query = (params.query as string) || '';
+    const query0 = (params.query as string) || '';
+    // ═══ 16m·2 修复：原语快路径空参兜底——query 空时用 goal（任务描述=要查的内容）兜底，
+    //     与 agent 层 createPrimitiveBeforeToolCall 的 step-goal 兜底语义一致，模型无关（不依赖 LLM 乖乖填参）。
+    //     背景：GLM-4-Flash 提取参数常返回空 query；executeAuto 快路径的 primParams 已携带 goal，此前未消费 → 失败。 ═══
+    let query = query0.trim()
+      ? query0
+      : typeof params.goal === 'string' && params.goal.trim()
+        ? params.goal.trim()
+        : '';
+    if (query0.trim() === '' && query !== '') {
+      console.warn(`[KnowledgeQueryPrimitive] 🛡️ 通用保险：query 为空 → 注入 goal 兜底: ${query.slice(0, 60)}…`);
+    }
     const maxResults = (params.maxResults as number) || 10;
     const minConfidence = (params.minConfidence as number) || 0.3;
     // vNext+: Graded Ontology Gate — 知识查询默认 Standard（tier-1）

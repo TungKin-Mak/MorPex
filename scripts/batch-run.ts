@@ -42,6 +42,11 @@ const excludeIdx = args.indexOf('--exclude');
 const excludeDepts = excludeIdx >= 0
   ? String(args[excludeIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean)
   : [];
+// 会话 16m：--exclude-task <子串[,子串2]> 按 goal 子串排除依赖外部数据的任务（如「物流」）
+const excludeTaskIdx = args.indexOf('--exclude-task');
+const excludeTaskSubstrs = excludeTaskIdx >= 0
+  ? String(args[excludeTaskIdx + 1] ?? '').split(',').map(s => s.trim()).filter(Boolean)
+  : [];
 // grok2api 容错参数（限流/无响应处理）
 const delayIdx = args.indexOf('--delay');
 const delayMs = delayIdx >= 0 ? parseInt(args[delayIdx + 1], 10) : 3000; // 任务间限流退避
@@ -209,13 +214,14 @@ async function main(): Promise<void> {
   }
   console.log(`[setup] ✅ 规则激活 ${activated.length} 条: ${activated.join(', ') || '无'}\n`);
 
-  // 4. 筛选任务（会话 12：--exclude 排除硬件依赖行业）
+  // 4. 筛选任务（会话 12：--exclude 排除硬件依赖行业；会话 16m：--exclude-task 排除依赖外部数据的任务）
   const tasks = TASKS.filter((t) => {
     if (only && t.departmentName !== only) return false;
     if (excludeDepts.length > 0 && excludeDepts.includes(t.departmentName)) return false;
+    if (excludeTaskSubstrs.length > 0 && excludeTaskSubstrs.some((s) => t.goal.includes(s))) return false;
     return true;
   }).slice(0, limit);
-  console.log(`[run] 任务数: ${tasks.length}${excludeDepts.length ? `（排除 ${excludeDepts.join(', ')}）` : ''}\n`);
+  console.log(`[run] 任务数: ${tasks.length}${excludeDepts.length ? `（排除行业 ${excludeDepts.join(', ')}）` : ''}${excludeTaskSubstrs.length ? `（排除任务含「${excludeTaskSubstrs.join('」/「')}」）` : ''}\n`);
 
   // 5. 单任务执行（抽取为函数，支持并发）
   async function runOneTask(num: number, task: BatchTask): Promise<TaskResult> {
