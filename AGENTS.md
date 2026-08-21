@@ -171,7 +171,8 @@ EventBus 是唯一通信通道；禁止模块间直接调用。
 
 | 改动类型 | 必须更新 | 说明 |
 |---|---|---|
-| 新增/修改/重命名/删除文件 | `docs/AICOS_CORE_FILE_REGISTRY.md` | 逐文件登记功能+职责边界，防止碎片化 |
+| **★改任意代码文件（主检项，必做≥2）** | **1️⃣ `docs/AICOS_CORE_FILE_REGISTRY.md`（文件功能职责说明）** + **2️⃣ 若影响函数/调用链/文件结构 → 重新生成 `docs/BACKEND_CODE_MAP.md`（函数关系链文档）** | 职责说明：新增/删除/重命名/改模块都登记；关系链：`npx tsx scripts/_backend-code-analyze.ts` 一键重生成（同步最新函数/调用），`data/backend-code-map.json` 为本地产物可选一并生成 |
+| ·文件树/目录结构变化 | 更新 README 及受影响文档中的**文件树/目录说明**（App 文件树、`docs/ARCHITECTURE` 目录落地等） | 与实际目录一致，防“文档树与代码位置不符” |
 | 新增/修改模块、层间调用变化 | `docs/AICOS_CORE_ARCHITECTURE.md` | 若影响层职责/宪法/目录结构才改 |
 | 改执行链/数据流/编排/Gate/装配 | `docs/AICOS_FLOW.md` | 实证执行链或机制速查表需同步 |
 | 改模型/LLM/Embedding/跑 batch | `docs/MODEL_CONFIG.md` | 模型配置/试跑参数/实测对比更新 |
@@ -186,6 +187,7 @@ EventBus 是唯一通信通道；禁止模块间直接调用。
 4. **不扩文档**：小改动不重写文档，只做最小更新（加一行/改一行）。
 5. **登记优先**：新增文件必须先登记 FILE_REGISTRY 再提交（铁律 §3.1）。
 6. **每次代码改动必配文档（新增）**：任何代码文件改动都必须命中下方映射表 ≥1 个文档更新；映射表未覆盖的新场景，先在本表登记再改码；无对应文档时须在提交信息显式声明“文档不涉及（原因）”，禁止静默跳过。
+7. **关系链同步（新增）**：代码改动影响函数/调用链/文件结构（增删改文件、改函数签名、改依赖）→ 用 `npx tsx scripts/_backend-code-analyze.ts` 重新生成 `docs/BACKEND_CODE_MAP.md`（后端函数关系链文档），`data/backend-code-map.json` 同步更新（本地产物）；与代码同提交。文件功能职责说明（FILE_REGISTRY）与文件树同步随主检项（见上表）执行。
 
 ## 9. 任务结束自检
 

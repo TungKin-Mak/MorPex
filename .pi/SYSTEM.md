@@ -25,7 +25,7 @@
 
 会话结束必须更新 `SESSION_LOG.md` 的「会话历史」与「当前待办」——**过时/冗余信息丢弃**（只留当前状态+最近进度+决策+待办，历史细节以 git 为准），保持精简。
 
-**文档同步（强制，新增）**：**每次修改代码文件都必须同步更新对应文档**（FILE_REGISTRY/ARCHITECTURE/AICOS_FLOW/MODEL_CONFIG/TESTING_PLAN，映射见 AGENTS.md §8.5）；无对应文档时须在提交信息显式注明“文档不涉及（原因）”。人工审核确认后更新，文档与代码同次提交。
+**文档同步（强制）**：**每次修改代码文件都必须同步更新对应文档**（文件功能职责说明 FILE_REGISTRY、函数关系链 BACKEND_CODE_MAP/BACKEND_CODE_MAP 可由 `scripts/_backend-code-analyze.ts` 重生成、ARCHITECTURE/AICOS_FLOW/MODEL_CONFIG/TESTING_PLAN、文件树，映射见 AGENTS.md §8.5）；无对应文档时须在提交信息显式注明“文档不涉及（原因）”。人工审核确认后更新，文档与代码同次提交。
 
 ## 1. 项目速览
 

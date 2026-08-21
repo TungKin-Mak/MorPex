@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 规则-文档 | **增强 §8.5 文档同步规则（改码必更文档）**：映射表新增★主检项——**改任意代码文件 → 文件功能职责说明（FILE_REGISTRY）必更新 + 影响函数/调用链 → 重新生成关系链文档 BACKEND_CODE_MAP**（`scripts/_backend-code-analyze.ts`）；新增“文件树/目录变化同步”行；规则区新增 #7 关系链同步；`.pi/SYSTEM.md` 速览对齐 | ✅ 已提交 |
 | 事件规格 | **任务事件载荷规格落地（EVENT_PAYLOAD_SPEC v1）**：定稿 Envelope(稳定头)+MessageBox(可扩展分块) 可扩展规格，8 块（refs/task/state/human/artifacts/media/error/extensions，未来新块=加命名空间）；媒体引用优先（不塞二进制，LLM 经工具按引用取用/本地打开）；实施 P1——新建 protocol/events/Envelope.ts（类型投影）+ eventContractCatalog 增补 13 执行链任务卡片契约（mission/execution/step/artifact 块级校验）+ TaskStateProjector 对齐可选块（status/stage/human/media/error）；门禁 tsc 0/契约 15 过/架构 100%；后续 P2 试点发射规范化 + 前端卡片 | ✅ 已提交 |
 | 精简-收 | **精简收束 + 文档更新**：B/C 类复评均证实结构已高度收敛（execution 编排为复杂度分级策略、policy/learning/governance 为成熟职责分离），继续手术=负收益 → 到止为止；P0 安全减量 22 文件/3.3k 行全部落地。文档同步最新：BACKEND_CODE_MAP 重新生成（483 文件/2768 函数/12742 调用），FILE_REGISTRY 末尾统计更新（studio/server 46→29 等），README TS 文件数 442→656 | ✅ 已提交 |
 | 精简-P0·删 | **执行 harness 删除 + KnowledgeGraph 保留**：经用户确认——harness 有替代（pi-agent-core 实现 + 工具 fallback）且从不实例化 → 删除 execution/harness（5文件/449行）；前置处理：memory-search-tool/ReadArtifactTool 去 harness 分支（行为不变，走 fallback）+ 新建 knowledge/memory/types.ts（MemoryRecord 迁移）+ architecture-integration.test 删 3 harness 用例 + core/index 摘除 harness re-export；KnowledgeGraph 证为无替代的独一能力（仅测试消费）→ 保留。门禁 tsc 0/eslint 0 新错/架构 100%/依赖 0/集成 5 过/knowledgegraph 4 过 | ✅ 已提交 |
