@@ -1,3 +1,6 @@
+/**
+ * ToolRegistry — LLM 工具注册中心：ToolSchema 登记/查找/统计（EventBus 驱动）
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 
 // ── Types ──

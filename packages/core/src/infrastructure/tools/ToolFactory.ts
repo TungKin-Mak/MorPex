@@ -1,3 +1,6 @@
+/**
+ * ToolFactory — 工具工厂（EventBus 注入）：创建并注册 LLM 工具到 ToolRegistry
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { ToolRegistry } from './ToolRegistry.js';
 import type { ToolSchema, RegisteredTool } from './ToolRegistry.js';

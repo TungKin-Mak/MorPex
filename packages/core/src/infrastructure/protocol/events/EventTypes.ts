@@ -1,3 +1,6 @@
+/**
+ * EventTypes — 全系统事件类型常量（SYSTEM_EVENT_TYPES：goal/execution/evaluation/evolution 事件名映射，供 emit/消费方统一引用）
+ */
 export const SYSTEM_EVENT_TYPES = {
   GOAL_CREATED: 'goal.created',
   GOAL_UNDERSTOOD: 'goal.understood',

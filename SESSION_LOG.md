@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 复核-A·③ | **FILE_REGISTRY 逐项复核·批③（infrastructure）**：45 低相似候选，抽查最可疑（EventTypes/ToolFactory/ToolRegistry/artifact-lifecycle/SqliteEventStore）→ 登记与代码相符，无文档偏差；补 3 处缺 JSDoc 自述注释（EventTypes/ToolFactory/ToolRegistry）；infrastructure 缺 JSDoc 清零；门禁 tsc 0。累计：① governance+knowledge 无偏差+3 ② execution+cognition 无偏差+10 ③ infrastructure 无偏差+3 | ✅ |
 | 复核-A·② | **FILE_REGISTRY 逐项复核·批②（execution+cognition）**：随 44 条低相似，抽查最可疑 8 个（ReflectionEngine/AgentAllocator/DependencyCoordinator/TeamBuilder/ExecutionContext/PipelineOrchestrator/UnifiedEngine/HierarchicalPlanner）→ 登记与代码职责**全部相符，无文档偏差**（同批①规律：低相似=缺 JSDoc+登记详尽）；补 execution 8 + cognition 2 共 10 处缺 JSDoc 自述注释（从职责写）；两层缺注释清单清零；门禁 tsc 0 | ✅ |
 | 复核-A | **FILE_REGISTRY 逐项复核·批 ①（governance+knowledge）**：以 data/doc-review-queue.md 为工作台筛低相似 41 条，抽查最可疑 9 个（CostController/AgentCapabilityRegistry/ContextDistiller/Sparse/ContextRetriever/Anomaly/Alert/Runtime/CapabilityDisc）→ **登记与代码职责全部相符，无文档偏差**；“低相似”源自代码缺 JSDoc 头 + 登记更详尽；生成“缺 JSDoc 实质文件”清unit（governance 3，knowledge 0）并已补 AlertEngine/RuntimeManager/CapabilityDiscoverer 三处自述注释；门禁 tsc 0/架构 100% | ✅ |
 | 职责复核 | **FILE_REGISTRY 职责逐项复核 + 冗余/死代码审计（从代码出发）**：①死代码=ts-prune 0 + barrel 全覆盖（反向引用文本匹配为误报，排除）；②重复导出符号=已知 core/connectors secureExec 同源内联 + uuidv7/pi 兼容，无意外冗余；③复核工作台 data/doc-review-queue.md（可靠目录后缀映谢版 441 行并排：登记 vs 真实文件 JSDoc，相似度排序，低相似 84）；④抽查证实 FILE_REGISTRY 与代码头注释总体相符（低相似多为提取样本问题：首 /
