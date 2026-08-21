@@ -293,7 +293,7 @@ pie title 失败原因分布（48 工具空参明细）
 
 ---
 
-## 附 A：Harness 关键机制速查表
+## 附 A：Agent 执行循环速查表（pi-agent-core，非自研 harness）
 
 
 | 机制 | Harness 组件 | 实测行为 |

@@ -38,6 +38,7 @@
 - **验证**（可选）：opencode 50 轮 / 大样本 batch。
 - **沙箱/Linux 执行**（暂缓，用户重提再动）：MSYS 桥 + 程序级 sandbox（Job Object/目录白名单）方案已设计。
 - **DEVKIT 单文件已产出**：`devkit/DEVKIT.md`——LLM 新项目读它（或探测未初始化）即自动建 AGENTS/DEVELOPMENT/CAPABILITY_INDEX/HOOK_MAP/SESSION_LOG/skills 并引导填占位符；旧多骨架建议已清理（改用单文件）。
+- **文档时效清理**：归档 guides/getting-started（旧端口 8080/3000、clone 流程严重过时）；FLOW 附 A 标题改“Agent 执行循环（pi，非自研 harness）”消除歧义；DEVELOPMENT/DEVKIT 新增“时效标记+防误读”规则（过时即归档或 ⚠️ 横幅，LLM 勿采信；读文档先交叉代码）——直接防“误读过时文档错误判断”。
 
 ## 关键教训（避免重蹈）
 
