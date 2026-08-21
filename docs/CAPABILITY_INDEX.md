@@ -23,6 +23,7 @@
 ## 2. 知识 / 记忆（L2）
 | 能力 | 别名 | 锚点 | 状态 | 扩展怎么做 |
 |---|---|---|---|---|
+| 报告/汇总/摘要生成 | 简报、日报、复盘、report、summary、成本报告、治理报告 | `cognition/BrainFacade.generateCEOReport` ｜ `facade/CompanyFacade.generateDailyReport` ｜ `evaluation/EvaluationEngine.computeReport` ｜ `governance/AuditTrail.generateReport` ｜ `StudioServer.generateTaskSummary` ｜ `GovernanceDashboard.getCostReport/getGovernanceReport` 等（分散多模块） | ✅ 能力已存在（分散） | 要统一“复盘简报”→ 订阅 `evaluation.profile.scored`（HOOK_MAP 后置）+ 新增原语或复用 `ArtifactFacade.create`；勿重复造 generateReport |
 | 本体查询 | Ontology、图谱检索 | `knowledge/ontology/OntologyService.ts` + `gate/runOntologyGroundedReasoning.ts` | ✅ | 新实体/投影→objectTypes/Projector |
 | 知识库检索（QueryMiss 信号） | 检索、knowledge query | `infrastructure/tools/primitives/KnowledgeQueryPrimitive.ts` | ✅ | QueryMiss 事件→演化 |
 | 产物注册/生成/血缘 | artifact、产物 | `knowledge/artifact/`ArtifactBlueprint / ArtifactFacade | ✅ | 新产物类型→Blueprint |
