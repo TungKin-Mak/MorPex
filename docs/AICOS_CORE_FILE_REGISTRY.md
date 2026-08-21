@@ -675,6 +675,7 @@
 | `scripts/batch-run.ts` | 50 个真实任务批量闭环测试 + 数据流函数调用报告 | 只做批量回归 |
 | `scripts/batch-tasks.ts` | 50 个真实任务集（多行业多场景） | 只做任务定义 |
 | `scripts/analyze-trace-reports.ts` | 分析数据流报告，统计函数调用频次 | 只做分析 |
+| `scripts/_backend-code-analyze.ts` | 后端代码函数/关系链分析器（TS compiler API，只读）：扫描后端 .ts，提取每文件函数清单+import 依赖+调用表达式，生成 `docs/BACKEND_CODE_MAP.md` 与 `data/backend-code-map.json`（用法：`npx tsx scripts/_backend-code-analyze.ts [--roots <层>] [--json-only]`） | 只做静态分析；纯只读，不改代码 |
 | `scripts/_mission-session.ts` | 生成类任务 Mission 会话诊断：打印各阶段状态/事件/耗时 | 只做诊断 |
 | `scripts/workflow-cli.ts` | v11 Workflow CLI（create/install/run/list/optimize/versions/rollback/status/metrics） | 只做 CLI |
 | `scripts/compact-entity-events.cjs` | 一次性数据治理：压缩实体事件（Entity 去重） | 只做运维 |
