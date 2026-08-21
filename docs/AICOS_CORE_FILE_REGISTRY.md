@@ -487,4 +487,200 @@
 | `README.md` | 桌面壳上手文档（前置条件/启动/构建/镜像降级） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 
 ---
-**当前文件数：约 370+（346 基线 + S22-S37 新增 + S38 前端 20 文件 + S39 桌面壳 9 文件，以 `git ls-files | wc -l` 为准）。**
+## `connectors/src/`（8 文件 · 后端）
+
+> 层边界规则：Action 基础设施平面（独立包，@morpex/connectors 零依赖，由 core 依赖它）；提供对外部系统"安全的物理之手"；不承载领域逻辑；不属于 AICOS-Core 8 层核心（core 包外）。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/connectors/src/BaseConnector.ts` | 所有 connector 的抽象基类：能力元数据管理 / 输入 schema 生成 / 校验分发 / 执行计时 | 只提供公共底座；不承载具体执行 |
+| `packages/connectors/src/ConnectorRegistry.ts` | 中央连接器注册表：统一管理所有 action connector 的生命周期、发现与权限检查 | 只做注册/分发；不实现具体连接器 |
+| `packages/connectors/src/FileSystemConnector.ts` | 安全文件系统访问：路径相对于允许根目录校验，防路径穿越（fs.read/write 等） | 只做文件系统；路径必须落在允许根内 |
+| `packages/connectors/src/IActionConnector.ts` | Action Connector 标准契约接口（Action Infrastructure Plane） | 只定义契约；不实现 |
+| `packages/connectors/src/index.ts` | Connector 基础设施 barrel 导出 | barrel；功能以被导出文件为准 |
+| `packages/connectors/src/secureExec.ts` | 安全子进程执行工具（防御性模式·参考 deepseek-harness）：scrubEnv 凭据清洗 / ExecOutcome 正交因子 / 私有临时路径；**与 core `infrastructure/common/secureExec.ts` 同源内联**（connectors 零依赖、反向 import core 会成环，要求改一处须同步另一处） | 只做子进程与临时文件安全；禁止与 core 版漂移 |
+| `packages/connectors/src/ShellConnector.ts` | Shell 连接器（G3 已升级接入 secureExec）：`spawn(shell:false)` 逐参数传递防 shell 注入 + 命令白名单 + 超时上限；execScript 落私有临时目录（0700/随机名/0600-wx）后执行并清理 | 只做 shell 执行；命令必须过白名单；禁止把脚本内联拼入命令串 |
+| `packages/connectors/src/types.ts` | Connector 类型定义（ActionRequest / ConnectorCapability 等） | 只定义类型；不实现 |
+
+## `memory/src/`（26 文件 · 后端）
+
+> 层边界规则：记忆/知识持久化独立包（@morpex/memory）；MemoryWiki（SQLite-only）+ 历史存储 + 统一记忆层（MemoryAPI/cognee）；供 Ontology Gate/工作流插件通过契约消费；不属于 AICOS-Core 8 层核心？核心经 gate 间接使用（L2 知识层组件），包本身位于 core 外。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/memory/src/api/factory.ts` | MemoryApi 工厂：`createMemoryApi()` 便捷入口，引擎按 env 配置实例化 | 只做装配；不承载语义 |
+| `packages/memory/src/api/MemoryApi.ts` | 统一 MemoryAPI 唯一入口：组装 gate(强制检索)+ontology(白名单)+engine(cognee/mock)+confirmation(SQLite)；upsert 分流到权威图/确认队列 | 组装与路由；低耦合，各组件只经接口/类型交互 |
+| `packages/memory/src/confirmation/queue.ts` | 人工在环确认队列（SQLite）：低置信/冲突/新实体候选先进队列，Agent 询问用户→accept 写权威/reject 丢弃 | 只做确认；依赖 better-sqlite3 与 memory-types 契约 |
+| `packages/memory/src/engines/cognee/client.ts` | cognee 本地引擎 TS HTTP 客户端（remember/recall/search/forget） | 只做 HTTP 客户端；不解析语义 |
+| `packages/memory/src/engines/cognee/CogneeEngine.ts` | MemoryEngine 适配器（cognee 实现）：把 remember/recall/search 映射到统一 EngineHit 契约；图优先走 GRAPH_COMPLETION | 只做适配；产出统一契约 |
+| `packages/memory/src/engines/factory.ts` | 引擎工厂：默认 cognee；engineKind='mock' 或未配 COGNEE_URL 时 mock 降级 | 只做选择/降级 |
+| `packages/memory/src/engines/mock/MockEngine.ts` | 测试用内存引擎：无外部依赖，实现同构语义（remember/recall/searchGraph/searchHybrid/available） | 只做测试/降级；不入生产 |
+| `packages/memory/src/gate/domain.ts` | 公司知识域判定：缺省一律视为公司知识域（强制检索），仅 'general' 放行 | 只做路由判定 |
+| `packages/memory/src/gate/ForceRetrieve.ts` | 强制检索 + need_human + L2 上下文隔离：QueryMiss/LowConfidence→need_human 禁自由补全；生成 prompt 只含命中证据 | 只做检索闸门与隔离；禁止夹带 LLM 自身知识 |
+| `packages/memory/src/index.ts` | @morpex/memory 入口 barrel（v2） | barrel |
+| `packages/memory/src/memory-types.ts` | 统一记忆层契约：插件/Ontology Gate 只依赖此契约，不直接依赖 cognee/SQLite | 只定义契约 |
+| `packages/memory/src/ontology/schema.ts` | 公司本体白名单（薄约定层）：约束 LLM 自动抽取/写入落到统一词表；与 SystemMetadataGraph 的 EntityType 职责不同、并存 | 只做白名单约定；不人工维护 |
+| `packages/memory/src/ontology/validate.ts` | 写入校验（白名单闸门）：实体/关系类型 ∈ 白名单、facts 非空、confidence∈[0,1]；不满足→rejected/进确认队列 | 只做校验；不改写数据 |
+| `packages/memory/src/storage/Compactor.ts` | JSONL 状态压缩（类 Redis AOF 重写）："状态/血统类"文件只留最终态/完整链 | 只处理状态类 JSONL |
+| `packages/memory/src/storage/HistoryStore.ts` | 执行历史持久化：创业循环/任务执行/会话消息/执行元数据 | 只做历史存取 |
+| `packages/memory/src/storage/JSONLWriter.ts` | 微批 JSONL 追加写入器：消除密集调用下的同步 fs.appendFileSync 阻塞 | 只做异步落盘 |
+| `packages/memory/src/storage/LogRotator.ts` | JSONL 日志轮转器：超 maxSizeBytes 时关闭当前文件并轮转，防无限增长 | 只做轮转；不解析内容 |
+| `packages/memory/src/types.ts` | @morpex/memory 类型（v2）：MemType/记忆门控/阶段预绑定/压缩结果 | 只定义类型 |
+| `packages/memory/src/wiki/DocTopology.ts` | 文档关系拓扑：解析 docs/ 内 md 交叉引用，建 kg_relations 知识拓扑 | 只做引用图构建 |
+| `packages/memory/src/wiki/DocWatcher.ts` | 文档自维护：监听 docs/ md 变更自动索引到 MemoryWiki（StudioServer 闲时启动） | 只做监听/索引 |
+| `packages/memory/src/wiki/index.ts` | wiki barrel 导出 | barrel |
+| `packages/memory/src/wiki/MemoryRetriever.ts` | Agent 记忆优先检索层：MemoryWiki 优先 → LLM 回退 | 只做检索路由 |
+| `packages/memory/src/wiki/MemoryWiki.ts` | SQLite 统一记忆后端（SQLite-only，v1 替代 31 个 JSONL；v2 移除本地 ZVec/embedding 由 cognee 接管）：图拓扑+元数据+领域表+事件日志，WAL 模式 | 只做持久层 |
+| `packages/memory/src/wiki/migrate.ts` | JSONL → SQLite 单向迁移脚本（JSONL 保留不删） | 只做一次性迁移 |
+| `packages/memory/src/wiki/schema.ts` | MemoryWiki SQLite Schema：按领域分表 | 只做 DDL |
+| `packages/memory/src/wiki/types.ts` | MemoryWiki 类型契约 | 只定义类型 |
+
+## `studio/server/`（46 文件 · 后端 API 服务器）
+
+> 层边界规则：后端 HTTP/SSE 服务器（默认 5473 端口）+ 可观测/模拟/验证子系统；消费 core 的 bootstrapUnified 装配；仅经 HTTP/SSE 暴露 core 能力；不含领域逻辑；位于 core 包之外（不属于 AICOS-Core 8 层核心分层）。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/studio/server/index.ts` | Studio Server 入口：启动 bootstrapUnified 装配 | 只做启动 |
+| `packages/studio/server/StudioServer.ts` | 理想架构对齐版服务器：只消费 10 层组件（CompanyFacade/ControlPlane/Gate/Ontology 等），暴露 REST + SSE | 只做编排/路由；不改引擎 |
+| `packages/studio/server/RuntimeAPI.ts` | 运行时引擎能力 REST 路由：暴露后端引擎能力给前端，零修改现有后端业务代码 | 只加路由；不改引擎 |
+| `packages/studio/server/security-middleware.ts` | 生产安全加固中间件：API Key 验证（可选）/请求体大小限制/内容校验 | 只做安全；不承载业务 |
+| `packages/studio/server/SessionStore.ts` | 会话持久化管理：聊天历史/节点执行历史 JSONL 读写 | 只做会话存取 |
+| `.../observability/event-bus.ts` | TraceBus 全局事件总线（单例）：所有模块统一 traceBus.emit() 上报 TraceEvent | 只做总线 |
+| `.../observability/types.ts` | Trace Plane 统一 Trace Schema | 只定义类型 |
+| `.../observability/observation.ts` | 统一遥测数据模型 Observation（替代 TraceEvent+Span+Heartbeat 三模型） | 只定义模型 |
+| `.../observability/observable-module.ts` | 自动遥测模块基类：继承后 execute() 自动产生遥测 | 只做基类注入 |
+| `.../observability/observation-adapter.ts` | 旧 traceBus/TraceEvent → 新 Observation 桥接（双写期保留旧路径） | 只做桥接 |
+| `.../observability/runtime-invoker.ts` | 统一模块调用拦截器：为不继承 ObservableModule 的模块补遥测 | 只做遥测注入 |
+| `.../observability/runtime-bridge.ts` | 核心运行时→可观测面桥接：把真实执行（/api/execute、/api/chat/send、MorPexRuntime.run 等）路由进可观测面，解"架构黑盒" | 只做桥接；不改核心 |
+| `.../observability/execution-tracer.ts` | 运行时追踪中心：为任务创建追踪上下文，经 DAG/FSM/Agent/Tool 传播 | 只做追踪 |
+| `.../observability/agent-tracer.ts` | Agent 调度/协作自动追踪（包裹 selectAgent/CollaborationManager） | 只做追踪 |
+| `.../observability/dag-tracer.ts` | DAG 调度自动追踪（劫持 onNodeStart/Complete/Fail） | 只做追踪 |
+| `.../observability/fsm-tracer.ts` | 状态机自动追踪（劫持 onTransition） | 只做追踪 |
+| `.../observability/tool-tracer.ts` | 工具执行自动追踪（包裹 SandboxManager.execute/VerificationEngine.verify） | 只做追踪 |
+| `.../observability/llm-tracer.ts` | LLM 交互追踪（订阅 DeblackboxRecorder 的 llm.call 事件） | 只做追踪 |
+| `.../observability/graph-builder.ts` | 从 TraceEvent 流重建每个 Task 的执行图 | 只做建图 |
+| `.../observability/trace-store.ts` | Trace 事件持久化（开发阶段 SQLite better-sqlite3） | 只做存储 |
+| `.../observability/replay-engine.ts` | 执行追踪回放：归档 TraceSpan、回放时间线、对比两次执行差异 | 只做回放/对比 |
+| `.../observability/architecture-contract.ts` | ARCHITECTURE.md 的机器可读版本：定义每个模块期望行为（必须调用/谁调它/它调谁/激活条件） | 只做契约定义 |
+| `.../observability/architecture-auditor.ts` | 架构合规审计器：对比 ARCHITECTURE_CONTRACT 与运行时 ExecutionTracer 数据 | 只做审计比对 |
+| `.../observability/coverage-engine.ts` | 基于 Observation 的覆盖率引擎（v2）：计算模块被实际调用的覆盖 | 只做统计 |
+| `.../observability/exercise-all.ts` | 全面模块演练引擎：把 modules 从 exercised 提升到更高覆盖 | 只做演练触发 |
+| `.../observability/task-generator.ts` | 合成任务运行器：42 真实模块+10 条执行路径，覆盖 6 层级 | 只做任务生成/运行 |
+| `.../observability/observability-api.ts` | Observability REST API：为前端/debug 提供数据（含 G1 事件契约对账端点 /api/observability/event-contracts） | 只做路由 |
+| `.../observability/ws-handler.ts` | WebSocket 实时推送 TraceEvent + Observation 给前端 | 只做推送 |
+| `.../observability/index.ts` | Observability Plane 统一导出 | barrel |
+| `.../simulation/simulation-twin.ts` | 仿真孪生：基于历史执行数据构建 Mission 孪生画像 | 只做画像 |
+| `.../simulation/simulation-engine.ts` | 仿真引擎主入口：编排 Twin/PlanSimulator/CostEstimator/Risk/Success | 只做编排 |
+| `.../simulation/plan-simulator.ts` | 计划仿真器：对 MissionPlan 仿真推演 | 只做推演 |
+| `.../simulation/cost-estimator.ts` | 成本预估器：基于 Mission Plan 预估执行成本 | 只做预估 |
+| `.../simulation/risk-predictor.ts` | 风险预测器：基于 Plan 与孪生画像预测风险 | 只做预测 |
+| `.../simulation/success-predictor.ts` | 成功率预测器：基于历史+计划特征预测成功率 | 只做预测 |
+| `.../simulation/execution-predictor.ts` | 执行预测器（蓝图 §2 Intelligence Plane） | 只做预测 |
+| `.../simulation/types.ts` | 仿真孪生类型系统 | 只定义类型 |
+| `.../simulation/index.ts` | Simulation Twin 导出入口 | barrel |
+| `.../verification/behavior-verification-engine.ts` | 行为验证引擎主入口：编排 ExpectedTraceBuilder/TraceComparator/QualityScore/ViolationDetector | 只做编排 |
+| `.../verification/expected-trace-builder.ts` | 从 MissionPlan 构建预期执行轨迹 | 只做构建 |
+| `.../verification/trace-comparator.ts` | 轨迹比较器：比较 ExpectedTrace 与 RuntimeTrace 差异 | 只做比较 |
+| `.../verification/violation-detector.ts` | 违规/偏差检测器：检预期轨迹与实际运行偏差 | 只做检测 |
+| `.../verification/quality-score.ts` | 质量评分引擎（蓝图 §6 五维评分公式） | 只做评分 |
+| `.../verification/regression-store.ts` | 回归存储（SQLite）：存 Verification 历史，按 missionId/时间段/grade 查询 | 只做存储 |
+| `.../verification/types.ts` | 行为验证引擎类型系统 | 只定义类型 |
+| `.../verification/index.ts` | 行为验证导出入口 | barrel |
+
+## `workflows/`（29 文件 · 领域插件 · 后端）
+
+> 层边界规则：理想架构第 9 层领域插件（非 AICOS-Core 8 层核心分层）；领域逻辑完全隔离在 packages/workflows/<domain>/；仅经 DomainPrimitiveRegistry/WorkflowProvider 挂载、经 EventBus 通信；禁止领域逻辑进 core。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/workflows/ecommerce/actions/amazon.ts` | 电商 Amazon 旧版 ActionHandler（createListing/uploadImage/updatePrice） | legacy 兼容层 |
+| `packages/workflows/ecommerce/src/actions/amazon-primitives.ts` | Amazon ActionPrimitive 标准实现（第 9 层）：包装 legacy ActionHandler | 适配层 |
+| `packages/workflows/ecommerce/src/bootstrap.ts` | 电商插件 Bootstrap：注册 ActionPrimitive（幂等） | 只做注册 |
+| `packages/workflows/ecommerce/src/rules/amazon-rules.ts` | 电商领域合规规则（从 core QualityRule/PolicyRuleRegistry 迁出） | 领域规则 |
+| `packages/workflows/ecommerce/src/rules/rule-register.ts` | 电商领域规则中断示例（bootstrap 注册进 core） | 领域规则注册 |
+| `packages/workflows/ecommerce/validators/amazon-policy.ts` | Amazon 政策校验（ValidationResult） | 领域校验 |
+| `packages/workflows/ecommerce/workflow-provider.ts` | 电商 WorkflowProvider（旧接口兼容层） | legacy 兼容 |
+| `packages/workflows/hardware/firmware/actions/generate.ts` | 固件源码生成（从 MorPex YAML 知识库生成 C 源码） | 领域动作 |
+| `packages/workflows/hardware/firmware/actions/compile.ts` | 固件编译（AstroMcu buildcli 编译 C → 固件 bin） | 领域动作 |
+| `packages/workflows/hardware/firmware/actions/build_project.ts` | 固件全流程构建（generate→compile→binaries） | 领域动作 |
+| `packages/workflows/hardware/simulation/actions/flash.ts` | MCU 仿真烧录（AstroMcu astrocli flash .xbin） | 领域动作 |
+| `packages/workflows/hardware/simulation/actions/debug.ts` | 仿真调试（debug/run/read 寄存器/RAM） | 领域动作 |
+| `packages/workflows/hardware/src/actions/hardware-actions.ts` | 硬件 ActionPrimitive 标准实现：包装 firmware+simulation 真实实现 | 适配层 |
+| `packages/workflows/hardware/src/bootstrap.ts` | 硬件插件 Bootstrap：注册 ActionPrimitive（幂等） | 只做注册 |
+| `packages/workflows/hardware/src/rules/hardware-rules.ts` | 硬件领域合规规则（从 core 迁出） | 领域规则 |
+| `packages/workflows/hardware/workflow-provider.ts` | 硬件 WorkflowProvider（旧接口兼容层） | legacy 兼容 |
+| `packages/workflows/software/src/actions/software-actions.ts` | 软件开发插件：GitHub/Docker/Cloud 部署 ActionPrimitive（mock 实现可替换） | 领域动作 |
+| `packages/workflows/software/src/bootstrap.ts` | 软件插件 Bootstrap：注册 ActionPrimitive（幂等） | 只做注册 |
+| `packages/workflows/software/src/rules/ast-utils.ts` | TypeScript Compiler API 工具：对生成代码做 AST 级检测 + tsc 类型校验 | 领域规则工具 |
+| `packages/workflows/software/src/rules/custom-detectors.ts` | 软件领域自定义检测器示例（DetectorRegistry 领域注入链路） | 领域规则 |
+| `packages/workflows/software/src/rules/structural-ast-tsc.ts` | 结构修正 AST/tsc 适配器（eslint 之上补语义层） | 领域规则 |
+| `packages/workflows/software/src/rules/structural-eslint.ts` | 软件领域结构修正器示例（修正管线②结构层） | 领域规则 |
+| `packages/workflows/software/workflow-provider.ts` | 软件 WorkflowProvider（旧接口兼容层） | legacy 兼容 |
+| `packages/workflows/xjmcu/src/actions/generate.ts` | XJMCU 生成动作：生成固件源码骨架（ActionPrimitive） | 领域动作 |
+| `packages/workflows/xjmcu/src/actions/compile.ts` | XJMCU 编译动作：buildcli 编译固件（ActionPrimitive） | 领域动作 |
+| `packages/workflows/xjmcu/src/actions/pipeline.ts` | XJMCU 全流程动作：生成→编译→仿真（ActionPrimitive） | 领域动作 |
+| `packages/workflows/xjmcu/src/bootstrap.ts` | XJMCU 插件 Bootstrap：注册 ActionPrimitive（幂等） | 只做注册 |
+| `packages/workflows/xjmcu/src/rules/platform-rule.ts` | XJMCU 平台 API 白名单规则（防误用 STM32 HAL/LL 等） | 领域规则 |
+| `packages/workflows/xjmcu/workflow-provider.ts` | XJMCU WorkflowProvider（旧接口兼容层） | legacy 兼容 |
+
+## `workflow-sdk/src/`（8 文件 · 后端 SDK）
+
+> 层边界规则：工作流插件开发 SDK（供领域插件作者使用）；封装 v11 WorkflowSDK 生命周期/适配/模型注册；不承载运行时业务逻辑。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/workflow-sdk/src/index.ts` | MorPex v11 Workflow SDK 入口 | barrel |
+| `packages/workflow-sdk/src/WorkflowSDK.ts` | SDK 主 API：工作流生命周期管理 | 只做编排入口 |
+| `packages/workflow-sdk/src/WorkflowRuntime.ts` | v11 Adaptive Workflow Runtime：核心执行引擎 | 只做执行 |
+| `packages/workflow-sdk/src/WorkflowContext.ts` | WorkflowContext / WorkflowExecutionResult 工厂帮助函数 | 只做上下文构造 |
+| `packages/workflow-sdk/src/IWorkflowAdapter.ts` | 工作流包适配器标准契约 | 只定义接口 |
+| `packages/workflow-sdk/src/PiModelRegistry.ts` | LLM 模型注册表：经 PiBridge 抽象层调 pi-ai，隔离版本变更 | 只做桥接 |
+| `packages/workflow-sdk/src/bootstrap.ts` | 把 v10 运行时实例接入 v11 WorkflowSDK | 只做接入 |
+| `packages/workflow-sdk/src/types.ts` | Workflow SDK 核心类型定义 | 只定义类型 |
+
+## `contracts/`（7 文件 · 后端跨包契约）
+
+> 层边界规则：跨包共享稳定类型契约（Pi 无关）；供 agent-runtime/inference/tool/capability/events/errors 使用；不承载实现。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `packages/contracts/index.ts` | barrel：所有稳定契约统一出口 | barrel |
+| `packages/contracts/agent-runtime.ts` | Agent 完整执行运行的稳定接口（Port） | 只定义契约 |
+| `packages/contracts/inference.ts` | 单轮模型推理（非 agent）稳定接口（Port） | 只定义契约 |
+| `packages/contracts/tool.ts` | 稳定、Pi 无关的工具契约 | 只定义契约 |
+| `packages/contracts/capabilities.ts` | 运行时能力描述符（后端声明的能力） | 只定义契约 |
+| `packages/contracts/runtime-events.ts` | MorPexCore EventBus 上的高层事件（bus-level） | 只定义契约 |
+| `packages/contracts/errors.ts` | 稳定、Pi 无关的错误模型 | 只定义契约 |
+
+## `scripts/`（后端 · 构建/门禁/运维）
+
+> 层边界规则：构建/门禁/运维/诊断脚本（非运行时模块；可存在于 core 之外）；多数为 npm script 或 CI 调用。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `scripts/start.ts` | MorPex 开发服务器启动器（tsx） | 只做启动 |
+| `scripts/dev-fast.mjs` | 开发快启后端（MORPEX_DEV_FAST=1 + Node 原生 watch）：跳过 EventStore 状态重建，重启秒级 | 只做开发期快启；查产物图谱时用完整后端 |
+| `scripts/run-everything.ts` | 统一测试执行器：一条命令测全部（tsc/架构/vitest/生产/CLI） | 只做测试编排 |
+| `scripts/run-all-tests.ts` | 全量测试启动器（委托统一 Runner） | 只做测试编排 |
+| `scripts/run-all-production-tests.ts` | 一键运行所有生产相关测试 | 只做测试编排 |
+| `scripts/production-check.cjs` | 生产就绪检查（8/8 门禁） | 只做门禁 |
+| `scripts/validate-architecture.js` | 理想架构对齐校验器（负向合规校验 8 层路径） | 只做门禁 |
+| `scripts/check-boundaries.sh` | 依赖/目录边界检查 | 只做门禁 |
+| `scripts/check-no-old-bootstrap.sh` | 检查旧 bootstrap 残留 | 只做门禁 |
+| `scripts/check-ontology-bypass.sh` | 检查 Ontology 绕过 | 只做门禁 |
+| `scripts/check-llm.ts` | LLM 配置检查脚本（用 MorPex 配置链路解析，不依赖 shell export） | 只做诊断 |
+| `scripts/ops-validate.ts` | 运营验证：真实目标跑完整链路，观测四类信号 | 只做验证 |
+| `scripts/verify-e2e.ts` | 全链路验证脚本（端到端） | 只做验证 |
+| `scripts/batch-run.ts` | 50 个真实任务批量闭环测试 + 数据流函数调用报告 | 只做批量回归 |
+| `scripts/batch-tasks.ts` | 50 个真实任务集（多行业多场景） | 只做任务定义 |
+| `scripts/analyze-trace-reports.ts` | 分析数据流报告，统计函数调用频次 | 只做分析 |
+| `scripts/_mission-session.ts` | 生成类任务 Mission 会话诊断：打印各阶段状态/事件/耗时 | 只做诊断 |
+| `scripts/workflow-cli.ts` | v11 Workflow CLI（create/install/run/list/optimize/versions/rollback/status/metrics） | 只做 CLI |
+| `scripts/compact-entity-events.cjs` | 一次性数据治理：压缩实体事件（Entity 去重） | 只做运维 |
+| `scripts/run-k6-test.sh` / `scripts/k6-load-test.js` / `scripts/k6-smoke.js` | k6 压测门槛/负载/冒烟（针对 StudioServer 端点） | 只做压测 |
+| `scripts/start-cognee.sh` / `scripts/run-all.sh` | 启动 cognee / 全栈（cognee+后端） | 只做启动 |
+| `scripts/query-morpex.bat` / `scripts/setup-cbm.bat` / `scripts/setup-codebase-memory.bat` | Windows 运维批处理（查询/初始化 codebase memory） | 只做运维 |
+| `scripts/tracing/` | 追踪辅助脚本（若有） | 只做诊断 |
+
+**当前文件数：约 370+（346 基线 + S22-S37 新增 + S38 前端 20 文件 + S39 桌面壳 9 文件，以 `git ls-files | wc -l` 为准）。后端登记已补全：connectors/src 8 + memory/src 27 + studio/server 46 + workflows 34 + workflow-sdk/src 8 + contracts 8 + scripts。**
