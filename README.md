@@ -213,7 +213,7 @@ npx vitest run           # 仅单元/集成
 | 📐 Planning | 10 | 10 | HierarchicalPlanner + ArtifactBlueprint 先于执行 |
 | 🛠 Tools & Environment | 10 | 10 | PolicyEngine 统一策略 + Agent Reputation 信誉驱动 |
 | 🔭 Observability & Gov. | 10 | 10 | EvaluationEngine 5维评分 + SafetyMonitor 5阈值检测 |
-| 🔧 Maintainability | 10 | 10 | 532 .ts 文件 + 22 核心模块 + 52 Golden Tasks 基准 |
+| 🔧 Maintainability | 10 | 10 | 656 .ts 文件 + 22 核心模块 + 52 Golden Tasks 基准 |
 
 ---
 
@@ -240,7 +240,7 @@ npx vitest run           # 仅单元/集成
 | Metric | Value |
 |--------|-------|
 | TypeScript errors | **0** |
-| TypeScript source files | **442** |
+| TypeScript source files | **656** |
 | Architecture directories | **63**（core/src 递归） |
 | Core modules | **22**（自报快照） |
 | VCOS | **100/100** 🎯（自评分，参考价值有限） |

@@ -1,16 +1,16 @@
 # MorPex 后端代码函数与关系链分析
 
-> 生成时间：2026-08-21 10:37:19 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
+> 生成时间：2026-08-21 15:28:47 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
 
 ## 0. 统计概览
 
 | 指标 | 值 |
 |---|---|
 | 扫描根 | packages/core/src/facade、packages/core/src/governance、packages/core/src/knowledge、packages/core/src/gate、packages/core/src/cognition、packages/core/src/execution、packages/core/src/evaluation、packages/core/src/evolution、packages/core/src/infrastructure、packages/core/src/workflow、packages/connectors/src、packages/memory/src、packages/studio/server、packages/workflows、packages/workflow-sdk/src、packages/contracts、scripts |
-| 文件数 | 505 |
-| 函数/方法数 | 2892 |
-| 调用表达式数 | 13178 |
-| import 数 | 1038 |
+| 文件数 | 483 |
+| 函数/方法数 | 2768 |
+| 调用表达式数 | 12742 |
+| import 数 | 985 |
 
 ## 1. 文件间依赖关系链（import 图）
 
@@ -108,7 +108,7 @@
 
 ### packages\core\src\cognition\goal\GoalManager.ts
 - `./GoalGraph.js` → GoalGraph
-- `./types.js` → Goal, GoalStatus, GoalLevel, Objective, KeyResult, GoalGraphNode, GoalCreateInput, GoalStats
+- `./types.js` → Goal, GoalLevel, Objective, KeyResult, GoalGraphNode, GoalCreateInput, GoalStats
 
 ### packages\core\src\cognition\goal\index.ts
 - （无 import）
@@ -173,13 +173,13 @@
 - `./types.js` → DecisionMemoryEntry
 
 ### packages\core\src\cognition\memory\PersonalBrain.ts
-- `./types.js` → MemoryLayer, MemoryEntry, MemoryQuery, MemoryQueryResult, BrainStats, PreferenceMemoryEntry, ALL_LAYERS
+- `./types.js` → MemoryLayer, MemoryEntry, MemoryQuery, MemoryQueryResult, BrainStats, PreferenceMemoryEntry
 - `./types.js` → LAYER_TTL
 - `./WorkflowMemory.js` → WorkflowMemory
 - `./DecisionMemory.js` → DecisionMemory
 
 ### packages\core\src\cognition\memory\WorkflowMemory.ts
-- `./types.js` → WorkflowMemoryEntry, MemoryEntry
+- `./types.js` → WorkflowMemoryEntry
 
 ### packages\core\src\cognition\memory\index.ts
 - （无 import）
@@ -197,13 +197,12 @@
 - `./HierarchicalPlanner.js` → HierarchicalPlannerLike, DAGPlan
 - `../../knowledge/ontology/OntologyService.js` → OntologyService
 - `../../gate/ForcedQueryGuard.js` → ForcedQueryGuard
-- `../../gate/types.js` → OntologyProposal
 
 ### packages\core\src\cognition\planning\DeliveryPlannerAdapter.ts
 - `../../execution/runtime/mission/MissionRuntime.js` → MissionPlanner
 - `../../execution/runtime/mission/types.js` → Mission, MissionPlan, PlanStep
 - `./DeliveryPlanner.js` → DeliveryPlanner
-- `./DeliveryPlanner.js` → PlanningRequest, PlanTask
+- `./DeliveryPlanner.js` → PlanningRequest
 - `./CrossDepartmentArbitrationEngine.js` → CrossDepartmentArbitrationEngine
 - `./CrossDepartmentArbitrationEngine.js` → PlanWithTasks, Conflict
 - `./HierarchicalPlanner.js` → HierarchicalPlanner
@@ -222,7 +221,7 @@
 - `./RequirementExtractor.js` → RequirementExtractor
 - `./ConstraintAnalyzer.js` → ConstraintAnalyzer
 - `./GoalValidator.js` → GoalValidator
-- `./IntentClassifier.js` → IntentClassifier, IntentKind
+- `./IntentClassifier.js` → IntentClassifier
 - `../../../infrastructure/protocol/contracts/goal.js` → GoalContext
 
 ### packages\core\src\cognition\planning\goal-intelligence\GoalParser.ts
@@ -269,7 +268,7 @@
 ### packages\core\src\cognition\types.ts
 - （无 import）
 ### packages\core\src\cognition\workflow\WorkflowIntelligence.ts
-- `../../execution/runtime/mission/types.js` → Mission, MissionPlan, PlanStep
+- `../../execution/runtime/mission/types.js` → Mission, PlanStep
 - `../memory/WorkflowMemory.js` → WorkflowMemory
 - `../memory/types.js` → WorkflowMemoryEntry
 - `./types.js` → WorkflowPattern, WorkflowStep, OptimizationSuggestion, AutomationAssessment, IntelligenceReport
@@ -377,19 +376,19 @@
 - （无 import）
 ### packages\core\src\evolution\workflow\WorkflowExecutor.ts
 - `./WorkflowRegistry.js` → WorkflowRegistry
-- `./types.js` → RegisteredWorkflow, ExecutionResult, WorkflowStepDef
+- `./types.js` → RegisteredWorkflow, ExecutionResult
 - `../../execution/runtime/mission/MissionRuntime.js` → MissionRuntime
-- `../../execution/runtime/mission/types.js` → MissionPlan, PlanStep
+- `../../execution/runtime/mission/types.js` → PlanStep
 - `../../infrastructure/protocol/message-types.js` → IncomingMessage
 
 ### packages\core\src\evolution\workflow\WorkflowOptimizer.ts
 - `../../cognition/index.js` → WorkflowIntelligence, WorkflowMemory
 - `./WorkflowRegistry.js` → WorkflowRegistry
-- `./types.js` → RegisteredWorkflow, WorkflowVersion, OptimizationPlan
+- `./types.js` → RegisteredWorkflow, OptimizationPlan
 - `../../cognition/index.js` → OptimizationSuggestion
 
 ### packages\core\src\evolution\workflow\WorkflowRegistry.ts
-- `./types.js` → RegisteredWorkflow, WorkflowCandidate, WorkflowStatus, WorkflowVersion, VersionPerformance
+- `./types.js` → RegisteredWorkflow, WorkflowCandidate, WorkflowStatus, WorkflowVersion
 - `./contract/WorkflowContract.js` → WorkflowContract
 - `./contract/WorkflowContract.js` → ContractValidator
 
@@ -433,7 +432,7 @@
 - `./DependencyCoordinator.js` → DependencyCoordinator
 - `../governance/capability/CapabilityDiscoverer.js` → CapabilityDiscoverer
 - `../governance/capability/CapabilityRegistry.js` → Capability
-- `./types.js` → DynamicTeam, DependencyGraph, TeamSpec
+- `./types.js` → DynamicTeam, DependencyGraph
 - `../infrastructure/protocol/contracts/goal.js` → GoalContext
 - `../governance/capability/AgentCapabilityRegistry.js` → AgentCapabilityRegistry
 
@@ -446,7 +445,7 @@
 - `../governance/control-plane/DepartmentContext.js` → DepartmentContext
 - `../infrastructure/common/ProgressCallback.js` → makeProgressEvent
 - `../governance/control-plane/department-types.js` → DepartmentId
-- `../infrastructure/common/ProgressCallback.js` → ProgressCallback, ProgressEvent
+- `../infrastructure/common/ProgressCallback.js` → ProgressCallback
 
 ### packages\core\src\execution\TaskStateProjector.ts
 - `../infrastructure/common/EventBus.js` → EventBus
@@ -474,26 +473,8 @@
 - `@morpex/connectors/ConnectorRegistry.js` → ConnectorRegistry
 - `../../infrastructure/observability/deblackbox/DeblackboxRecorder.js` → getSharedDeblackboxRecorder
 - `@morpex/connectors/types.js` → ActionRequest, ActionResult
-- `@morpex/connectors/IActionConnector.js` → IActionConnector
 
 ### packages\core\src\execution\fabric\index.ts
-- （无 import）
-### packages\core\src\execution\harness\AgentHarness.ts
-- `./types.js` → MemoryRecord, ArtifactRef, HarnessEventCallback
-- `./HarnessContext.js` → HarnessContext, IntentContext, ExecutionState
-- `./ContextBuilder.js` → ContextBuilder
-- `../../knowledge/memory/MemoryActivationEngine.js` → MemoryActivationEngine
-
-### packages\core\src\execution\harness\ContextBuilder.ts
-- `./types.js` → MemoryRecord, ArtifactRef, Experience
-- `./HarnessContext.js` → HarnessContext, IntentContext, PlanContext, MemoryContext, ArtifactContext, ExecutionState, PermissionContext, ExperienceContext
-
-### packages\core\src\execution\harness\HarnessContext.ts
-- `./types.js` → MemoryRecord, ArtifactRef, Experience
-
-### packages\core\src\execution\harness\index.ts
-- （无 import）
-### packages\core\src\execution\harness\types.ts
 - （无 import）
 ### packages\core\src\execution\index.ts
 - （无 import）
@@ -551,7 +532,7 @@
 ### packages\core\src\execution\runtime\PersistentMissionStore.ts
 - `../../infrastructure/protocol/events/store/UnifiedEventStore.js` → UnifiedEventStore
 - `../../infrastructure/protocol/events/EventTypes.js` → SYSTEM_EVENT_TYPES
-- `./mission/MissionTypes.js` → MissionState, MissionStatus, MissionPhase
+- `./mission/MissionTypes.js` → MissionState
 
 ### packages\core\src\execution\runtime\PipelineOrchestrator.ts
 - `../../infrastructure/common/EventBus.js` → EventBus
@@ -622,7 +603,7 @@
 - `./CheckpointManager.js` → ExecutionSnapshot, NodeState
 
 ### packages\core\src\execution\runtime\checkpoint\ReplayEngine.ts
-- `./CheckpointManager.js` → ExecutionSnapshot, NodeState
+- `./CheckpointManager.js` → NodeState
 - `./CheckpointManager.js` → CheckpointManager
 
 ### packages\core\src\execution\runtime\checkpoint\index.ts
@@ -678,7 +659,7 @@
 ### packages\core\src\execution\runtime\mission\MissionController.ts
 - `../../../infrastructure/common/EventBus.js` → EventBus
 - `../../../infrastructure/protocol/events/EventType.js` → EventType
-- `./MissionTypes.js` → MissionState, MissionStatus, MissionPhase, MissionUpdate, BlockReason
+- `./MissionTypes.js` → MissionState, MissionStatus, MissionUpdate, BlockReason
 - `../../../knowledge/graph/SystemMetadataGraph.js` → systemMetadataGraph
 - `../../../infrastructure/protocol/events/store/IEventStore.js` → IEventStore
 
@@ -728,7 +709,7 @@
 ### packages\core\src\execution\runtime\state-machine\index.ts
 - （无 import）
 ### packages\core\src\execution\runtime\verification\VerificationEngine.ts
-- `../mission/types.js` → Mission, MissionPlan, MissionResult, PlanStep
+- `../mission/types.js` → Mission, MissionPlan, MissionResult
 - `./types.js` → VerificationResult, VerificationCheck, VerificationIssue, VerificationEngineConfig
 
 ### packages\core\src\execution\runtime\verification\index.ts
@@ -822,7 +803,7 @@
 - `../knowledge/ontology/OntologyService.js` → OntologyService
 - `./ForcedQueryGuard.js` → ForcedQueryGuard
 - `./types.js` → OntologyProposal, RiskTier
-- `../infrastructure/tools/ontologyTools.js` → ontologyToolDefinitions, createOntologyToolExecutor
+- `../infrastructure/tools/ontologyTools.js` → createOntologyToolExecutor
 - `../knowledge/ontology/prompts/forced-query-system.js` → FORCED_QUERY_SYSTEM_PROMPT, buildReasoningUserPrompt
 - `../infrastructure/protocol/events/store/IEventStore.js` → IEventStore
 - `./ontologyEvents.js` → createReferenceValidationFailedEvent, createQueryMissEvent
@@ -868,7 +849,7 @@
 - `./types.js` → RiskLevel
 
 ### packages\core\src\governance\PolicyEngine.ts
-- `./types.js` → RiskAssessment, RiskLevel, AuditEntry
+- `./types.js` → RiskAssessment, RiskLevel
 - `./AuditTrail.js` → AuditTrail
 
 ### packages\core\src\governance\PolicyRuleRegistry.ts
@@ -922,7 +903,6 @@
 ### packages\core\src\governance\control-plane\ResourceController.ts
 - `../../governance/CostController.js` → CostController
 - `../../governance/RuntimeManager.js` → RuntimeManager
-- `../../governance/capability/CapabilityRegistry.js` → CapabilityRegistry
 
 ### packages\core\src\governance\control-plane\RoleRegistry.ts
 - `../../infrastructure/common/EventBus.js` → EventBus
@@ -1054,7 +1034,7 @@
 - （无 import）
 ### packages\core\src\infrastructure\common\resilience\ErrorHandlerService.ts
 - `./RetryPolicy.js` → RetryPolicy
-- `./CircuitBreaker.js` → CircuitBreaker, CircuitOpenError
+- `./CircuitBreaker.js` → CircuitBreaker
 
 ### packages\core\src\infrastructure\common\resilience\RetryPolicy.ts
 - （无 import）
@@ -1179,7 +1159,6 @@
 - `../../infrastructure/adapters/pi-ai-types.js` → Type, optionalProp
 - `../../knowledge/artifact/registry/ArtifactRegistry.js` → ArtifactRegistry
 - `../../knowledge/artifact/registry/types.js` → ArtifactInstance
-- `../../execution/harness/AgentHarness.js` → AgentHarness
 
 ### packages\core\src\infrastructure\tools\TeamSayTool.ts
 - `../../infrastructure/adapters/pi-types.js` → AgentTool, _AgentToolResult
@@ -1204,7 +1183,6 @@
 - `../../infrastructure/adapters/pi-ai-types.js` → Type
 - `../../infrastructure/adapters/pi-types.js` → AgentTool
 - `../../../../memory/src/index.js` → MemoryRetriever
-- `../../execution/harness/AgentHarness.js` → AgentHarness
 
 ### packages\core\src\infrastructure\tools\ontologyTools.ts
 - `../../knowledge/memory/CompanyKnowledge.js` → queryCompanyKnowledge
@@ -1398,14 +1376,14 @@
 - `../../infrastructure/adapters/memory/index.js` → MemoryApi, MemoryQueryRequest, MemoryQueryResult
 
 ### packages\core\src\knowledge\memory\MemoryActivationEngine.ts
-- `../../execution/harness/types.js` → MemoryRecord
+- `./types.js` → MemoryRecord
 
 ### packages\core\src\knowledge\memory\MemoryApiBus.ts
 - `../../infrastructure/adapters/memory/index.js` → MemoryApi, MemoryHit
 - `../../infrastructure/observability/deblackbox/DeblackboxRecorder.js` → getSharedDeblackboxRecorder
 - `./MemoryHooks.js` → MemoryBus
 - `./MemoryActivationEngine.js` → MemoryActivationSource
-- `../../execution/harness/types.js` → MemoryRecord
+- `./types.js` → MemoryRecord
 
 ### packages\core\src\knowledge\memory\MemoryHooks.ts
 - `../../infrastructure/adapters/pi-types.js` → AgentEvent, AgentMessage
@@ -1420,6 +1398,8 @@
 - `./MemoryActivationEngine.js` → MemoryActivationEngine
 
 ### packages\core\src\knowledge\memory\index.ts
+- （无 import）
+### packages\core\src\knowledge\memory\types.ts
 - （无 import）
 ### packages\core\src\knowledge\ontology\FeedbackService.ts
 - `./OntologyService.js` → OntologyService
@@ -1500,7 +1480,7 @@
 
 ### packages\memory\src\gate\ForceRetrieve.ts
 - `../memory-types.js` → MemoryEngine, MemoryHit, MemoryQueryRequest, MemoryQueryResult, MemoryQuerySource, NeedHumanReason
-- `./domain.js` → isCompanyKnowledgeDomain, requiresGraphFacts
+- `./domain.js` → isCompanyKnowledgeDomain
 
 ### packages\memory\src\gate\domain.ts
 - （无 import）
@@ -1552,8 +1532,8 @@
 ### packages\memory\src\wiki\MemoryWiki.ts
 - `node:path` → *
 - `node:fs` → *
-- `./types.js` → MemoryItem, MemoryRelation, MemoryWikiConfig
-- `./schema.js` → MEMORY_WIKI_SCHEMA, TABLES
+- `./types.js` → MemoryItem, MemoryWikiConfig
+- `./schema.js` → MEMORY_WIKI_SCHEMA
 
 ### packages\memory\src\wiki\index.ts
 - （无 import）
@@ -1715,78 +1695,6 @@
 ### packages\studio\server\security-middleware.ts
 - `express` → Request, Response, NextFunction
 
-### packages\studio\server\simulation\cost-estimator.ts
-- `./types.js` → CostEstimate, CostBreakdownItem, SimulationTwinProfile
-- `../../../core/src/execution/runtime/mission/types.js` → MissionPlan
-
-### packages\studio\server\simulation\execution-predictor.ts
-- `../../../core/src/execution/runtime/mission/types.js` → Mission, MissionPlan
-- `./simulation-engine.js` → SimulationEngine
-- `./types.js` → SimulationResult
-
-### packages\studio\server\simulation\index.ts
-- （无 import）
-### packages\studio\server\simulation\plan-simulator.ts
-- `../../../core/src/execution/runtime/mission/types.js` → MissionPlan, PlanStep
-- `./types.js` → SimulationTwinProfile
-
-### packages\studio\server\simulation\risk-predictor.ts
-- `./types.js` → RiskPrediction, RiskFactor, SimulationTwinProfile
-- `../../../core/src/execution/runtime/mission/types.js` → MissionPlan
-
-### packages\studio\server\simulation\simulation-engine.ts
-- `../../../core/src/infrastructure/common/EventBus.js` → EventBus
-- `../../../core/src/execution/runtime/mission/types.js` → Mission, MissionPlan
-- `./simulation-twin.js` → SimulationTwin
-- `./plan-simulator.js` → PlanSimulator
-- `./plan-simulator.js` → PlanSimulationOutput
-- `./cost-estimator.js` → CostEstimator
-- `./risk-predictor.js` → RiskPredictor
-- `./success-predictor.js` → SuccessPredictor
-- `./types.js` → SimulationResult, SimulationTwinProfile, SimulationConfig
-
-### packages\studio\server\simulation\simulation-twin.ts
-- `./types.js` → SimulationTwinProfile, SimilarMission
-
-### packages\studio\server\simulation\success-predictor.ts
-- `./types.js` → SuccessPrediction, SimulationTwinProfile
-- `../../../core/src/execution/runtime/mission/types.js` → MissionPlan
-
-### packages\studio\server\simulation\types.ts
-- （无 import）
-### packages\studio\server\verification\behavior-verification-engine.ts
-- `../../../core/src/infrastructure/common/EventBus.js` → EventBus
-- `../../../core/src/execution/runtime/mission/types.js` → Mission, MissionPlan, MissionResult, PlanStep
-- `./expected-trace-builder.js` → ExpectedTraceBuilder
-- `./trace-comparator.js` → TraceComparator
-- `./quality-score.js` → QualityScoreEngine
-- `./violation-detector.js` → ViolationDetector
-- `./regression-store.js` → RegressionStore
-- `./types.js` → ExpectedTrace, RuntimeTrace, RuntimeStep, ComparisonResult, QualityScore, Violation, VerificationReport, Grade, BehaviorVerificationConfig
-- `better-sqlite3` → Database
-
-### packages\studio\server\verification\expected-trace-builder.ts
-- `../../../core/src/execution/runtime/mission/types.js` → MissionPlan, PlanStep
-- `./types.js` → ExpectedTrace, ExpectedStep, TimingConstraints, QualityThresholds
-
-### packages\studio\server\verification\index.ts
-- （无 import）
-### packages\studio\server\verification\quality-score.ts
-- `./types.js` → ComparisonResult, QualityScore, Grade
-
-### packages\studio\server\verification\regression-store.ts
-- `better-sqlite3` → Database
-- `./types.js` → VerificationRecord, RegressionQuery, Grade
-- `node:crypto` → randomUUID
-
-### packages\studio\server\verification\trace-comparator.ts
-- `./types.js` → ExpectedTrace, RuntimeTrace, ComparisonResult, RuntimeStep, ExpectedStep
-
-### packages\studio\server\verification\types.ts
-- （无 import）
-### packages\studio\server\verification\violation-detector.ts
-- `./types.js` → ExpectedTrace, RuntimeTrace, Violation, ComparisonResult, Grade
-
 ### packages\workflow-sdk\src\IWorkflowAdapter.ts
 - `./types.js` → WorkflowContext, WorkflowExecutionResult, OptimizationProposal
 
@@ -1797,7 +1705,7 @@
 - `./types.js` → WorkflowContext, WorkflowExecutionResult, QualityScore
 
 ### packages\workflow-sdk\src\WorkflowRuntime.ts
-- `./types.js` → WorkflowPackage, InstalledWorkflow, WorkflowExecutionResult, WorkflowMetrics, WorkflowStatus, OptimizationProposal, WorkflowVersionInfo, ExecutionOptions, WorkflowContext, TraceEntry, Artifact, QualityScore
+- `./types.js` → WorkflowPackage, InstalledWorkflow, WorkflowExecutionResult, WorkflowMetrics, WorkflowStatus, OptimizationProposal, WorkflowVersionInfo, ExecutionOptions, WorkflowContext, TraceEntry, QualityScore
 - `./WorkflowContext.js` → createWorkflowContext, createExecutionResult
 
 ### packages\workflow-sdk\src\WorkflowSDK.ts
@@ -1806,9 +1714,8 @@
 
 ### packages\workflow-sdk\src\bootstrap.ts
 - `@morpex/core` → EventBus, MissionRuntime, DAGRuntime, WorkflowRegistry, V10WorkflowExecutor, V10WorkflowOptimizer, WorkflowIntelligence, WorkflowMemory, MissionState, DAGExecutorAdapter
-- `@morpex/core` → Mission, MissionPlan, PlanStep, MissionResult
-- `@morpex/core` → MissionPlanner, MissionExecutor
-- `./types.js` → WorkflowPackage, InstalledWorkflow, WorkflowExecutionResult, WorkflowMetrics, WorkflowStatus, OptimizationProposal, WorkflowVersionInfo, ExecutionOptions
+- `@morpex/core` → Mission, MissionPlan
+- `@morpex/core` → MissionPlanner
 - `./WorkflowRuntime.js` → WorkflowRuntime
 - `./WorkflowSDK.js` → WorkflowSDK
 - `./PiModelRegistry.js` → PiModelRegistry
@@ -1987,10 +1894,6 @@
 - `node:fs` → *
 - `node:path` → *
 - `node:url` → *
-
-### scripts\_check-calls.ts
-- `typescript` → *
-- `node:fs` → *
 
 ### scripts\_mission-session.ts
 - `../packages/core/src/bootstrap-unified.js` → bootstrapUnified
@@ -2471,29 +2374,29 @@
 ### packages\core\src\cognition\memory\PersonalBrain.ts（23 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 58 |
-| destroy | method |  |  | 82 |
-| rememberWorking | method | Y |  | 104 |
-| recallWorking | method |  |  | 118 |
-| clearWorking | method |  |  | 125 |
-| recordEpisode | method | Y |  | 144 |
-| recallEpisodes | method |  |  | 158 |
-| storeFact | method | Y |  | 176 |
-| recallFacts | method |  |  | 186 |
-| storePreference | method | Y |  | 203 |
-| getPreferences | method |  |  | 235 |
-| recall | method |  |  | 254 |
-| query | method |  |  | 304 |
-| getEntry | method |  |  | 347 |
-| removeEntry | method |  |  | 363 |
-| getLayerSize | method |  |  | 377 |
-| getStats | method |  |  | 387 |
-| addEntry | method | Y |  | 435 |
-| recallFromLayer | method |  |  | 466 |
-| cleanup | method |  |  | 512 |
-| toJSON | method |  |  | 537 |
-| fromJSON | method |  |  | 559 |
-| clear | method |  |  | 586 |
+| (anon) | ctor |  |  | 57 |
+| destroy | method |  |  | 81 |
+| rememberWorking | method | Y |  | 103 |
+| recallWorking | method |  |  | 117 |
+| clearWorking | method |  |  | 124 |
+| recordEpisode | method | Y |  | 143 |
+| recallEpisodes | method |  |  | 157 |
+| storeFact | method | Y |  | 175 |
+| recallFacts | method |  |  | 185 |
+| storePreference | method | Y |  | 202 |
+| getPreferences | method |  |  | 234 |
+| recall | method |  |  | 253 |
+| query | method |  |  | 303 |
+| getEntry | method |  |  | 346 |
+| removeEntry | method |  |  | 362 |
+| getLayerSize | method |  |  | 376 |
+| getStats | method |  |  | 386 |
+| addEntry | method | Y |  | 434 |
+| recallFromLayer | method |  |  | 465 |
+| cleanup | method |  |  | 511 |
+| toJSON | method |  |  | 536 |
+| fromJSON | method |  |  | 558 |
+| clear | method |  |  | 585 |
 
 ### packages\core\src\cognition\memory\WorkflowMemory.ts（15 个）
 | 函数 | kind | async | export | 行 |
@@ -2529,30 +2432,30 @@
 ### packages\core\src\cognition\planning\DeliveryPlanner.ts（24 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 154 |
-| setMetaPlanner | method |  |  | 181 |
-| setSimulationEngine | method |  |  | 188 |
-| setSOPEngine | method |  |  | 193 |
-| setBrainFacade | method |  |  | 198 |
-| setHierarchicalPlanner | method |  |  | 203 |
-| setOntology | method |  |  | 208 |
-| setForcedQueryGuard | method |  |  | 213 |
-| setPiBridge | method |  |  | 218 |
-| isReady | method |  |  | 225 |
-| createPlan | method | Y |  | 248 |
-| resolveMode | method |  |  | 426 |
-| recordOutcome | method |  |  | 481 |
-| setPatterns | method |  |  | 529 |
-| quickPlan | method | Y |  | 542 |
-| parseQuickSteps | method |  |  | 666 |
-| fullPlan | method | Y |  | 690 |
-| normalizePlan | method |  |  | 740 |
-| convertDAGPlanToPlan | method |  |  | 790 |
-| simulate | method | Y |  | 832 |
-| getPlan | method |  |  | 852 |
-| listPlans | method |  |  | 861 |
-| confirmPlan | method |  |  | 870 |
-| getHealth | method |  |  | 880 |
+| (anon) | ctor |  |  | 153 |
+| setMetaPlanner | method |  |  | 180 |
+| setSimulationEngine | method |  |  | 187 |
+| setSOPEngine | method |  |  | 192 |
+| setBrainFacade | method |  |  | 197 |
+| setHierarchicalPlanner | method |  |  | 202 |
+| setOntology | method |  |  | 207 |
+| setForcedQueryGuard | method |  |  | 212 |
+| setPiBridge | method |  |  | 217 |
+| isReady | method |  |  | 224 |
+| createPlan | method | Y |  | 247 |
+| resolveMode | method |  |  | 425 |
+| recordOutcome | method |  |  | 480 |
+| setPatterns | method |  |  | 528 |
+| quickPlan | method | Y |  | 541 |
+| parseQuickSteps | method |  |  | 665 |
+| fullPlan | method | Y |  | 689 |
+| normalizePlan | method |  |  | 739 |
+| convertDAGPlanToPlan | method |  |  | 789 |
+| simulate | method | Y |  | 831 |
+| getPlan | method |  |  | 851 |
+| listPlans | method |  |  | 860 |
+| confirmPlan | method |  |  | 869 |
+| getHealth | method |  |  | 879 |
 
 ### packages\core\src\cognition\planning\DeliveryPlannerAdapter.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -2836,12 +2739,12 @@
 |---|---|---|---|---|
 | (anon) | ctor |  |  | 46 |
 | init | method |  |  | 57 |
-| getAppliedCount | method |  |  | 62 |
-| listPending | method |  |  | 67 |
-| approve | method | Y |  | 76 |
-| reject | method |  |  | 88 |
-| onExperienceMined | method | Y |  | 94 |
-| proposeStrategy | method | Y |  | 109 |
+| getAppliedCount | method |  |  | 61 |
+| listPending | method |  |  | 66 |
+| approve | method | Y |  | 75 |
+| reject | method |  |  | 87 |
+| onExperienceMined | method | Y |  | 93 |
+| proposeStrategy | method | Y |  | 108 |
 
 ### packages\core\src\evolution\EvolutionProposal.ts（6 个）
 | 函数 | kind | async | export | 行 |
@@ -2978,22 +2881,22 @@
 ### packages\core\src\evolution\workflow\WorkflowRegistry.ts（16 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| register | method |  |  | 53 |
-| confirm | method |  |  | 116 |
-| activate | method |  |  | 132 |
-| pause | method |  |  | 143 |
-| resume | method |  |  | 154 |
-| deprecate | method |  |  | 168 |
-| addVersion | method |  |  | 187 |
-| recordExecution | method |  |  | 217 |
-| get | method |  |  | 263 |
-| getByStatus | method |  |  | 270 |
-| getAutoExecutable | method |  |  | 279 |
-| getExecutable | method |  |  | 292 |
-| getAll | method |  |  | 301 |
-| count | method |  |  | 308 |
-| toJSON | method |  |  | 319 |
-| fromJSON | method |  |  | 323 |
+| register | method |  |  | 52 |
+| confirm | method |  |  | 115 |
+| activate | method |  |  | 131 |
+| pause | method |  |  | 142 |
+| resume | method |  |  | 153 |
+| deprecate | method |  |  | 167 |
+| addVersion | method |  |  | 186 |
+| recordExecution | method |  |  | 216 |
+| get | method |  |  | 262 |
+| getByStatus | method |  |  | 269 |
+| getAutoExecutable | method |  |  | 278 |
+| getExecutable | method |  |  | 291 |
+| getAll | method |  |  | 300 |
+| count | method |  |  | 307 |
+| toJSON | method |  |  | 318 |
+| fromJSON | method |  |  | 322 |
 
 ### packages\core\src\evolution\workflow\WorkflowSimulator.ts（15 个）
 | 函数 | kind | async | export | 行 |
@@ -3186,83 +3089,24 @@
 ### packages\core\src\execution\fabric\ExecutionFabric.ts（16 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 98 |
-| registerAgentCapabilities | method |  |  | 119 |
-| snapshotMemoryState | method |  |  | 139 |
-| unregisterAgent | method |  |  | 159 |
-| getAgent | method |  |  | 167 |
-| setAgentStatus | method |  |  | 174 |
-| listAgents | method |  |  | 184 |
-| getPoolCapabilities | method |  |  | 193 |
-| resolveCapability | method |  |  | 216 |
-| resolveMultipleCapabilities | method |  |  | 261 |
-| findCoverage | method |  |  | 271 |
-| execute | method | Y |  | 316 |
-| executePipeline | method | Y |  | 414 |
-| getFabricStatus | method |  |  | 476 |
-| invalidateCache | method |  |  | 499 |
-| delay | method |  |  | 504 |
+| (anon) | ctor |  |  | 97 |
+| registerAgentCapabilities | method |  |  | 118 |
+| snapshotMemoryState | method |  |  | 138 |
+| unregisterAgent | method |  |  | 158 |
+| getAgent | method |  |  | 166 |
+| setAgentStatus | method |  |  | 173 |
+| listAgents | method |  |  | 183 |
+| getPoolCapabilities | method |  |  | 192 |
+| resolveCapability | method |  |  | 215 |
+| resolveMultipleCapabilities | method |  |  | 260 |
+| findCoverage | method |  |  | 270 |
+| execute | method | Y |  | 315 |
+| executePipeline | method | Y |  | 413 |
+| getFabricStatus | method |  |  | 475 |
+| invalidateCache | method |  |  | 498 |
+| delay | method |  |  | 503 |
 
 ### packages\core\src\execution\fabric\index.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\core\src\execution\harness\AgentHarness.ts（25 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| attachMemoryEngine | method |  |  | 27 |
-| attachProviders | method |  |  | 32 |
-| onEvent | method |  |  | 36 |
-| emit | method |  |  | 41 |
-| initialize | method | Y |  | 46 |
-| create | method | Y |  | 53 |
-| isInitialized | getter |  |  | 61 |
-| getContext | method |  |  | 63 |
-| updateIntent | method |  |  | 69 |
-| updateExecutionState | method |  |  | 78 |
-| attachArtifact | method |  |  | 87 |
-| injectMemory | method |  |  | 95 |
-| checkPermission | method |  |  | 103 |
-| getAgentRuntime | method |  |  | 111 |
-| registerArtifact | method | Y |  | 158 |
-| getArtifact | method |  |  | 176 |
-| searchMemory | method |  |  | 184 |
-| queryKnowledge | method |  |  | 196 |
-| contextVersion | getter |  |  | 212 |
-| getContextHistory | method |  |  | 215 |
-| snapshot | method |  |  | 220 |
-| _bumpVersion | method |  |  | 228 |
-| isDisposed | getter |  |  | 247 |
-| dispose | method |  |  | 250 |
-| reset | method |  |  | 263 |
-
-### packages\core\src\execution\harness\ContextBuilder.ts（20 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| setIntent | method |  |  | 13 |
-| setIntentPriority | method |  |  | 14 |
-| addRisk | method |  |  | 15 |
-| setPlan | method |  |  | 17 |
-| setPlanPhase | method |  |  | 18 |
-| setProgress | method |  |  | 19 |
-| injectMemory | method |  |  | 21 |
-| setContextBias | method |  |  | 22 |
-| setActivationScore | method |  |  | 23 |
-| attachArtifact | method |  |  | 25 |
-| setCurrentArtifact | method |  |  | 29 |
-| setExecutionState | method |  |  | 31 |
-| incrementStep | method |  |  | 32 |
-| incrementAttempt | method |  |  | 33 |
-| setPermissions | method |  |  | 35 |
-| grantPermissions | method |  |  | 36 |
-| denyPermissions | method |  |  | 37 |
-| addRestriction | method |  |  | 38 |
-| loadExperience | method |  |  | 40 |
-| build | method |  |  | 49 |
-
-### packages\core\src\execution\harness\HarnessContext.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\core\src\execution\harness\index.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\core\src\execution\harness\types.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\execution\index.ts（0 个）
 - （无顶层函数/方法提取）
@@ -3899,18 +3743,18 @@
 ### packages\core\src\gate\runOntologyGroundedReasoning.ts（12 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| withGateRetry | fn | Y |  | 58 |
-| getCacheKey | fn |  |  | 185 |
-| getCachedResult | fn |  |  | 197 |
-| countTokens | fn |  |  | 211 |
-| setCachedResult | fn |  |  | 219 |
-| runOntologyGroundedReasoning | fn | Y | Y | 241 |
-| ruleDomainOf | const-fn |  |  | 441 |
-| parseQueryPlanRobust | fn |  |  | 833 |
-| sanitizeQueryPlan | fn |  |  | 876 |
-| extractBalancedJSON | fn |  |  | 907 |
-| normalizeProposal | fn |  |  | 955 |
-| semanticJudgement | fn | Y |  | 996 |
+| withGateRetry | fn | Y |  | 57 |
+| getCacheKey | fn |  |  | 184 |
+| getCachedResult | fn |  |  | 196 |
+| countTokens | fn |  |  | 210 |
+| setCachedResult | fn |  |  | 218 |
+| runOntologyGroundedReasoning | fn | Y | Y | 240 |
+| ruleDomainOf | const-fn |  |  | 440 |
+| parseQueryPlanRobust | fn |  |  | 832 |
+| sanitizeQueryPlan | fn |  |  | 875 |
+| extractBalancedJSON | fn |  |  | 906 |
+| normalizeProposal | fn |  |  | 954 |
+| semanticJudgement | fn | Y |  | 995 |
 
 ### packages\core\src\gate\types.ts（0 个）
 - （无顶层函数/方法提取）
@@ -3930,10 +3774,10 @@
 |---|---|---|---|---|
 | (anon) | ctor |  |  | 42 |
 | init | method |  |  | 47 |
-| getAnomalies | method |  |  | 56 |
-| onStepResult | method |  |  | 62 |
-| onAssemblyTelemetry | method |  |  | 90 |
-| alert | method |  |  | 97 |
+| getAnomalies | method |  |  | 54 |
+| onStepResult | method |  |  | 60 |
+| onAssemblyTelemetry | method |  |  | 88 |
+| alert | method |  |  | 95 |
 
 ### packages\core\src\governance\ApprovalGate.ts（11 个）
 | 函数 | kind | async | export | 行 |
@@ -4194,12 +4038,12 @@
 ### packages\core\src\governance\control-plane\ResourceController.ts（6 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| canAllocate | method |  |  | 37 |
-| check | method | Y |  | 46 |
-| checkAvailability | method |  |  | 53 |
-| getBudgetStatus | method |  |  | 77 |
-| setQuota | method |  |  | 84 |
-| useQuota | method |  |  | 91 |
+| canAllocate | method |  |  | 36 |
+| check | method | Y |  | 45 |
+| checkAvailability | method |  |  | 52 |
+| getBudgetStatus | method |  |  | 76 |
+| setQuota | method |  |  | 83 |
+| useQuota | method |  |  | 90 |
 
 ### packages\core\src\governance\control-plane\RoleRegistry.ts（10 个）
 | 函数 | kind | async | export | 行 |
@@ -4633,7 +4477,7 @@
 ### packages\core\src\infrastructure\observability\ObservabilityBootstrap.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| bootstrapObservability | fn |  | Y | 32 |
+| bootstrapObservability | fn |  | Y | 29 |
 
 ### packages\core\src\infrastructure\observability\PrometheusExporter.ts（4 个）
 | 函数 | kind | async | export | 行 |
@@ -4877,14 +4721,14 @@
 ### packages\core\src\infrastructure\tools\ReadArtifactTool.ts（8 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 27 |
-| execute | method | Y |  | 32 |
-| getSummary | method |  |  | 76 |
-| extractSection | method |  |  | 97 |
-| getSections | method |  |  | 124 |
-| formatContent | method |  |  | 133 |
-| escapeRegex | method |  |  | 139 |
-| createReadArtifactTool | fn |  | Y | 144 |
+| (anon) | ctor |  |  | 26 |
+| execute | method | Y |  | 30 |
+| getSummary | method |  |  | 66 |
+| extractSection | method |  |  | 87 |
+| getSections | method |  |  | 114 |
+| formatContent | method |  |  | 123 |
+| escapeRegex | method |  |  | 129 |
+| createReadArtifactTool | fn |  | Y | 134 |
 
 ### packages\core\src\infrastructure\tools\TeamSayTool.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -4933,8 +4777,8 @@
 ### packages\core\src\infrastructure\tools\memory-search-tool.ts（2 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| textContent | fn |  |  | 20 |
-| createMemorySearchTool | fn |  | Y | 24 |
+| textContent | fn |  |  | 19 |
+| createMemorySearchTool | fn |  | Y | 23 |
 
 ### packages\core\src\infrastructure\tools\ontologyTools.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -5488,6 +5332,8 @@
 | getGlobalActivationEngine | fn |  | Y | 21 |
 
 ### packages\core\src\knowledge\memory\index.ts（0 个）
+- （无顶层函数/方法提取）
+### packages\core\src\knowledge\memory\types.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\knowledge\ontology\FeedbackService.ts（5 个）
 | 函数 | kind | async | export | 行 |
@@ -6121,144 +5967,6 @@
 | inputValidation | fn |  |  | 173 |
 | applySecurityMiddleware | fn |  | Y | 205 |
 
-### packages\studio\server\simulation\cost-estimator.ts（3 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 27 |
-| estimate | method |  |  | 38 |
-| health | method |  |  | 90 |
-
-### packages\studio\server\simulation\execution-predictor.ts（5 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 58 |
-| predict | method | Y |  | 72 |
-| predictSimple | method | Y |  | 108 |
-| health | method |  |  | 115 |
-| calculateDimensions | method |  |  | 125 |
-
-### packages\studio\server\simulation\index.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\studio\server\simulation\plan-simulator.ts（8 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| simulate | method |  |  | 27 |
-| health | method |  |  | 77 |
-| findCriticalPath | method |  |  | 91 |
-| analyzeParallelism | method |  |  | 157 |
-| computeDepth | const-fn |  |  | 164 |
-| detectBottlenecks | method |  |  | 195 |
-| hasCycle | const-fn |  |  | 222 |
-| calculateHistoryMatch | method |  |  | 257 |
-
-### packages\studio\server\simulation\risk-predictor.ts（8 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 25 |
-| predict | method |  |  | 36 |
-| health | method |  |  | 104 |
-| assessComplexity | method |  |  | 114 |
-| assessDuration | method |  |  | 126 |
-| assessHistory | method |  |  | 142 |
-| assessGoal | method |  |  | 152 |
-| scoreToLevel | method |  |  | 162 |
-
-### packages\studio\server\simulation\simulation-engine.ts（8 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 46 |
-| simulate | method | Y |  | 77 |
-| simulateSimple | method | Y |  | 165 |
-| getTwin | method |  |  | 191 |
-| getPlanSimulator | method |  |  | 198 |
-| health | method |  |  | 205 |
-| determineSuggestion | method |  |  | 229 |
-| emitEvent | method |  |  | 238 |
-
-### packages\studio\server\simulation\simulation-twin.ts（7 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 19 |
-| buildProfile | method |  |  | 33 |
-| health | method |  |  | 86 |
-| findSimilar | method |  |  | 99 |
-| extractKeywords | method |  |  | 126 |
-| calculateSimilarity | method |  |  | 145 |
-| determineRiskLevel | method |  |  | 164 |
-
-### packages\studio\server\simulation\success-predictor.ts（2 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| predict | method |  |  | 21 |
-| health | method |  |  | 101 |
-
-### packages\studio\server\simulation\types.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\studio\server\verification\behavior-verification-engine.ts（8 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 60 |
-| verify | method | Y |  | 108 |
-| verifyFromPlan | method | Y |  | 221 |
-| getRegressionStore | method |  |  | 261 |
-| health | method |  |  | 268 |
-| buildRuntimeTrace | method |  |  | 302 |
-| determineStepStatus | method |  |  | 332 |
-| emitEvent | method |  |  | 347 |
-
-### packages\studio\server\verification\expected-trace-builder.ts（5 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 27 |
-| build | method |  |  | 43 |
-| buildFromSteps | method |  |  | 67 |
-| health | method |  |  | 85 |
-| buildExpectedStep | method |  |  | 95 |
-
-### packages\studio\server\verification\index.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\studio\server\verification\quality-score.ts（5 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 41 |
-| score | method |  |  | 77 |
-| health | method |  |  | 153 |
-| average | method |  |  | 163 |
-| determineGrade | method |  |  | 169 |
-
-### packages\studio\server\verification\regression-store.ts（11 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| (anon) | ctor |  |  | 41 |
-| initialize | method |  |  | 46 |
-| save | method | Y |  | 58 |
-| saveFull | method | Y |  | 80 |
-| getByMissionId | method |  |  | 110 |
-| getById | method |  |  | 121 |
-| query | method |  |  | 132 |
-| getStats | method |  |  | 167 |
-| deleteOlderThan | method |  |  | 188 |
-| health | method |  |  | 196 |
-| mapRow | method |  |  | 208 |
-
-### packages\studio\server\verification\trace-comparator.ts（4 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| compare | method |  |  | 25 |
-| health | method |  |  | 68 |
-| compareStep | method |  |  | 78 |
-| compareOutputs | method |  |  | 146 |
-
-### packages\studio\server\verification\types.ts（0 个）
-- （无顶层函数/方法提取）
-### packages\studio\server\verification\violation-detector.ts（4 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| detect | method |  |  | 29 |
-| health | method |  |  | 128 |
-| stepExistsInActual | method |  |  | 138 |
-| stepExistsInExpected | method |  |  | 142 |
-
 ### packages\workflow-sdk\src\IWorkflowAdapter.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\workflow-sdk\src\PiModelRegistry.ts（5 个）
@@ -6281,22 +5989,22 @@
 ### packages\workflow-sdk\src\WorkflowRuntime.ts（16 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 112 |
-| install | method | Y |  | 141 |
-| uninstall | method | Y |  | 196 |
-| enable | method | Y |  | 205 |
-| disable | method | Y |  | 215 |
-| execute | method | Y |  | 237 |
-| runSimulation | method | Y |  | 423 |
-| list | method | Y |  | 465 |
-| getStatus | method | Y |  | 472 |
-| getMetrics | method | Y |  | 494 |
-| optimize | method | Y |  | 538 |
-| listVersions | method | Y |  | 595 |
-| rollback | method | Y |  | 633 |
-| calculateQualityScore | method |  |  | 648 |
-| getAggregatedQuality | method |  |  | 673 |
-| incrementVersion | fn |  |  | 683 |
+| (anon) | ctor |  |  | 111 |
+| install | method | Y |  | 140 |
+| uninstall | method | Y |  | 195 |
+| enable | method | Y |  | 204 |
+| disable | method | Y |  | 214 |
+| execute | method | Y |  | 236 |
+| runSimulation | method | Y |  | 422 |
+| list | method | Y |  | 464 |
+| getStatus | method | Y |  | 471 |
+| getMetrics | method | Y |  | 493 |
+| optimize | method | Y |  | 537 |
+| listVersions | method | Y |  | 594 |
+| rollback | method | Y |  | 632 |
+| calculateQualityScore | method |  |  | 647 |
+| getAggregatedQuality | method |  |  | 672 |
+| incrementVersion | fn |  |  | 682 |
 
 ### packages\workflow-sdk\src\WorkflowSDK.ts（18 个）
 | 函数 | kind | async | export | 行 |
@@ -6323,28 +6031,28 @@
 ### packages\workflow-sdk\src\bootstrap.ts（22 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| loadEnvFile | fn | Y |  | 58 |
-| (anon) | ctor |  |  | 86 |
-| createPlan | method | Y |  | 88 |
-| replan | method | Y |  | 161 |
-| fallbackPlan | method |  |  | 167 |
-| (anon) | ctor |  |  | 200 |
-| executeMission | method | Y |  | 204 |
-| simulate | method | Y |  | 234 |
-| (anon) | ctor |  |  | 257 |
-| execute | method | Y |  | 261 |
-| buildFromSteps | method |  |  | 281 |
-| (anon) | ctor |  |  | 302 |
-| register | method |  |  | 306 |
-| get | method |  |  | 315 |
-| activate | method |  |  | 341 |
-| recordExecution | method |  |  | 345 |
-| getAll | method |  |  | 349 |
-| (anon) | ctor |  |  | 364 |
-| execute | method | Y |  | 368 |
-| (anon) | ctor |  |  | 391 |
-| optimize | method | Y |  | 395 |
-| createWorkflowRuntime | fn | Y | Y | 440 |
+| loadEnvFile | fn | Y |  | 48 |
+| (anon) | ctor |  |  | 76 |
+| createPlan | method | Y |  | 78 |
+| replan | method | Y |  | 151 |
+| fallbackPlan | method |  |  | 157 |
+| (anon) | ctor |  |  | 190 |
+| executeMission | method | Y |  | 194 |
+| simulate | method | Y |  | 224 |
+| (anon) | ctor |  |  | 247 |
+| execute | method | Y |  | 251 |
+| buildFromSteps | method |  |  | 271 |
+| (anon) | ctor |  |  | 292 |
+| register | method |  |  | 296 |
+| get | method |  |  | 305 |
+| activate | method |  |  | 331 |
+| recordExecution | method |  |  | 335 |
+| getAll | method |  |  | 339 |
+| (anon) | ctor |  |  | 354 |
+| execute | method | Y |  | 358 |
+| (anon) | ctor |  |  | 381 |
+| optimize | method | Y |  | 385 |
+| createWorkflowRuntime | fn | Y | Y | 430 |
 
 ### packages\workflow-sdk\src\index.ts（0 个）
 - （无顶层函数/方法提取）
@@ -6577,11 +6285,6 @@
 | renderMd | fn |  |  | 138 |
 | isMain | const-fn |  |  | 208 |
 
-### scripts\_check-calls.ts（1 个）
-| 函数 | kind | async | export | 行 |
-|---|---|---|---|---|
-| v | fn |  |  | 5 |
-
 ### scripts\_mission-session.ts（2 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
@@ -6687,8 +6390,8 @@
 | walkFiles | fn |  |  | 45 |
 | isRelevantSource | fn |  |  | 66 |
 | basename | fn |  |  | 74 |
-| matchLines | fn |  |  | 266 |
-| namedImportsFrom | fn |  |  | 396 |
+| matchLines | fn |  |  | 269 |
+| namedImportsFrom | fn |  |  | 399 |
 
 ### scripts\verify-e2e.ts（1 个）
 | 函数 | kind | async | export | 行 |

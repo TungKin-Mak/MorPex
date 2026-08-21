@@ -663,4 +663,4 @@
 | `scripts/query-morpex.bat` / `scripts/setup-cbm.bat` / `scripts/setup-codebase-memory.bat` | Windows 运维批处理（查询/初始化 codebase memory） | 只做运维 |
 | `scripts/tracing/` | 追踪辅助脚本（若有） | 只做诊断 |
 
-**当前文件数：约 370+（346 基线 + S22-S37 新增 + S38 前端 20 文件 + S39 桌面壳 9 文件，以 `git ls-files | wc -l` 为准）。后端登记已补全：connectors/src 8 + memory/src 27 + studio/server 46 + workflows 34 + workflow-sdk/src 8 + contracts 8 + scripts。**
+**当前文件数：后端 483 文件 / 2768 函数（其中 core/src 346，独立包 connectors 8 + memory 26 + studio/server 29 + workflows 39 + workflow-sdk 8 + contracts 7 + scripts 20，以 `docs/BACKEND_CODE_MAP.md` 为准）。精简 P0 已移除可选子系统（studio simulation/verification 17 文件）与废弃 harness（5 文件）。**

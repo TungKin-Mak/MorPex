@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 精简-收 | **精简收束 + 文档更新**：B/C 类复评均证实结构已高度收敛（execution 编排为复杂度分级策略、policy/learning/governance 为成熟职责分离），继续手术=负收益 → 到止为止；P0 安全减量 22 文件/3.3k 行全部落地。文档同步最新：BACKEND_CODE_MAP 重新生成（483 文件/2768 函数/12742 调用），FILE_REGISTRY 末尾统计更新（studio/server 46→29 等），README TS 文件数 442→656 | ✅ 已提交 |
 | 精简-P0·删 | **执行 harness 删除 + KnowledgeGraph 保留**：经用户确认——harness 有替代（pi-agent-core 实现 + 工具 fallback）且从不实例化 → 删除 execution/harness（5文件/449行）；前置处理：memory-search-tool/ReadArtifactTool 去 harness 分支（行为不变，走 fallback）+ 新建 knowledge/memory/types.ts（MemoryRecord 迁移）+ architecture-integration.test 删 3 harness 用例 + core/index 摘除 harness re-export；KnowledgeGraph 证为无替代的独一能力（仅测试消费）→ 保留。门禁 tsc 0/eslint 0 新错/架构 100%/依赖 0/集成 5 过/knowledgegraph 4 过 | ✅ 已提交 |
 | 精简-P0·删 | **P0 A 类清理（安全部分）已落地**：移除 studio/server/simulation（9文件/1399行）+ verification（8文件/1410行），共 17 文件/2.8k 行，零引用（exercise-all 用 ctx 动态 any 非 import）；门禁 tsc 0/架构 100%/依赖 0/studio 测试 73 过；FILE_REGISTRY 预算 46→29。**发现计划与实际差异**：execution/harness 有真实类型消费方（memory-search-tool/ReadArtifactTool import type AgentHarness）+ core/index re-export；旧 knowledge/graph/knowledge 有独立 SQLite 测试（knowledgegraph-sqlite）——两者不直删，处置待定 | ✅ 已提交 |
 | 精简-图 | **产出《精简机会地图》（docs/REFACTOR_OPPORTUNITY_MAP.md）**：基于覆盖率+mock 76%使用率+入口引用+DEPRECATED 实测，四档分类——A 可移除 24 文件/3.8k 行（execution/harness 废弃、旧 KnowledgeGraph、studio simulation/verification 可选子系统）；B 实现收敛（execution 编排多轨/knowledge·memory 重叠/工具多轨）；C 结构精简（governance/learning 收敛、barrel 可选扁平）；D 必须保留核心链。已剔除覆盖报告中的历史已删文件（cognitive-loop/scheduler 等早已移除）。待用户定 P0 是否执行 A 类清理 | ✅ 已产出 |
