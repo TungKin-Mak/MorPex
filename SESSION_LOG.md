@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| G1-G3 | **参考 deepseek-harness 设计理念·升级已有功能（不重复造轮子）**：盘库确认事件契约/Model-visible-logged/可逆效果/防御性模式 secureExec/PluginSystem 已存在→仅升级 3 处——G1 事件契约目录实体化（`infra/common/contracts/eventContractCatalog.ts` 24 契约 + bootstrap 接线 + `/api/observability/event-contracts` 对账端点）；G2 PluginSystem 幽灵模块接线（getInstance 单例 + stop 精确回卷本领域原语）；G3 ShellConnector→secureExec（shell:false 防注入 + scrubEnv 凭据清洗 + 正交因子上报 + 私有临时目录落盘，connectors 零 core 依赖故内联同源）。门禁 tsc 0 / 契约 7 + eventContract 8 + connectors 15；reviewer 放行；optimizer 删死导出 reconcileEmitted | ✅ |
 | 16o | **本地 MiniCPM5-1B 接入（附加模型）**：config/morpex.yaml 新增 `llm_minicpm:` 块（gateway→http://127.0.0.1:8080/v1，apiKey=${MINICPM_API_KEY}）；yamlConfig 支持 `llm_*` 顶层块→extraLlms；PiBridge init() 改为 builtin 基底 + 附加 gateway provider 叠加注册（setProvider），默认模型不变；model-registry/model-resolver 从 config 构建附加模型（compat 静态目录不含）；新增 4 用例；真实调用验证（modelUsed=minicpm/minicpm5）；门禁 tsc 0 / production-check 8/8 / 架构 100% / depcheck 0 / api-contract 30 | ✅ |
 | 1 | 架构收敛：8 层纯净架构 + 遗留清除（-4000 行） | ✅ 单一架构落地 |
 | 2-3 | 功能①微信/②规则中断/③上下文方案；多 Agent 框架定稿（总大脑+DAG+step-agent+执行肢） | ✅ 方案定稿 |

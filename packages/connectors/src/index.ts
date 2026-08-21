@@ -28,5 +28,9 @@ export { BaseConnector } from './BaseConnector.js';
 export { FileSystemConnector } from './FileSystemConnector.js';
 export { ShellConnector } from './ShellConnector.js';
 
+// ── 安全子进程执行（防御性模式 · 与 core/secureExec 同源，独立包内联）──
+export { scrubEnv, runCommand, makePrivateTempDir, randomPrivateFilePath, writeExclusive, cleanupTempDir } from './secureExec.js';
+export type { ExecOutcome, RunCommandOptions } from './secureExec.js';
+
 // ── Registry ──
 export { ConnectorRegistry } from './ConnectorRegistry.js';

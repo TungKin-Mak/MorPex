@@ -13,6 +13,7 @@ import { join } from 'node:path';
 import { ConnectorRegistry } from '../src/ConnectorRegistry.js';
 import { FileSystemConnector } from '../src/FileSystemConnector.js';
 import { ShellConnector } from '../src/ShellConnector.js';
+import type { ActionResult } from '../src/types.js';
 
 describe('ConnectorRegistry — 注册与权限', () => {
   let registry: ConnectorRegistry;
@@ -130,5 +131,57 @@ describe('ShellConnector — 安全命令执行', () => {
     const names = shell.capabilities.map((c) => c.name);
     expect(names).toContain('shell.exec');
     expect(names).toContain('shell.execScript');
+  });
+
+  it('超时正交上报：进程超时被 SIGTERM 终止——timedOut/signal/exitCode 作为互相独立的字段，绝不折叠进 success', async () => {
+    // 实证（Node 行为）：一旦 .kill('SIGTERM')，即使子进程吞信号后 exit(0)，close 仍上报 signal，code=null。
+    // 因此正确断言是「timedOut 与 signal 各自独立存在」——消费者绝不能从单一 success 推断超时/信号/退出码。
+    const trapScript = "process.on('SIGTERM',()=>{setTimeout(()=>process.exit(0),80)});setInterval(()=>{},1000)";
+    const r = await shell.execute({
+      action: 'shell.exec',
+      params: { command: `node -e "${trapScript}"`, timeout: 200 },
+      executionId: 'x',
+    } as never) as ActionResult & { timedOut?: boolean; signal?: string };
+    expect(r.timedOut).toBe(true);       // 正交因子 1：超时
+    expect(r.signal).toBeTruthy();       // 正交因子 2：终止信号（SIGTERM）
+    expect(r.success).toBe(false);       // 便捷布尔：超时即未成功完成（真相源仍在独立字段）
+    // 正交性验证：signal 存在时 exitCode 不为 0 伪造——被信号终止早于退出码结算，二者不折叠
+    expect(r.exitCode).not.toBe(0);
+  });
+
+  it('免责声明：凭据类 env 不透传子进程（scrubEnv 生效）', async () => {
+    const leakKey = 'MORPEX_TEST_SECRET_LEAK';
+    const leakValue = 'should-not-leak-xyz';
+    process.env[leakKey] = leakValue;
+    try {
+      const r = await shell.execute({
+        action: 'shell.exec',
+        params: { command: 'node -e console.log(JSON.stringify(process.env))' },
+        executionId: 'x',
+      } as never);
+      expect(r.success).toBe(true);
+      const out = JSON.stringify(r.data);
+      expect(out).not.toContain(leakValue);
+      expect(out).not.toContain(leakKey);
+    } finally {
+      delete process.env[leakKey];
+    }
+  });
+
+  it('shell.execScript 脚本落私有临时目录执行并清理', async () => {
+    const r = await shell.execute({
+      action: 'shell.execScript',
+      params: {
+        script: 'console.log("from-script")',
+        interpreter: 'node',
+      },
+      executionId: 'x',
+    } as never);
+    expect(r.success).toBe(true);
+    expect(JSON.stringify(r.data)).toContain('from-script');
+    // 私有临时目录（morpex-script-*）已被清理：不再有任何残留
+    const { readdirSync } = await import('node:fs');
+    const leftovers = readdirSync(tmpdir()).filter((n) => n.startsWith('morpex-script-'));
+    expect(leftovers).toEqual([]);
   });
 });

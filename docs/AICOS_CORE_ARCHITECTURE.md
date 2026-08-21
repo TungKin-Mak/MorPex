@@ -86,6 +86,7 @@ CompanyFacade（唯一入口）
 - execution.artifact.created / execution.budget.exceeded / execution.failure
 - evaluation.profile.scored / evaluation.low_score
 - evolution.proposal.created / evolution.proposal.promoted / evolution.rollback
+- 事件契约目录（G1，2026-08-20）：跨层核心事件已在 `infrastructure/common/contracts/eventContractCatalog.ts` 注册 24 条 EventContract（producer/consumers/validatePayload），bootstrap 填充进 EventBus；对账视图 `GET /api/observability/event-contracts`（抓双轨漂移）。
 
 ## 11. 目录落地（8 层物理结构 · 已执行完成）
 ```

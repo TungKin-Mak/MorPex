@@ -11,7 +11,7 @@
 |----|------|------|------|
 | TypeScript 编译 | `npx tsc --noEmit` | ✅ | 0 错误 |
 | 架构对齐校验 | `node scripts/validate-architecture.js` | ✅ | 100%（无违规） |
-| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **90 文件 / 780 测试**（含去黑盒化 16n deblackbox-smoke） |
+| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **91 文件 / 790 测试**（含去黑盒化 16n deblackbox-smoke） |
 | 系统套件（脚本式） | `npx tsx tests/run-all.ts` | ✅ | 11/11（arch/unit/integration/scenarios/chaos） |
 | API 契约 | vitest 内 `packages/studio/server/__tests__/api-contract.test.ts` | ✅ | 26 测试 / 24+ 端点 |
 | Workflow CLI | `npx tsx tests/cli/run-workflow-cli.ts` | ✅ | 11 测试（~45s） |

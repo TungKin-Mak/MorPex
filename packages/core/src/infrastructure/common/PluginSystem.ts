@@ -14,6 +14,9 @@ import type { MorPexPlugin, PluginContext, EventBus } from './types.js';
 import type { ExecutionIdentity } from './ExecutionIdentity.js';
 import { topologicalSort as tsort } from '../../infrastructure/utils/toposort.js';
 
+/** 进程级单例（镜像 getSharedDeblackboxRecorder 模式）— 供 bootstrapUnified 与演化回滚共享同一实例 */
+let sharedInstance: PluginSystem | null = null;
+
 /** 插件状态 */
 type PluginStatus = 'registered' | 'initialized' | 'running' | 'stopped' | 'error';
 
@@ -35,6 +38,27 @@ interface PluginRecord {
  *   - 循环依赖检测
  */
 export class PluginSystem {
+  /**
+   * getInstance — 进程级单例（插件生命周期归属同一实例）
+   *
+   * 首次调用必须提供 eventBus/executionIdentity（此后忽略）；重复调用返回既有实例。
+   * 用途：bootstrapUnified 注册领域插件时创建；L7 演化回滚/运维可经 getStatus() 查询、stopAll() 统一停止。
+   */
+  static getInstance(eventBus?: EventBus, executionIdentity?: ExecutionIdentity): PluginSystem {
+    if (!sharedInstance) {
+      if (!eventBus || !executionIdentity) {
+        throw new Error('[PluginSystem] 首次初始化必须传入 eventBus 与 executionIdentity');
+      }
+      sharedInstance = new PluginSystem(eventBus, executionIdentity);
+    }
+    return sharedInstance;
+  }
+
+  /** 测试/热重置：清空单例（仅供测试与演化沙箱隔离场景使用） */
+  static resetSingleton(): void {
+    sharedInstance = null;
+  }
+
   private plugins: Map<string, PluginRecord> = new Map();
   private eventBus: EventBus;
   private executionIdentity: ExecutionIdentity;

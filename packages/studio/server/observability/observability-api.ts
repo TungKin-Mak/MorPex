@@ -22,6 +22,8 @@ import { RuntimeInvoker } from './runtime-invoker.js';
 // ═══ 去黑盒化（黑盒⑬）：LLM 交互追踪端点 ═══
 import { llmTracer } from './llm-tracer.js';
 import { getSharedDeblackboxRecorder } from '../../../core/src/infrastructure/observability/deblackbox/DeblackboxRecorder.js';
+// ═══ Event Map：事件契约对账（核心侧契约目录 + 运行时实际发射）═══
+import { getEventContractReconcile, CORE_EVENT_CONTRACTS, CORE_EVENT_CONTRACT_TYPES } from '../../../core/src/infrastructure/common/contracts/eventContractCatalog.js';
 // ═══ 去黑盒化（黑盒⑨）：内存态快照查询 ═══
 
 export function createObservabilityRouter(): Router {
@@ -68,6 +70,24 @@ export function createObservabilityRouter(): Router {
   router.get('/coverage', (_req: Request, res: Response) => {
     const coverage = coverageEngine.calculateLegacy();
     res.json({ ok: true, coverage });
+  });
+
+  // GET /api/observability/event-contracts — 事件契约对账（Event Map）
+  //   契约表 ∩ EventType 枚举 ∩ 运行时实际发射：识别“双轨漂移”（实际发了但无处登记 / 标准事件未补契约）
+  router.get('/event-contracts', (_req: Request, res: Response) => {
+    const report = getEventContractReconcile();
+    const contracts = Object.fromEntries(
+      Object.entries(CORE_EVENT_CONTRACTS).map(([type, c]) => [
+        type,
+        { description: c.description, producer: c.producer, consumers: c.consumers },
+      ]),
+    );
+    res.json({
+      ok: true,
+      contractCount: CORE_EVENT_CONTRACT_TYPES.length,
+      contracts,
+      reconcile: report,
+    });
   });
 
   // ════════════════════════════════════════════════════════════════

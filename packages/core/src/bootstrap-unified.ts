@@ -25,6 +25,9 @@
 import { ServiceContainer } from './execution/runtime/ServiceContainer.js';
 import type { ArtifactFacade } from './knowledge/artifact/ArtifactFacade.js';
 import { EventType } from './infrastructure/protocol/events/EventType.js';
+import { registerCoreEventContracts } from './infrastructure/common/contracts/eventContractCatalog.js';
+import { PluginSystem } from './infrastructure/common/PluginSystem.js';
+import { ExecutionIdentity } from './infrastructure/common/ExecutionIdentity.js';
 import { CompanyFacade } from './facade/CompanyFacade.js';
 import { GoalIntelligenceFacade } from './cognition/planning/goal-intelligence/GoalIntelligenceFacade.js';
 import { DepartmentManager } from './governance/control-plane/DepartmentManager.js';
@@ -114,6 +117,8 @@ export async function bootstrapUnified(options?: {
   // ⬅️ 尽早等待 EventStore 就绪，避免后续注册/写入竞态
   await container.ready;
 
+  // ═══ 事件契约目录（参考 deepseek-harness Event Map）：注册后 emit 路径即开始开发模式载荷校验 ═══
+  registerCoreEventContracts(container.eventBus);
 
   // ═══ 去黑盒化：接入统一记录器（L0/L1/L2 三层；ServiceContainer 已接，此处对
   //     外部传入的独立 EventStore 刷新配置，保证外部注入场景也留痕）═══
@@ -149,19 +154,51 @@ export async function bootstrapUnified(options?: {
     console.warn('[bootstrapUnified] ⚠️ Workflow 插件加载失败:', (err as Error).message);
   }
 
-  // 3.1 注册 Workflow 插件的 ActionPrimitive（理想架构第 9 层 → 第 6 层注册中心）
+  // 3.1 注册 Workflow 插件的 ActionPrimitive（理想架构第 9 层 → 第 6 层注册中心)
+  // ═══ G2：接入 PluginSystem（幽灵模块处置）──顺序捕获各领域新增原语 → 注册插件到单例 → startAll ═══
   try {
     const { bootstrapEcommerceWorkflow } = await import('../../workflows/ecommerce/src/bootstrap.js');
     const { bootstrapHardwareWorkflow } = await import('../../workflows/hardware/src/bootstrap.js');
     const { bootstrapSoftwareWorkflow } = await import('../../workflows/software/src/bootstrap.js');
     const { bootstrapXJMcuWorkflow } = await import('../../workflows/xjmcu/src/bootstrap.js');
-    await Promise.all([
-      bootstrapEcommerceWorkflow('ecommerce'),
-      bootstrapHardwareWorkflow('hardware'),
-      bootstrapSoftwareWorkflow('software'),
-      bootstrapXJMcuWorkflow('xjmcu'),
-    ]);
-    console.log('[bootstrapUnified] ✅ 4 个 Workflow 插件的 ActionPrimitive 已注册');
+
+    const domains = [
+      { name: 'ecommerce', bootstrap: bootstrapEcommerceWorkflow },
+      { name: 'hardware', bootstrap: bootstrapHardwareWorkflow },
+      { name: 'software', bootstrap: bootstrapSoftwareWorkflow },
+      { name: 'xjmcu', bootstrap: bootstrapXJMcuWorkflow },
+    ] as Array<{ name: string; bootstrap: (d?: string) => Promise<void> }>;
+
+    const pluginSystem = PluginSystem.getInstance(container.eventBus, new ExecutionIdentity());
+    const domainDisposers = new Map<string, () => boolean>();
+
+    for (const d of domains) {
+      const before = new Set(DomainPrimitiveRegistry.listNames());
+      await d.bootstrap(d.name);
+      const added = DomainPrimitiveRegistry.listNames().filter((n) => !before.has(n));
+      // 可逆效果：stop() 时精确回滚该领域在本次启动中注册的原语（呼应 harness reversible-effects）
+      domainDisposers.set(d.name, () => {
+        let all = true;
+        for (const n of added) {
+          all = DomainPrimitiveRegistry.unregister(n) && all;
+        }
+        return all;
+      });
+      pluginSystem.register({
+        name: `workflow:${d.name}`,
+        version: '1.0.0',
+        dependencies: [],
+        initialize: async () => {}, // 原语已在上方顺序注册完成，此处仅生命周期占位
+        start: async () => {},
+        stop: async () => {
+          const ok = domainDisposers.get(d.name)?.() ?? true;
+          console.log(`[PluginSystem] ♻️ workflow:${d.name} 已停止（回卷 ${added.length} 个领域原语）ok=${ok}`);
+        },
+      });
+    }
+
+    await pluginSystem.startAll();
+    console.log(`[bootstrapUnified] ✅ 4 个 Workflow 插件接入 PluginSystem（生命周期受管，原语共 ${DomainPrimitiveRegistry.list().length} 个）`);
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ Workflow 插件 ActionPrimitive 注册失败:', (err as Error).message);
   }

@@ -35,6 +35,12 @@ export interface ActionResult {
   metadata?: Record<string, unknown>;
   /** Exit code (for shell/process actions) */
   exitCode?: number;
+  /** 正交独立因子（参考 deepseek-harness defensive-patterns）：进程是否超时（即使 exitCode===0 也可能为 true） */
+  timedOut?: boolean;
+  /** 正交独立因子：导致进程终止的信号（SIGTERM/SIGKILL...）；未终止则缺省 */
+  signal?: string;
+  /** 正交独立因子汇总便捷字段（非真相源；真相源在 exitCode/timedOut/signal）：是否成功完成 */
+  ok?: boolean;
 }
 
 /** Capability declaration for a connector */
