@@ -15,6 +15,7 @@
 import type { ActionPrimitive, ActionResult, ShellExecutionRequest } from './types.js';
 import { PrimitiveGate } from './gateBinding.js';
 import type { KnowledgeContextPackage } from '../../../gate/context.js';
+import { scrubEnv } from '../../common/secureExec.js';
 
 /** 只读 shell 命令（无需 Gate 凭证，缺凭证仅 WARN；其余命令视为副作用操作，必须持有凭证） */
 const READONLY_SHELL_COMMANDS = new Set(['ls', 'cat', 'head', 'tail', 'echo', 'pwd', 'which']);
@@ -128,10 +129,57 @@ export class ShellExecutionPrimitive implements ActionPrimitive {
         deptId,
       });
 
-      console.log(`[ShellExecutionPrimitive] 💻 ${command} (部门: ${deptId}) → ${result.success ? '✅' : '❌'}`);
-      return result;
+      // 防御性：注入执行器若带 env 字段（当前接口未透传，未来扩展），统一先 scrubEnv 再向下传递。
+      // 正交结果约定（公共契约，双向遵守）：
+      //   timeout / exitCode / signal 是**正交独立因子**——一个进程可「超时」且「exitCode===0」
+      //   （它吞掉 SIGTERM 后正常退出）。任何消费端都不得从单个 success 推断这些因子：
+      //   必须读取 normalizeShellOutcome 提升到结果顶层的独立字段。
+      const normalized = normalizeShellOutcome(result);
+      console.log(`[ShellExecutionPrimitive] 💻 ${command} (部门: ${deptId}) → ${normalized.success ? '✅' : '❌'}${normalized.timedOut ? ' ⏱超时' : ''}`);
+      return normalized;
     } catch (err) {
       return { success: false, error: `ShellExecutionPrimitive: 执行失败: ${(err as Error).message}` };
     }
   }
+}
+
+/**
+ * normalizeShellOutcome — 把注入执行器的结果归一化为正交因子独立上报
+ *
+ * 注入的 shellExec（经 ConnectorRegistry shell.exec）返回 ActionResult 形态：
+ *   { success, data?, error? }——data 内可能嵌套 exitCode/timedOut/signal（各家 connector 不一）。
+ * 本函数将这三者**提升到结果顶层独立字段**（若 data 中存在），保证消费端按 {@link ExecOutcome}
+ * 语义正交读取：绝不折叠进 success 布尔。
+ */
+function normalizeShellOutcome(
+  result: ActionResult,
+): ActionResult & { exitCode?: number; timedOut?: boolean; signal?: string } {
+  const data = result.data && typeof result.data === 'object'
+    ? result.data as Record<string, unknown>
+    : undefined;
+  if (!data) return result;
+  const exitCode = typeof data.exitCode === 'number' ? data.exitCode : undefined;
+  const timedOut = data.timedOut === true;
+  const signal = typeof data.signal === 'string' && data.signal.length > 0 ? data.signal : undefined;
+  // 正交修正：即使底层 success=true，只要 timedOut 过，ok 语义必须为 false（独立因子优先）
+  const adjustedSuccess = timedOut ? false : result.success;
+  return {
+    success: adjustedSuccess,
+    data: result.data,
+    error: result.error,
+    exitCode,
+    timedOut: timedOut || undefined,
+    signal,
+  };
+}
+
+/**
+ * scrubExecutorEnv — 供外部（bootstrap/connector）在构造 shellExec 前预处理 env 的辅助
+ *
+ * 暴露 scrubEnv 语义，避免各注入点重复实现（不重复造轮子：底层实现见 secureExec.scrubEnv）。
+ */
+export function scrubExecutorEnv(
+  env: Record<string, string | undefined> | undefined,
+): Record<string, string | undefined> | undefined {
+  return scrubEnv(env);
 }

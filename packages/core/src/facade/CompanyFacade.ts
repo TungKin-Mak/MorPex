@@ -16,6 +16,15 @@ import type { MorPexRuntime, RunOptions } from '../execution/runtime/MorPexRunti
 import type { ControlPlane } from '../governance/control-plane/ControlPlane.js';
 // ═══ 去黑盒化（L0 任务摘要，方案定义层首次落地）═══
 import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
+import { IntentClassifier } from '../cognition/planning/goal-intelligence/IntentClassifier.js';
+
+type LLMProviderFn = (system: string, prompt: string, opts?: { temperature?: number; maxTokens?: number }) => Promise<string>;
+
+/** 闲聊直答 system 提示（不走执行编排） */
+const CHAT_REPLY_SYSTEM =
+  '你是 MorPex 的对话助手。用户在闲聊/问候/简单寒暄，请直接友好简短地回答（1-3 句）。' +
+  '始终使用与用户相同的语言回复（用户用中文就用中文）。' +
+  '不要执行任何任务，不要创建 Mission/团队/产物，不要提及内部架构与编排。';
 
 export interface ExecuteGoalOptions {
   simulationHardFail?: boolean;
@@ -25,6 +34,15 @@ export interface ExecuteGoalOptions {
   departmentName?: string;
   departmentId?: string;
   createIfMissing?: boolean;
+  /** P1 部门 Space：部门经理 persona（路由选中部门后注入编排器） */
+  managerPersona?: string;
+  /** P1 部门 Space：工位能力提示 */
+  capabilities?: string[];
+  /**
+   * P1 部门 Space：意图预判提示（chat/send 已用 IntentClassifier 判过一次，避免二次判断不一致）。
+   * 缺省：executeGoal 自行判断（现状）。
+   */
+  intentHint?: 'chat' | 'task';
   /** 预估成本（用于资源检查） */
   estimatedCost?: number;
   [key: string]: unknown;
@@ -92,6 +110,19 @@ export class CompanyFacade {
 
   private brainFacade: any = null;
   private teamOrchestrator: { listTeams(): unknown[]; getTeam(id: string): unknown } | null = null;
+  private llmProvider: LLMProviderFn | null = null;
+  private goalIntelligence: { understandGoal(goal: string, ctx?: Record<string, unknown>): Promise<{ intent?: 'chat' | 'task' }> } | null = null;
+
+  /** 注入 LLM 提供器（意图判别 + 闲聊直答；bootstrap 装配调用） */
+  setLLMProvider(fn: LLMProviderFn): void {
+    this.llmProvider = fn;
+  }
+
+  /** 17i.32：注入流式闲聊生成器（bootstrap 装配；逐 token onDelta，返回完整文本）。 */
+  private chatStreamer: ((system: string, prompt: string, onDelta: (d: string) => void) => Promise<string>) | null = null;
+  setChatStreamer(fn: (system: string, prompt: string, onDelta: (d: string) => void) => Promise<string>): void {
+    this.chatStreamer = fn;
+  }
 
   /** 功能③：上下文组装引擎（可选注入，无则跳过——零风险） */
   private contextAssemblyEngine: import('../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
@@ -120,12 +151,43 @@ export class CompanyFacade {
   async executeGoal(goal: string, options: ExecuteGoalOptions = {}): Promise<{
     ok: boolean; goalContext?: GoalContext; executionId?: string; result?: unknown;
     report: string; error?: string; missionId?: string; teamId?: string;
+    /** 意图模式：chat（闲聊直答）| goal（执行编排） */
+    mode?: 'chat' | 'goal';
     /** L3 非 Mission 路径：规划层生成的计划信息（未介入/失败时 undefined） */
     plan?: { planId?: string; taskCount?: number; ontologyRefs?: string[] };
   }> {
     await this.ensureBootstrapped();
     console.log(`[CompanyFacade] 🎯 executeGoal: ${goal.substring(0, 80)}`);
     const startTime = Date.now();
+
+    // ═══ 0. 意图分流：闲聊/问候 → 轻量直答（不建 Mission/团队/产物，不进 ControlPlane 门禁）═══
+    //     P1：intentHint 优先生效（chat/send 已预判，避免二次判断不一致）；缺省自行判断（现状）。
+    const intent = options.intentHint
+      ?? (this.goalIntelligence
+        ? (await this.goalIntelligence.understandGoal(goal)).intent
+        : await IntentClassifier.classify(goal, this.llmProvider ?? undefined));
+    if (intent === 'chat') {
+      const FALLBACK = '你好！我是 MorPex，可以帮你完成各类任务，比如写代码、做分析、生成文档等。';
+      let reply = FALLBACK;
+      // 17i.32：优先流式生成（onDelta 由装配层转发为 chat.stream.delta → SSE）
+      if (this.chatStreamer) {
+        try {
+          reply = (await this.chatStreamer(CHAT_REPLY_SYSTEM, goal, () => { /* onDelta 由装配层转发 */ })).trim() || FALLBACK;
+        } catch (err) {
+          console.warn('[CompanyFacade] ⚠️ 闲聊流式生成失败，用兜底回复:', err instanceof Error ? err.message : String(err));
+        }
+      } else if (this.llmProvider) {
+        try {
+          const r = (await this.llmProvider(CHAT_REPLY_SYSTEM, goal, { temperature: 0.7, maxTokens: 500 })).trim();
+          if (r) reply = r; // 模型空回复/限流 → 保留兜底
+        } catch (err) {
+          console.warn('[CompanyFacade] ⚠️ 闲聊直答 LLM 失败，用兜底回复:', err instanceof Error ? err.message : String(err));
+        }
+      }
+      console.log(`[CompanyFacade] 💬 意图=chat，闲聊直答（不走执行编排）: ${goal.substring(0, 50)}`);
+      return { ok: true, report: reply, mode: 'chat' as const };
+    }
+
 
     // ── 0. 部门存在性校验（先于审批门禁：不存在则不进入审批） ──
     if (options.departmentName) {
@@ -154,6 +216,8 @@ export class CompanyFacade {
       awaitApproval: options.awaitApproval ?? false,
       approvalTimeoutMs: options.approvalTimeoutMs,
       departmentId: options.departmentId ?? deptId,
+      managerPersona: options.managerPersona,
+      capabilities: options.capabilities,
     };
 
     // ── 3. 执行 Runtime 管线（统一入口：orchestrate 创建 Mission → MissionRuntime 内部规划/编排/执行）──
@@ -218,7 +282,7 @@ export class CompanyFacade {
       } catch (err) {
         console.warn('[CompanyFacade] ⚠️ L0 任务摘要记录失败（忽略）:', err instanceof Error ? err.message : String(err));
       }
-      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: undefined };
+      return { ok: result.ok, goalContext: result.context?.goal, executionId: result.context?.executionId, result: result.executionResult, report: lines.join('\n'), error: result.errors[0], missionId: result.context?.mission?.missionId, teamId: result.context?.team?.id, plan: undefined, mode: 'goal' as const };
     } catch (err) {
       return { ok: false, report: `❌ Runtime 执行失败: ${(err as Error).message}`, error: (err as Error).message };
     }
@@ -253,8 +317,11 @@ export class CompanyFacade {
     return this.teamOrchestrator?.getTeam(teamId) ?? null;
   }
 
-  setGoalIntelligenceFacade(_: any): void {}
+  setGoalIntelligenceFacade(facade: { understandGoal(goal: string, ctx?: Record<string, unknown>): Promise<{ intent?: 'chat' | 'task' }> }): void {
+    this.goalIntelligence = facade;
+  }
   setFeedbackService(_: any): void {}
   setOntology(_o: any, _g: any, _p: any): void {}
   setCEO(id: string): void { this.ceoId = id; }
 }
+

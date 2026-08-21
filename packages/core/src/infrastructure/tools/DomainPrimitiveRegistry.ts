@@ -24,6 +24,13 @@ import type { ActionPrimitive, ActionResult } from './primitives/types.js';
 
 // ── Types ──
 
+/**
+ * Disposer — 可逆效果回卷函数（vNext·参考 deepseek-harness reversible-effects）
+ *
+ * 调用即回卷；返回 boolean 表示本次回卷是否全部成功（幂等：重复调用应安全）。
+ */
+export type Disposer = () => boolean;
+
 export interface PrimitiveRegistration {
   primitive: ActionPrimitive;
   registeredAt: number;
@@ -60,8 +67,11 @@ export class DomainPrimitiveRegistry {
 
   /**
    * register — 注册一个领域原语
+   *
+   * 返回 {@link Disposer}（可逆效果·vNext）：调用返回的 disposer 即撤销本次注册。
+   * 保持旧行为兼容：不接管 disposer 的调用点不受影响（registrations 由调用方决定何时回卷）。
    */
-  static register(primitive: ActionPrimitive): void {
+  static register(primitive: ActionPrimitive): Disposer {
     if (DomainPrimitiveRegistry.primitives.has(primitive.name)) {
       console.warn(`[DomainPrimitiveRegistry] ⚠️ 原语 "${primitive.name}" 已存在，覆盖注册`);
     }
@@ -73,13 +83,65 @@ export class DomainPrimitiveRegistry {
       lastCalledAt: null,
     });
     console.log(`[DomainPrimitiveRegistry] ✅ 原语 "${primitive.name}" 已注册 (共 ${DomainPrimitiveRegistry.primitives.size} 个)`);
+    return () => DomainPrimitiveRegistry.unregister(primitive.name);
   }
 
   /**
    * registerMultiple — 批量注册
+   *
+   * 返回批量 disposer：调用时按注册顺序正序回卷（每个失败不影响其余，汇总结果）。
    */
-  static registerMultiple(primitives: ActionPrimitive[]): void {
-    for (const p of primitives) DomainPrimitiveRegistry.register(p);
+  static registerMultiple(primitives: ActionPrimitive[]): Disposer {
+    const disposers = primitives.map((p) => DomainPrimitiveRegistry.register(p));
+    return () => {
+      let all = true;
+      for (const d of disposers) {
+        try {
+          all = d() && all;
+        } catch (err) {
+          all = false;
+          console.warn('[DomainPrimitiveRegistry] ⚠️ 批量回卷一项失败:', err);
+        }
+      }
+      return all;
+    };
+  }
+
+  /**
+   * effect — 统一「可逆效果」入口（参考 deepseek-harness reversible-effects 理念）
+   *
+   * 将一组注册 disposer 收集为一个可整体回卷的效果：
+   *   1. register / registerMultiple 等注册动作产生 disposer
+   *   2. 用 effect(...disposers) 收集
+   *   3. 调用返回的 dispose() 时按 LIFO（后进先出）回卷全部注册并记录
+   *
+   * 与 PluginSystem（插件级生命周期）分工：本方法管理「原语/注册级」效果回卷；
+   * 插件整体生命周期仍归 PluginSystem（initialize→start→stop + 依赖拓扑）。
+   *
+   * @example
+   *   const dispose = DomainPrimitiveRegistry.effect(
+   *     DomainPrimitiveRegistry.register(new MyDomainAction()),
+   *   );
+   *   // ... 插件卸载 / 演化回滚时：
+   *   dispose();
+   */
+  static effect(...disposers: Disposer[]): Disposer {
+    return () => {
+      let all = true;
+      // LIFO：后注册先回卷，与依赖顺序（后注册者可能依赖先注册者）对称
+      for (let i = disposers.length - 1; i >= 0; i--) {
+        const d = disposers[i];
+        if (!d) continue;
+        try {
+          all = d() && all;
+        } catch (err) {
+          all = false;
+          console.warn('[DomainPrimitiveRegistry] ⚠️ 效果回卷一项失败:', err);
+        }
+      }
+      console.log(`[DomainPrimitiveRegistry] ♻️ 效果已回卷（${disposers.length} 项注册）`);
+      return all;
+    };
   }
 
   /**

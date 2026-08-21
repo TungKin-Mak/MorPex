@@ -76,6 +76,8 @@ export const agentSpawner = {
   async spawn(params: SpawnParams): Promise<{
     prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
     abort: () => Promise<void>;
+    /** 17i.12：订阅 harness 流式事件（透传 createAgentHarness.subscribe）。 */
+    subscribe?: (listener: (event: Record<string, unknown>) => void) => () => void;
   }> {
     // ═══ 会话 16l（P0-2 连接复用）：复用进程级共享 PiBridge 单例（此前每次 spawn 都 new + init）
     //     单例的 defaultModel 由 config/morpex.yaml 解析（config 是唯一模型来源）；

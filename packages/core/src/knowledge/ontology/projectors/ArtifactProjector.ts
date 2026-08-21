@@ -31,26 +31,33 @@ export class ArtifactProjector {
       (await this.artifactSource.getAll?.()) ??
       [];
 
+    // 17i.20：批量投影模式（跳过逐条 Deblackbox 审计；bootstrap 回放非用户动作）
+    const ontology = this.ontology as OntologyService & { setBulkProjection?: (v: boolean) => void };
+    ontology.setBulkProjection?.(true);
     let count = 0;
-    for (const a of list) {
-      try {
-        await this.ontology.upsertObject({
-          id: String(a.id ?? a.artifactId ?? `artifact_${Date.now()}_${count}`),
-          type: 'Artifact',
-          status: String(a.status ?? a.state ?? 'draft'),
-          properties: {
-            title: String(a.title ?? a.name ?? a.type ?? 'Unnamed Artifact'),
-            missionId: String(a.missionId ?? a.executionId ?? ''),
-            kind: a.kind ?? a.type,
-            version: a.version ?? 1,
-            contentRef: a.contentRef ?? a.source,
-            tags: a.tags,
-          },
-        });
-        count++;
-      } catch (err) {
-        console.warn(`[ArtifactProjector] ⚠️ 投影失败:`, (err as Error).message);
+    try {
+      for (const a of list) {
+        try {
+          await this.ontology.upsertObject({
+            id: String(a.id ?? a.artifactId ?? `artifact_${Date.now()}_${count}`),
+            type: 'Artifact',
+            status: String(a.status ?? a.state ?? 'draft'),
+            properties: {
+              title: String(a.title ?? a.name ?? a.type ?? 'Unnamed Artifact'),
+              missionId: String(a.missionId ?? a.executionId ?? ''),
+              kind: a.kind ?? a.type,
+              version: a.version ?? 1,
+              contentRef: a.contentRef ?? a.source,
+              tags: a.tags,
+            },
+          });
+          count++;
+        } catch (err) {
+          console.warn(`[ArtifactProjector] ⚠️ 投影失败:`, (err as Error).message);
+        }
       }
+    } finally {
+      ontology.setBulkProjection?.(false);
     }
 
     if (count > 0) {

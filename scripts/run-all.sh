@@ -4,7 +4,7 @@
 #
 # 启动 2 个服务：
 #   1. cognee 记忆引擎    :8001   （Python，本地文件存储，统一记忆层）
-#   2. StudioServer 后端  :8080   （MorPex Core + 记忆系统接线）
+#   2. StudioServer 后端  :5473   （MorPex Core + 记忆系统接线）
 #
 # 用法：
 #   ./scripts/run-all.sh            # 后台启动 cognee，前台运行后端
@@ -14,14 +14,14 @@
 #
 # 环境变量：
 #   COGNEE_PORT   (默认 8001)   COGNEE_URL   (默认 http://localhost:8001)
-#   PORT          (默认 8080)   COGNEE_VENV  (cognee venv 路径，默认自动探测)
+#   PORT          (默认 5473)   COGNEE_VENV  (cognee venv 路径，默认自动探测)
 # ═══════════════════════════════════════════════════════════════════
 set -euo pipefail
 
 ROOT="$(cd "$(dirname "${BASH_SOURCE[0]}")/.." && pwd)"
 cd "$ROOT"
 
-PORT="${PORT:-8080}"
+PORT="${PORT:-5473}"
 COGNEE_PORT="${COGNEE_PORT:-8001}"
 COGNEE_URL="${COGNEE_URL:-http://localhost:${COGNEE_PORT}}"
 MODE="${1:-}"

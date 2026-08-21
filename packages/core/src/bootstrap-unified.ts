@@ -23,9 +23,16 @@
  */
 
 import { ServiceContainer } from './execution/runtime/ServiceContainer.js';
+import type { ArtifactFacade } from './knowledge/artifact/ArtifactFacade.js';
 import { EventType } from './infrastructure/protocol/events/EventType.js';
 import { CompanyFacade } from './facade/CompanyFacade.js';
+import { GoalIntelligenceFacade } from './cognition/planning/goal-intelligence/GoalIntelligenceFacade.js';
 import { DepartmentManager } from './governance/control-plane/DepartmentManager.js';
+import { SpaceService } from './governance/control-plane/SpaceService.js';
+import type { Space } from './governance/control-plane/space-types.js';
+import { AgentMailbox, setMailboxInstance } from './execution/AgentMailbox.js';
+import { TaskStateProjector } from './execution/TaskStateProjector.js';
+import { restoreDecisions } from './execution/DecisionStore.js';
 import { RoleRegistry } from './governance/control-plane/RoleRegistry.js';
 import { CapabilityRegistry } from './governance/capability/CapabilityRegistry.js';
 import { systemMetadataGraph } from './knowledge/graph/SystemMetadataGraph.js';
@@ -71,6 +78,12 @@ export interface UnifiedBootstrapResult {
   container: ServiceContainer;
   companyFacade: CompanyFacade;
   departmentManager: DepartmentManager;
+  /** P1 部门 Space 化：组织空间服务（总部 + 部门，懒加载扫描 WorkflowProvider） */
+  spaceService: SpaceService;
+  /** P2 跨部门/工位真交流：AgentMailbox（LLM 扮演目标角色回复 + 落盘 + 事件） */
+  mailbox: AgentMailbox;
+  /** P-A 任务状态投影：执行事件 → data/tasks/<missionId>.json（切视图/重启可恢复工作台） */
+  taskStateProjector: TaskStateProjector;
   controlPlane: import('./governance/control-plane/ControlPlane.js').ControlPlane;
 
   // ── Ontology ──
@@ -90,6 +103,7 @@ export async function bootstrapUnified(options?: {
 }): Promise<UnifiedBootstrapResult> {
   const ceoId = options?.ceoId ?? 'ceo-default';
   const eventStore = options?.eventStore;
+  const __bt = Date.now();
 
   // 1. 初始化 CapabilityRegistry（内置能力）
   CapabilityRegistry.init();
@@ -99,6 +113,7 @@ export async function bootstrapUnified(options?: {
 
   // ⬅️ 尽早等待 EventStore 就绪，避免后续注册/写入竞态
   await container.ready;
+
 
   // ═══ 去黑盒化：接入统一记录器（L0/L1/L2 三层；ServiceContainer 已接，此处对
   //     外部传入的独立 EventStore 刷新配置，保证外部注入场景也留痕）═══
@@ -156,6 +171,28 @@ export async function bootstrapUnified(options?: {
   // 5. 创建 CompanyFacade（构造时强制要求 Runtime + ControlPlane）
   const eventBus = container.eventBus;
   const departmentManager = new DepartmentManager(eventBus);
+  // ═══ P1 部门 Space 化：组织空间服务（懒加载；首次 getTree/routeGoal 时扫描 WorkflowProvider 生成部门 Space）═══
+  const spaceService = new SpaceService(eventBus);
+  // ═══ P2 跨部门/工位真交流：AgentMailbox（LLM 扮演目标角色回复；step-agent 经 mail 工具调用）═══
+  const mailbox = new AgentMailbox();
+  // ═══ P-A 任务状态投影：订阅执行事件 → data/tasks/<missionId>.json（真相源，切视图/重启可恢复）═══
+  const taskStateProjector = new TaskStateProjector();
+  taskStateProjector.attach(eventBus);
+  taskStateProjector.restore();
+  // ═══ P-B 未决决策持久化：重放 data/decisions.jsonl（后端重启后 plan/ask/approval 待决可恢复）═══
+  restoreDecisions();
+  mailbox.setEventBus(eventBus);
+  mailbox.setSpaceService(spaceService);
+  // LLM 扮演：复用 piBridgeWrapper 的流式文本生成（懒加载进程级单例；未装好时 mail 工具不暴露）
+  mailbox.setLLM(async (system, prompt) => {
+    const { getSharedPiBridge } = await import('./infrastructure/adapters/pi-bridge/PiBridge.js');
+    const bridge = getSharedPiBridge();
+    if (!bridge) return '';
+    try { await bridge.init(); } catch { /* init 失败走模板消耗 */ }
+    const full = await bridge.generateChatStream({ system, prompt }, () => { /* 角色扮演不流式 */ });
+    return typeof full === 'string' ? full : String(full ?? '');
+  });
+  setMailboxInstance(mailbox);
   const roleRegistry = new RoleRegistry(eventBus);
   const companyFacade = new CompanyFacade(
     departmentManager,
@@ -350,21 +387,12 @@ export async function bootstrapUnified(options?: {
     console.warn('[bootstrapUnified] ⚠️ ContextAssemblyEngine 注入失败（非阻断）:', (err as Error).message);
   }
 
-  // ⬅️ 从 EventStore 重建状态源（使状态可事件溯源）
-  try {
-    const es = container.eventStore;
-    if (es) {
-      // 重建 SystemMetadataGraph
-      await systemMetadataGraph.restoreFromEvents(es);
-      // 重建 ArtifactFacade
-      if (typeof container.artifactFacade.restoreFromEvents === 'function') {
-        await container.artifactFacade.restoreFromEvents(es);
-      }
-      // Ontology 由构造函数中的 refreshCache() 自动恢复
-    }
-  } catch (err) {
-    console.warn('[bootstrapUnified] ⚠️ 状态源重建失败:', (err as Error).message);
-  }
+  // ⬅️ 产物/图状态恢复：**懒加载**（17i.21）——启动不载入全部产物/图（O(1)，不随数据量增长）。
+  //     ArtifactFacade / SystemMetadataGraph 在首次被读取时自动从 data/*.snapshot.json 合并加载；
+  //     快照缺失/损坏时回退事件重放（restoreFromEvents 仍保留）。变更照常写 EventStore + 防抖落盘快照。
+  //     ⚠️ 已移除：急切 restoreFromSnapshot/restoreFromEvents + Ontology projectAll（前者 O(N) 违背 O(1)，
+  //     后者冗余——产物本就是 graph 的 'artifact' 实体，Ontology 查询直接读 graph.getEntities）。
+  console.log('[bootstrapUnified] ⚡ 产物/图采用懒加载（启动 O(1)）');
 
   // ── Ontology 迭代4 ──
   const objectTypeRegistry = new ObjectTypeRegistry();
@@ -438,10 +466,40 @@ export async function bootstrapUnified(options?: {
         maxTokens: params.maxTokens ?? 32000,
       });
     },
+    // ═══ 17i.32：流式闲聊生成 ═══
+    generateChatStream: async (params: { system: string; prompt: string }, onDelta: (d: string) => void) => {
+      if (!piBridgeInstance) {
+        const { getSharedPiBridge } = await import('./infrastructure/adapters/pi-bridge/PiBridge.js');
+        piBridgeInstance = getSharedPiBridge();
+        await piBridgeInstance.init();
+      }
+      return piBridgeInstance.generateChatStream(params, onDelta);
+    },
   };
 
   // 注入到 MorPexRuntime
   container.setOntology(ontology, forcedQueryGuard, piBridgeWrapper);
+
+  // ═══ 意图分流接线：闲聊直答走引擎级 IntentClassifier（bootstrap 注入 LLM）═══
+  const llmText = (system: string, prompt: string, opts?: { temperature?: number; maxTokens?: number }) =>
+    piBridgeWrapper.generateText({ system, prompt, ...(opts ?? {}) }).then((r) => r.text);
+  companyFacade.setLLMProvider(llmText);
+  // ═══ 17i.32：闲聊流式生成 → 逐 token 转发 chat.stream.delta → SSE → 前端打字机 ═══
+  companyFacade.setChatStreamer(async (system, prompt, _onDelta) => {
+    const full = await piBridgeWrapper.generateChatStream({ system, prompt }, (delta) => {
+      eventBus.emit({
+        id: `evt_chat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+        type: 'chat.stream.delta',
+        timestamp: Date.now(),
+        executionId: 'chat',
+        source: 'company-facade',
+        payload: { delta },
+      });
+    });
+    return full;
+  });
+  companyFacade.setGoalIntelligenceFacade(GoalIntelligenceFacade);
+  GoalIntelligenceFacade.setLLM(llmText);
 
   // ── 架构全功能实现：接通第 6 层（Tools & Primitives）+ 第 10 层 connector ──
   // 1) 注入真实 piBridge → 原语路径的 Ontology Gate 两阶段推理不再空转
@@ -618,14 +676,8 @@ export async function bootstrapUnified(options?: {
     },
   });
 
-  // 初始投影
-  try {
-    const mCount = await missionProjector.projectAll();
-    const aCount = await artifactProjector.projectAll();
-    console.log(`[bootstrapUnified] 📊 Ontology 投影完成: ${mCount} Mission, ${aCount} Artifact`);
-  } catch (err) {
-    console.warn(`[bootstrapUnified] ⚠️ Ontology 投影失败:`, (err as Error).message);
-  }
+  // ═══ 17i.21：移除启动急切 Ontology 投影（O(N)）——产物/实体本就是 graph 的 artifact/mission 实体，
+  //     Ontology 查询直接读 graph.getEntities()，无需额外投影对象。项目器保留供按需调用。═══
 
   // ── 迭代3: FeedbackService ──
   const feedbackService = new FeedbackService(ontology);
@@ -785,11 +837,15 @@ export async function bootstrapUnified(options?: {
   console.log(`  ├─ ExperienceMiner → CapabilityRegistry: 反馈已接通`);
   console.log(`  ├─ 🏁 Ontology: OntologyService + ForcedQueryGuard + Projectors`);
   console.log(`  └─ companyFacade.executeGoal(): 必经 ControlPlane → Runtime 完整管线`);
+  console.log(`[bootstrapUnified] ⏱ 启动完成（${((Date.now() - __bt) / 1000).toFixed(1)}s）`);
 
   return {
     container,
     companyFacade,
     departmentManager,
+    spaceService,
+    mailbox,
+    taskStateProjector,
     controlPlane: container.controlPlane,
     // ── Ontology ──
     ontology,

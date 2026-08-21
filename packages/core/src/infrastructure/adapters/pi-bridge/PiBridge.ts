@@ -54,7 +54,7 @@ export function resolveDefaultModel(configPath?: string): string {
 // ═══════════════════════════════════════════════════════════════════
 
 // YAML 配置（LLM 网关）
-import { loadMorpexConfig, type LlmGatewayConfig } from './yamlConfig.js';
+import { loadMorpexConfig, getEnabledExtraLlms, type LlmGatewayConfig } from './yamlConfig.js';
 
 // ═══ 去黑盒化（黑盒① LLM 交互记录 + 黑盒② 成本落库）：统一记录入口 ═══
 // PiBridge 不直接依赖 EventStore，经进程级共享单例旁路写入（未配置时内存缓冲，永不阻断）。
@@ -186,9 +186,26 @@ export interface AgentHarnessHandle {
 export class PiBridge {
   private models: Record<string, unknown> | null = null;
   private initialized = false;
-  readonly defaultModel: string;
+  private _defaultModel: string;
+
+  /** 当前生效模型标识（'provider/model'，config 解析；可运行时 setDefaultModel 全局切换） */
+  get defaultModel(): string {
+    return this._defaultModel;
+  }
+
+  /**
+   * setDefaultModel — 运行时切换全局默认模型（'provider/model'，如 'minicpm/minicpm5'）。
+   * 只影响「之后发起」的 generateText 调用；在途请求已在 generateTextOnce 开头解析完模型。
+   */
+  setDefaultModel(modelId: string): void {
+    if (typeof modelId === 'string' && modelId.trim()) {
+      this._defaultModel = modelId.trim();
+    }
+  }
   /** LLM 网关配置（config/morpex.yaml 的 llm 块；enabled=true 时生效） */
   private gateway: LlmGatewayConfig | null = null;
+  /** 附加模型网关（config 中所有 `llm_*` 块；注册为可选 provider，不改变默认模型） */
+  private extraGateways: LlmGatewayConfig[] = [];
 
   constructor(defaultModel = DEFAULT_MODEL) {
     // ═══ 会话 11：config 为唯一模型来源（抽离硬编码）═══
@@ -199,7 +216,7 @@ export class PiBridge {
     const cfg = loadMorpexConfig();
     const llm = cfg?.llm;
     if (llm?.enabled && llm.provider && llm.model) {
-      this.defaultModel = `${llm.provider}/${llm.model}`;
+      this._defaultModel = `${llm.provider}/${llm.model}`;
       const mode = llm.mode ?? 'builtin';
       if (mode === 'gateway') {
         this.gateway = llm;
@@ -214,8 +231,12 @@ export class PiBridge {
       }
     } else {
       this.gateway = null;
-      this.defaultModel = defaultModel;
+      this._defaultModel = defaultModel;
     }
+    // ═══ 附加模型：config 中所有 llm_* 块（如 llm_minicpm）═══
+    // 与默认模型并存：默认仍走 llm.provider/llm.model，附加模型用 "provider/model" 完整标识显式选择
+    // 过滤条件与 model-registry / model-resolver 共用 isExtraLlmUsable（yamlConfig），防止三处漂移
+    this.extraGateways = getEnabledExtraLlms(cfg);
   }
 
   // ── 初始化 ──
@@ -237,6 +258,11 @@ export class PiBridge {
         const fn = mod.builtinModels as unknown as () => Record<string, unknown>;
         this.models = fn();
       }
+      // ═══ 附加模型：在同一 Models 实例上叠加注册所有 llm_* 网关 provider ═══
+      // 与默认模型并存：默认仍走 llm.provider/llm.model；附加模型用 "provider/model" 完整标识选择
+      for (const extra of this.extraGateways) {
+        await this.registerExtraProvider(extra);
+      }
       this.initialized = true;
     } catch (err) {
       console.warn('[PiBridge] 初始化失败:', err);
@@ -244,18 +270,36 @@ export class PiBridge {
   }
 
   /**
-   * initGateway — 用 pi-ai createProvider 注册自定义 OpenAI 兼容网关
+   * initGateway — 用 pi-ai createProvider 注册自定义 OpenAI 兼容网关（主 llm 块）
    *
    * 参考 pi-ai README「createProvider()」：本地推理服务/代理/OpenAI 兼容端点。
    * 模型走 openai-completions API，baseUrl 指向网关，apiKey 由 auth.resolve 提供。
+   * 新建 Models 集合并注入主网关 provider。
    */
   private async initGateway(cfg: LlmGatewayConfig): Promise<void> {
+    const provider = await this.buildProvider(cfg);
     const piAi = (await import('@earendil-works/pi-ai')) as unknown as {
       createModels: () => {
         setProvider: (p: unknown) => void;
-        getModel: (p: string, id: string) => Record<string, unknown> | undefined;
-        getModels: (p?: string) => Array<Record<string, unknown>>;
       };
+    };
+    // 创建 Models 集合并注入主网关 provider
+    const models = piAi.createModels();
+    models.setProvider(provider);
+    this.models = models as unknown as Record<string, unknown>;
+
+    console.log(`[PiBridge] ✅ 自定义 LLM 网关已配置: ${cfg.baseUrl ?? 'http://localhost:8000/v1'} (${cfg.provider ?? 'morpex-gateway'}/${cfg.model ?? 'grok-2'})`);
+  }
+
+  /**
+   * buildProvider — 用 pi-ai createProvider 构建 OpenAI 兼容网关 provider
+   *
+   * 主网关（llm 块）与附加模型（llm_* 块）共用此构建逻辑；区别只在注册目标：
+   *   - 主网关   → initGateway 新建 Models 集合并 setProvider
+   *   - 附加模型 → registerExtraProvider 叠加到已初始化的 Models 实例
+   */
+  private async buildProvider(cfg: LlmGatewayConfig): Promise<unknown> {
+    const piAi = (await import('@earendil-works/pi-ai')) as unknown as {
       createProvider: (input: Record<string, unknown>) => unknown;
     };
     const apiMod = (await import('@earendil-works/pi-ai/api/openai-completions.lazy')) as unknown as {
@@ -265,7 +309,12 @@ export class PiBridge {
     const providerId = cfg.provider ?? 'morpex-gateway';
     const baseUrl = cfg.baseUrl ?? 'http://localhost:8000/v1';
     const modelId = cfg.model ?? 'grok-2';
-    const apiKey = cfg.apiKey ?? '';
+    // ═══ 空 apiKey 处理（本地无 Key 服务）═══
+    // pi-ai openai-completions 的 getClientApiKey 要求非空 apiKey（空串按缺失处理，
+    // 在发请求前内部抛 "No API key for provider" → PiBridge 误判为 EMPTY_RESPONSE 限流重试）。
+    // 本地 OpenAI 兼容服务（如 llama.cpp，未配 --api-key）不校验 Authorization，
+    // 传占位非空 key 使请求真正到达服务端；服务端若要求 Key 则返回清晰的 401。
+    const apiKey = cfg.apiKey || 'not-needed';
 
     // 模型定义（openai-completions API）
     const model = {
@@ -274,7 +323,10 @@ export class PiBridge {
       api: 'openai-completions',
       provider: providerId,
       baseUrl,
-      reasoning: false,
+      reasoning: cfg.reasoning ?? false,
+      // ═══ 会话 17i.10：思考开关——qwen-chat-template 会发 chat_template_kwargs.enable_thinking
+      //     （对应 config 注释；pi-ai 据此把返回的 reasoning_content 组装成 thinking 块，agent 会话可记录、前端可投影）═══
+      compat: { thinkingFormat: 'qwen-chat-template' as const },
       input: ['text'],
       cost: { input: 0, output: 0, cacheRead: 0, cacheWrite: 0 },
       contextWindow: cfg.contextWindow ?? 128000,
@@ -282,7 +334,7 @@ export class PiBridge {
     };
 
     // 自定义 provider（auth.resolve 提供 apiKey）
-    const provider = piAi.createProvider({
+    return piAi.createProvider({
       id: providerId,
       name: `${providerId} (OpenAI-compatible gateway)`,
       baseUrl,
@@ -295,13 +347,24 @@ export class PiBridge {
       models: [model],
       api: apiMod.openAICompletionsApi(),
     });
+  }
 
-    // 创建 Models 集合并注入自定义 provider
-    const models = piAi.createModels();
-    models.setProvider(provider);
-    this.models = models as unknown as Record<string, unknown>;
-
-    console.log(`[PiBridge] ✅ 自定义 LLM 网关已配置: ${baseUrl} (${providerId}/${modelId})`);
+  /**
+   * registerExtraProvider — 把附加模型网关叠加注册到已初始化的 Models 实例
+   *
+   * （builtin 基底或主网关之上；模型用 "provider/model" 完整标识选择，如 minicpm/minicpm5）
+   * 单个注册失败不阻断其余模型与主流程。
+   */
+  private async registerExtraProvider(cfg: LlmGatewayConfig): Promise<void> {
+    if (!this.models) return;
+    try {
+      const provider = await this.buildProvider(cfg);
+      const models = this.models as unknown as { setProvider: (p: unknown) => void };
+      models.setProvider(provider);
+      console.log(`[PiBridge] ✅ 附加 LLM 网关已注册: ${cfg.baseUrl} (${cfg.provider}/${cfg.model})`);
+    } catch (err) {
+      console.warn(`[PiBridge] ⚠️ 附加 LLM 网关注册失败（忽略，不影响主流程）: ${cfg.provider}/${cfg.model}`, err instanceof Error ? err.message : String(err));
+    }
   }
 
   get ready(): boolean {
@@ -420,9 +483,20 @@ export class PiBridge {
     // 修复：经 onResponse 回调检测 429/5xx → 抛 RateLimitError（调用方可退避重试，batch-run 已有）。
     let httpStatus: number | null = null;
     try {
+      // ═══ 会话 16o（本地 MiniCPM5 接入）：调用方 maxTokens 不超模型定义上限 ═══
+      // 编排层默认 maxTokens=32000（bootstrap-unified 的 `?? 32000`），而本地 1B 思考型模型
+      // 会无节制生成到该上限（单次 ~15min）。钳到模型定义 maxTokens（config 驱动，如 minicpm=4096）
+      // 以控制单次生成预算；仅当调用方显式传 maxTokens 时钳制（未传保持原行为）。
+      const modelMaxTokens = (model as { maxTokens?: number }).maxTokens;
+      const maxTokens =
+        params.maxTokens != null && typeof modelMaxTokens === 'number' && modelMaxTokens > 0
+          ? Math.min(params.maxTokens, modelMaxTokens)
+          : params.maxTokens;
       const result = await m.complete(model, { messages }, {
         temperature: params.temperature,
-        maxTokens: params.maxTokens,
+        maxTokens,
+        // ═══ 会话 17i.10：思考开关——模型 reasoning=true 时请求思考（clampThinkingLevel 需具体级别，true 会落到 off）═══
+        ...(model.reasoning ? { reasoning: 'high' as const } : {}),
         onResponse: (resp: { status?: number }) => { httpStatus = resp.status ?? null; },
       } as Record<string, unknown>);
 
@@ -567,6 +641,8 @@ export class PiBridge {
   async createAgentHarness(config: AgentConfig): Promise<{
     prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
     abort: () => Promise<void>;
+    // 17i.12：订阅 harness 流式事件（message_update → text_delta/thinking_delta），供实时终端转录
+    subscribe: (listener: (event: Record<string, unknown>) => void) => () => void;
   }> {
     if (!this.models) await this.init();
 
@@ -624,6 +700,8 @@ export class PiBridge {
       session,
       tools,
       systemPrompt: config.systemPrompt || 'You are a helpful assistant.',
+      // ═══ 会话 17i.10：思考开关——透传给 streamSimple（agent-loop 的 config.reasoning；需具体级别）═══
+      ...(model.reasoning ? { reasoning: 'high' as const } : {}),
       // ⬅️ 会话 15（工具可靠性 P0）：工具执行前钩子透传——空参拦截/知识 goal 兜底在工具执行前生效
       beforeToolCall: config.beforeToolCall,
     });
@@ -631,7 +709,41 @@ export class PiBridge {
     return harness as {
       prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
       abort: () => Promise<void>;
+      subscribe: (listener: (event: Record<string, unknown>) => void) => () => void;
     };
+  }
+
+  /**
+   * generateChatStream — 流式文本生成（17i.32：闲聊直答逐 token 输出）。
+   * 复用 createAgentHarness 的 subscribe（text_delta），onDelta 每 token 回调一次，返回完整文本。
+   */
+  async generateChatStream(params: { system: string; prompt: string }, onDelta: (d: string) => void): Promise<string> {
+    if (!this.models) await this.init();
+    const harness = await this.createAgentHarness({
+      systemPrompt: params.system,
+      sessionId: `chat_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`,
+      tools: [],
+    });
+    let full = '';
+    let unsub: (() => void) | undefined;
+    if (typeof harness.subscribe === 'function') {
+      unsub = harness.subscribe((evt) => {
+        const e = evt as Record<string, unknown>;
+        if (e.type !== 'message_update') return;
+        const ae = (e.assistantMessageEvent ?? {}) as Record<string, unknown>;
+        if (ae.type === 'text_delta' && typeof ae.delta === 'string' && ae.delta) {
+          full += ae.delta;
+          onDelta(ae.delta);
+        }
+      });
+    }
+    try {
+      const res = await harness.prompt(params.prompt);
+      const text = this.extractText(res as unknown as Record<string, unknown>);
+      return text || full;
+    } finally {
+      unsub?.();
+    }
   }
 
   /**

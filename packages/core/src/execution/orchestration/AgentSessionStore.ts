@@ -220,7 +220,17 @@ function normalizeEntry(raw: Record<string, unknown>): Record<string, unknown> {
   switch (raw.type) {
     case 'message': {
       const msg = (raw.message ?? {}) as Record<string, unknown>;
-      return { ...base, role: msg.role ?? 'unknown', content: contentToText(msg.content) };
+      // 17i.4：附带原始内容块数组（text/toolCall/toolResult），供前端实时渲染思考/工具调用/输出；
+      //        content 保持 contentToText 纯文本（既有消费者不受影响，纯加法）。
+      // 17i.9：附带 toolName/toolCallId（toolResult 消息的工具名在消息级，不在块级）——前端据此正确渲染工具结果。
+      return {
+        ...base,
+        role: msg.role ?? 'unknown',
+        content: contentToText(msg.content),
+        ...(typeof msg.toolName === 'string' ? { toolName: msg.toolName } : {}),
+        ...(typeof msg.toolCallId === 'string' ? { toolCallId: msg.toolCallId } : {}),
+        ...(Array.isArray(msg.content) ? { contentBlocks: msg.content } : {}),
+      };
     }
     case 'custom':
       return { ...base, customType: raw.customType, data: raw.data ?? undefined };

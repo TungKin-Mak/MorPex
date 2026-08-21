@@ -27,9 +27,9 @@ RESULTS_DIR="$PROJECT_DIR/data/k6-results"
 MODE="default"
 VUS=""
 DURATION=""
-# StudioServer 真实端点（:8080 /api/*）；全量负载套件仍可覆盖旧端点的扩展场景
-BASE_URL="${BASE_URL:-http://localhost:8080}"
-API_URL="${API_URL:-http://localhost:8080}"
+# StudioServer 真实端点（:5473 /api/*）；全量负载套件仍可覆盖旧端点的扩展场景
+BASE_URL="${BASE_URL:-http://localhost:5473}"
+API_URL="${API_URL:-http://localhost:5473}"
 
 # Parse args
 case "${1:-default}" in

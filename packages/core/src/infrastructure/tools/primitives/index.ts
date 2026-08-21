@@ -31,5 +31,5 @@ export type {
 export { KnowledgeQueryPrimitive } from './KnowledgeQueryPrimitive.js';
 export { FileOperationPrimitive } from './FileOperationPrimitive.js';
 export { ArtifactGenerationPrimitive } from './ArtifactGenerationPrimitive.js';
-export { ShellExecutionPrimitive } from './ShellExecutionPrimitive.js';
+export { ShellExecutionPrimitive, scrubExecutorEnv } from './ShellExecutionPrimitive.js';
 export { APICallPrimitive } from './APICallPrimitive.js';

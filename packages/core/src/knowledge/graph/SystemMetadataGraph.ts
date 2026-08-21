@@ -5,6 +5,8 @@
 import type { IEventStore } from '../../infrastructure/protocol/events/store/IEventStore.js';
 import { EventType } from '../../infrastructure/protocol/events/EventType.js';
 import type { BaseEvent } from '../../infrastructure/protocol/events/BaseEvent.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export type EntityType = 'agent' | 'tool' | 'artifact' | 'mission' | 'memory' | 'workflow' | 'capability' | 'goal';
 export type RelationType = 'created_by' | 'used_by' | 'depends_on' | 'improved_from' | 'verified_by' | 'derived_from' | 'generated_by' | 'approved_by' | 'deployed_from' | 'related_to';
@@ -125,6 +127,7 @@ export class SystemMetadataGraph {
     }
 
     console.log(`[SystemMetadataGraph] ✅ 从 EventStore 重建: ${this.entities.size} 实体, ${this.relations.length} 关系`);
+    this.loaded = true;
 
     // ═══ 会话 16l：restore 后重建去重基准（否则 restore 完首个 upsert 会误判为首次注册重新 append）
     for (const e of this.entities.values()) {
@@ -136,6 +139,112 @@ export class SystemMetadataGraph {
     }
   }
 
+  // ═══════════════════════════════════════════════════════════
+  // 会话 17i.19：图快照（启动快速恢复，事件重放兜底）
+  // ═══════════════════════════════════════════════════════════
+  private snapshotPath = path.resolve('data/graph.snapshot.json');
+  private snapshotTimer: ReturnType<typeof setTimeout> | undefined;
+  // ═══ 会话 17i.21：懒加载——启动不载入全图，首次读才从快照合并（启动 O(1)）═══
+  private loaded = false;
+
+  /** 懒加载：首次读时从快照合并实体/关系/去重基准（只补缺，不覆盖）。 */
+  private ensureLoaded(): void {
+    if (this.loaded) return;
+    this.loaded = true;
+    try {
+      if (!fs.existsSync(this.snapshotPath)) return;
+      const raw = fs.readFileSync(this.snapshotPath, 'utf-8');
+      const data = JSON.parse(raw) as {
+        version?: number;
+        entities?: Entity[];
+        relations?: Relation[];
+        registeredPayloads?: Array<[string, string]>;
+      };
+      if (!data || !Array.isArray(data.entities)) return;
+      let added = 0;
+      for (const e of data.entities) {
+        if (e && typeof e.id === 'string' && !this.entities.has(e.id)) {
+          this.entities.set(e.id, { ...e, metadata: e.metadata ?? {} });
+          const bucket = this.entitiesByType.get(e.type);
+          if (bucket) bucket.push(e);
+          else this.entitiesByType.set(e.type, [e]);
+          added++;
+        }
+      }
+      if (this.relations.length === 0 && Array.isArray(data.relations)) this.relations = data.relations;
+      if (this.registeredPayloads.size === 0 && Array.isArray(data.registeredPayloads)) {
+        this.registeredPayloads = new Map(data.registeredPayloads);
+      }
+      if (added > 0 || this.relations.length > 0) {
+        console.log(`[SystemMetadataGraph] ⚡ 懒加载快照: 补入 ${added} 实体, ${this.relations.length} 关系`);
+      }
+    } catch (e) {
+      console.warn(`[SystemMetadataGraph] ⚠️ 懒加载快照失败: ${(e as Error).message}`);
+    }
+  }
+
+  /** 保存图快照（实体 + 关系 + 去重基准；data/ 已 gitignore）。 */
+  saveSnapshot(): void {
+    try {
+      fs.mkdirSync(path.dirname(this.snapshotPath), { recursive: true });
+      fs.writeFileSync(
+        this.snapshotPath,
+        JSON.stringify({
+          version: 1,
+          savedAt: Date.now(),
+          entities: [...this.entities.values()],
+          relations: this.relations,
+          registeredPayloads: [...this.registeredPayloads.entries()],
+        }, null, 2),
+        'utf-8',
+      );
+    } catch (e) {
+      console.warn(`[SystemMetadataGraph] ⚠️ 快照保存失败: ${(e as Error).message}`);
+    }
+  }
+
+  /** 从快照恢复；成功返回 true（缺失/损坏 → false，回退事件重放）。 */
+  async restoreFromSnapshot(): Promise<boolean> {
+    try {
+      if (!fs.existsSync(this.snapshotPath)) return false;
+      const raw = fs.readFileSync(this.snapshotPath, 'utf-8');
+      const data = JSON.parse(raw) as {
+        version?: number;
+        entities?: Entity[];
+        relations?: Relation[];
+        registeredPayloads?: Array<[string, string]>;
+      };
+      if (!data || !Array.isArray(data.entities)) return false;
+      this.entities.clear();
+      this.entitiesByType.clear();
+      this.relations = Array.isArray(data.relations) ? data.relations : [];
+      this.registeredPayloads = new Map(Array.isArray(data.registeredPayloads) ? data.registeredPayloads : []);
+      for (const e of data.entities) {
+        if (e && typeof e.id === 'string') {
+          this.entities.set(e.id, { ...e, metadata: e.metadata ?? {} });
+          const bucket = this.entitiesByType.get(e.type);
+          if (bucket) bucket.push(e);
+          else this.entitiesByType.set(e.type, [e]);
+        }
+      }
+      console.log(`[SystemMetadataGraph] ✅ 从快照恢复: ${this.entities.size} 实体, ${this.relations.length} 关系`);
+      this.loaded = true;
+      return true;
+    } catch (e) {
+      console.warn(`[SystemMetadataGraph] ⚠️ 快照加载失败（回退事件重放）: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /** 图变更后防抖落盘（500ms）。 */
+  scheduleSnapshot(): void {
+    if (this.snapshotTimer !== undefined) clearTimeout(this.snapshotTimer);
+    this.snapshotTimer = setTimeout(() => {
+      this.snapshotTimer = undefined;
+      this.saveSnapshot();
+    }, 500);
+  }
+
   /**
    * registerEntity — 注册/更新实体（upsert 语义）
    *
@@ -144,6 +253,7 @@ export class SystemMetadataGraph {
    *     （实测 44,377 事件 → 唯一 3,900，重复率 91%）。业务变化仍 append（记录最新状态快照）。
    */
   registerEntity(id: string, type: EntityType, name: string, metadata?: Record<string, unknown>): void {
+    this.ensureLoaded();
     // ═══ P1-5（会话 16l·2）：单对象引用同时入 Map + type 索引桶（保证 getEntities(type) 与
     //     getEntities()/entities Map 返回同一引用 → OntologyService WeakMap 缓存一致性）
     const entity: Entity = { id, type, name, metadata: metadata || {}, createdAt: Date.now() };
@@ -165,6 +275,7 @@ export class SystemMetadataGraph {
       this.entitiesByType.set(type, [entity]);
     }
     this.entities.set(id, entity);
+    this.scheduleSnapshot(); // 17i.19：图变更 → 防抖落盘快照
     // EventStore 写入（去重）
     if (this.eventStore) {
       const key = stableKey({ entityId: id, entityType: type, name, metadata: metadata || {} });
@@ -185,8 +296,10 @@ export class SystemMetadataGraph {
   }
 
   addRelation(fromId: string, toId: string, type: RelationType, weight?: number, metadata?: Record<string, unknown>): void {
+    this.ensureLoaded();
     if (!this.entities.has(fromId) || !this.entities.has(toId)) return;
     this.relations.push({ fromId, toId, type, weight: weight || 1.0, createdAt: Date.now(), metadata });
+    this.scheduleSnapshot(); // 17i.19：图变更 → 防抖落盘快照
     // EventStore 写入
     if (this.eventStore) {
       this.eventStore.append({
@@ -201,10 +314,12 @@ export class SystemMetadataGraph {
   }
 
   getRelations(entityId: string): Relation[] {
+    this.ensureLoaded();
     return this.relations.filter(r => r.fromId === entityId || r.toId === entityId);
   }
 
   findRelated(entityId: string, relationType: RelationType, direction: 'outgoing' | 'incoming' = 'outgoing'): Entity[] {
+    this.ensureLoaded();
     const rels = direction === 'outgoing'
       ? this.relations.filter(r => r.fromId === entityId && r.type === relationType)
       : this.relations.filter(r => r.toId === entityId && r.type === relationType);
@@ -213,6 +328,7 @@ export class SystemMetadataGraph {
   }
 
   getEntities(type?: EntityType): Entity[] {
+    this.ensureLoaded();
     // ═══ P1-5（会话 16l·2）：type 命中走索引 O(桶内) ；无 type 全量返回
     if (type) {
       return [...(this.entitiesByType.get(type) ?? [])];
@@ -220,15 +336,17 @@ export class SystemMetadataGraph {
     return [...this.entities.values()];
   }
 
-  getAllRelations(): Relation[] { return [...this.relations]; }
+  getAllRelations(): Relation[] { this.ensureLoaded(); return [...this.relations]; }
 
   getStats(): { entities: number; relations: number; byType: Record<string, string> } {
+    this.ensureLoaded();
     const byType: Record<string, number> = {};
     for (const e of this.entities.values()) byType[e.type] = (byType[e.type] || 0) + 1;
     return { entities: this.entities.size, relations: this.relations.length, byType: Object.fromEntries(Object.entries(byType).map(([k, v]) => [k, String(v)])) };
   }
 
   findPath(fromId: string, toId: string): Relation[] | null {
+    this.ensureLoaded();
     if (!this.entities.has(fromId) || !this.entities.has(toId)) return null;
     const visited = new Set<string>();
     const queue: Array<{ id: string; path: Relation[] }> = [{ id: fromId, path: [] }];

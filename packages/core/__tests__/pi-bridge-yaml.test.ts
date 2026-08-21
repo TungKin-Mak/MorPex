@@ -150,4 +150,24 @@ describe('PiBridge 网关配置', () => {
       rmSync(dir, { recursive: true, force: true });
     }
   });
+
+  it('setDefaultModel — 运行时切换全局默认模型（trim + 空值忽略）', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'morpex-setmodel-'));
+    const oldCwd = process.cwd();
+    try {
+      process.chdir(dir);
+      const bridge = new PiBridge();
+      const initial = bridge.defaultModel;
+      bridge.setDefaultModel('minicpm/minicpm5');
+      expect(bridge.defaultModel).toBe('minicpm/minicpm5');
+      bridge.setDefaultModel('  agnes/agnes-2.5-flash  ');
+      expect(bridge.defaultModel).toBe('agnes/agnes-2.5-flash');
+      bridge.setDefaultModel('');
+      expect(bridge.defaultModel).toBe('agnes/agnes-2.5-flash'); // 空串被忽略
+      bridge.setDefaultModel(initial); // 还原，避免影响其它用例
+    } finally {
+      process.chdir(oldCwd);
+      rmSync(dir, { recursive: true, force: true });
+    }
+  });
 });

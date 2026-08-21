@@ -18,6 +18,8 @@
 
 import { config } from '../../../config/MorPexConfig.js';
 import type { MorPexEvent, EventHandler } from './types.js';
+import type { EventContractMap, ReconcileReport } from './eventContract.js';
+import { validateEventPayload, reconcileKnownEvents } from './eventContract.js';
 
 /** 默认历史事件最大保留数 */
 const DEFAULT_MAX_HISTORY = config.eventBusMaxHistory;
@@ -42,7 +44,8 @@ const PROJECTED_EVENT_PREFIXES = [
 
 /** ★ P1 优化: 默认不可见事件前缀 (严格 internal) */
 const INTERNAL_EVENT_PREFIXES = [
-  'workflow.step_',
+  // ═══ 会话 17i.3：workflow.step_* 放行到前端 SSE——实时任务卡片需要按步骤实时显示
+  //     （web 路径 DAGRuntime 真实发射 workflow.step_started/completed/failed；此前 internal 导致执行期无步骤反馈）═══
   'agent.',
   'gateway.',
 ];
@@ -77,6 +80,11 @@ export class EventBus {
   private history: MorPexEvent[] = [];
   private maxHistory: number;
 
+  /** 事件契约表（渐进式：未注册契约的 type 跳过校验） */
+  private contracts: EventContractMap = {};
+  /** 契约载荷校验开关（默认跟随 NODE_ENV：非 production 开启） */
+  private contractValidationEnabled: boolean;
+
   // v13: 事件发射计数器（按类型）
   private emitCounts: Map<string, number> = new Map();
   // v13: 错误日志
@@ -107,6 +115,65 @@ export class EventBus {
 
   constructor(maxHistory: number = DEFAULT_MAX_HISTORY) {
     this.maxHistory = maxHistory;
+    this.contractValidationEnabled = process.env.NODE_ENV !== 'production';
+  }
+
+  // ═══════════════════════════════════════════════════════════════
+  // 事件契约层（参考 deepseek-harness "Event Map + @mode 契约"）
+  // ═══════════════════════════════════════════════════════════════
+
+  /**
+   * setContracts — 注入事件契约表（渐进式：未注册契约的 type 跳过校验）。
+   *
+   * 用法：
+   *   bus.setContracts(buildContractMap(contractA, contractB));
+   */
+  setContracts(contracts: EventContractMap): void {
+    this.contracts = contracts ?? {};
+  }
+
+  /**
+   * getContracts — 获取当前事件契约表。
+   */
+  getContracts(): EventContractMap {
+    return this.contracts;
+  }
+
+  /**
+   * setContractValidationEnabled — 显式开关契约载荷校验。
+   * 默认跟随 NODE_ENV（开发开启）；生产环境可显式打开以施加硬约束。
+   */
+  setContractValidationEnabled(enabled: boolean): void {
+    this.contractValidationEnabled = enabled;
+  }
+
+  /**
+   * isContractValidationEnabled — 当前契约载荷校验是否开启。
+   */
+  isContractValidationEnabled(): boolean {
+    return this.contractValidationEnabled;
+  }
+
+  /**
+   * reconcileEvents — 事件全集对账（契约表 + EventType 枚举 + 运行时实际发射）。
+   * 定位“双轨漂移”：哪些事件实际发了但无处登记 / 哪些标准事件未补契约。
+   */
+  reconcileEvents(): ReconcileReport {
+    return reconcileKnownEvents(this.contracts, this.emitCounts.entries());
+  }
+
+  /**
+   * validateContract — 契约载荷校验（开发模式；异常仅 WARN，绝不阻断主流程）。
+   */
+  private validateContract(event: MorPexEvent): void {
+    if (!this.contractValidationEnabled) return;
+    if (!Object.prototype.hasOwnProperty.call(this.contracts, event.type)) return;
+    const { ok, errors } = validateEventPayload(event.type, event.payload, this.contracts);
+    if (!ok) {
+      console.warn(
+        `[EventBus] ⚠️ 事件 "${event.type}" 载荷不符合契约:\n  - ${errors.join('\n  - ')}`,
+      );
+    }
   }
 
   /**
@@ -142,6 +209,9 @@ export class EventBus {
     if (!event.type.includes('.')) {
       console.warn(`[EventBus] 事件类型 "${event.type}" 不规范，建议使用 "domain.action" 格式`);
     }
+
+    // 事件契约校验（开发模式；异常仅 WARN，不阻断）
+    this.validateContract(event);
 
     // v13: 递增发射计数器
     this.emitCounts.set(event.type, (this.emitCounts.get(event.type) || 0) + 1);
@@ -373,6 +443,11 @@ export class EventBus {
     if (!event.executionId) {
       console.warn(`[EventBus] emitToDomain 事件 "${event.type}" 缺少 executionId`);
     }
+
+    // 事件契约校验（开发模式；异常仅 WARN，不阻断）
+    this.validateContract(event);
+    // v13: 递增发射计数器（对账数据源与 emit 一致）
+    this.emitCounts.set(event.type, (this.emitCounts.get(event.type) || 0) + 1);
 
     // 写入历史
     this.history.push(event);

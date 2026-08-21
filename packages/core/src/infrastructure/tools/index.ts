@@ -37,3 +37,8 @@ export type {
 } from './primitives/index.js';
 
 export { ontologyToolDefinitions, createOntologyToolExecutor } from './ontologyTools.js';
+
+// ── 安全执行工具（防御性模式：凭据清洗 / 正交结果 / 私有临时路径；secureExec 本体在 common/）──
+export { scrubEnv, runCommand, makePrivateTempDir, randomPrivateFilePath, writeExclusive, cleanupTempDir } from '../common/secureExec.js';
+export type { ExecOutcome, RunCommandOptions } from '../common/secureExec.js';
+export { scrubExecutorEnv } from './primitives/index.js';

@@ -101,14 +101,14 @@ jobs:
         run: |
           npx tsx scripts/start.ts &
           for i in $(seq 1 30); do
-            if curl -sf http://localhost:8080/api/health > /dev/null; then break; fi
+            if curl -sf http://localhost:5473/api/health > /dev/null; then break; fi
             sleep 2
           done
-          curl -sf http://localhost:8080/api/health
+          curl -sf http://localhost:5473/api/health
       - name: Run k6 smoke via Docker
         run: |
           docker run --rm --network host \
-            -e BASE_URL=http://localhost:8080 \
-            -e API_URL=http://localhost:8080 \
+            -e BASE_URL=http://localhost:5473 \
+            -e API_URL=http://localhost:5473 \
             -v "$PWD/scripts:/scripts" \
             grafana/k6 run --vus 5 --duration 30s /scripts/k6-smoke.js

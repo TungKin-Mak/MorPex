@@ -7,6 +7,7 @@
 
 import { getModels, getProviders } from '@earendil-works/pi-ai/compat';
 import { resolveDefaultModel, DEFAULT_MODEL } from './pi-bridge/index.js';
+import { loadMorpexConfig, getEnabledExtraLlms } from './pi-bridge/yamlConfig.js';
 
 /** Model info in MorPex format */
 export interface ModelInfo {
@@ -25,35 +26,67 @@ export interface ProviderInfo {
   models: ModelInfo[];
 }
 
+/**
+ * getExtraModelInfos — 从 config（llm_* 附加模型块）构建 ModelInfo 列表
+ *
+ * compat 静态目录（getModels/getProviders）不含运行时 createProvider 注册的自定义
+ * provider——附加网关模型（如本地 MiniCPM5）从这里读 config 构建，供发现/列表/查找可见。
+ * 与 PiBridge 运行时注册保持同一 config 来源。
+ */
+function getExtraModelInfos(): ModelInfo[] {
+  // 过滤条件与 PiBridge / model-resolver 共用 isExtraLlmUsable（yamlConfig），防止三处漂移
+  return getEnabledExtraLlms(loadMorpexConfig()).map((g) => ({
+    id: g.model as string,
+    name: g.model as string,
+    provider: g.provider as string,
+    api: 'openai-completions',
+    contextWindow: g.contextWindow ?? 128000,
+    maxTokens: g.maxTokens ?? 32000,
+    supportsReasoning: g.reasoning ?? false,
+  }));
+}
+
+/** compat 静态目录模型映射（getModels 不返回运行时 createProvider 注册的自定义 provider） */
+function listCompatModels(provider: string): ModelInfo[] {
+  try {
+    const models = getModels(provider as unknown as Parameters<typeof getModels>[0]) as unknown as Array<{
+      id: string; name: string; provider: { id: string } | string;
+      api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
+    }>;
+    return models.map(m => ({
+      id: m.id,
+      name: m.name,
+      provider: typeof m.provider === 'string' ? m.provider : m.provider.id,
+      api: m.api,
+      contextWindow: Number(m.contextWindow),
+      maxTokens: Number(m.maxTokens),
+      supportsReasoning: Boolean(m.reasoning),
+    }));
+  } catch {
+    return [];
+  }
+}
+
 export const piModelRegistry = {
   /** List all known providers */
   listProviders(): string[] {
-    try {
-      return getProviders() as unknown as string[];
-    } catch {
-      return [resolveDefaultModel().split('/')[0] || 'opencode', 'openai'];
-    }
+    const compat: string[] = (() => {
+      try {
+        return getProviders() as unknown as string[];
+      } catch {
+        return [];
+      }
+    })();
+    const extra = getExtraModelInfos().map((m) => m.provider);
+    return Array.from(new Set([...compat, ...extra]));
   },
 
   /** List models for a provider */
   listModels(provider: string): ModelInfo[] {
-    try {
-      const models = getModels(provider as unknown as Parameters<typeof getModels>[0]) as unknown as Array<{
-        id: string; name: string; provider: { id: string } | string;
-        api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
-      }>;
-      return models.map(m => ({
-        id: m.id,
-        name: m.name,
-        provider: typeof m.provider === 'string' ? m.provider : m.provider.id,
-        api: m.api,
-        contextWindow: Number(m.contextWindow),
-        maxTokens: Number(m.maxTokens),
-        supportsReasoning: Boolean(m.reasoning),
-      }));
-    } catch {
-      return [];
-    }
+    // 附加网关模型优先（compat 静态目录不含运行时注册的自定义 provider）
+    const extra = getExtraModelInfos().filter((m) => m.provider === provider);
+    if (extra.length > 0) return extra;
+    return listCompatModels(provider);
   },
 
   /** List all providers with their models */
@@ -93,21 +126,16 @@ export const piModelRegistry = {
 
   // Backward-compat aliases
   getProviders: () => {
-    try { return getProviders() as unknown as string[]; } catch { return [resolveDefaultModel().split('/')[0] || 'opencode', 'openai']; }
+    const compat: string[] = (() => {
+      try { return getProviders() as unknown as string[]; } catch { return []; }
+    })();
+    const extra = getExtraModelInfos().map((m) => m.provider);
+    return Array.from(new Set([...compat, ...extra]));
   },
   getModels: (provider: string) => {
-    try {
-      const models = getModels(provider as unknown as Parameters<typeof getModels>[0]) as unknown as Array<{
-        id: string; name: string; provider: { id: string } | string;
-        api: string; contextWindow: number; maxTokens: number; reasoning: boolean;
-      }>;
-      return models.map(m => ({
-        id: m.id, name: m.name,
-        provider: typeof m.provider === 'string' ? m.provider : m.provider.id,
-        api: m.api,
-        contextWindow: Number(m.contextWindow), maxTokens: Number(m.maxTokens),
-        supportsReasoning: Boolean(m.reasoning),
-      }));
-    } catch { return []; }
+    // 附加网关模型优先（compat 静态目录不含运行时注册的自定义 provider）
+    const extra = getExtraModelInfos().filter((m) => m.provider === provider);
+    if (extra.length > 0) return extra;
+    return listCompatModels(provider);
   },
 };

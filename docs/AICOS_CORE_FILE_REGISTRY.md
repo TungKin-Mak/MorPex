@@ -172,7 +172,8 @@
 | `cognition/planning/DeliveryPlannerAdapter.ts` | DeliveryPlannerAdapter — 将 DeliveryPlanner 适配为 MissionPlanner 接口 L3 全功能实现：把理想架构第 3 层（DeliveryPlanner，真实 piBridge + Ontology Gate） 接入 MissionRuntime 的任务 FSM 规划阶段（此前规划层不可达）。 深度接入（vNext+ L3）： - 主规划：DeliveryPlanner.createPlan（Ontology Grounded） - 重规划（replan）：Hiera | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/HierarchicalPlanner.ts` | HierarchicalPlanner — 分层规划器（支持 Ontology grounded reasoning，产出计划供 L5 执行） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/ConstraintAnalyzer.ts` | ConstraintAnalyzer — 约束分析器 从目标文本中提取预算/期限/平台等约束 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext；v17f 接入 IntentClassifier（闲聊 vs 任务） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/IntentClassifier.ts` | IntentClassifier — 意图判别器（闲聊 chat vs 任务 task）：启发式快速判定 + 歧义走 LLM；CompanyFacade.executeGoal 入口分流，闲聊直答不建 Mission | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalParser.ts` | GoalParser — 目标解析器 将用户原始语句解析为目标+领域+子目标 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalValidator.ts` | GoalValidator — 目标验证器 检查目标上下文的完整性和可行性 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/RequirementExtractor.ts` | RequirementExtractor — 从目标中提取能力需求 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -320,11 +321,11 @@
 | `infrastructure/adapters/embedding/EmbeddingProvider.ts` | EmbeddingProvider — 向量化提供器（会话 16k）：调用 OpenAI 兼容 /embeddings（SiliconFlow BAAI/bge-m3），配置全来自 config/embeddingconfig.yaml（非硬编码）；cosine 相似度；RAG-lazy 装配的 similarityScorer 数据源 | 底座服务；仅适配器层；不可用回退关键词检索 |
 | `infrastructure/adapters/index.ts` | MorPex Core Adapter Layer — Barrel export All Pi-adjacent types and utilities are re-exported from here. Core business logic may import from this barrel: import { MPAgentTool, Type } from '../../infrastructure/adapters/index.js'; ══════════════════════════════ | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/memory/index.ts` | Memory Adapter Bridge — 统一 memory 包接入层 ═══════════════════════════════════════════════════════════════════ ARCHITECTURAL BOUNDARY Only files in packages/core/src/infrastructure/adapters/ may directly import from the memory package. All L2/L3/L4 core modules MU | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/adapters/model-registry.ts` | ModelRegistryAdapter — isolates pi-ai model discovery functions. Wraps pi-ai's getModels / getProviders / getModel. Uses type-safe provider validation. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/adapters/model-resolver.ts` | ModelResolver — Type-safe wrapper around pi-ai's getModel(). Uses pi-ai/compat for backward compatibility. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/adapters/model-registry.ts` | ModelRegistryAdapter — isolates pi-ai model discovery functions. Wraps pi-ai's getModels / getProviders / getModel. Uses type-safe provider validation. 附加模型（llm_* 块）从 config 构建并合并到发现列表（compat 静态目录不含运行时注册的自定义 provider）。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/adapters/model-resolver.ts` | ModelResolver — Type-safe wrapper around pi-ai's getModel(). Uses pi-ai/compat for backward compatibility. 附加模型（llm_* 块）从 config 构建等价模型定义（compat 静态目录不含）。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-ai-types.ts` | PiAITypesAdapter — isolates pi-ai TypeBox type exports Re-exports Type, Static, TSchema from pi-ai for use in tool definitions. If pi-ai changes these exports, only this file needs updating. / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-augmentations.ts` | Pi Augmentations — TypeScript declaration merging for pi-agent-core types. Extends pi-agent-core's AgentMessage to support MorPex custom message roles (memoryHint, dagNodeStatus) used by MemoryMessages.ts. This file is imported as a side-effect by MemoryMessag | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/adapters/pi-bridge/PiBridge.ts` | PiBridge — 稳定的 pi-ai + pi-agent-core 抽象层 隔离 @earendil-works/pi-ai 和 @earendil-works/pi-agent-core 的 API 变更。 当底层包升级时，只需修改此文件。 内部使用 pi-ai 0.81.x 新 API：builtinModels / Models.complete 内部使用 pi-agent-core 0.81.x API：AgentHarness / InMemorySessionRepo / NodeExecutio | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/adapters/pi-bridge/PiBridge.ts` | PiBridge — 稳定的 pi-ai + pi-agent-core 抽象层 隔离 @earendil-works/pi-ai 和 @earendil-works/pi-agent-core 的 API 变更。 当底层包升级时，只需修改此文件。 内部使用 pi-ai 0.81.x 新 API：builtinModels / Models.complete 内部使用 pi-agent-core 0.81.x API：AgentHarness / InMemorySessionRepo / NodeExecutio 附加模型（llm_* 块）：init() 在 builtin 基底上叠加注册 gateway provider（setProvider），默认模型不变。 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-bridge/index.ts` | pi-bridge — 稳定的 pi-ai 抽象层 @packageDocumentation / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-types.ts` | MorPex Pi Type Adapter — Central type-level bridge ═══════════════════════════════════════════════════════════════════ IMPORTANT: THIS IS THE ONLY FILE WHERE Pi TYPES ARE IMPORTED. All other core files MUST import Pi types from here: import { MPAgentTool } fro | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/adapters/pi-utils.ts` | MorPex Pi Utilities Adapter — Central runtime bridge to Pi packages ═══════════════════════════════════════════════════════════════════ ALL pi-agent-core classes go through PiBridge static getters. When pi packages upgrade, only PiBridge needs changing. pi-ai  | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
@@ -435,9 +436,54 @@
 | `infrastructure/observability/deblackbox/index.ts` | （barrel：统一导出） |
 | `studio/server/observability/llm-tracer.ts` | LLM 交互追踪（订阅 llm.call，调用链内存缓冲 + 查询/统计；/llm-trace 端点） |
 | `__tests__/deblackbox-smoke.test.ts` | 去黑盒记录器冒烟测试（L1/L2/L0、采样、TTL 清理、on 订阅、策略） |
+| `__tests__/pi-bridge-extra-provider.test.ts` | 附加模型（llm_* 块）接入测试：yamlConfig 解析 extraLlms + ${VAR}；PiBridge builtin 基底 + 附加 gateway provider 并存注册；enabled=false/缺字段跳过 |
 
 > **16n 埋点分布（16 处黑盒）**：`PiBridge.ts`(llm.call ①②) / `gateBinding.ts`+`runOntologyGroundedReasoning.ts`(gate.decision ④⑯) / `ContextAssemblyEngine.ts`(context.retrieval ③) / `HierarchicalPlanner.ts`+`DeliveryPlanner.ts`(planner.decision ⑤) / `UnifiedExecutionEngine.ts`(execution.path ⑥) / `BrainFacade.ts`(brain.background ⑦) / `DynamicTeamOrchestrator.ts`+`ExecutionFabric.ts`+`OrchestratorAgent.ts`(memory.state.snapshot ⑨) / `OrganizationTwin.ts`(approval.decision ⑪) / `MorPexConfig.ts`(config.change ⑫) / `EvolutionSandbox.ts`+`EvolutionApplyLoop.ts`(evolution.proposal ⑭) / `OntologyService.ts`+`MemoryApiBus.ts`(knowledge.write ⑮) / `MorPexRuntime.ts`+`ServiceContainer.ts`(cost.llm.call 双写 ⑧) / `observability-api.ts`(/llm-trace /memory-state 端点 ⑬⑨)。方案 `docs/archive/DEBLACKBOX_PLAN.md`
 
+---
+
+## `studio/web/`（前端渲染层，独立包，S38）
+
+> 层边界规则：纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API；不承载后端逻辑。独立于 AICOS-Core 8 层（不属于 core 包）。浏览器模式与桌面壳（studio/desktop，后续）共用此渲染层。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `package.json` | 前端独立包清单（devDeps: typescript/vite/@types/node；零 runtime 依赖） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `tsconfig.json` | 前端独立 TS 配置（lib ES2022+DOM、moduleResolution bundler、strict、noEmit），与根 tsconfig 隔离 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `vite.config.ts` | Vite 配置：dev proxy /api→5473 + build 纯静态 dist（base './'） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `.env.example` | 声明 VITE_API_BASE（唯一后端入口环境变量） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `index.html` | 单页壳：内联 CSS + 顶部 4 tab 导航 + 挂载 #app | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/main.ts` | 入口：装配 ApiClient + hash 路由 + tab 高亮 + 挂载 4 视图 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/env.ts` | 读取 VITE_API_BASE，默认 http://localhost:5473（唯一后端地址来源） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/api/types.ts` | 手写 REST 响应类型（镜像 api-contract.test.ts，权威源注释于文件头） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/api/http.ts` | fetch 封装：统一 API_BASE 前缀、JSON、非 2xx 抛 ApiError | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/api/client.ts` | 26 个 REST 端点 → 类型化函数（全项目唯一拼 '/api/...' 的地方） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/api/sse.ts` | EventSource 封装：/api/stream/global + 自动重连 + JSON 解析兜底（跳过心跳注释帧） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/ui/dom.ts` | 轻量 DOM 构造工具 el()/mount()/clear()（无框架） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/ui/router.ts` | hash 路由（#/dashboard 等）+ 视图卸载 cleanup（停轮询/关 SSE） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/ui/widgets.ts` | 卡片/徽章/键值行/错误框/表格/按钮/加载中等最小部件 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/views/dashboard.ts` | 仪表盘：health/status/execution-stats/governance/ontology 5 卡片 + 5s 轮询 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/views/console.ts` | 会话视图（浅色聊天应用，会话 17h）：左侧会话侧栏（新对话/删除）+ 右侧聊天区（模型切换/附件上传/消息气泡/输入条），删除会话/上传文件/模型切换，首页默认 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/views/events.ts` | 事件流：SSE /api/stream/global 实时日志 + filter 前缀过滤 + 连接状态 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `src/views/artifacts.ts` | 产物记忆：产物列表/详情/谱系 + 记忆召回/写入 | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+| `README.md` | 前端上手文档（起后端 → npm install → npm run dev） | 纯前端客户端；仅经 HTTP/SSE 消费 StudioServer API |
+
+## `studio/desktop/`（桌面壳，Tauri 2，S39）
+
+> 层边界规则：桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API；不承载后端逻辑。独立于 AICOS-Core 8 层。渲染层与壳完全解耦（壳 Rust 零 @morpex 引用，渲染层零 tauri 依赖）。
+
+| 文件 | 功能 | 职责边界 |
+|---|---|---|
+| `package.json` | 桌面包清单（devDeps: @tauri-apps/cli + concurrently；scripts: dev/dev:all/build/check） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `src-tauri/Cargo.toml` | Rust 依赖（tauri 2 + serde；无业务依赖） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `src-tauri/build.rs` | tauri-build 构建脚本 | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `scripts/bundle-backend.mjs` | 打包可移植后端运行时 → desktop/portable（node.exe + repo.zip）：复制源码/配置 + npm install --omit=dev + 剥离 .d.ts/.map + bsdtar 打 zip | 桌面壳；打包工具，不承载后端逻辑 |
+| `src-tauri/tauri.conf.json` | 壳配置：frontendDist=../../web/dist、devUrl=:5173、窗口 1280x800、NSIS 安装包（currentUser + SimpChinese）、resources=portable/node.exe+repo.zip | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `src-tauri/capabilities/default.json` | v1 空权限集（core:default，无 IPC command） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `src-tauri/src/main.rs` | 壳入口（Windows 子系统，调 lib run） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `src-tauri/src/lib.rs` | 壳 Builder + 后端生命周期：优先解压安装包内置运行时（%LOCALAPPDATA%/MorPex/runtime，tar 解压 repo.zip + 版本 marker）并启动；无资源则回退开发模式（仓库）；用户 API Key 读 %APPDATA%/MorPex/config.env 注入环境；退出 taskkill 由壳拉起的后端；无任何 command | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API；不承载后端逻辑 |
+| `src-tauri/icons/` | 占位图标集（tauri icon 生成，后续换正式 Logo） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
+| `README.md` | 桌面壳上手文档（前置条件/启动/构建/镜像降级） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 
 ---
-**当前文件数：约 370+（346 基线 + S22-S37 新增，以 `git ls-files | wc -l` 为准）。**
+**当前文件数：约 370+（346 基线 + S22-S37 新增 + S38 前端 20 文件 + S39 桌面壳 9 文件，以 `git ls-files | wc -l` 为准）。**

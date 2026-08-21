@@ -9,12 +9,19 @@ import type { ArtifactNode, ArtifactLineageEntry } from '../../infrastructure/pr
 import type { ArtifactStatus } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';
 import type { IEventStore } from '../../infrastructure/protocol/events/store/IEventStore.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 export class ArtifactFacade {
   private artifacts: Map<string, ArtifactNode> = new Map();
   private eventBus: EventBus;
   private store?: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean };
   private eventStore?: IEventStore;
+  // ═══ 会话 17i.19：产物快照（启动快速恢复；事件重放兜底）═══
+  private snapshotPath = path.resolve('data/artifacts.snapshot.json');
+  private snapshotTimer: ReturnType<typeof setTimeout> | undefined;
+  // ═══ 会话 17i.21：懒加载——启动不载入全部产物，首次读才从快照合并加载（启动 O(1)，不随产物量增长）═══
+  private loaded = false;
 
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[ArtifactFacade] EventBus 是必填参数');
@@ -91,6 +98,78 @@ export class ArtifactFacade {
     }
 
     console.log(`[ArtifactFacade] ✅ 从 EventStore 重建: ${this.artifacts.size} 个产物`);
+    this.loaded = true;
+  }
+
+  // ═══════════════════════════════════════════════════════════
+  // 会话 17i.19：产物快照（启动快速恢复，事件重放兜底）
+  // ═══════════════════════════════════════════════════════════
+
+  /** 懒加载：首次读时从快照合并历史产物（只补缺，不覆盖内存中已新建的会话产物）。 */
+  private ensureLoaded(): void {
+    if (this.loaded) return;
+    this.loaded = true;
+    try {
+      if (!fs.existsSync(this.snapshotPath)) return;
+      const raw = fs.readFileSync(this.snapshotPath, 'utf-8');
+      const data = JSON.parse(raw) as { version?: number; artifacts?: ArtifactNode[] };
+      if (!data || !Array.isArray(data.artifacts)) return;
+      let added = 0;
+      for (const a of data.artifacts) {
+        if (a && typeof a.id === 'string' && !this.artifacts.has(a.id)) {
+          this.artifacts.set(a.id, { ...a, lineage: Array.isArray(a.lineage) ? a.lineage : [], metadata: a.metadata ?? {} });
+          added++;
+        }
+      }
+      console.log(`[ArtifactFacade] ⚡ 懒加载快照: 补入 ${added} 个历史产物（当前 ${this.artifacts.size}）`);
+    } catch (e) {
+      console.warn(`[ArtifactFacade] ⚠️ 懒加载快照失败: ${(e as Error).message}`);
+    }
+  }
+
+  /** 保存产物快照（序列化内存产物表，供下次启动快速恢复；data/ 已 gitignore）。 */
+  saveSnapshot(): void {
+    try {
+      fs.mkdirSync(path.dirname(this.snapshotPath), { recursive: true });
+      fs.writeFileSync(
+        this.snapshotPath,
+        JSON.stringify({ version: 1, savedAt: Date.now(), artifacts: [...this.artifacts.values()] }, null, 2),
+        'utf-8',
+      );
+    } catch (e) {
+      console.warn(`[ArtifactFacade] ⚠️ 快照保存失败: ${(e as Error).message}`);
+    }
+  }
+
+  /** 从快照恢复；成功返回 true（缺失/损坏 → false，调用方回退事件重放）。 */
+  async restoreFromSnapshot(): Promise<boolean> {
+    try {
+      if (!fs.existsSync(this.snapshotPath)) return false;
+      const raw = fs.readFileSync(this.snapshotPath, 'utf-8');
+      const data = JSON.parse(raw) as { version?: number; artifacts?: ArtifactNode[] };
+      if (!data || !Array.isArray(data.artifacts)) return false;
+      this.artifacts.clear();
+      for (const a of data.artifacts) {
+        if (a && typeof a.id === 'string') {
+          this.artifacts.set(a.id, { ...a, lineage: Array.isArray(a.lineage) ? a.lineage : [], metadata: a.metadata ?? {} });
+        }
+      }
+      this.loaded = true;
+      console.log(`[ArtifactFacade] ✅ 从快照恢复: ${this.artifacts.size} 个产物`);
+      return true;
+    } catch (e) {
+      console.warn(`[ArtifactFacade] ⚠️ 快照加载失败（回退事件重放）: ${(e as Error).message}`);
+      return false;
+    }
+  }
+
+  /** 产物变更后防抖落盘（500ms），使快照保持较新，减少崩溃时回退重放。 */
+  private scheduleSnapshot(): void {
+    if (this.snapshotTimer !== undefined) clearTimeout(this.snapshotTimer);
+    this.snapshotTimer = setTimeout(() => {
+      this.snapshotTimer = undefined;
+      this.saveSnapshot();
+    }, 500);
   }
 
   create(name: string, type: string, sourceTask: string, metadata?: Record<string, unknown>): ArtifactNode {
@@ -126,6 +205,7 @@ export class ArtifactFacade {
       });
     }
     this.emit(EventType.ARTIFACT_CREATED, node);
+    this.scheduleSnapshot(); // 17i.19：产物变更 → 防抖落盘快照
     return node;
   }
 
@@ -155,6 +235,7 @@ export class ArtifactFacade {
     }
     this.emit(EventType.ARTIFACT_UPDATED, art);
     if (this.store) this.store.transition(id, to);
+    this.scheduleSnapshot(); // 17i.19：状态转换 → 防抖落盘快照
     return true;
   }
 
@@ -164,14 +245,17 @@ export class ArtifactFacade {
   }
 
   getLineage(id: string): ArtifactLineageEntry[] {
+    this.ensureLoaded();
     return this.artifacts.get(id)?.lineage || [];
   }
 
   getByTask(taskId: string): ArtifactNode[] {
+    this.ensureLoaded();
     return [...this.artifacts.values()].filter(a => a.sourceTask === taskId);
   }
 
   get(id: string): ArtifactNode | undefined {
+    this.ensureLoaded();
     return this.artifacts.get(id);
   }
 
@@ -184,6 +268,7 @@ export class ArtifactFacade {
   }
 
   getAll(): ArtifactNode[] {
+    this.ensureLoaded();
     return [...this.artifacts.values()];
   }
 

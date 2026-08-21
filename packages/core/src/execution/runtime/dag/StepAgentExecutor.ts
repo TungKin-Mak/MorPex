@@ -121,6 +121,11 @@ export interface StepAgentExecutorOptions {
    * 透传给 recall_task 工具。未注入 → 不暴露该工具。
    */
   recallTask?: (taskRef: string) => Promise<string | null>;
+  /** P2：跨部门/工位交流（mail 原语）发起方上下文——eventBus + mailboxCtx 齐备才暴露 mail 工具。 */
+  mailboxCtx?: { from: string; spaceId?: string; taskId?: string; goal?: string };
+  /** P-A：任务级关联键（投影/前端按 missionId 归集；事件 payload 透传）。 */
+  missionId?: string;
+  executionId?: string;
 }
 
 export interface StepAgentResult {
@@ -267,6 +272,8 @@ export class StepAgentExecutor {
     let agent: {
       prompt: (input: string) => Promise<{ content: Array<{ type: string; text?: string }> }>;
       abort: () => Promise<void>;
+      /** 17i.12：流式事件订阅（透传 harness.subscribe）。 */
+      subscribe?: (listener: (event: Record<string, unknown>) => void) => void;
     } | null = null;
     try {
       // ═══ 会话 12：沙箱工作目录——每个 step 独立目录，file write / shell cwd 默认落此，防写仓库根 ═══
@@ -291,6 +298,11 @@ export class StepAgentExecutor {
           goal: this.opts.goal,
           // ⬅️ 会话 16j（B2）：指针消费端——按 taskRef 拉取被裁详情（零丢失闭环）
           recallTask: this.opts.recallTask,
+          // ⬅️ 会话 17i.15：ask_user 工具（LLM 自主问用户）——EventBus 事件 + 会话归属
+          eventBus: this.opts.eventBus,
+          sessionId: stepSession?.sessionId || this.opts.goal,
+          // ⬅️ P2：mail 工具（跨部门/工位交流）发起方上下文
+          mailboxCtx: this.opts.mailboxCtx,
         }),
         ...(this.opts.extraTools ?? []),
       ];
@@ -310,11 +322,54 @@ export class StepAgentExecutor {
         }),
       });
 
+      // ═══ 会话 17i.12：流式 token 转发（Codex 式实时输出）→ EventBus → SSE → 前端终端转录 ═══
+      // harness.subscribe 收 message_update（text_delta/thinking_delta），按节点节流合并后发
+      // execution.stream.text/think（execution.* 非 internal，可投射到 SSE）。
+      const streamBuf: Record<string, { kind: 'text' | 'think'; buf: string; timer?: ReturnType<typeof setTimeout> }> = {};
+      const flushStream = (key: string): void => {
+        const s = streamBuf[key];
+        if (!s) return;
+        if (s.timer !== undefined) { clearTimeout(s.timer); s.timer = undefined; }
+        if (!s.buf || !this.opts.eventBus) { delete streamBuf[key]; return; }
+        const kind = s.kind;
+        const delta = s.buf;
+        delete streamBuf[key];
+        this.opts.eventBus.emit({
+          id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+          type: kind === 'think' ? 'execution.stream.think' : 'execution.stream.text',
+          timestamp: Date.now(),
+          executionId: `step_${node.id}`,
+          source: 'step-agent-executor',
+          payload: { nodeId: node.id, nodeName: node.name, delta },
+        });
+      };
+      if (typeof agent.subscribe === 'function') {
+        agent.subscribe((evt) => {
+          const e = evt as Record<string, unknown>;
+          if (e.type !== 'message_update') return;
+          const ae = (e.assistantMessageEvent ?? {}) as Record<string, unknown>;
+          const atype = String(ae.type ?? '');
+          const delta = typeof ae.delta === 'string' ? ae.delta : '';
+          if (!delta) return;
+          const kind = atype === 'thinking_delta' ? 'think' : 'text';
+          const key = `${node.id}:${kind}`;
+          const slot = (streamBuf[key] ??= { kind, buf: '' });
+          slot.buf += delta;
+          if (slot.timer === undefined) {
+            slot.timer = setTimeout(() => flushStream(key), 120);
+          }
+        });
+      }
+
       const input = [
         `请开始执行本步骤。${node.description ? `\n\n${node.description}` : ''}`,
         upstreamText,
         '\n\n请按守则执行并给出交付摘要。',
       ].join('\n');
+
+      // ═══ 会话 17i.3：步骤开始即上报（长步骤执行期前端可实时显示当前步骤）═══
+      // 17i.4：带上 stepSession.path 供前端轮询思考/输出
+      this.emitStepStarted(node, stepSession?.path);
 
       const raw = await this.withTimeout(agent.prompt(input), this.opts.timeoutMs);
       let text = extractText(raw.content);
@@ -403,6 +458,31 @@ export class StepAgentExecutor {
   }
 
   /**
+   * 会话 17i.3：发射步骤开始事件（execution.step.started）——前端实时任务卡片据此显示「正在执行：<步骤名>」。
+   * 必须在 agent.prompt 之前发射（步骤可能耗时数分钟，仅靠 completion 事件会在整段执行期无反馈）。
+   * 注意：execution.step.* 不在 EventBus 的 INTERNAL 前缀白名单内 → 可投射到前端 SSE。
+   */
+  private emitStepStarted(node: StepNodeInfo, sessionPath?: string): void {
+    if (!this.opts.eventBus) return;
+    this.opts.eventBus.emit({
+      id: `evt_${Date.now()}_${Math.random().toString(36).slice(2, 8)}`,
+      type: 'execution.step.started',
+      timestamp: Date.now(),
+      executionId: `step_${node.id}`,
+      source: 'step-agent-executor',
+      payload: {
+        nodeId: node.id,
+        nodeName: node.name,
+        agentType: node.agentType,
+        missionId: this.opts.missionId,
+        ...(this.opts.executionId ? { executionId: this.opts.executionId } : {}),
+        ...(this.opts.goal ? { goal: this.opts.goal } : {}),
+        ...(sessionPath ? { sessionPath } : {}),
+      },
+    });
+  }
+
+  /**
    * 会话 16c（3+4）：发射步骤结果事件（execution.step.result）——观测/学习闭环数据源。
    * 事件体含步骤级质量信号（success/retries/errorClass/duration/error）。
    */
@@ -418,6 +498,9 @@ export class StepAgentExecutor {
         nodeId: node.id,
         nodeName: node.name,
         agentType: node.agentType,
+        missionId: this.opts.missionId,
+        ...(this.opts.executionId ? { executionId: this.opts.executionId } : {}),
+        ...(this.opts.goal ? { goal: this.opts.goal } : {}),
         success: res.success,
         duration: res.duration,
         retries: res.retries ?? 0,

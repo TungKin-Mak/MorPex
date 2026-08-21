@@ -28,6 +28,9 @@ import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/
 import { StepAgentExecutor } from '../runtime/dag/StepAgentExecutor.js';
 import type { AgentSessionStore, AgentSessionHandle } from './AgentSessionStore.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
+import { requestPlanConfirm } from '../PlanGateService.js';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 
 // ── 类型 ──
 
@@ -189,8 +192,11 @@ function parseAnalysis(json: Record<string, unknown> | null): OrchestratorAnalys
 
 // ── 提示词 ──
 
-const ANALYSIS_PROMPT = (goal: string): string => `你是 MorPex 总大脑（编排 Agent）。请将用户目标拆解为可执行步骤。
-
+const ANALYSIS_PROMPT = (goal: string, persona?: string): string => `你是 MorPex 总大脑（编排 Agent）。请将用户目标拆解为可执行步骤。
+${persona ? `
+【部门经理角色】${persona}
+（本部门可用能力仅作参考，工位按任务复杂度动态编排，不硬性绑定。）
+` : ''}
 目标: ${goal}
 
 要求：
@@ -259,7 +265,7 @@ export class OrchestratorAgent {
   /**
    * run — 总大脑完整闭环：编排 → 执行 → 审计（迭代）→ 汇总
    */
-  async run(goal: string, opts: { departmentId?: string; contextHint?: string } = {}): Promise<OrchestrationResult> {
+  async run(goal: string, opts: { departmentId?: string; contextHint?: string; managerPersona?: string; capabilities?: string[] } = {}): Promise<OrchestrationResult> {
     const start = Date.now();
     const maxIterations = this.opts.maxIterations ?? 3;
     // ═══ P2-8（会话 16l·3）：步骤数 cap + 总 token 预算 ═══
@@ -315,9 +321,13 @@ export class OrchestratorAgent {
 
     // ── ① 编排：分析复杂度 + 拆解（LLM 失败/JSON 非法 → 抛错，fail loud）──
     // ═══ 会话 16c（3+4）：contextHint = 任务级自动重跑注入的上次失败参考（避免重蹈）═══
+    // ═══ P1：managerPersona/capabilities = 部门经理 persona 注入（由 StudioServer 路由选中的部门 Space 提供）═══
+    const personaBlock = opts.managerPersona
+      ? `${opts.managerPersona}${opts.capabilities?.length ? `\n本部门可用能力：${opts.capabilities.join('、')}` : ''}`
+      : undefined;
     const analysisPrompt = opts.contextHint
-      ? `${ANALYSIS_PROMPT(goal)}\n\n【上次尝试失败参考（仅作规避指引，勿照抄失败路径）】\n${opts.contextHint}`
-      : ANALYSIS_PROMPT(goal);
+      ? `${ANALYSIS_PROMPT(goal, personaBlock)}\n\n【上次尝试失败参考（仅作规避指引，勿照抄失败路径）】\n${opts.contextHint}`
+      : ANALYSIS_PROMPT(goal, personaBlock);
     const res = await this.llm.generateText({ prompt: analysisPrompt, temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(res));
     chargeTokens(tokenCount(res));
@@ -329,6 +339,22 @@ export class OrchestratorAgent {
         steps: analysis.steps,
         reasoning: analysis.reasoning,
       });
+    }
+
+    // ═══ 会话 17i.22：规划方案确认门——Goal 模式跳过（全自动）；交互模式暂停等用户确认（发 plan.ready）═══
+    try {
+      const planId = `plan_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      const planFile = this.writePlanFile(planId, goal, analysis);
+      const waited = await requestPlanConfirm(
+        planId,
+        goal,
+        planFile,
+        analysis.steps.map((s) => s.name || '步骤'),
+      );
+      if (waited) console.log(`[OrchestratorAgent] ✅ 用户已确认方案（${planId}），继续执行`);
+      else console.log(`[OrchestratorAgent] ⚡ Goal 模式：方案自动放行（${planId}）`);
+    } catch (err) {
+      console.warn('[OrchestratorAgent] ⚠️ 方案确认门异常（不阻断）:', (err as Error).message);
     }
 
     let steps = analysis.steps;
@@ -637,6 +663,41 @@ export class OrchestratorAgent {
       });
     } catch (err) {
       console.warn('[OrchestratorAgent] ⚠️ 步骤快照失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /** 17i.22：生成规划方案 markdown 文件（供前端展示/用户审阅），返回文件路径。 */
+  private writePlanFile(planId: string, goal: string, analysis: { complexity?: string; steps: Array<{ name?: string; description?: string; deps?: string[] }>; reasoning?: string }): string {
+    try {
+      const dir = path.resolve('data/plans');
+      fs.mkdirSync(dir, { recursive: true });
+      const lines: string[] = [
+        `# 规划方案（${planId}）`,
+        '',
+        `**目标**：${goal}`,
+        `**复杂度**：${analysis.complexity ?? '未知'}`,
+        `**生成时间**：${new Date().toLocaleString('zh-CN')}`,
+        '',
+        '## 执行步骤',
+        '',
+      ];
+      analysis.steps.forEach((s, i) => {
+        lines.push(`${i + 1}. **${s.name ?? '步骤'}**${s.deps?.length ? `（依赖: ${s.deps.join(', ')}）` : ''}`);
+        if (s.description) lines.push(`   ${s.description}`);
+        lines.push('');
+      });
+      if (analysis.reasoning) {
+        lines.push('## 编排思路');
+        lines.push('');
+        lines.push(analysis.reasoning);
+        lines.push('');
+      }
+      const file = path.join(dir, `${planId}.md`);
+      fs.writeFileSync(file, lines.join('\n'), 'utf-8');
+      return file;
+    } catch (err) {
+      console.warn('[OrchestratorAgent] ⚠️ 方案文件生成失败:', (err as Error).message);
+      return `data/plans/${planId}.md`; // 兜底返回路径（文件可能未写入）
     }
   }
 }

@@ -135,10 +135,34 @@ ontology/
 
 ```bash
 cp .env.example .env    # 设置 DEEPSEEK_API_KEY（记忆/cognee 需要）
-MEMORY_ENGINE=mock npm run studio:server   # 仅后端 API（无 cognee，mock 记忆）
-./scripts/run-all.sh                       # 全栈：cognee(:8001) + 后端(:8080)
-# 健康检查: http://localhost:8080/api/health
+MEMORY_ENGINE=mock npm run studio:server   # 仅后端 API（无 cognee，mock 记忆；默认端口 5473）
+./scripts/run-all.sh                       # 全栈：cognee(:8001) + 后端(:5473)
+# 健康检查: http://localhost:5473/api/health
 ```
+
+### 前端界面（Studio Web / Desktop）
+
+> 🚀 **一键启动（Windows）**：双击仓库根的 `start-dev.bat`——自动拉起后端（热重载）+ 桌面应用（前端 HMR + 窗口），首次会自动装依赖。
+
+> 前后端严格分离：前端（浏览器/桌面）仅经 HTTP/SSE 消费后端 API，后端不托管任何静态资源；后端地址唯一入口为 `VITE_API_BASE`（默认 `http://localhost:5473`）。
+
+```bash
+# 浏览器模式
+cd packages/studio/web && npm install && npm run dev   # 打开 Vite 提示地址
+
+# 桌面应用（Tauri 2 壳，复用同一渲染层；前置：Rust 工具链 + WebView2）
+cd packages/studio/desktop && npm install && npm run dev:all   # 弹出原生窗口
+
+# 独立安装包（含内置后端，安装后无需仓库/Node；用户自配 API Key）
+cd packages/studio/desktop && npm run bundle && npm run build:installer
+# → MorPex Studio_0.1.0_x64-setup.exe（~47MB），安装后双击即用
+```
+
+- 渲染层：`packages/studio/web`（Vanilla TS + Vite，无框架）
+- 桌面壳：`packages/studio/desktop`（Tauri 2，仅开窗加载渲染层；**独立安装包已支持**）
+  - 内置 node.exe + repo.zip，首启解压到 `%LOCALAPPDATA%/MorPex/runtime`
+  - 用户 API Key：`%APPDATA%/MorPex/config.env`（首次运行自动生成模板）
+- 详见 `packages/studio/web/README.md` / `packages/studio/desktop/README.md`
 
 ### 程序化调用
 

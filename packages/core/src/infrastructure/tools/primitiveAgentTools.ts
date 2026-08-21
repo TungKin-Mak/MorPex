@@ -18,6 +18,8 @@
 import type { AgentTool, AgentToolResult } from '../adapters/pi-bridge/index.js';
 import { DomainPrimitiveRegistry } from './DomainPrimitiveRegistry.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
+import { createAskUserTool, setAskEventBus } from '../../execution/UserAskService.js';
+import { getMailbox } from '../../execution/AgentMailbox.js';
 
 /** 工具参数 schema 窄接口（inputSchema：JSON Schema 子集，仅用 required/properties 类型；
  *  会话 15 扩展 examples/minLength/additionalProperties 供 TypeBox 校验与 LLM 提示） */
@@ -54,6 +56,12 @@ export interface PrimitiveToolOptions {
    * 返回精简上下文文本；null/异常 → 工具返回失败（不阻断）。
    */
   recallTask?: (taskRef: string) => Promise<string | null>;
+  /** 17i.15：EventBus（注册 ask_user 工具：LLM 自主决策问用户，暂停等回答）。 */
+  eventBus?: import('../../infrastructure/common/EventBus.js').EventBus;
+  /** 17i.15：所属会话 ID（ask_user 问题归属，前端按会话呈现）。 */
+  sessionId?: string;
+  /** P2：跨部门/工位交流（mail 原语）上下文——调用发起方角色与归属。eventBus + mailboxCtx 齐备才注册 mail 工具。 */
+  mailboxCtx?: { from: string; spaceId?: string; taskId?: string; goal?: string };
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -269,6 +277,17 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
   const recallTool = recallTaskTool(options)
   if (recallTool) tools.push(recallTool as unknown as PrimitiveAgentTool)
 
+  // ═══ 会话 17i.15：追加 ask_user 工具——LLM 自主决策问用户（暂停等回答，前端拟人对话呈现）═══
+  if (options.eventBus) {
+    setAskEventBus(options.eventBus);
+    tools.push(createAskUserTool({ sessionId: options.sessionId, spaceId: options.mailboxCtx?.spaceId ?? options.departmentId, goal: options.goal }) as unknown as PrimitiveAgentTool);
+  }
+
+  // ═══ P2：追加 mail 工具——跨部门/工位真交流（step-agent 主动咨询另一工位/部门，LLM 扮演目标角色回复）═══
+  if (options.eventBus && options.mailboxCtx && getMailbox()) {
+    tools.push(createMailTool(options.mailboxCtx) as unknown as PrimitiveAgentTool);
+  }
+
   // ═══ 会话 16l·7：PrimitiveAgentTool 运行时含 prepareArguments（pi-agent-core 运行时读取），
   //     类型层面以 AgentTool[] 对外（bundler 模式类型遮蔽规避）
   return tools as unknown as AgentTool[];
@@ -358,4 +377,59 @@ export function createPrimitiveBeforeToolCall(options: PrimitiveToolOptions = {}
 /** 便捷函数：列出当前可用的原语 AgentTool 名称（诊断用） */
 export function listPrimitiveAgentToolNames(): string[] {
   return createPrimitiveAgentTools().map(t => t.name);
+}
+
+/**
+ * createMailTool — P2 跨部门/工位交流工具（LLM 扮演目标角色回复，阻塞等 reply）。
+ * 指导 LLM：当步骤需要另一工位/部门的专业信息时调用（如问采购部预算、问电路设计工位外设方案）。
+ * 调用会暂停等待回复；任何失败/超时都降级为「按不知道继续」，绝不使任务失败。
+ */
+function createMailTool(ctx: { from: string; spaceId?: string; taskId?: string; goal?: string }): AgentTool {
+  const mailbox = getMailbox();
+  // 无实例时返回一个安全占位（不应发生：注册时已判 getMailbox()）
+  const sayUnavailable = (): AgentToolResult => ({
+    content: [{ type: 'text', text: '[mail 不可用] 未配置 AgentMailbox，按「不知道」继续。' }],
+    isError: false,
+  });
+  return {
+    name: 'mail',
+    label: 'mail',
+    description:
+      '跨工位/部门咨询工具：当你的步骤需要另一工位（station:xxx）或部门（dept:xxx）的专业信息时调用。' +
+      '例如：问采购部预算（to="dept:hardware"）、问电路设计工位外设方案（to="station:circuit_design"）。' +
+      '传入对方角色 to 与具体问题 question，对方会回复。调用会暂停等待回复，收到后继续执行。',
+    parameters: {
+      type: 'object',
+      properties: {
+        to: { type: 'string', description: '目标角色：station:<工位名> 或 dept:<部门工作流id>，如 station:circuit_design、dept:hardware。' },
+        question: { type: 'string', description: '咨询问题（请具体、对方可回答）。' },
+      },
+      required: ['to', 'question'],
+    },
+    execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
+      if (!mailbox) return sayUnavailable();
+      const p = (params ?? {}) as Record<string, unknown>;
+      const to = String(p.to ?? '').trim();
+      const question = String(p.question ?? '').trim();
+      if (!to || !question) {
+        return { content: [{ type: 'text', text: '[mail] 缺少必填参数：to、question。请补全后重新调用。' }], isError: true };
+      }
+      try {
+        const reply = await mailbox.sendAndWait({
+          from: ctx.from,
+          to,
+          question,
+          spaceId: ctx.spaceId,
+          taskId: ctx.taskId,
+          goal: ctx.goal,
+        });
+        return { content: [{ type: 'text', text: `[${to} 回复] ${reply}` }], isError: false };
+      } catch (err) {
+        return {
+          content: [{ type: 'text', text: `[mail 失败] ${err instanceof Error ? err.message : String(err)}，按「不知道」继续。` }],
+          isError: false,
+        };
+      }
+    },
+  };
 }

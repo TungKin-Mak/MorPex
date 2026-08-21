@@ -19,6 +19,10 @@
 
 // ── Core 组件 ──
 export { EventBus } from './infrastructure/common/EventBus.js';
+export { defineContract, buildContractMap, assertEventContract, validateEventPayload, enumEventTypes, reconcileKnownEvents } from './infrastructure/common/eventContract.js';
+export type { EventContract, EventContractMap, ReconcileReport } from './infrastructure/common/eventContract.js';
+export { scrubEnv, runCommand, makePrivateTempDir, randomPrivateFilePath, writeExclusive, cleanupTempDir } from './infrastructure/common/secureExec.js';
+export type { ExecOutcome, RunCommandOptions } from './infrastructure/common/secureExec.js';
 export { ExecutionIdentity } from './infrastructure/common/ExecutionIdentity.js';
 export { PluginSystem } from './infrastructure/common/PluginSystem.js';
 

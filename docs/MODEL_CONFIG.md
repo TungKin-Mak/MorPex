@@ -48,6 +48,46 @@ apiKey: ${GLM_API_KEY}
 > ⚠️ GLM-4-Flash-250414 是**较老模型，函数调用支持弱**（空参率高）——已用 MorPex 通用空参保险（prepareArguments）缓解，但复杂任务仍建议 opencode。
 > ⚠️ GLM 4.7/5.x 函数调用成熟但需付费资源包（429「余额不足」）。
 
+### 附加模型（llm_* 块，多模型并存）
+
+除 `llm:` 主模型外，可在 `config/morpex.yaml` 追加**任意多个** `llm_<name>:` 顶层块（与 `llm:` 平级、复用相同 schema）作为**附加可选模型**。主模型（`llm:`）始终是默认，附加模型用 `"provider/model"` 完整标识显式选择，互不影响。
+
+**当前主模型：Agnes 2.5 Flash**（OpenAI 兼容云端模型，智能体工作流/工具调用优化）：
+
+```yaml
+llm:
+  mode: gateway
+  enabled: true
+  provider: agnes            # 运行时模型标识（agnes/agnes-2.5-flash）
+  model: agnes-2.5-flash
+  baseUrl: https://api.agnes-ai.cn/v1
+  apiKey: ${AGNES_API_KEY}   # 环境变量 AGNES_API_KEY（Windows 用户级兑底）
+  contextWindow: 524288      # 512K
+  maxTokens: 65536           # 65.5K 最大输出
+  reasoning: false           # 默认不强制 thinking（可用 chat_template_kwargs.enable_thinking）
+```
+
+**附加模型：本地 MiniCPM5-1B**（OpenAI 兼容网关，思考型）：
+
+```yaml
+llm_minicpm:
+  mode: gateway
+  enabled: true
+  provider: minicpm
+  model: minicpm5
+  baseUrl: http://127.0.0.1:8080/v1
+  apiKey: ${MINICPM_API_KEY}
+  contextWindow: 131072      # 128K / 1 槽
+  maxTokens: 32000
+  reasoning: true
+```
+
+- 本地服务启动：`D:\llama_cpp\start-api.bat`（详见 `D:\llama_cpp\API接入文档.md`）。
+- **选择模型**：业务代码调用 `generateText({ model: 'agnes/agnes-2.5-flash' | 'minicpm/minicpm5', ... })` 即可（PiBridge `parseModel` 支持 `provider/model`）。不指定 model 时仍走 `llm:` 默认模型。
+- **发现路径**：`model-registry` / `model-resolver` 已从 config 构建附加模型，`listProviders` / `listModels` / `findModel` 可见。
+- **禁用**：`enabled: false` 或缺 `provider/model/baseUrl` 的附加块自动跳过注册。
+- **约定**：`llm_*` 块由 `yamlConfig.loadMorpexConfig` 解析为 `extraLlms`，PiBridge `init()` 在 builtin 基底上叠加注册（`setProvider`），单块失败不阻断主流程。
+
 ### 验证配置
 
 ```bash

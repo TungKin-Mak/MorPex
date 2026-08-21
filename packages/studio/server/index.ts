@@ -7,13 +7,13 @@
  *   npx tsx packages/studio/server/index.ts
  *
  * 环境变量：
- *   PORT        — HTTP 端口（默认 8080）
+ *   PORT        — HTTP 端口（默认 5473）
  *   MIRROR_PATH — Mirror 存储路径（默认 ./data/mirror）
  */
 
 import { StudioServer } from './StudioServer.js';
 
-const PORT = parseInt(process.env.PORT || '8080', 10);
+const PORT = parseInt(process.env.PORT || '5473', 10);
 const MIRROR_PATH = process.env.MIRROR_PATH || './data/mirror';
 async function main() {
   const studio = new StudioServer({

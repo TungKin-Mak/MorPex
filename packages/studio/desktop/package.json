@@ -1,0 +1,19 @@
+{
+  "name": "@morpex/studio-desktop",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "tauri dev",
+    "dev:all": "concurrently -k \"npm --prefix ../web run dev\" \"tauri dev\" \"npm --prefix ../../../ run dev:backend\"",
+    "bundle": "node scripts/bundle-backend.mjs",
+    "build:installer": "tauri build",
+    "build": "tauri build --no-bundle",
+    "build:exe": "tauri build --no-bundle && node -e \"require('fs').copyFileSync('src-tauri/target/release/morpex-studio-desktop.exe','MorPex-Studio.exe')\"",
+    "check": "cargo check --manifest-path src-tauri/Cargo.toml"
+  },
+  "devDependencies": {
+    "@tauri-apps/cli": "^2",
+    "concurrently": "^9"
+  }
+}

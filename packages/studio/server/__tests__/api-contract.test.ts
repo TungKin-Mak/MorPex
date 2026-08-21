@@ -14,14 +14,24 @@
  * 副作用：bootstrapUnified 会写 data/missions.db 等（与现有测试一致）。
  */
 import { describe, it, expect, beforeAll, afterAll } from 'vitest';
+import * as fs from 'node:fs';
+import * as path from 'node:path';
 import { StudioServer } from '../StudioServer.js';
 
 let server: StudioServer;
 let baseUrl: string;
 
+// ═══ 会话 17h·review I3：测试产生的运行时数据（uploads / runtime-config）隔离与清理 ═══
+const UPLOADS_DIR = path.resolve('data/uploads');
+const RUNTIME_CFG = path.resolve('data/runtime-config.json');
+let testStart = 0;
+let rcBackup: string | null = null;
+
 beforeAll(async () => {
   // 关键：mock 记忆引擎，避免依赖 cognee
   process.env.MEMORY_ENGINE = 'mock';
+  testStart = Date.now();
+  if (fs.existsSync(RUNTIME_CFG)) rcBackup = fs.readFileSync(RUNTIME_CFG, 'utf-8');
   server = new StudioServer({ port: 0, sessionsRoot: undefined });
   await server.start();
   baseUrl = `http://127.0.0.1:${server.getPort()}`;
@@ -29,6 +39,32 @@ beforeAll(async () => {
 
 afterAll(async () => {
   await server?.stop();
+  // 清理本测试运行期间产生的上传文件（mtime >= testStart）
+  try {
+    if (fs.existsSync(UPLOADS_DIR)) {
+      for (const f of fs.readdirSync(UPLOADS_DIR)) {
+        const p = path.join(UPLOADS_DIR, f);
+        try {
+          if (fs.statSync(p).mtimeMs >= testStart) fs.rmSync(p, { force: true });
+        } catch {
+          /* 忽略 */
+        }
+      }
+    }
+  } catch {
+    /* 忽略 */
+  }
+  // 恢复 runtime-config.json 原状
+  try {
+    if (rcBackup !== null) {
+      fs.mkdirSync(path.dirname(RUNTIME_CFG), { recursive: true });
+      fs.writeFileSync(RUNTIME_CFG, rcBackup, 'utf-8');
+    } else {
+      fs.rmSync(RUNTIME_CFG, { force: true });
+    }
+  } catch {
+    /* 忽略 */
+  }
   delete process.env.MEMORY_ENGINE;
 }, 15000);
 
@@ -43,6 +79,11 @@ async function postJson(path: string, body: unknown): Promise<{ status: number; 
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(body),
   });
+  return { status: res.status, body: await res.json() };
+}
+
+async function delJson(path: string): Promise<{ status: number; body: any }> {
+  const res = await fetch(`${baseUrl}${path}`, { method: 'DELETE' });
   return { status: res.status, body: await res.json() };
 }
 
@@ -153,6 +194,72 @@ describe('Studio REST API — 契约', () => {
   it('GET /api/session/:id/history → 空历史 200', async () => {
     const { status } = await getJson('/api/session/sess_test_1/history');
     expect(status).toBe(200);
+  });
+
+  it('GET /api/spaces → 空间树（hq + 部门，P1）', async () => {
+    const { status, body } = await getJson('/api/spaces');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.tree.hq.id).toBe('hq');
+    expect(body.tree.hq.type).toBe('hq');
+    expect(Array.isArray(body.tree.departments)).toBe(true);
+    // 已注册的 4 个工作流插件至少生成软件部（software 已注册）
+    const names = body.tree.departments.map((d: { name: string }) => d.name);
+    expect(names.length).toBeGreaterThan(0);
+    for (const d of body.tree.departments) {
+      expect(d.id).toMatch(/^dept_/);
+      expect(d.parentId).toBe('hq');
+      expect(typeof d.routeHint).toBe('string');
+    }
+  });
+
+  it('GET /api/spaces/hq/messages → 空间消息（无 sessionId 空，P1）', async () => {
+    const { status, body } = await getJson('/api/spaces/hq/messages');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.messages)).toBe(true);
+  });
+
+  it('GET /api/spaces/非法id/messages → 400（穿越拦截，P1）', async () => {
+    const { status } = await getJson('/api/spaces/..%2F..%2Fetc/messages');
+    expect(status).toBe(400);
+  });
+
+  it('DELETE /api/session/:id → 删除会话（幂等 200）', async () => {
+    const created = await postJson('/api/session/create', { name: '待删除' });
+    expect(created.body.sessionId).toMatch(/^sess_/);
+    const { status, body } = await delJson(`/api/session/${created.body.sessionId}`);
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(typeof body.deleted).toBe('boolean');
+    // 重复删除（不存在）仍 200
+    const again = await delJson(`/api/session/${created.body.sessionId}`);
+    expect(again.status).toBe(200);
+    expect(again.body.ok).toBe(true);
+  });
+
+  it('POST /api/files/upload → 文本文件上传（fileId + isText）', async () => {
+    const { status, body } = await postJson('/api/files/upload', {
+      name: 'hello.txt',
+      contentBase64: Buffer.from('你好 MorPex，这是一段测试附件内容。').toString('base64'),
+    });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.fileId).toMatch(/^file_/);
+    expect(body.isText).toBe(true);
+    expect(body.name).toBe('hello.txt');
+    expect(typeof body.size).toBe('number');
+  });
+
+  it('POST /api/files/upload → 文件名路径穿越被清洗', async () => {
+    const { status, body } = await postJson('/api/files/upload', {
+      name: '../evil.txt',
+      contentBase64: Buffer.from('evil').toString('base64'),
+    });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.name).not.toContain('..');
+    expect(body.name).not.toMatch(/[\\/]/);
   });
 
   it('POST /api/chat/send 缺 message → 400', async () => {
@@ -272,4 +379,49 @@ describe('Studio REST API — 契约', () => {
     expect(text).toContain('connected');
     controller.abort();
   }, 15000);
+
+  // ── 会话 17h：删除会话 / 文件上传 / 模型切换（UI 三功能）──
+  // ⚠️ 删除会话 / 上传文本 / 路径穿越清洗 已在文件中部覆盖（DELETE 幂等 + 上传两用例），此处只保留补充用例
+  it('DELETE /api/session/:id → 路径穿越 sessionId 返回 400（review C1 回归）', async () => {
+    const res = await fetch(`${baseUrl}/api/session/..%2F..%2F..%2Ffoo`, { method: 'DELETE' });
+    expect(res.status).toBe(400);
+    const body = (await res.json()) as { ok: boolean };
+    expect(body.ok).toBe(false);
+  });
+
+  it('POST /api/files/upload → 超大文件 413', async () => {
+    const big = Buffer.alloc(6 * 1024 * 1024, 65);
+    const { status, body } = await postJson('/api/files/upload', { name: 'big.bin', contentBase64: big.toString('base64') });
+    expect(status).toBe(413);
+    expect(body.ok).toBe(false);
+  });
+
+  it('GET /api/models → 模型列表 + active', async () => {
+    const { status, body } = await getJson('/api/models');
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(Array.isArray(body.models)).toBe(true);
+    expect(body.models.length).toBeGreaterThan(0);
+    expect(typeof body.active).toBe('string');
+    expect(body.models.some((m: { isActive: boolean }) => m.isActive)).toBe(true);
+  });
+
+  it('POST /api/models/active → 未知模型 400', async () => {
+    const { status, body } = await postJson('/api/models/active', { modelId: '不存在的/模型' });
+    expect(status).toBe(400);
+    expect(body.ok).toBe(false);
+  });
+
+  it('POST /api/models/active → 设为现有模型后 active 更新', async () => {
+    const list = await getJson('/api/models');
+    const target = list.body.models[0] as { id: string };
+    const { status, body } = await postJson('/api/models/active', { modelId: target.id });
+    expect(status).toBe(200);
+    expect(body.ok).toBe(true);
+    expect(body.active).toBe(target.id);
+    const after = await getJson('/api/models');
+    expect(after.body.active).toBe(target.id);
+    // 恢复默认，避免污染后续用例
+    await postJson('/api/models/active', { modelId: 'default' });
+  });
 });

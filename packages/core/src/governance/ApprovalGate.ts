@@ -5,6 +5,7 @@
  */
 import { EventBus } from '../infrastructure/common/EventBus.js';
 import { EventType } from '../infrastructure/protocol/events/EventType.js';
+import { recordDecision, resolveDecision } from '../execution/DecisionStore.js';
 import type { ComplianceResult } from './ComplianceChecker.js';
 
 export type ApprovalDecision = 'APPROVED' | 'REJECTED' | 'WAIT_HUMAN';
@@ -95,6 +96,10 @@ export class ApprovalGate {
     const request: ApprovalRequest = { id: `apr_${Date.now()}`, artifactId, artifactName, complianceResult, riskLevel, summary, decision: autoDecision === 'APPROVED' ? 'APPROVED' : undefined, decidedBy: autoDecision === 'APPROVED' ? 'auto' : undefined, decidedAt: autoDecision === 'APPROVED' ? Date.now() : undefined };
     this.requests.set(request.id, request);
     const eventType = autoDecision === 'APPROVED' ? EventType.APPROVAL_AUTO_APPROVED : EventType.APPROVAL_WAIT_HUMAN;
+    // P-B：待人工审批的登记到持久化决策存储（后端重启可恢复；已自动批准的不登记）
+    if (autoDecision === 'WAIT_HUMAN') {
+      recordDecision({ id: request.id, kind: 'approval', title: `审批：${artifactName}`, question: summary, meta: { artifactId, artifactName, riskLevel } });
+    }
     this.eventBus?.emit({ id: `evt_${Date.now()}`, type: eventType, timestamp: Date.now(), executionId: 'approval', source: 'approval-gate', payload: request });
     return request;
   }
@@ -103,6 +108,11 @@ export class ApprovalGate {
   requestApprovalForAction(action: ApprovalAction, riskLevel: RiskLevel, description: string, amount?: number): { approved: boolean; reason: string } {
     const needsHuman = ApprovalPolicyRegistry.needsHumanApproval(action, riskLevel, amount);
     const eventType = needsHuman ? EventType.APPROVAL_WAIT_HUMAN : EventType.APPROVAL_AUTO_APPROVED;
+    // P-B：待人工审批的登记到持久化决策存储
+    if (needsHuman) {
+      const id = `apr_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
+      recordDecision({ id, kind: 'approval', title: `审批：${action}`, question: description || `需要审批：${action}/${riskLevel}`, meta: { action, riskLevel, amount } });
+    }
     this.eventBus?.emit({ id: `evt_${Date.now()}`, type: eventType, timestamp: Date.now(), executionId: 'approval', source: 'approval-gate', payload: { action, riskLevel, description, amount } });
     return needsHuman
       ? { approved: false, reason: `需要人工审批 (${action}/${riskLevel})` }
@@ -111,10 +121,14 @@ export class ApprovalGate {
 
   decide(requestId: string, decision: ApprovalDecision, decidedBy: string): boolean {
     const req = this.requests.get(requestId);
-    if (!req || req.decision) return false;
+    if (!req || req.decision) {
+      resolveDecision(requestId); // 17k.7：底层 Map 无/已决（重启后）→ 也清持久化
+      return false;
+    }
     req.decision = decision;
     req.decidedBy = decidedBy;
     req.decidedAt = Date.now();
+    resolveDecision(requestId); // P-B：标记已决议
     return true;
   }
 

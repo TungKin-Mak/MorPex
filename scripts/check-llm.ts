@@ -99,6 +99,49 @@ async function main(): Promise<void> {
       console.log(`    ❌ 网关不可达: ${(err as Error).message}`);
     }
   }
+
+  // 5. 附加模型（llm_* 块，多模型并存）：逐一报告 + 网关可达性
+  const extras = cfg.extraLlms ?? [];
+  if (extras.length > 0) {
+    console.log(`\n【5】附加模型（llm_* 块，共 ${extras.length} 个，不改变默认模型）`);
+    for (const [i, extra] of extras.entries()) {
+      const tag = `  [${i + 1}] ${extra.provider}/${extra.model}`;
+      if (extra.enabled === false) {
+        console.log(`${tag}: ⏭️ 已禁用（enabled=false）`);
+        continue;
+      }
+      if (!extra.provider || !extra.model || !extra.baseUrl) {
+        console.log(`${tag}: ❌ 缺少 provider/model/baseUrl，跳过注册`);
+        continue;
+      }
+      const ekey = extra.apiKey ?? '';
+      console.log(`${tag}`);
+      console.log(`      baseUrl = ${extra.baseUrl}`);
+      console.log(`      apiKey  = ${ekey ? '✅ 已解析（长度=' + ekey.length + '）' : '⚠️ 空（本地服务未设 Key 可忽略）'}`);
+      try {
+        const res = await fetch(`${extra.baseUrl}/models`, {
+          headers: { Authorization: `Bearer ${ekey}` },
+          signal: AbortSignal.timeout(8000),
+        });
+        if (res.ok) {
+          console.log(`      ✅ 网关可达（HTTP ${res.status}）`);
+          try {
+            const body = (await res.json()) as { data?: Array<{ id: string }> };
+            const ids = (body.data ?? []).map((m) => m.id);
+            const ok = ids.includes(extra.model ?? '');
+            console.log(`      模型 "${extra.model}" 是否在列表: ${ok ? '✅ 有效' : '❌ 不在列表'}`);
+          } catch {
+            console.log(`      （响应非标准 JSON，已可达）`);
+          }
+        } else {
+          const text = await res.text();
+          console.log(`      ❌ 网关返回 HTTP ${res.status}: ${text.slice(0, 160)}`);
+        }
+      } catch (err) {
+        console.log(`      ❌ 网关不可达: ${(err as Error).message}`);
+      }
+    }
+  }
 }
 
 main().catch((err) => {

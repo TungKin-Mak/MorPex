@@ -58,7 +58,10 @@
     "══════════ 依赖边界检查 ══════════": "",
     "depcheck": "npx dependency-cruiser packages/ --config .dependency-cruiser.js --output-type err-long || echo '⚠️ Dependency violations — see output above'",
     "depcheck:core": "npx dependency-cruiser packages/core/src --include-only '^packages/core' --output-type err-long",
-    "verify:upgrade": "npm run core:typecheck && npm run depcheck && npm run test:system"
+    "verify:upgrade": "npm run core:typecheck && npm run depcheck && npm run test:system",
+    "dev:backend": "node --watch --import tsx packages/studio/server/index.ts",
+    "dev:backend:fast": "node scripts/dev-fast.mjs",
+    "dev:backend:full": "npx tsx packages/studio/server/index.ts"
   },
   "dependencies": {
     "@earendil-works/pi-agent-core": "^0.81.1",
@@ -69,8 +72,10 @@
     "cors": "^2.8.5",
     "express": "^4.21.0",
     "lru-cache": "^11.5.2",
+    "mammoth": "^1.12.1",
     "pm2": "^7.0.3",
-    "ws": "^8.21.1"
+    "ws": "^8.21.1",
+    "xlsx": "^0.18.5"
   },
   "devDependencies": {
     "@types/better-sqlite3": "^7.6.13",

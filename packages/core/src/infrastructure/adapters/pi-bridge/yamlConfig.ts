@@ -49,11 +49,35 @@ export interface LlmGatewayConfig {
   model?: string;
   contextWindow?: number;
   maxTokens?: number;
+  /** 思考型模型标志（如 MiniCPM5 产出 reasoning_content）；gateway 模型定义使用 */
+  reasoning?: boolean;
 }
 
 /** MorPex 配置文件结构 */
 export interface MorpexConfig {
   llm?: LlmGatewayConfig;
+  /** 附加模型块（config 中所有 `llm_*` 顶层块，与 llm: 平级、复用相同 schema）——PiBridge 注册为可选 provider，不改变默认模型 */
+  extraLlms?: LlmGatewayConfig[];
+}
+
+/**
+ * isExtraLlmUsable — 附加模型块是否可用
+ *
+ * PiBridge（运行时注册）/ model-registry（发现）/ model-resolver（解析）三处共用
+ * 同一过滤条件，防止过滤逻辑漂移：enabled 显式 false 跳过；缺 provider/model/baseUrl
+ * 的残缺块跳过（无法构造 provider 也无法路由请求）。
+ */
+export function isExtraLlmUsable(g: LlmGatewayConfig): boolean {
+  return g.enabled !== false && !!g.provider && !!g.model && !!g.baseUrl;
+}
+
+/**
+ * getEnabledExtraLlms — 取可用附加模型块（已应用 isExtraLlmUsable 过滤）
+ *
+ * 传入 loadMorpexConfig() 的返回值（可能为 null）。
+ */
+export function getEnabledExtraLlms(cfg: MorpexConfig | null): LlmGatewayConfig[] {
+  return (cfg?.extraLlms ?? []).filter(isExtraLlmUsable);
 }
 
 /**
@@ -179,6 +203,22 @@ export function loadMorpexConfig(path?: string): MorpexConfig | null {
         }
       }
     }
+    // 附加模型块（所有 `llm_<name>:` 顶层块，与 llm: 平级、复用相同 schema）
+    // 仅注册 gateway 类附加模型（provider/model/baseUrl 齐全）；enabled=false 显式禁用
+    const extraLlms: LlmGatewayConfig[] = [];
+    for (const [key, value] of Object.entries(parsed)) {
+      if (/^llm_[A-Za-z0-9]+$/.test(key) && value && typeof value === 'object') {
+        const extra = value as LlmGatewayConfig;
+        for (const f of ['provider', 'baseUrl', 'apiKey', 'model'] as const) {
+          const v = extra[f];
+          if (typeof v === 'string' && v.includes('${')) {
+            (extra as Record<string, unknown>)[f] = resolveEnvRefs(v);
+          }
+        }
+        extraLlms.push(extra);
+      }
+    }
+    if (extraLlms.length > 0) parsed.extraLlms = extraLlms;
     return parsed;
   } catch {
     return null;

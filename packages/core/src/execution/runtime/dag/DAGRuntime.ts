@@ -67,6 +67,15 @@ export class DAGRuntime {
     return [...this.trace];
   }
 
+  /** P-A：从执行上下文中提取任务级关联键（DAGExecutorAdapter 传入 missionId/goal）。 */
+  private ctxMeta(context: unknown): { missionId?: string; goal?: string } {
+    const c = (context ?? {}) as Record<string, unknown>;
+    return {
+      missionId: typeof c.missionId === 'string' && c.missionId ? c.missionId : undefined,
+      goal: typeof c.goal === 'string' && c.goal.trim() ? c.goal.trim() : undefined,
+    };
+  }
+
   /**
    * 运行一个 ExecutionDAG
    */
@@ -76,6 +85,24 @@ export class DAGRuntime {
 
     // 1. 构建 TaskGraph
     const graph = TaskGraph.fromExecutionDAG(dag);
+    // ═══ 会话 17i.17：发射 DAG 结构（nodes+deps → edges），前端据此渲染真实 DAG 节点图 ═══
+    this.config.eventBus?.emit({
+      id: `evt_dag_${Date.now()}`,
+      type: 'execution.dag',
+      timestamp: Date.now(),
+      executionId: graph.id,
+      source: 'dag-runtime',
+      payload: {
+        ...this.ctxMeta(context),
+        dagId: graph.id,
+        nodes: graph.nodes.map((n) => ({
+          id: n.id,
+          name: n.name,
+          deps: [...n.deps],
+        })),
+        edges: graph.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id }))),
+      },
+    });
     // ⬅️ 应用默认节点执行器（为没有自定义 handler 的节点注入 Fabric/Agent 调用）
     const defaultHandler = this.config.nodeHandler;
     if (defaultHandler) {
@@ -167,7 +194,7 @@ export class DAGRuntime {
           timestamp: Date.now(),
           executionId: graph.id,
           source: 'dag-runtime',
-          payload: { nodeId: node.id, nodeName: node.name },
+          payload: { ...this.ctxMeta(context), nodeId: node.id, nodeName: node.name },
         });
       }
 
@@ -193,7 +220,7 @@ export class DAGRuntime {
           timestamp: Date.now(),
           executionId: graph.id,
           source: 'dag-runtime',
-          payload: { nodeId, nodeName: node?.name ?? nodeId, success: result.success, error: result.error },
+          payload: { ...this.ctxMeta(context), nodeId, nodeName: node?.name ?? nodeId, success: result.success, error: result.error },
         });
 
         // 失败处理
@@ -223,7 +250,7 @@ export class DAGRuntime {
       timestamp: Date.now(),
       executionId: graph.id,
       source: 'dag-runtime',
-      payload: { dagId: graph.id, success: finalResult.success, completedNodes: finalResult.completedNodes, failedNodes: finalResult.failedNodes },
+      payload: { ...this.ctxMeta(context), dagId: graph.id, success: finalResult.success, completedNodes: finalResult.completedNodes, failedNodes: finalResult.failedNodes },
     });
     return finalResult;
   }

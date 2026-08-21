@@ -13,7 +13,7 @@
  *   npx tsx scripts/start.ts stop           # 停止 PM2 进程
  *
  * 环境变量:
- *   PORT        — HTTP 端口（默认 8080）
+ *   PORT        — HTTP 端口（默认 5473）
  *   MIRROR_PATH — Mirror 存储路径（默认 ./data/mirror）
  */
 
@@ -58,13 +58,13 @@ async function main(): Promise<void> {
   if (noEmbed) embedArgs.push('--no-embed');
 
   console.log('[start] 开发模式: 启动 StudioServer...');
-  console.log(`  PORT=${process.env.PORT || '8080'}`);
+  console.log(`  PORT=${process.env.PORT || '5473'}`);
   console.log(`  MIRROR_PATH=${process.env.MIRROR_PATH || './data/mirror'}`);
 
   // 直接 import 并启动 StudioServer
   const { StudioServer } = await import('../packages/studio/server/StudioServer.js');
 
-  const PORT = parseInt(process.env.PORT || '8080', 10);
+  const PORT = parseInt(process.env.PORT || '5473', 10);
   const MIRROR_PATH = process.env.MIRROR_PATH || './data/mirror';
 
   const studio = new StudioServer({

@@ -49,6 +49,10 @@ export interface RunOptions {
   approvalTimeoutMs?: number;
   /** 部门 ID（可选） */
   departmentId?: string;
+  /** P1 部门 Space：部门经理 persona（执行路径编排器注入；可选） */
+  managerPersona?: string;
+  /** P1 部门 Space：工位能力提示（可选） */
+  capabilities?: string[];
   /** 功能③：聚焦上下文（CompanyFacade 装配产出，注入执行路径；可选） */
   assembledContext?: string;
   /** 自定义扩展属性 */
@@ -382,6 +386,8 @@ export class MorPexRuntime {
       const execRequest: ExecutionRequest = {
         goal: context.goal.objective,
         departmentId: context.team.departments[0],
+        managerPersona: options?.managerPersona,
+        capabilities: options?.capabilities,
         context: {
           executionId: context.executionId,
           missionId: context.mission.missionId,

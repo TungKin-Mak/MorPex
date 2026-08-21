@@ -6,12 +6,49 @@
 #   - gateway  → 自定义 OpenAI 兼容网关（baseUrl + apiKey）
 #
 # 内置 provider 示例（pi-ai builtinModels）：opencode / opencode-go / anthropic / openai / zai-coding-cn ...
+#
+# ═══════════════════════════════════════════════════════════════════
+# ★ 主模型：Agnes 2.5 Flash（OpenAI 兼容云端模型，智能体工作流/工具调用优化）
+#   - Base URL https://api.agnes-ai.cn/v1，模型名 agnes-2.5-flash，512K 上下文 / 65.5K 最大输出
+#   - apiKey 从环境变量 AGNES_API_KEY 读取（Windows 用户级兑底）
+#   - 本地 MiniCPM5 作为附加可选模型（llm_minicpm 块），运行时用 minicpm/minicpm5 选择
+# ═══════════════════════════════════════════════════════════════════
 llm:
-  mode: builtin          # builtin=pi-ai 内置 provider（opencode 等）；gateway=自定义网关
-  enabled: true          # LLM 总开关
-  provider: opencode     # 模型来源 provider（内置 provider id 或自定义网关标识）
-  model: deepseek-v4-flash-free   # 模型名（opencode 内置：deepseek-v4-flash-free / deepseek-v4-flash ...）
-  baseUrl: https://opencode.ai/zen/v1
-  apiKey: ${OPENCODE_API_KEY}   # ← 从环境变量 OPENCODE_API_KEY 读取（Windows 用户级兑底）
-  contextWindow: 200000
-  maxTokens: 128000
+  mode: gateway            # gateway=OpenAI 兼容网关
+  enabled: true
+  provider: agnes          # 运行时模型标识（agnes/agnes-2.5-flash）
+  model: agnes-2.5-flash
+  baseUrl: https://api.agnes-ai.cn/v1
+  apiKey: ${AGNES_API_KEY}     # ← 从环境变量 AGNES_API_KEY 读取
+  contextWindow: 524288    # 512K 上下文窗口
+  maxTokens: 65536         # 65.5K 最大输出
+  reasoning: true          # ═══ 17i.10：打开思考（PiBridge 以 thinkingFormat=qwen-chat-template 发 chat_template_kwargs.enable_thinking；前端投影 💭 思考）═══
+
+# ═══════════════════════════════════════════════════════════════════
+# 附加模型：本地 MiniCPM5-1B（OpenAI 兼容网关，思考型，可选）
+#   - 默认仍是上面的 llm 块（agnes）；需要时用 minicpm/minicpm5 显式选择
+#   - 本地服务启动：D:\llama_cpp\start-api.bat → 模式 [1] 长上下文（128K / 1 槽）
+# ═══════════════════════════════════════════════════════════════════
+llm_minicpm:
+  mode: gateway            # gateway=OpenAI 兼容网关（本地 llama-server）
+  enabled: true
+  provider: minicpm
+  model: minicpm5
+  baseUrl: http://127.0.0.1:8080/v1
+  apiKey: ${MINICPM_API_KEY}
+  contextWindow: 131072    # 128K total / 1 slot
+  maxTokens: 32000         # 生成预算上限（服务端 -n 32000；repeat-penalty + DRY 自然收尾）
+  reasoning: true          # MiniCPM5 是思考型模型
+
+# ═══════════════════════════════════════════════════════════════════
+# ── 恢复 opencode：把上面 llm: 块替换为下面内容（或复制覆盖）──
+# ═══════════════════════════════════════════════════════════════════
+# llm:
+#   mode: builtin          # builtin=pi-ai 内置 provider（opencode 等）
+#   enabled: true
+#   provider: opencode
+#   model: deepseek-v4-flash-free
+#   baseUrl: https://opencode.ai/zen/v1
+#   apiKey: ${OPENCODE_API_KEY}
+#   contextWindow: 200000
+#   maxTokens: 128000

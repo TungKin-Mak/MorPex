@@ -555,3 +555,67 @@ describe('ArtifactGenerationPrimitive — 成功路径（Gate 已初始化）', 
     expect(data.warnings?.some(w => w.includes('磁盘只读'))).toBe(true);
   });
 });
+
+describe('DomainPrimitiveRegistry 可逆效果（vNext · 参考 deepseek-harness reversible-effects）', () => {
+  /** 一个可识别的最小原语（name 唯一，便于断言） */
+  function makePrimitive(name: string) {
+    return {
+      name,
+      description: `test primitive ${name}`,
+      inputSchema: {},
+      canHandle: () => 0,
+      execute: async () => ({ success: true, data: { name } }),
+    };
+  }
+
+  beforeEach(() => {
+    DomainPrimitiveRegistry.clear();
+  });
+  afterEach(() => {
+    DomainPrimitiveRegistry.clear();
+  });
+
+  it('register 返回 disposer：调用即撤销该注册（幂等）', () => {
+    const p = makePrimitive('rev.test.idempotent');
+    const dispose = DomainPrimitiveRegistry.register(p);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.test.idempotent')).toBe(true);
+
+    expect(dispose()).toBe(true);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.test.idempotent')).toBe(false);
+    // 幂等：重复调用安全返回（不抛错）
+    expect(dispose()).toBe(true);
+  });
+
+  it('registerMultiple 返回批量 disposer：正序回卷全部注册', () => {
+    const ps = [makePrimitive('rev.multi.a'), makePrimitive('rev.multi.b'), makePrimitive('rev.multi.c')];
+    const dispose = DomainPrimitiveRegistry.registerMultiple(ps);
+    expect(DomainPrimitiveRegistry.listNames()).toEqual(expect.arrayContaining(['rev.multi.a', 'rev.multi.b', 'rev.multi.c']));
+
+    expect(dispose()).toBe(true);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.multi.a')).toBe(false);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.multi.b')).toBe(false);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.multi.c')).toBe(false);
+  });
+
+  it('effect：多个注册收集为整体效果，dispose 按 LIFO 回卷', () => {
+    const a = makePrimitive('rev.effect.a');
+    const b = makePrimitive('rev.effect.b');
+    // 注册顺序 a → b
+    const aDisposer = DomainPrimitiveRegistry.register(a);
+    const bDisposer = DomainPrimitiveRegistry.register(b);
+    const dispose = DomainPrimitiveRegistry.effect(aDisposer, bDisposer);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.effect.a')).toBe(true);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.effect.b')).toBe(true);
+
+    // LIFO：先回卷 b，再回卷 a（此处无法直接观察回卷顺序，验证最终全部回卷即可）
+    const all = dispose();
+    expect(all).toBe(true);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.effect.a')).toBe(false);
+    expect(DomainPrimitiveRegistry.isRegistered('rev.effect.b')).toBe(false);
+  });
+
+  it('effect 为空参数：安全返回 true（无副作用）', () => {
+    const dispose = DomainPrimitiveRegistry.effect();
+    expect(dispose()).toBe(true);
+  });
+});

@@ -25,6 +25,14 @@ import type { ContextPersistence } from './ContextPersistence.js'
 import type { EventBus } from '../../infrastructure/common/EventBus.js'
 // ═══ 去黑盒化（黑盒③ 检索决策记录）═══
 import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
+// ═══ Model-Visible 宣言（v18 新建）：装配输出必须可从持久化点重建 ═══
+import {
+  assertModelVisibleLogged,
+  createContextPackageEntry,
+  createDeblackboxEntry,
+  contextPersistenceResolver,
+  deblackboxResolver,
+} from '../../gate/modelVisibleLog.js';
 
 // ── ContextAssemblyConfig — 组装配置 ──
 
@@ -403,7 +411,49 @@ export class ContextAssemblyEngine {
     // ═══ 去黑盒化（黑盒③）：检索决策留痕（为什么是这些材料）═══
     this.recordRetrievalDecision(input, enrichedContext, trimmedFragments, layerSizes, assembleStart, template?.templateId ?? '')
 
+    // ═══ Model-Visible 宣言：装配输出必须可从持久化点重建；失败抛错（宪法级不变量）═══
+    this.assertModelVisibleReconstructable(enrichedContext)
+
     return enrichedContext
+  }
+
+  /**
+   * ═══ Model-Visible 宣言（v18 新建）：assembly 输出可重建断言 ═══
+   *
+   * 凡 focusedSummary 非空（= 确实有模型可见材料）：
+   *   ① ContextPersistence 快照（SQLite 持久，优先）
+   *   ② 快照未配置/保存失败 → 降级 DeblackboxRecorder 的 context.retrieval 决策单
+   *      （由上方 recordRetrievalDecision 刚记录；contentKey 定位 executionId）
+   *   ③ 两者都取不回 → 抛 ModelVisibleNotLoggedError（宪法级，不做 WARN 降级）
+   * 无 focusedSummary（非 focusMode）→ 无模型可见材料，跳过（不破坏既有流程）。
+   */
+  private assertModelVisibleReconstructable(context: ExecutionContext): void {
+    if (!context.focusedSummary) return
+    const persistence = this.resolvePersistence()
+    const recorder = getSharedDeblackboxRecorder()
+    const executionId = context.missionId ?? 'kernel'
+
+    // ① 持久优先：内容键指向 SQLite 快照（context_id + version 定位，可重建）
+    const snapshotEntry = createContextPackageEntry({
+      contextId: context.contextId,
+      version: context.version,
+      executionId,
+    })
+    if (persistence) {
+      const resolved = contextPersistenceResolver(persistence)(snapshotEntry)
+      if (resolved.found && resolved.content) return // 已可从持久快照重建 → 断言通过
+      // 快照未取回（未配置/保存失败/查询异常属真实存在的降级路径）→ 落 ②
+      console.warn(
+        `[Model-Visible] ⚠️ 快照未取回（${snapshotEntry.contentKey}）→ 降级 deblackbox 定位`,
+      )
+    }
+
+    // ② 降级：DeblackboxRecorder 的 context.retrieval 决策单（取不回 → 抛错）
+    const fallbackEntry = createDeblackboxEntry({
+      category: 'context.retrieval',
+      executionId,
+    })
+    assertModelVisibleLogged(fallbackEntry, deblackboxResolver(recorder))
   }
 
   /** ═══ 去黑盒化（黑盒③）：检索决策记录（L1 决策单永久）——回答"工作台里为什么是这些材料" */
