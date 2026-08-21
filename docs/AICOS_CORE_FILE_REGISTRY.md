@@ -646,6 +646,7 @@
 | `scripts/run-all-production-tests.ts` | 一键运行所有生产相关测试 | 只做测试编排 |
 | `scripts/production-check.cjs` | 生产就绪检查（8/8 门禁） | 只做门禁 |
 | `scripts/validate-architecture.js` | 理想架构对齐校验器（负向合规校验 8 层路径） | 只做门禁 |
+| `scripts/check-doc-sync.ts` | 文档-代码一致性校验器（从代码出发：FILE_REGISTRY 登记路径与 CAPABILITY_INDEX 锚点必须可解析到真实文件；`npm run check:docs`） | 只做文档门禁 |
 | `scripts/check-boundaries.sh` | 依赖/目录边界检查 | 只做门禁 |
 | `scripts/check-no-old-bootstrap.sh` | 检查旧 bootstrap 残留 | 只做门禁 |
 | `scripts/check-ontology-bypass.sh` | 检查 Ontology 绕过 | 只做门禁 |

@@ -97,6 +97,7 @@ node scripts/validate-architecture.js      # 0 违规
 node scripts/production-check.cjs          # 8/8
 npx vitest run                             # 全量测试
 npm run test:full                          # 一键全门禁（推荐）
+npm run check:docs                        # 文档-代码一致性（FILE_REGISTRY/CAPABILITY_INDEX 路径可解析）
 ```
 
 **任务自检**：□tsc 0 □架构 0 □production 8/8 □无残留旧引用 □新文件 barrel+实例化+调用者 □无幽灵模块 □文档同步。

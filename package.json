@@ -45,6 +45,7 @@
     "studio:server": "npx tsx packages/studio/server/index.ts",
     "══════════ 边界检查 ══════════": "",
     "check:boundaries": "bash scripts/check-boundaries.sh",
+    "check:docs": "npx tsx scripts/check-doc-sync.ts",
     "check:deps": "npx dependency-cruiser packages/ --config .dependency-cruiser.js",
     "check:versions": "grep -E '@earendil-works/pi-' package.json",
     "══════════ 核心 ══════════": "",

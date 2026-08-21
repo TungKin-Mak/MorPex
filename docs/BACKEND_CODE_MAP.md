@@ -1,16 +1,16 @@
 # MorPex 后端代码函数与关系链分析
 
-> 生成时间：2026-08-21 15:28:47 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
+> 生成时间：2026-08-21 20:09:09 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
 
 ## 0. 统计概览
 
 | 指标 | 值 |
 |---|---|
 | 扫描根 | packages/core/src/facade、packages/core/src/governance、packages/core/src/knowledge、packages/core/src/gate、packages/core/src/cognition、packages/core/src/execution、packages/core/src/evaluation、packages/core/src/evolution、packages/core/src/infrastructure、packages/core/src/workflow、packages/connectors/src、packages/memory/src、packages/studio/server、packages/workflows、packages/workflow-sdk/src、packages/contracts、scripts |
-| 文件数 | 483 |
-| 函数/方法数 | 2768 |
-| 调用表达式数 | 12742 |
-| import 数 | 985 |
+| 文件数 | 485 |
+| 函数/方法数 | 2775 |
+| 调用表达式数 | 12832 |
+| import 数 | 987 |
 
 ## 1. 文件间依赖关系链（import 图）
 
@@ -1101,6 +1101,8 @@
 ### packages\core\src\infrastructure\protocol\events\DecisionEvent.ts
 - `./EventType.js` → EventType
 
+### packages\core\src\infrastructure\protocol\events\Envelope.ts
+- （无 import）
 ### packages\core\src\infrastructure\protocol\events\EventType.ts
 - （无 import）
 ### packages\core\src\infrastructure\protocol\events\EventTypes.ts
@@ -1914,6 +1916,10 @@
 
 ### scripts\batch-tasks.ts
 - （无 import）
+### scripts\check-doc-sync.ts
+- `node:fs` → *
+- `node:path` → *
+
 ### scripts\check-llm.ts
 - `../packages/core/src/infrastructure/adapters/pi-bridge/yamlConfig.js` → loadMorpexConfig
 
@@ -3033,22 +3039,23 @@
 | getStats | method |  |  | 814 |
 | cancelFleet | method |  |  | 844 |
 
-### packages\core\src\execution\TaskStateProjector.ts（13 个）
+### packages\core\src\execution\TaskStateProjector.ts（14 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 66 |
-| attach | method |  |  | 71 |
-| tasksDir | method |  |  | 76 |
-| fileFor | method |  |  | 80 |
-| handle | method |  |  | 86 |
-| newProjection | method |  |  | 125 |
-| upsertStep | method |  |  | 140 |
-| recomputeProgress | method |  |  | 147 |
-| persist | method |  |  | 161 |
-| restore | method |  |  | 177 |
-| get | method |  |  | 192 |
-| list | method |  |  | 196 |
-| clear | method |  |  | 203 |
+| isRecord | fn |  |  | 59 |
+| (anon) | ctor |  |  | 77 |
+| attach | method |  |  | 82 |
+| tasksDir | method |  |  | 87 |
+| fileFor | method |  |  | 91 |
+| handle | method |  |  | 97 |
+| newProjection | method |  |  | 145 |
+| upsertStep | method |  |  | 161 |
+| recomputeProgress | method |  |  | 168 |
+| persist | method |  |  | 182 |
+| restore | method |  |  | 198 |
+| get | method |  |  | 213 |
+| list | method |  |  | 217 |
+| clear | method |  |  | 224 |
 
 ### packages\core\src\execution\TeamBuilder.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -4357,15 +4364,16 @@
 | connectToRegistry | method |  |  | 180 |
 | getSummary | method |  |  | 192 |
 
-### packages\core\src\infrastructure\common\contracts\eventContractCatalog.ts（6 个）
+### packages\core\src\infrastructure\common\contracts\eventContractCatalog.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | isRecord | fn |  |  | 27 |
 | reqStr | fn |  |  | 32 |
 | reqStrArray | fn |  |  | 37 |
 | errorsOf | fn |  |  | 44 |
-| registerCoreEventContracts | fn |  | Y | 325 |
-| getEventContractReconcile | fn |  | Y | 338 |
+| execPayloadChecks | fn |  |  | 56 |
+| registerCoreEventContracts | fn |  | Y | 353 |
+| getEventContractReconcile | fn |  | Y | 366 |
 
 ### packages\core\src\infrastructure\common\eventContract.ts（6 个）
 | 函数 | kind | async | export | 行 |
@@ -4585,6 +4593,11 @@
 |---|---|---|---|---|
 | createDecisionEvent | fn |  | Y | 112 |
 | decisionToBaseEvent | fn |  | Y | 131 |
+
+### packages\core\src\infrastructure\protocol\events\Envelope.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| statusOf | fn |  | Y | 112 |
 
 ### packages\core\src\infrastructure\protocol\events\EventType.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -6311,6 +6324,14 @@
 
 ### scripts\batch-tasks.ts（0 个）
 - （无顶层函数/方法提取）
+### scripts\check-doc-sync.ts（4 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| bkey | const-fn |  |  | 15 |
+| resolve | fn |  |  | 20 |
+| walk | const-fn |  |  | 48 |
+| warn | const-fn |  |  | 65 |
+
 ### scripts\check-llm.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|

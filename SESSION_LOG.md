@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 文档审计 | **文档正确性审计（从代码出发）+ 一致性门禁**：①函数/关系链 BACKEND_CODE_MAP 从代码重生成（485文件/2775函数/12832调用，代码驱动）；②两层自动审计（头注释相似度、导出符号引用）确认有系统噪音→改用可靠硬校验；③新建 scripts/check-doc-sync.ts（npm run check:docs）：FILE_REGISTRY 462 行登记路径 + CAPABILITY_INDEX 锚点全部可解析到真实文件（0 错），作为文档一致性门禁；④钩入 package.json + DEVELOPMENT §8 + FILE_REGISTRY 登记 | ✅ 已提交 |
 | skill-化 | **文档 skill 化落地**：项目无内建 skill 机制，引入主流 Agent Skill 规范（skills/<name>/SKILL.md + frontmatter name/description 触发）；建 6 技能包——locate-capability(功能定位/防 grep 误判)、insert-hook(接入点)、event-messaging(事件消息)、dev-flow(开发流程/文档同步)、backend-flow(业务流)、architecture-rule(8 层铁律)；skills/README.md 索引+新增规范；AGENTS §6 导航登记。原理：SKILL.md 只放精炼要点+指向 docs，不复制大文档 | ✅ 已提交 |
 | 文档治-理 | **文档治理完成**：盘点归档 3 份过时/完成文档（REFACTOR_OPPORTUNITY_MAP→archive、guides/development（引用废弃 planes 旧结构）→archive、architecture-report-v9.2→archive）；保留 docregation 主文档 + guides/getting-started + design（被代码注释引用）；新建 **CAPABILITY_INDEX.md**（7 域 40+ 能力→锚点+别名+状态，为开发第一步定位用，防重复/grep 误判）+ **HOOK_MAP.md**（接入点+前/后顺序+主流程挂点+决策表）；AGENTS 导航更新 | ✅ 已提交 |
 | 规范-简 | **开发规范重整（参考成熟 LLM 项目范式）**：AGENTS.md 从 261 行/16 章精简为 ~80 行总纲（项目/导航/命令/铁律速览/流程/文档导航/会话约定）；详细规范迁移新建 docs/DEVELOPMENT.md（SOP 定位→理解→实现→收尾文档、第一性原理、架构铁律、质量、文档同步协议+防零碎、门禁、流水线、提交、知识路由）；新流程强调「查能力索引定位替代盲目 grep」；.pi/SYSTEM.md 入口指向调整。待建：CAPABILITY_INDEX / HOOK_MAP | ✅ 已提交 |
