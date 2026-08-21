@@ -1,3 +1,7 @@
+/**
+ * AlertEngine — 告警引擎（L1 治理）
+ * 基于 EventBus 收集/等级化告警（INFO/WARNING/CRITICAL），单例；供治理面板与审计消费。
+ */
 import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export type AlertLevel = 'INFO' | 'WARNING' | 'CRITICAL';

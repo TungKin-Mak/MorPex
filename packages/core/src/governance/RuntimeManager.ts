@@ -1,3 +1,7 @@
+/**
+ * RuntimeManager — 运行时上下文管理器（L1 治理）
+ * 跟踪 executionId 绑定上下文（source/departmentId/operation）+ 资源使用，单例，基于 EventBus。
+ */
 import { EventBus } from '../infrastructure/common/EventBus.js';
 
 export interface RuntimeContext {

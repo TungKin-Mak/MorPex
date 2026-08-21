@@ -1,3 +1,7 @@
+/**
+ * CapabilityDiscoverer — 能力发现器（L1 治理）
+ * 基于 CapabilityRegistry 按目标任务（objective/requiredCapabilities/domain）匹配可用能力、报告缺失。
+ */
 import { CapabilityRegistry } from './CapabilityRegistry.js';
 import type { Capability } from './CapabilityRegistry.js';
 
