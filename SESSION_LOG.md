@@ -30,6 +30,8 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 职责复核 | **FILE_REGISTRY 职责逐项复核 + 冗余/死代码审计（从代码出发）**：①死代码=ts-prune 0 + barrel 全覆盖（反向引用文本匹配为误报，排除）；②重复导出符号=已知 core/connectors secureExec 同源内联 + uuidv7/pi 兼容，无意外冗余；③复核工作台 data/doc-review-queue.md（可靠目录后缀映谢版 441 行并排：登记 vs 真实文件 JSDoc，相似度排序，低相似 84）；④抽查证实 FILE_REGISTRY 与代码头注释总体相符（低相似多为提取样本问题：首 /
+/ 取到中部子注释）；⑤check:docs 门禁保持 0 错（路径可解析）。逐项人工复核可分批（以工作台为续） | ✅ 已交付 |
 | 文档审计 | **文档正确性审计（从代码出发）+ 一致性门禁**：①函数/关系链 BACKEND_CODE_MAP 从代码重生成（485文件/2775函数/12832调用，代码驱动）；②两层自动审计（头注释相似度、导出符号引用）确认有系统噪音→改用可靠硬校验；③新建 scripts/check-doc-sync.ts（npm run check:docs）：FILE_REGISTRY 462 行登记路径 + CAPABILITY_INDEX 锚点全部可解析到真实文件（0 错），作为文档一致性门禁；④钩入 package.json + DEVELOPMENT §8 + FILE_REGISTRY 登记 | ✅ 已提交 |
 | skill-化 | **文档 skill 化落地**：项目无内建 skill 机制，引入主流 Agent Skill 规范（skills/<name>/SKILL.md + frontmatter name/description 触发）；建 6 技能包——locate-capability(功能定位/防 grep 误判)、insert-hook(接入点)、event-messaging(事件消息)、dev-flow(开发流程/文档同步)、backend-flow(业务流)、architecture-rule(8 层铁律)；skills/README.md 索引+新增规范；AGENTS §6 导航登记。原理：SKILL.md 只放精炼要点+指向 docs，不复制大文档 | ✅ 已提交 |
 | 文档治-理 | **文档治理完成**：盘点归档 3 份过时/完成文档（REFACTOR_OPPORTUNITY_MAP→archive、guides/development（引用废弃 planes 旧结构）→archive、architecture-report-v9.2→archive）；保留 docregation 主文档 + guides/getting-started + design（被代码注释引用）；新建 **CAPABILITY_INDEX.md**（7 域 40+ 能力→锚点+别名+状态，为开发第一步定位用，防重复/grep 误判）+ **HOOK_MAP.md**（接入点+前/后顺序+主流程挂点+决策表）；AGENTS 导航更新 | ✅ 已提交 |
