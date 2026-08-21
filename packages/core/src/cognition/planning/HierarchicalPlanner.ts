@@ -290,7 +290,7 @@ export class HierarchicalPlanner {
     return this.ruleBasedDecompose(goal, context);
   }
 
-  private ruleBasedDecompose(goal: string, context?: PlanContext): SubGoal[] {
+  private ruleBasedDecompose(goal: string, _context?: PlanContext): SubGoal[] {
     const subGoals: SubGoal[] = [];
     const sgId = (n: number) => `sg_${Date.now()}_${n}`;
 

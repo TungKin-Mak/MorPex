@@ -3,7 +3,7 @@
  *
  * 从检查点快照重放执行过程，支持 step-by-step 和 full-speed 模式。
  */
-import type { ExecutionSnapshot, NodeState } from './CheckpointManager.js';
+import type { NodeState } from './CheckpointManager.js';
 import { CheckpointManager } from './CheckpointManager.js';
 
 export type ReplayEventType = 'node-start' | 'node-end' | 'node-skip' | 'error' | 'complete';

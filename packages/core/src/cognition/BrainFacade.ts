@@ -756,7 +756,7 @@ export class BrainFacade {
    * @param departmentId - 可选，按部门过滤
    * @returns 洞察列表
    */
-  async reflect(departmentId?: string): Promise<BrainInsight[]> {
+  async reflect(_departmentId?: string): Promise<BrainInsight[]> {
     const insights: BrainInsight[] = [];
 
     // 从 LearningLoop 获取优化建议
@@ -801,7 +801,7 @@ export class BrainFacade {
 
     // 从 Fallback 统计生成基础洞察
     if (insights.length === 0 && this.totalExperiences > 0) {
-      const successRate = this.totalExperiences > 0
+      const _successRate = this.totalExperiences > 0
         ? Math.round((this.totalMemories / (this.totalExperiences * 2)) * 100)
         : 0;
       insights.push({

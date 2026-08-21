@@ -88,10 +88,10 @@ export class SandboxManager {
     context: SandboxContext,
     agentId?: string,
   ): Promise<SandboxExecutionResult> {
-    let effectiveContext = context;
+    let _effectiveContext = context;
     if (agentId) {
       const riskScore = this.getAgentRiskScore(agentId);
-      if (riskScore >= 0.7) effectiveContext = this.getThirdPartySandboxContext();
+      if (riskScore >= 0.7) _effectiveContext = this.getThirdPartySandboxContext();
     }
     const startTime = Date.now();
     this.stats.totalExecutions++;

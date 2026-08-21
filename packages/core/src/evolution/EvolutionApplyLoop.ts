@@ -55,7 +55,6 @@ export class EvolutionApplyLoop {
 
   /** 挂载事件监听（EventBus 就绪后调用） */
   init(eventBus: EventBus): void {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventBus.on('evolution.experience.mined', (e: any) => { void this.onExperienceMined(e); });
   }
 

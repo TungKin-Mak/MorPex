@@ -7,7 +7,7 @@ import { GoalParser } from './GoalParser.js';
 import { RequirementExtractor } from './RequirementExtractor.js';
 import { ConstraintAnalyzer } from './ConstraintAnalyzer.js';
 import { GoalValidator } from './GoalValidator.js';
-import { IntentClassifier, type IntentKind } from './IntentClassifier.js';
+import { IntentClassifier } from './IntentClassifier.js';
 import type { GoalContext } from '../../../infrastructure/protocol/contracts/goal.js';
 
 type LLMFn = (system: string, prompt: string, opts?: { temperature?: number; maxTokens?: number }) => Promise<string>;

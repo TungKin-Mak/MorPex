@@ -54,7 +54,7 @@ export class KnowledgeDistiller {
   /**
    * distillFromMission — 从 Mission 结果中提炼经验
    */
-  distillFromMission(missionResult: any, twinVersion: number): GeneralizedExperience[] {
+  distillFromMission(missionResult: any, _twinVersion: number): GeneralizedExperience[] {
     if (!missionResult) return []
 
     const experiences: GeneralizedExperience[] = []

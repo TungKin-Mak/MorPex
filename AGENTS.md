@@ -100,7 +100,7 @@ CompanyFacade → ControlPlane → Runtime(FSM/DAG) → EventBus → Knowledge/M
 EventBus 是唯一通信通道；禁止模块间直接调用。
 
 ### 3.6 PiBridge 隔离铁律
-- **唯一入口**：`packages/core/src/adapters/pi-bridge/PiBridge.ts` 是唯一允许运行时 `import ... from '@earendil-works/pi-ai'` / `pi-agent-core` 的文件
+- **唯一入口**：`packages/core/src/infrastructure/adapters/pi-bridge/PiBridge.ts` 是唯一允许运行时 `import ... from '@earendil-works/pi-ai'` / `pi-agent-core` 的文件
 - **类型桥接**：`pi-types.ts` 允许 `import type`
 - **升级隔离**：pi 包升级只需改 PiBridge.ts，业务代码零修改
 - 检查：`grep -rn "from '@earendil-works/pi-ai'" --include="*.ts" packages/ | grep -v pi-bridge | grep -v pi-types | grep -v compat`

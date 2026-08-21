@@ -32,20 +32,10 @@ import {
 } from '@morpex/core';
 
 // ── v10 类型（用于 planner/executor 实现）──
-import type { Mission, MissionPlan, PlanStep, MissionResult } from '@morpex/core';
-import type { MissionPlanner, MissionExecutor } from '@morpex/core';
+import type { Mission, MissionPlan } from '@morpex/core';
+import type { MissionPlanner } from '@morpex/core';
 
-// ── v11 类型 ──
-import type {
-  WorkflowPackage,
-  InstalledWorkflow,
-  WorkflowExecutionResult,
-  WorkflowMetrics,
-  WorkflowStatus,
-  OptimizationProposal,
-  WorkflowVersion as WorkflowVersionInfo,
-  ExecutionOptions,
-} from './types.js';
+// ── v11 类型（若实现复用请从此 import）──
 
 import { WorkflowRuntime } from './WorkflowRuntime.js';
 import { WorkflowSDK } from './WorkflowSDK.js';
@@ -203,7 +193,7 @@ class MissionRuntimeAdapter {
 
   async executeMission(
     goal: string,
-    context?: Record<string, unknown>
+    _context?: Record<string, unknown>
   ): Promise<{ success: boolean; missionId?: string; output?: unknown; error?: string; duration?: number }> {
     try {
       // Step 1: 从 goal 创建 Mission
@@ -270,7 +260,7 @@ class DAGRuntimeAdapter {
         output: result.nodeResults,
         duration: Date.now() - startTime,
       };
-    } catch (err) {
+    } catch (_err) {
       return {
         success: false,
         duration: Date.now() - startTime,

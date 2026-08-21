@@ -19,7 +19,6 @@ import type {
   ExecutionOptions,
   WorkflowContext,
   TraceEntry,
-  Artifact,
   QualityScore,
 } from './types.js';
 
@@ -157,7 +156,7 @@ export class WorkflowRuntime {
       const candidate = {
         name: manifest.name,
         description: manifest.description ?? `Workflow ${manifest.name} v${manifest.version}`,
-        steps: definition.steps.map((s, i) => ({
+        steps: definition.steps.map((s, _i) => ({
           name: s.name || s.id,
           description: s.name || s.id,
           domain: s.capability ? (Array.isArray(s.capability) ? s.capability[0] : s.capability) : 'general',

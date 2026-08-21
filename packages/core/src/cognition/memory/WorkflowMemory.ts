@@ -15,7 +15,7 @@
  *   - 两者互补: TwinGraph 回答"有什么"，Memory 回答"怎么执行"
  */
 
-import type { WorkflowMemoryEntry, MemoryEntry } from './types.js';
+import type { WorkflowMemoryEntry } from './types.js';
 
 // ═══════════════════════════════════════════════════════════════
 // WorkflowMemory

@@ -204,6 +204,9 @@ const domainViolations = coreFiles
     if (file.includes('/capability/')) return false;
     // 排除跨领域模式分类器（evolution/PatternExtractor：用领域词做分类信号，非领域实现）
     if (file.includes('/evolution/PatternExtractor.ts')) return false;
+    // 精确豁免：SpaceService —— 同 capability/PatternExtractor 性质（workflowId→部门名路由映射），
+    // 领域实现仍在 workflows，勿豁免整个 control-plane/
+    if (file === 'packages/core/src/governance/control-plane/SpaceService.ts') return false;
     // 注：verification/ 不再整体豁免 —— 领域质检/合规规则必须位于对应 Workflow 插件
     //（core 仅保留通用注册机制 QualityRule / PolicyRuleRegistry；
     //   amazon_listing / e-commerce / hardware 规则已在 packages/workflows/*/src/rules/ 注册）

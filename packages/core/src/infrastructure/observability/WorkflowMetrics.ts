@@ -50,28 +50,28 @@ export class WorkflowMetrics {
   /**
    * recordRetry — 记录一次重试
    */
-  recordRetry(missionId: string): void {
+  recordRetry(_missionId: string): void {
     this.retries++
   }
 
   /**
    * recordHumanIntervention — 记录一次人工干预
    */
-  recordHumanIntervention(missionId: string): void {
+  recordHumanIntervention(_missionId: string): void {
     this.humanInterventions++
   }
 
   /**
    * recordSandboxRejection — 记录一次沙箱拒绝
    */
-  recordSandboxRejection(missionId: string): void {
+  recordSandboxRejection(_missionId: string): void {
     this.sandboxRejections++
   }
 
   /**
    * recordBudgetLimit — 记录一次预算超限
    */
-  recordBudgetLimit(missionId: string): void {
+  recordBudgetLimit(_missionId: string): void {
     this.budgetLimits++
   }
 

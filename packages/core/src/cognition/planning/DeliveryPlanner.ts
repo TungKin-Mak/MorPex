@@ -38,7 +38,6 @@ import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js'
 // ── Ontology 迭代1/2 ──
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
 import type { ForcedQueryGuard } from '../../gate/ForcedQueryGuard.js';
-import type { OntologyProposal } from '../../gate/types.js';
 
 // ── Types ──
 
@@ -263,7 +262,7 @@ export class DeliveryPlanner {
         if (sopHints.length > 0) {
           request.context = { ...request.context, sopHints };
         }
-      } catch (err) {
+      } catch (_err) {
         // SOP 查询失败不影响规划
       }
     }
@@ -296,7 +295,7 @@ export class DeliveryPlanner {
             request.context = { ...request.context, suggestedMode: 'quick', successCount: successMemories.length };
           }
         }
-      } catch (err) {
+      } catch (_err) {
         // 经验查询失败不影响规划
       }
     }

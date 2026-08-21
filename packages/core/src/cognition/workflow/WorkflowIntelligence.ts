@@ -17,7 +17,7 @@
  *   const assessment = await engine.assessAutomation(workflowId);
  */
 
-import type { Mission, MissionPlan, PlanStep } from '../../execution/runtime/mission/types.js';
+import type { Mission, PlanStep } from '../../execution/runtime/mission/types.js';
 import { WorkflowMemory } from '../memory/WorkflowMemory.js';
 import type { WorkflowMemoryEntry } from '../memory/types.js';
 import type {
@@ -182,7 +182,7 @@ export class WorkflowIntelligence {
    */
   private buildPatternFromCluster(cluster: Mission[]): WorkflowPattern {
     const id = `wfp_${++this.patternIdCounter}`;
-    const now = Date.now();
+    const _now = Date.now();
 
     // 从簇中所有 Mission 的 goal 提取共同名称
     const name = this.inferPatternName(cluster);

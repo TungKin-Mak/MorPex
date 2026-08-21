@@ -52,7 +52,7 @@ export function createMemorySearchTool(
             content: textContent(`🔍 记忆库找到(统一记忆层, ${r.source}):\n\n${r.hits.map((h) => h.content).join('\n\n---\n\n')}`),
             details: { found: true, path: 'memory_api', source: r.source },
           };
-        } catch (err: any) {
+        } catch (_err: any) {
           // 统一层异常 → 回退旧路径
         }
       }
@@ -71,7 +71,7 @@ export function createMemorySearchTool(
             content: textContent('未在记忆库中找到相关信息。请用你自己的知识回答。'),
             details: { found: false, path: 'harness' },
           };
-        } catch (err: any) {
+        } catch (_err: any) {
           // Fall through to fallback
         }
       }

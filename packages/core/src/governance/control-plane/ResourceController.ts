@@ -8,7 +8,6 @@
 
 import { CostController } from '../../governance/CostController.js';
 import { RuntimeManager } from '../../governance/RuntimeManager.js';
-import { CapabilityRegistry } from '../../governance/capability/CapabilityRegistry.js';
 
 export interface ResourceBudget {
   budget: number;

@@ -19,7 +19,7 @@
  *   - 无副作用：不发射事件、不修改状态
  */
 
-import type { Mission, MissionPlan, MissionResult, PlanStep } from '../mission/types.js';
+import type { Mission, MissionPlan, MissionResult } from '../mission/types.js';
 import type { VerificationResult, VerificationCheck, VerificationIssue, VerificationEngineConfig } from './types.js';
 
 // ── 默认配置常量 ──

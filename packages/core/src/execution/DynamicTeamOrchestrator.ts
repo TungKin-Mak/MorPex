@@ -8,7 +8,7 @@ import { AgentAllocator } from './AgentAllocator.js';
 import { DependencyCoordinator } from './DependencyCoordinator.js';
 import { CapabilityDiscoverer } from '../governance/capability/CapabilityDiscoverer.js';
 import type { Capability } from '../governance/capability/CapabilityRegistry.js';
-import type { DynamicTeam, DependencyGraph, TeamSpec } from './types.js';
+import type { DynamicTeam, DependencyGraph } from './types.js';
 import type { GoalContext } from '../infrastructure/protocol/contracts/goal.js';
 import { AgentCapabilityRegistry } from '../governance/capability/AgentCapabilityRegistry.js';
 

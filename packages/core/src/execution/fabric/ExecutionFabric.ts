@@ -11,7 +11,6 @@
 import type { ConnectorRegistry } from '@morpex/connectors/ConnectorRegistry.js';
 import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { ActionRequest, ActionResult } from '@morpex/connectors/types.js';
-import type { IActionConnector } from '@morpex/connectors/IActionConnector.js';
 
 // ═══════════════════════════════════════════════════════════════════
 // Internal Types
@@ -358,7 +357,7 @@ export class ExecutionFabric {
         // Mark agent as available again
         if (!options?.agentId && this.agentPool.size > 0) {
           // Set the first available agent back to available
-          for (const [id, agent] of this.agentPool) {
+          for (const [_id, agent] of this.agentPool) {
             if (agent.status === 'busy') {
               agent.status = 'available';
               break;

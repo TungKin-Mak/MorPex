@@ -84,7 +84,7 @@ export class ToolFactory {
     this.llmCaller = caller;
   }
 
-  async generateToolForTask(taskDesc: string, context?: ToolGenContext): Promise<ToolSchema & { toolId: string }> {
+  async generateToolForTask(taskDesc: string, _context?: ToolGenContext): Promise<ToolSchema & { toolId: string }> {
     const preset = this.matchPreset(taskDesc);
     if (preset) {
       const toolId = await ToolRegistry.register(preset.schema, preset.code);

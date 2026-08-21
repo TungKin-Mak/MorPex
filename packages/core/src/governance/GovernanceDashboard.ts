@@ -126,7 +126,7 @@ export class GovernanceDashboard {
     });
 
     // 监听工具注册事件以统计
-    eventBus.on('tools.registry.registered', (event: any) => {
+    eventBus.on('tools.registry.registered', (_event: any) => {
       this.recordModuleActivity('ToolRegistry', Date.now());
     });
   }
@@ -184,7 +184,7 @@ export class GovernanceDashboard {
       this.latencyWindow.shift();
     }
     // 清除超出窗口的数据
-    const cutoff = Date.now() - GovernanceDashboard.WINDOW_MS;
+    const _cutoff = Date.now() - GovernanceDashboard.WINDOW_MS;
     this.latencyWindow = this.latencyWindow.filter(() => true).slice(-GovernanceDashboard.MAX_LATENCY_SAMPLES);
   }
 

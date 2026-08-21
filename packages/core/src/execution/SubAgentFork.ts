@@ -25,7 +25,7 @@ import { EventBus } from '../infrastructure/common/EventBus.js';
 import { DepartmentContext } from '../governance/control-plane/DepartmentContext.js';
 import { makeProgressEvent } from '../infrastructure/common/ProgressCallback.js';
 import type { DepartmentId } from '../governance/control-plane/department-types.js';
-import type { ProgressCallback, ProgressEvent } from '../infrastructure/common/ProgressCallback.js';
+import type { ProgressCallback } from '../infrastructure/common/ProgressCallback.js';
 
 // ── Types ──
 

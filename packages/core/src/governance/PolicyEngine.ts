@@ -27,7 +27,7 @@
  *   - 可审计: 所有决策记录到 AuditTrail
  */
 
-import type { RiskAssessment, RiskLevel, AuditEntry } from './types.js';
+import type { RiskAssessment, RiskLevel } from './types.js';
 import { AuditTrail } from './AuditTrail.js';
 
 // ── 策略动作类型 ──

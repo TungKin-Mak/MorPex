@@ -1,0 +1,247 @@
+
+E:\Morpex\packages\core\src\bootstrap-unified.ts
+   26:15  warning  'ArtifactFacade' is defined but never used. Allowed unused vars must match /^_/u                                @typescript-eslint/no-unused-vars
+   35:15  warning  'Space' is defined but never used. Allowed unused vars must match /^_/u                                         @typescript-eslint/no-unused-vars
+   52:10  warning  'EvaluationEngine' is defined but never used. Allowed unused vars must match /^_/u                              @typescript-eslint/no-unused-vars
+   69:10  warning  'SelfImprovementLoop' is defined but never used. Allowed unused vars must match /^_/u                           @typescript-eslint/no-unused-vars
+   72:10  warning  'ExecutionSimulator' is defined but never used. Allowed unused vars must match /^_/u                            @typescript-eslint/no-unused-vars
+   73:10  warning  'ApprovalGate' is defined but never used. Allowed unused vars must match /^_/u                                  @typescript-eslint/no-unused-vars
+   74:10  warning  'MissionController' is defined but never used. Allowed unused vars must match /^_/u                             @typescript-eslint/no-unused-vars
+  245:13  warning  'GoalGraphProvider' is assigned a value but never used. Allowed unused vars must match /^_/u                    @typescript-eslint/no-unused-vars
+  245:32  warning  'MissionStateProvider' is assigned a value but never used. Allowed unused vars must match /^_/u                 @typescript-eslint/no-unused-vars
+  465:13  warning  'createMemoryApiBus' is assigned a value but never used. Allowed unused vars must match /^_/u                   @typescript-eslint/no-unused-vars
+  783:13  warning  'CrossDepartmentKnowledgeSynthesizer' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  802:9   warning  'failureAnalyzer' is assigned a value but never used. Allowed unused vars must match /^_/u                      @typescript-eslint/no-unused-vars
+  812:9   warning  'alertEngine' is assigned a value but never used. Allowed unused vars must match /^_/u                          @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\BrainFacade.ts
+  759:17  warning  'departmentId' is defined but never used. Allowed unused args must match /^_/u          @typescript-eslint/no-unused-vars
+  804:13  warning  'successRate' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\CrossDepartmentKnowledgeSynthesizer.ts
+  377:37  warning  'excludeDept' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\goal\GoalManager.ts
+  22:9  warning  'GoalStatus' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\learning\agent\KnowledgeDistiller.ts
+  57:42  warning  'twinVersion' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\memory\PersonalBrain.ts
+  34:3  warning  'ALL_LAYERS' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\memory\WorkflowMemory.ts
+  18:36  warning  'MemoryEntry' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\planning\DeliveryPlanner.ts
+   41:15  warning  'OntologyProposal' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  266:16  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u      @typescript-eslint/no-unused-vars
+  299:16  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u      @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\planning\DeliveryPlannerAdapter.ts
+  20:32  warning  'PlanTask' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\planning\HierarchicalPlanner.ts
+  293:44  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\planning\goal-intelligence\GoalIntelligenceFacade.ts
+  10:33  warning  'IntentKind' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\cognition\workflow\WorkflowIntelligence.ts
+   20:24  warning  'MissionPlan' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+  185:11  warning  'now' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evaluation\verification\QualityRule.ts
+  23:70  warning  't' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evolution\EvolutionApplyLoop.ts
+  58:5  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+E:\Morpex\packages\core\src\evolution\FailureAnalyzer.ts
+  232:11  warning  'uniqueDeps' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evolution\workflow\WorkflowExecutor.ts
+  19:52  warning  'WorkflowStepDef' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  21:15  warning  'MissionPlan' is defined but never used. Allowed unused vars must match /^_/u      @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evolution\workflow\WorkflowOptimizer.ts
+  15:35  warning  'WorkflowVersion' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evolution\workflow\WorkflowRegistry.ts
+  24:3  warning  'VersionPerformance' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\evolution\workflow\WorkflowSimulator.ts
+  37:7  warning  'FINANCE_KEYWORDS' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\DynamicTeamOrchestrator.ts
+  11:45  warning  'TeamSpec' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\SubAgentFork.ts
+  28:33  warning  'ProgressEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\fabric\ExecutionFabric.ts
+   14:15  warning  'IActionConnector' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  361:23  warning  'id' is assigned a value but never used. Allowed unused vars must match /^_/u       @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\MorPexRuntime.ts
+  490:13  warning  'minedEvents' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\PersistentMissionStore.ts
+  7:29  warning  'MissionStatus' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  7:44  warning  'MissionPhase' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\ServiceContainer.ts
+  206:53  warning  'a' is defined but never used. Allowed unused args must match /^_/u             @typescript-eslint/no-unused-vars
+  576:14  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\checkpoint\ReplayEngine.ts
+  6:15  warning  'ExecutionSnapshot' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\mission\MissionController.ts
+  3:44  warning  'MissionPhase' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\sandbox\SandboxManager.ts
+  94:29  warning  'effectiveContext' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\execution\runtime\verification\VerificationEngine.ts
+  22:52  warning  'PlanStep' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\gate\runOntologyGroundedReasoning.ts
+  18:3  warning  'ontologyToolDefinitions' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\governance\AnomalyDetector.ts
+  49:5  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+  51:5  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+E:\Morpex\packages\core\src\governance\GovernanceDashboard.ts
+  129:47  warning  'event' is defined but never used. Allowed unused args must match /^_/u            @typescript-eslint/no-unused-vars
+  187:11  warning  'cutoff' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\governance\PolicyEngine.ts
+  30:42  warning  'AuditEntry' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\governance\RiskAnalyzer.ts
+  457:11  warning  'autoLevels' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\governance\control-plane\ResourceController.ts
+  11:10  warning  'CapabilityRegistry' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\adapters\model-registry.ts
+  8:1  error  '@earendil-works/pi-ai/compat' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+
+E:\Morpex\packages\core\src\infrastructure\adapters\model-resolver.ts
+  7:1  error  '@earendil-works/pi-ai/compat' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+
+E:\Morpex\packages\core\src\infrastructure\adapters\pi-ai-types.ts
+   8:1  error    '@earendil-works/pi-ai' import is restricted from being used. Core must not import pi-ai directly. Use contracts and adapters layer                        no-restricted-imports
+   8:1  error    '@earendil-works/pi-ai' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+   9:1  error    '@earendil-works/pi-ai' import is restricted from being used. Core must not import pi-ai directly. Use contracts and adapters layer                        no-restricted-imports
+   9:1  error    '@earendil-works/pi-ai' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+  21:1  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+E:\Morpex\packages\core\src\infrastructure\adapters\pi-bridge\PiBridge.ts
+   68:1  error    '@earendil-works/pi-agent-core' import is restricted from being used. Core must not import pi-agent-core directly. Use contracts and adapters layer                     no-restricted-imports
+   68:1  error    '@earendil-works/pi-agent-core' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer       no-restricted-imports
+   74:1  error    '@earendil-works/pi-agent-core/node' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+   75:1  error    '@earendil-works/pi-agent-core' import is restricted from being used. Core must not import pi-agent-core directly. Use contracts and adapters layer                     no-restricted-imports
+   75:1  error    '@earendil-works/pi-agent-core' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer       no-restricted-imports
+   86:1  error    '@earendil-works/pi-ai' import is restricted from being used. Core must not import pi-ai directly. Use contracts and adapters layer                                     no-restricted-imports
+   86:1  error    '@earendil-works/pi-ai' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer               no-restricted-imports
+   87:1  error    '@earendil-works/pi-ai' import is restricted from being used. Core must not import pi-ai directly. Use contracts and adapters layer                                     no-restricted-imports
+   87:1  error    '@earendil-works/pi-ai' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer               no-restricted-imports
+  692:5  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+E:\Morpex\packages\core\src\infrastructure\adapters\pi-types.ts
+  25:1  error  '@earendil-works/pi-agent-core' import is restricted from being used. Core must not import pi-agent-core directly. Use contracts and adapters layer                no-restricted-imports
+  25:1  error  '@earendil-works/pi-agent-core' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+  28:1  error  '@earendil-works/pi-ai' import is restricted from being used. Core must not import pi-ai directly. Use contracts and adapters layer                                no-restricted-imports
+  28:1  error  '@earendil-works/pi-ai' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer          no-restricted-imports
+
+E:\Morpex\packages\core\src\infrastructure\adapters\pi-utils.ts
+  15:1  error  '@earendil-works/pi-ai/compat' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+  16:1  error  '@earendil-works/pi-ai/compat' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+  17:1  error  '@earendil-works/pi-ai/compat' import is restricted from being used by a pattern. Core must not import any @earendil-works package directly. Use adapters/ layer  no-restricted-imports
+
+E:\Morpex\packages\core\src\infrastructure\adapters\thinking-level.ts
+  52:7  warning  Unused eslint-disable directive (no problems were reported from '@typescript-eslint/no-explicit-any')
+
+E:\Morpex\packages\core\src\infrastructure\common\EncryptionService.ts
+  19:7  warning  'TAG_LENGTH' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\common\resilience\CircuitBreaker.ts
+  103:15  warning  'prevState' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  120:13  warning  'prevState' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  129:13  warning  'prevState' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\common\resilience\ErrorHandlerService.ts
+  15:26  warning  'CircuitOpenError' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\observability\HealthCheckService.ts
+  69:11  warning  'anyTimeout' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\observability\ObservabilityBootstrap.ts
+  19:6  warning  'DbLike' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\observability\WorkflowMetrics.ts
+  53:15  warning  'missionId' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  60:27  warning  'missionId' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  67:26  warning  'missionId' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+  74:21  warning  'missionId' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\ToolFactory.ts
+  87:47  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\memory-search-tool.ts
+  55:18  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+  74:18  warning  'err' is defined but never used. Allowed unused caught errors must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\primitives\APICallPrimitive.ts
+  10:46  warning  'APICallRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\primitives\ArtifactGenerationPrimitive.ts
+  25:10  warning  'systemMetadataGraph' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  26:10  warning  'ObjectTypeRegistry' is defined but never used. Allowed unused vars must match /^_/u   @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\primitives\KnowledgeQueryPrimitive.ts
+   17:46  warning  'KnowledgeQuery' is defined but never used. Allowed unused vars must match /^_/u             @typescript-eslint/no-unused-vars
+   21:10  warning  'systemMetadataGraph' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+   22:10  warning  'ObjectTypeRegistry' is defined but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  164:11  warning  'minConfidence' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  167:11  warning  'requestedSources' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\tools\primitives\ShellExecutionPrimitive.ts
+  15:46  warning  'ShellExecutionRequest' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\infrastructure\utils\extractJson.ts
+  204:11  warning  'currentKey' is assigned a value but never used. Allowed unused vars must match /^_/u         @typescript-eslint/no-unused-vars
+  238:7   warning  'lastCompleteDepth' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  239:7   warning  'lastCompleteIdx' is assigned a value but never used. Allowed unused vars must match /^_/u    @typescript-eslint/no-unused-vars
+  245:7   warning  'expectingColon' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  246:7   warning  'expectingValue' is assigned a value but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\artifact\registry\ArtifactDependencyResolver.ts
+  6:29  warning  'ArtifactDependency' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+  6:49  warning  'ArtifactEdge' is defined but never used. Allowed unused vars must match /^_/u        @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\artifact\registry\ArtifactEvaluator.ts
+  6:49  warning  'ArtifactCapability' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\context\ContextAssemblyEngine.ts
+  169:11  warning  'HISTORY_SOURCES' is assigned a value but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\context\retrieval\ContextRetriever.ts
+  193:28  warning  'i' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\context\retrieval\SparseRetriever.ts
+  67:35  warning  'i' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\memory\MemoryActivationEngine.ts
+  216:91  warning  'context' is defined but never used. Allowed unused args must match /^_/u  @typescript-eslint/no-unused-vars
+
+E:\Morpex\packages\core\src\knowledge\memory\MemoryHooks.ts
+  8:15  warning  'EventBus' is defined but never used. Allowed unused vars must match /^_/u     @typescript-eslint/no-unused-vars
+  8:25  warning  'MorPexEvent' is defined but never used. Allowed unused vars must match /^_/u  @typescript-eslint/no-unused-vars
+
+✖ 119 problems (22 errors, 97 warnings)
+  0 errors and 6 warnings potentially fixable with the `--fix` option.
+

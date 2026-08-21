@@ -15,7 +15,6 @@ import type { OntologyService } from '../knowledge/ontology/OntologyService.js';
 import type { ForcedQueryGuard } from './ForcedQueryGuard.js';
 import type { OntologyProposal, RiskTier } from './types.js';
 import {
-  ontologyToolDefinitions,
   createOntologyToolExecutor,
 } from '../infrastructure/tools/ontologyTools.js';
 import {

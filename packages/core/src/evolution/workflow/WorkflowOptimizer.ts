@@ -12,7 +12,7 @@
 
 import { WorkflowIntelligence, WorkflowMemory } from '../../cognition/index.js';
 import { WorkflowRegistry } from './WorkflowRegistry.js';
-import type { RegisteredWorkflow, WorkflowVersion, OptimizationPlan } from './types.js';
+import type { RegisteredWorkflow, OptimizationPlan } from './types.js';
 import type { OptimizationSuggestion } from '../../cognition/index.js';
 
 /** 优化配置 */

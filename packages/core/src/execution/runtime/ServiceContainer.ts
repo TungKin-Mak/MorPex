@@ -203,7 +203,7 @@ export class ServiceContainer {
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
     // 连接 EventStore 作为真相源（异步初始化，通过 ready 等待）
     this._ready = this.initEventStore();
-    this.artifactFacade.setPersistentStore({ save: (a: unknown) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as unknown as import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactStatus) });
+    this.artifactFacade.setPersistentStore({ save: (_a: unknown) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as unknown as import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactStatus) });
     this.controlPlane = new ControlPlane();
 
     // 初始化跨 Agent 学习引擎
@@ -573,7 +573,7 @@ export class ServiceContainer {
       this.piBridge = getSharedPiBridge();
       await this.piBridge.init();
       console.log('[ServiceContainer] ✅ PiBridge 已初始化 (真实 LLM 模式)');
-    } catch (err) {
+    } catch (_err) {
       console.warn('[ServiceContainer] ⚠️ PiBridge 不可用');
     }
   }

@@ -374,7 +374,7 @@ export class CrossDepartmentKnowledgeSynthesizer {
   /**
    * discoverDepartments — 发现所有可用的已注册部门（排除自身）
    */
-  private async discoverDepartments(excludeDept: DepartmentId): Promise<DepartmentId[]> {
+  private async discoverDepartments(_excludeDept: DepartmentId): Promise<DepartmentId[]> {
     // 通过 EventBus 查询已激活的部门
     const knownDepts: DepartmentId[] = [];
 

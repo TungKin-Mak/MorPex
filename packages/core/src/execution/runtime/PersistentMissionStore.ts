@@ -4,7 +4,7 @@
  */
 import { UnifiedEventStore } from '../../infrastructure/protocol/events/store/UnifiedEventStore.js';
 import { SYSTEM_EVENT_TYPES } from '../../infrastructure/protocol/events/EventTypes.js';
-import type { MissionState, MissionStatus, MissionPhase } from './mission/MissionTypes.js';
+import type { MissionState } from './mission/MissionTypes.js';
 
 export class PersistentMissionStore {
   private store: UnifiedEventStore;

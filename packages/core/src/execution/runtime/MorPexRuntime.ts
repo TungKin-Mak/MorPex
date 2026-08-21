@@ -487,7 +487,7 @@ export class MorPexRuntime {
 
       // ── Phase 5: Experience Mining（会话 16c：步骤级失败信号 + 可学习事件）──
       const failureReport = (execResult.metrics?.failureReport as Array<{ step: string; error: string }> | undefined);
-      const minedEvents = await this.experienceMiner.mineFromCompletedTask({
+      const _minedEvents = await this.experienceMiner.mineFromCompletedTask({
         goal: context.goal.objective,
         taskId: context.executionId,
         result: execResult.ok ? 'success' : 'failure',

@@ -66,7 +66,7 @@ export class HealthCheckService {
     const allOk = statuses.every(s => s === 'ok')
     const anyOk = statuses.some(s => s === 'ok')
     const anyError = statuses.some(s => s === 'error')
-    const anyTimeout = statuses.some(s => s === 'timeout')
+    const _anyTimeout = statuses.some(s => s === 'timeout')
 
     let overall: 'healthy' | 'degraded' | 'unhealthy'
     if (allOk) {

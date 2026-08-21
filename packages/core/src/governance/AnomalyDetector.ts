@@ -46,9 +46,7 @@ export class AnomalyDetector {
   /** 挂载事件监听（EventBus 就绪后调用） */
   init(eventBus: EventBus): void {
     this.eventBus = eventBus;
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventBus.on('execution.step.result', (e: any) => this.onStepResult(e));
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     eventBus.on('context.assembly.telemetry', (e: any) => this.onAssemblyTelemetry(e));
   }
 

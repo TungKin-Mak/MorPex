@@ -34,7 +34,7 @@ const DEFAULT_CONFIG: SimulatorConfig = {
 
 // ── 敏感工具/领域检测 ──
 const RISKY_KEYWORDS = ['delete', 'deploy', 'remove', 'terminate', 'destroy', 'drop', 'truncate']
-const FINANCE_KEYWORDS = ['payment', 'transaction', 'transfer', 'invoice', 'refund', 'price']
+const _FINANCE_KEYWORDS = ['payment', 'transaction', 'transfer', 'invoice', 'refund', 'price']
 const SENSITIVE_KEYWORDS = ['email', 'password', 'credential', 'token', 'secret', 'key']
 
 // ═══════════════════════════════════════════════════════════════

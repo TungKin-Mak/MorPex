@@ -16,9 +16,9 @@
  */
 
 import { WorkflowRegistry } from './WorkflowRegistry.js';
-import type { RegisteredWorkflow, ExecutionResult, WorkflowStepDef } from './types.js';
+import type { RegisteredWorkflow, ExecutionResult } from './types.js';
 import type { MissionRuntime } from '../../execution/runtime/mission/MissionRuntime.js';
-import type { MissionPlan, PlanStep } from '../../execution/runtime/mission/types.js';
+import type { PlanStep } from '../../execution/runtime/mission/types.js';
 import type { IncomingMessage } from '../../infrastructure/protocol/message-types.js';
 
 /** 执行配置 */

@@ -15,9 +15,6 @@ import { PrometheusExporter } from './PrometheusExporter.js';
 import { HealthCheckService } from './HealthCheckService.js';
 import { MetricsCollector } from './MetricsCollector.js';
 
-// Use a compatible type for database parameter
-type DbLike = { prepare: (sql: string) => { get: (...params: any[]) => any; all: (...params: any[]) => any[]; run: (...params: any[]) => { changes: number } } };
-
 export interface ObservabilityConfig {
   /** MetricsCollector 实例（不传则创建默认） */
   metrics?: MetricsCollector;

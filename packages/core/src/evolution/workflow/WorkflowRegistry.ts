@@ -21,7 +21,6 @@ import type {
   WorkflowCandidate,
   WorkflowStatus,
   WorkflowVersion,
-  VersionPerformance,
 } from './types.js'
 import type { WorkflowContract } from './contract/WorkflowContract.js'
 import { ContractValidator } from './contract/WorkflowContract.js'

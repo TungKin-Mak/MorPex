@@ -454,7 +454,7 @@ export class RiskAnalyzer {
     if (level === 'critical') return true;
     if (level === 'high' && score >= this.config.approvalThreshold) return true;
 
-    const autoLevels: RiskLevel[] = ['none', 'low'];
+    const _autoLevels: RiskLevel[] = ['none', 'low'];
     const autoLevel = this.config.autoApproveBelow;
 
     const levelOrder: RiskLevel[] = ['none', 'low', 'medium', 'high', 'critical'];

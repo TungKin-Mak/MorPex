@@ -1,6 +1,6 @@
 import { EventBus } from '../../../infrastructure/common/EventBus.js';
 import { EventType } from '../../../infrastructure/protocol/events/EventType.js';
-import type { MissionState, MissionStatus, MissionPhase, MissionUpdate, BlockReason } from './MissionTypes.js';
+import type { MissionState, MissionStatus, MissionUpdate, BlockReason } from './MissionTypes.js';
 import { systemMetadataGraph } from '../../../knowledge/graph/SystemMetadataGraph.js';
 import type { IEventStore } from '../../../infrastructure/protocol/events/store/IEventStore.js';
 

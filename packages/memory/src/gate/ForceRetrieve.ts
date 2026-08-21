@@ -15,7 +15,7 @@ import type {
   MemoryQuerySource,
   NeedHumanReason,
 } from '../memory-types.js';
-import { isCompanyKnowledgeDomain, requiresGraphFacts } from './domain.js';
+import { isCompanyKnowledgeDomain } from './domain.js';
 
 export const CONFIDENCE_HUMAN_THRESHOLD = 0.5;
 

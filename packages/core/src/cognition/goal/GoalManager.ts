@@ -19,7 +19,7 @@
 
 import { GoalGraph } from './GoalGraph.js';
 import type {
-  Goal, GoalStatus, GoalLevel, Objective, KeyResult,
+  Goal, GoalLevel, Objective, KeyResult,
   GoalGraphNode, GoalCreateInput, GoalStats,
 } from './types.js';
 

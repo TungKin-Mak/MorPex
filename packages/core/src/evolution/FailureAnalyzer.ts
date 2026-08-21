@@ -229,7 +229,7 @@ export class FailureAnalyzer {
   private detectDependencyIssues(steps: WorkflowStepLike[]): FailureMode | null {
     // Check for circular or complex dependencies
     const deps = steps.flatMap(s => s.deps ?? []);
-    const uniqueDeps = new Set(deps);
+    const _uniqueDeps = new Set(deps);
 
     if (deps.length > steps.length * 1.5) {
       return {

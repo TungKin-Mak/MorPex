@@ -17,7 +17,7 @@
 import type { MissionPlanner } from '../../execution/runtime/mission/MissionRuntime.js';
 import type { Mission, MissionPlan, PlanStep } from '../../execution/runtime/mission/types.js';
 import { DeliveryPlanner } from './DeliveryPlanner.js';
-import type { PlanningRequest, PlanTask } from './DeliveryPlanner.js';
+import type { PlanningRequest } from './DeliveryPlanner.js';
 import { CrossDepartmentArbitrationEngine } from './CrossDepartmentArbitrationEngine.js';
 import type { PlanWithTasks, Conflict } from './CrossDepartmentArbitrationEngine.js';
 import type { HierarchicalPlanner } from './HierarchicalPlanner.js';

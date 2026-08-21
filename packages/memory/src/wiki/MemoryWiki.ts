@@ -19,10 +19,10 @@
 import * as path from 'node:path';
 import * as fs from 'node:fs';
 import type {
-  MemoryItem, MemoryRelation,
+  MemoryItem,
   MemoryWikiConfig,
 } from './types.js';
-import { MEMORY_WIKI_SCHEMA, TABLES } from './schema.js';
+import { MEMORY_WIKI_SCHEMA } from './schema.js';
 
 // ═══════════════════════════════════════════════════════════════
 // 默认配置

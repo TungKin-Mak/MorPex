@@ -12,7 +12,7 @@
  */
 
 import { RetryPolicy } from './RetryPolicy.js';
-import { CircuitBreaker, CircuitOpenError } from './CircuitBreaker.js';
+import { CircuitBreaker } from './CircuitBreaker.js';
 
 export interface ExecutionContext {
   /** 阶段名称 (如 'intent', 'execution') */

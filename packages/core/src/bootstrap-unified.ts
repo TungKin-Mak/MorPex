@@ -23,7 +23,6 @@
  */
 
 import { ServiceContainer } from './execution/runtime/ServiceContainer.js';
-import type { ArtifactFacade } from './knowledge/artifact/ArtifactFacade.js';
 import { EventType } from './infrastructure/protocol/events/EventType.js';
 import { registerCoreEventContracts } from './infrastructure/common/contracts/eventContractCatalog.js';
 import { PluginSystem } from './infrastructure/common/PluginSystem.js';
@@ -32,7 +31,6 @@ import { CompanyFacade } from './facade/CompanyFacade.js';
 import { GoalIntelligenceFacade } from './cognition/planning/goal-intelligence/GoalIntelligenceFacade.js';
 import { DepartmentManager } from './governance/control-plane/DepartmentManager.js';
 import { SpaceService } from './governance/control-plane/SpaceService.js';
-import type { Space } from './governance/control-plane/space-types.js';
 import { AgentMailbox, setMailboxInstance } from './execution/AgentMailbox.js';
 import { TaskStateProjector } from './execution/TaskStateProjector.js';
 import { restoreDecisions } from './execution/DecisionStore.js';
@@ -49,7 +47,6 @@ import {
   ArtifactProjector,
 } from './knowledge/ontology/projectors/index.js';
 import { createQueryPerformedEvent } from './gate/ontologyEvents.js';
-import { EvaluationEngine } from './evaluation/EvaluationEngine.js';
 import { FeedbackService } from './knowledge/ontology/FeedbackService.js';
 
 // ── Ontology Gate for Primitives ──
@@ -66,12 +63,8 @@ import {
 } from './infrastructure/tools/primitives/index.js';
 
 // ── v16 模块 ──
-import { SelfImprovementLoop } from './evolution/SelfImprovementLoop.js';
 import { ReflectionEngine } from './cognition/index.js';
 import { LearningLoop } from './cognition/learning/LearningLoop.js';
-import { ExecutionSimulator } from './execution/runtime/simulation/ExecutionSimulator.js';
-import { ApprovalGate } from './governance/ApprovalGate.js';
-import { MissionController } from './execution/runtime/mission/MissionController.js';
 import { WorkflowRegistry as WorkflowPluginRegistry } from './workflow/WorkflowProvider.js';
 
 import type { IEventStore } from './infrastructure/protocol/events/store/IEventStore.js';
@@ -242,7 +235,7 @@ export async function bootstrapUnified(options?: {
   // 功能③：注入上下文组装引擎（装配统一在 MorPexRuntime orchestrate 后执行，读真实 Mission 数据；引擎缺省零风险）
   try {
     const { ContextAssemblyEngine } = await import('./knowledge/context/ContextAssemblyEngine.js');
-    const { GoalGraphProvider, MissionStateProvider } = await import('./knowledge/context/providers/realProviders.js');
+    await import('./knowledge/context/providers/realProviders.js');
     const assemblyEngine = new ContextAssemblyEngine(undefined, undefined, undefined, undefined, undefined, {
       enableVersioning: true,
       enableEnrichment: true,
@@ -462,7 +455,7 @@ export async function bootstrapUnified(options?: {
   try {
     const { createMemoryApi, createEngine } = await import('./infrastructure/adapters/memory/index.js');
     const { initializeCompanyMemory } = await import('./knowledge/memory/CompanyKnowledge.js');
-    const { createMemoryApiBus, createMemoryActivationSource } = await import('./knowledge/memory/MemoryApiBus.js');
+    const { createMemoryActivationSource } = await import('./knowledge/memory/MemoryApiBus.js');
     const memoryEngine = createEngine();
     const memoryApi = createMemoryApi({ engine: memoryEngine });
     initializeCompanyMemory(memoryApi);
@@ -780,7 +773,7 @@ export async function bootstrapUnified(options?: {
       getTeam: (id: string) => container.teamOrchestrator.getTeam(id),
     });
     // ═══ S22 审计修复：装配 CrossDepartmentKnowledgeSynthesizer（此前完全未接线）═══
-    const { CrossDepartmentKnowledgeSynthesizer } = await import('./cognition/CrossDepartmentKnowledgeSynthesizer.js');
+    await import('./cognition/CrossDepartmentKnowledgeSynthesizer.js');
     console.log('[bootstrapUnified] ✅ L4 BrainFacade 统一入口已接入（executeGoal → brain.learn）');
   } catch (err) {
     console.warn('[bootstrapUnified] ⚠️ BrainFacade 接入失败（不阻断）:', (err as Error).message);
@@ -799,7 +792,7 @@ export async function bootstrapUnified(options?: {
   const selfImprovementLoop = new SelfImprovementLoop();
   activeEvolutionTrigger.setSelfImprovementLoop(selfImprovementLoop);
   console.log('[bootstrapUnified] ✅ SelfImprovementLoop 已注入 ActiveEvolutionTrigger（autoEvolve 激活）');
-  const failureAnalyzer = new FailureAnalyzer();
+  const _failureAnalyzer = new FailureAnalyzer();
   // vNext+ L8：演化安全沙箱（沙箱试跑 + 版本化 + 人工审批 + 回滚入口）
   const evolutionSandbox = new EvolutionSandbox({ eventStore: container.eventStore ?? undefined });
   activeEvolutionTrigger.setEvolutionSandbox(evolutionSandbox);
@@ -809,7 +802,7 @@ export async function bootstrapUnified(options?: {
   const { GovernanceDashboard, CostController, AlertEngine } = await import('./governance/index.js');
   const governanceDashboard = new GovernanceDashboard(eventBus);
   CostController.getInstance().init(eventBus);
-  const alertEngine = new AlertEngine(eventBus);
+  const _alertEngine = new AlertEngine(eventBus);
   // Studio 观测：治理面板挂到容器（类型安全字段，供 StudioServer 显式访问）
   container.governanceDashboard = governanceDashboard;
   console.log('[bootstrapUnified] ✅ L10 Observability 已接通：GovernanceDashboard + CostController + AlertEngine');

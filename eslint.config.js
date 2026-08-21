@@ -11,7 +11,7 @@ import tsPlugin from '@typescript-eslint/eslint-plugin';
 export default [
   eslint.configs.recommended,
   {
-    ignores: ['**/node_modules/**', '**/dist/**', '**/*.d.ts', '**/data/**', '**/logs/**', '**/*.cjs', '**/*.js', '**/*.mjs'],
+    ignores: ['**/node_modules/**', '**/dist/**', '**/*.d.ts', '**/data/**', '**/logs/**', '**/*.cjs', '**/*.js', '**/*.mjs', '**/portable/**', '**/src-tauri/target/**'],
   },
   {
     files: ['**/*.ts'],
@@ -85,7 +85,7 @@ export default [
   {
     // 核心非适配器层：禁止直接导入 pi 包
     files: ['packages/core/src/**/*.ts'],
-    ignores: ['packages/core/src/adapters/**/*.ts'],
+    ignores: ['packages/core/src/infrastructure/adapters/**/*.ts'],
     rules: {
       'no-restricted-imports': ['error', {
         paths: [
@@ -113,7 +113,7 @@ export default [
   },
   {
     // 适配器层：允许导入 pi 包（这是唯一允许的地方）
-    files: ['packages/core/src/adapters/**/*.ts'],
+    files: ['packages/core/src/infrastructure/adapters/**/*.ts'],
     rules: {
       'no-restricted-imports': 'off',
     },
@@ -129,20 +129,5 @@ export default [
         ],
       }],
     },
-  },
-  {
-    files: ['packages/adapters/mock-runtime/**/*.ts'],
-    rules: {
-      'no-restricted-imports': ['error', {
-        patterns: [{
-          group: ['@earendil-works/*'],
-          message: 'Mock adapter must not depend on Pi packages.',
-        }],
-      }],
-    },
-  },
-  {
-    files: ['packages/adapters/pi-*/**/*.ts'],
-    rules: { 'no-restricted-imports': ['off'] },
   },
 ];

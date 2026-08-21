@@ -31,7 +31,6 @@ import type {
   MemoryQueryResult,
   BrainStats,
   PreferenceMemoryEntry,
-  ALL_LAYERS,
 } from './types.js';
 import { LAYER_TTL } from './types.js';
 import { WorkflowMemory } from './WorkflowMemory.js';

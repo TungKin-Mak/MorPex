@@ -80,7 +80,7 @@ export class PiModelRegistry {
           modelUsed: result.modelUsed,
         };
       }
-    } catch (err) {
+    } catch (_err) {
       console.warn('[PiModelRegistry] PiBridge 失败，回退 HTTP');
     }
 
