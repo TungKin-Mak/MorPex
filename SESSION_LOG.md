@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 精简 | **后端精简诊断 + 超大文件拆分试点**：诊断证实无死代码（ts-prune 0 命中/所有模块均被 barrel 使用），“文件多”为 8 层架构+barrel 体系的功能使然，有效优化=拆超大文件；试点拆分 runOntologyGroundedReasoning 1045→851（新建 reasoningCache 61 行 + queryplan 166 行，纯移动零逻辑变化），门禁 tsc/eslint/架构 100%/gate 17 测试全绿；剩余 >800 大文件 10 个待分批拆 | ✅ 试点成功 |
 | 优化 | **subagent 多维度代码优化（advisor 诊断 + 3 worker + 人工补 W3）**：诊断→架构 100%/依赖 0 违规/但 eslint 22 误报+122 警告。修复：①eslint.config 适配器豁免路径 `core/src/adapters`→`infrastructure/adapters`（旧路径不存在致 22 误报）+ ignores 追加 portable/src-tauri/target + 删 2 死配置块；②validate-architecture 给 SpaceService 加精确豁免（同 capability 性质，非真违规）；③AGENTS §3.6 路径修正；④W2/W3 未用变量清理 51 文件（66 符号去重删除 + _x 前缀，re-export 零损失，tsc 0 硬保证）。门禁 tsc 0 / eslint --quiet 0 / 架构 100% / 依赖 0 违规。7 个预存测试失败经 stash 对比证非本轮引入。大文件拆分按行数判定不急（advisor C 结论）。风险点：W2 子代理报告失败但实际改了 45 文件——已审计安全，教训：先核对落盘再信报告 | ✅ 已提交 |
 | 规则 | **新增强制规则：每次修改代码文件必须同步更新相应文档**——AGENTS.md §8.5 强化（顶部强制声明 + 规则6：映射表命中/显式声明“文档不涉及”/未同步=未完成）+ §9 自检加勾选项 + §5 完成标准强化；`.pi/SYSTEM.md` 速览同步（薄壳双保险）。提交信息须注明文档命中项 | ✅ 已固化 |
 | 后端盘点 | **后端全量文件职责登记补全（FILE_REGISTRY）**：现有登记表已覆盖 core/src 346 文件 + studio/web + studio/desktop；本轮补全剩余后端区块——connectors/src 8 + memory/src 26 + studio/server 46（observability 24/simulation 9/verification 8）+ workflows 29 + workflow-sdk/src 8 + contracts 7 + scripts；逐文件“功能+职责边界”行，与 AICOS-Core 8 层/领域插件第 9 层对齐 | ✅ 纯文档变更 |
