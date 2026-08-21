@@ -12,6 +12,7 @@
 | `dev-flow` | 每次改代码：完整流程/文档同步/质量/门禁 | DEVELOPMENT |
 | `backend-flow` | 理解业务流/数据链/失败路径 | AICOS_FLOW |
 | `architecture-rule` | 架构/层间/合规改动 | AICOS_CORE_ARCHITECTURE |
+| `devkit-bootstrap` | 新项目启用规范 / 搭开发文档 | devkit/*.skeleton.md |
 
 ## 新增 skill 规范
 - 目录 `skills/<name>/SKILL.md`，frontmatter 必含 `name` + `description`（自然语言写"何时使用"）。
