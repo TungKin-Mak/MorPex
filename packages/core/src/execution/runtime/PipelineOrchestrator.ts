@@ -1,3 +1,6 @@
+/**
+ * PipelineOrchestrator — 管线编排：GoalIntelligence → MissionController → 动态团队执行
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { GoalIntelligenceFacade } from '../../cognition/planning/goal-intelligence/GoalIntelligenceFacade.js';
 import { MissionController } from './mission/MissionController.js';

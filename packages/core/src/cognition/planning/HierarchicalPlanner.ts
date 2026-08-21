@@ -1,3 +1,6 @@
+/**
+ * HierarchicalPlanner — 分层规划器（Ontology grounded，产出 Plan 供 L5 执行）
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 

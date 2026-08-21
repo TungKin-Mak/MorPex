@@ -1,3 +1,6 @@
+/**
+ * MorPexRuntime — L5 统一运行时：总编排入口（FSM/DAG/编排，boists DAG+FSM 层级），经 EventBus 与各层交互
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { PipelineOrchestrator } from './PipelineOrchestrator.js';
 import { MissionController } from './mission/MissionController.js';

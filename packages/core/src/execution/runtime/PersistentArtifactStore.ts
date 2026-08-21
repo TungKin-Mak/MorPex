@@ -1,3 +1,6 @@
+/**
+ * PersistentArtifactStore — 基于 UnifiedEventStore 的持久化产物存储
+ */
 import { UnifiedEventStore } from '../../infrastructure/protocol/events/store/UnifiedEventStore.js';
 import type { BaseEvent } from '../../infrastructure/protocol/events/BaseEvent.js';
 import type { ArtifactNode, ArtifactStatus } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';

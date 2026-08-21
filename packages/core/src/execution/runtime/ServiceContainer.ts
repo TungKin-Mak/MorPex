@@ -1,3 +1,6 @@
+/**
+ * ServiceContainer — 运行时服务容器：装配执行引擎/存储/引擎依赖，供 bootstrap 注入
+ */
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { setPlanEventBus } from '../PlanGateService.js';
 // ═══ 去黑盒化（黑盒⑧/②）：异步 token 上报持久化 ═══

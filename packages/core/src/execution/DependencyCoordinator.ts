@@ -1,3 +1,6 @@
+/**
+ * DependencyCoordinator — 动态团队依赖图构建与跨团队依赖协调
+ */
 import type { DependencyGraph, DynamicTeam } from './types.js';
 
 export class DependencyCoordinator {

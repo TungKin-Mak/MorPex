@@ -1,3 +1,6 @@
+/**
+ * ReflectionEngine — 任务后反思（洞察/建议，只读数据，不触发改动）
+ */
 import { EventBus } from '../infrastructure/common/EventBus.js';
 
 // ── Types ──

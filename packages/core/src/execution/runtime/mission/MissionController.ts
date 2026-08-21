@@ -1,3 +1,6 @@
+/**
+ * MissionController — Mission 生命周期控制器（创建/推进/完成，事件驱动）
+ */
 import { EventBus } from '../../../infrastructure/common/EventBus.js';
 import { EventType } from '../../../infrastructure/protocol/events/EventType.js';
 import type { MissionState, MissionStatus, MissionUpdate, BlockReason } from './MissionTypes.js';

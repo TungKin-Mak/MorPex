@@ -1,3 +1,6 @@
+/**
+ * AgentAllocator — 按 TeamSpec 从可用 Agent 池静态分配执行团队
+ */
 import type { TeamMember, TeamSpec } from './types.js';
 
 export class AgentAllocator {

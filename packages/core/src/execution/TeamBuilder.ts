@@ -1,3 +1,6 @@
+/**
+ * TeamBuilder — 按目标/所需能力构建执行团队（TeamSpec）
+ */
 import type { TeamSpec } from './types.js';
 
 export class TeamBuilder {
