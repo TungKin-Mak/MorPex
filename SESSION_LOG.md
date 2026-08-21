@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 规则 | **新增强制规则：每次修改代码文件必须同步更新相应文档**——AGENTS.md §8.5 强化（顶部强制声明 + 规则6：映射表命中/显式声明“文档不涉及”/未同步=未完成）+ §9 自检加勾选项 + §5 完成标准强化；`.pi/SYSTEM.md` 速览同步（薄壳双保险）。提交信息须注明文档命中项 | ✅ 已固化 |
 | 后端盘点 | **后端全量文件职责登记补全（FILE_REGISTRY）**：现有登记表已覆盖 core/src 346 文件 + studio/web + studio/desktop；本轮补全剩余后端区块——connectors/src 8 + memory/src 26 + studio/server 46（observability 24/simulation 9/verification 8）+ workflows 29 + workflow-sdk/src 8 + contracts 7 + scripts；逐文件“功能+职责边界”行，与 AICOS-Core 8 层/领域插件第 9 层对齐 | ✅ 纯文档变更 |
 | G1-G3 | **参考 deepseek-harness 设计理念·升级已有功能（不重复造轮子）**：盘库确认事件契约/Model-visible-logged/可逆效果/防御性模式 secureExec/PluginSystem 已存在→仅升级 3 处——G1 事件契约目录实体化（`infra/common/contracts/eventContractCatalog.ts` 24 契约 + bootstrap 接线 + `/api/observability/event-contracts` 对账端点）；G2 PluginSystem 幽灵模块接线（getInstance 单例 + stop 精确回卷本领域原语）；G3 ShellConnector→secureExec（shell:false 防注入 + scrubEnv 凭据清洗 + 正交因子上报 + 私有临时目录落盘，connectors 零 core 依赖故内联同源）。门禁 tsc 0 / 契约 7 + eventContract 8 + connectors 15；reviewer 放行；optimizer 删死导出 reconcileEmitted | ✅ |
 | 16o | **本地 MiniCPM5-1B 接入（附加模型）**：config/morpex.yaml 新增 `llm_minicpm:` 块（gateway→http://127.0.0.1:8080/v1，apiKey=${MINICPM_API_KEY}）；yamlConfig 支持 `llm_*` 顶层块→extraLlms；PiBridge init() 改为 builtin 基底 + 附加 gateway provider 叠加注册（setProvider），默认模型不变；model-registry/model-resolver 从 config 构建附加模型（compat 静态目录不含）；新增 4 用例；真实调用验证（modelUsed=minicpm/minicpm5）；门禁 tsc 0 / production-check 8/8 / 架构 100% / depcheck 0 / api-contract 30 | ✅ |
