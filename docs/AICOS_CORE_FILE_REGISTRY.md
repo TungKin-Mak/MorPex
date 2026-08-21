@@ -124,9 +124,7 @@
 | `gate/ForcedQueryGuard.ts` | ForcedQueryGuard — 代码级强制查询守卫 迭代1： - 记录所有 ontology 工具调用 - 断言至少调用了 N 次（代码兜底） - 校验 proposal 引用的 ID 是否确实被查询过 / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/index.ts` | L3 Ontology Gate 强制知识防火墙层 | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/ontologyEvents.ts` | ontologyEvents — Ontology 事件类型定义 迭代2：定义 Ontology 相关事件类型，用于 Event Sourcing 记录。 事件命名空间：ontology.* / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
-| `gate/runOntologyGroundedReasoning.ts` | runOntologyGroundedReasoning — 共享的 Ontology Grounded Reasoning 方法 迭代2+补丁： Phase 1 - 强制查询：LLM 输出查询计划 → 执行 → 记录 - JSON 解析失败时执行默认安全查询兜底 - 空结果自动标记 missing_info Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal - 引用校验失败 → emit ReferenceValidationFailed 事件 可被 DeliveryPlanner ｜（瘦身：缓存已拆至 reasoningCache、query-plan 解析已拆至 queryplan，主文件 1045→851） | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
-| `gate/reasoningCache.ts` | Ontology Grounded Reasoning 结果缓存子模块（拆分自 runOntologyGroundedReasoning）：getCacheKey/getCachedResult/setCachedResult/countTokens + groundingCache 实例 | 认识论拦截+信号；只做缓存；不改权威知识 |
-| `gate/queryplan.ts` | Ontology Grounded Reasoning 查询计划解析子模块（拆分自 runOntologyGroundedReasoning）：parseQueryPlanRobust/sanitizeQueryPlan/extractBalancedJSON/normalizeProposal/ruleDomainOf | 认识论拦截+信号；只做查询计划解析；无副作用 |
+| `gate/runOntologyGroundedReasoning.ts` | runOntologyGroundedReasoning — 共享的 Ontology Grounded Reasoning 方法 迭代2+补丁： Phase 1 - 强制查询：LLM 输出查询计划 → 执行 → 记录 - JSON 解析失败时执行默认安全查询兜底 - 空结果自动标记 missing_info Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal - 引用校验失败 → emit ReferenceValidationFailed 事件 可被 DeliveryPlanner | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/types.ts` | Ontology — 轻量本体层类型定义 迭代1：包装现有 MetadataGraph，暴露 4 个 ontology 工具给 LLM / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/context.ts` | KnowledgeContextPackage — 运行时 Gate 上下文 + Tier 写入守卫 + 提案状态守卫（Wave 3b）。由 runOntologyGroundedReasoning 签发凭证；Artifact 注册/演化晋升入口硬校验（缺包抛 GateContextRequiredError）；TierWriteGuard：Tier-3 禁覆盖 Tier-0/1、Tier-2 仅 L7 晋升可写；ProposalStatusGuard：未审批只能是 pending | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 
