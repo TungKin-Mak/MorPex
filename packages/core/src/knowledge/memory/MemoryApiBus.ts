@@ -11,7 +11,7 @@ import type { MemoryApi, MemoryHit } from '../../infrastructure/adapters/memory/
 import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import type { MemoryBus } from './MemoryHooks.js';
 import type { MemoryActivationSource } from './MemoryActivationEngine.js';
-import type { MemoryRecord } from '../../execution/harness/types.js';
+import type { MemoryRecord } from './types.js';
 
 export function createMemoryApiBus(memoryApi: MemoryApi): MemoryBus {
   return {

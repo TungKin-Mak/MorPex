@@ -7,7 +7,6 @@
 import { Type } from '../../infrastructure/adapters/pi-ai-types.js';
 import type { AgentTool } from '../../infrastructure/adapters/pi-types.js';
 import type { MemoryRetriever } from '../../../../memory/src/index.js';
-import type { AgentHarness } from '../../execution/harness/AgentHarness.js';
 
 const T: any = Type;
 const searchMemorySchema = T.Object({
@@ -23,7 +22,6 @@ function textContent(text: string) {
 
 export function createMemorySearchTool(
   getRetriever: () => MemoryRetriever | null,
-  harness?: AgentHarness | null,
   memoryApi?: import('../../infrastructure/adapters/memory/index.js').MemoryApi | null,
 ): AgentTool {
   return {
@@ -53,30 +51,11 @@ export function createMemorySearchTool(
             details: { found: true, path: 'memory_api', source: r.source },
           };
         } catch (_err: any) {
-          // 统一层异常 → 回退旧路径
+          // 统一层异常 → 回退到直接 MemoryRetriever 访问
         }
       }
 
-      // Phase 11: Harness-first path
-      if (harness?.isInitialized) {
-        try {
-          const result = harness.searchMemory(query, category);
-          if (result?.found) {
-            return {
-              content: textContent(`🔍 记忆库找到(通过Harness):\n\n${(result.snippets || []).join('\n\n---\n\n')}`),
-              details: { found: true, path: 'harness', source: result.source },
-            };
-          }
-          return {
-            content: textContent('未在记忆库中找到相关信息。请用你自己的知识回答。'),
-            details: { found: false, path: 'harness' },
-          };
-        } catch (_err: any) {
-          // Fall through to fallback
-        }
-      }
-
-      // Fallback: direct retriever access
+      // （原 Phase 11 Harness-first 路径已随 execution/harness 移除，运行时 harness 恒未注入）
       const retriever = getRetriever();
       if (!retriever) {
         return {

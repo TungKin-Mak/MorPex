@@ -42,18 +42,8 @@ export type { OrganizationContext, OrganizationScope } from './execution/types.j
 export { CompanyFacade } from './facade/index.js';
 
 // ── Agent Harness v2 (Phase 2) ──
-export { AgentHarness, ContextBuilder } from './execution/harness/index.js';
-export type {
-  HarnessContext,
-  IntentContext,
-  PlanContext,
-  MemoryContext,
-  ArtifactContext,
-  ExecutionState as HarnessExecutionState,
-  PermissionContext,
-  ExperienceContext,
-} from './execution/harness/index.js';
-export type { MemoryRecord, ArtifactRef as AgentArtifactRef, Experience as AgentExperience, HarnessEventCallback } from './execution/harness/index.js';
+// ⚠️ execution/harness 已于精简 P0 移除（运行时从不实例化，被 pi-agent-core 与工具 fallback 取代）；
+// 原 re-export 的 AgentHarness/ContextBuilder 等公共符号已摘除。
 
 // ── Runtime Kernel v2 (Phase 1) ──
 export {

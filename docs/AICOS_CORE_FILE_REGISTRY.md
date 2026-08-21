@@ -98,6 +98,7 @@
 | `knowledge/memory/MemoryHooks.ts` | MemoryHooks — 记忆体系钩子 v3.x 重构：pi-agent-core 类型导入集中在 types adapter 中。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/MemoryMessages.ts` | MemoryMessages — Agentic 模式消息类型扩展 提供工具函数用于在 AgentLoopConfig.convertToLlm 中将自定义消息 (memoryHint, dagNodeStatus) 转为 LLM 可理解的 user 消息格式。 声明合并移到了 ../adapters/pi-augmentations.ts。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/activationRegistry.ts` | memory/activationRegistry — MemoryActivationEngine 全局注册表（L7 深水区） 装配层（bootstrapUnified）创建引擎并注入统一记忆层数据源后注册到此处， 供 StudioServer（RuntimeAPI / SessionManager）复用同一实例， 避免各处 new 空引擎（旧 RuntimeAPI 行为：永远 No relevant memories）。 与 observability/ExerciseContext 的全局注册表模式一致。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/memory/types.ts` | memory/types — 记忆记录类型（精简 P0 由 execution/harness/types 迁移）：MemoryRecord（id/content/type['task'|...|'experience']/relevanceScore/timestamp/metadata），MemoryActivationEngine/MemoryApiBus 消费 | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/memory/index.ts` | @morpex/core/memory — Memory hooks and message types / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/FeedbackService.ts` | FeedbackService — Ontology 反馈服务 迭代3：将用户/评估反馈写入 Ontology - submit：创建 Feedback 对象 + corrects 关系 - listTestCases：列出标记为测试用例的反馈 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/ObjectTypeRegistry.ts` | ObjectTypeRegistry — 对象类型注册与校验 迭代2：管理所有已知 Object Type Schema，提供属性校验。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -207,11 +208,6 @@
 | `execution/UnifiedExecutionEngine.ts` | UnifiedExecutionEngine — 统一执行引擎（Facade） Phase 2 / 交付层 对外提供统一的执行入口，对内委托给三个现有执行模块: - MissionRuntime (24 状态 FSM) - DAGRuntime (DAG 调度) - ExecutionFabric (v11 Agent 能力解析 + Connector 调用) 设计原则： - Facade 模式：不修改现有模块，只在外部包裹统一 API - 根据执行模式（mode）自动路由到正确的引擎 - 聚合状态查询：统一从三个 | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/ExecutionFabric.ts` | ExecutionFabric — v11 Unified Execution Fabric Merges AgentRuntime, Scheduler, and Connector Runtime into a single execution plane. Coordinates the flow: Workflow Node → Capability Resolver → Agent Selection → Action Request → Execution @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/fabric/index.ts` | Execution Fabric — v11 Unified Execution Plane @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/AgentHarness.ts` | AgentHarness — Agent 执行封装（记忆读写/产物引用/事件回调） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/ContextBuilder.ts` | ContextBuilder — 从记忆/产物/经验构建 Harness 执行上下文（意图/计划/记忆） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/HarnessContext.ts` | Harness 上下文类型定义（IntentContext / PlanContext / MemoryContext 结构化） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/harness/types.ts` | Memory record retrieved from memory store */ | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/index.ts` | Execution — v11 Execution Plane + Phase 2 统一引擎 @packageDocumentation / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/ExecutionContext.ts` | ExecutionContext — 执行上下文（GoalContext + MissionState + 运行时快照） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/MorPexRuntime.ts` | MorPexRuntime — L5 主驱动器（FSM/DAG 执行编排；失败路径只读演化分析；发 runtime.* 事件） | 有界执行+硬边界；不重规划/不评分/不演化 |

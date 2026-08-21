@@ -10,7 +10,7 @@
  * - execution-aware recall — 根据执行历史和模式检索
  */
 
-import type { MemoryRecord } from '../../execution/harness/types.js';
+import type { MemoryRecord } from './types.js';
 
 export interface ActivationContext {
   /** 当前执行状态 */

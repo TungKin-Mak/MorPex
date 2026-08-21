@@ -9,8 +9,6 @@ import { DAGRuntime } from '../src/execution/runtime/dag/DAGRuntime.js';
 import { CheckpointManager } from '../src/execution/runtime/checkpoint/CheckpointManager.js';
 import { RecoveryManager } from '../src/execution/runtime/checkpoint/RecoveryManager.js';
 import { ReplayEngine } from '../src/execution/runtime/checkpoint/ReplayEngine.js';
-import { AgentHarness } from '../src/execution/harness/AgentHarness.js';
-import { ContextBuilder } from '../src/execution/harness/ContextBuilder.js';
 
 let passed = 0; let failed = 0;
 function test(name: string, fn: () => void | Promise<void>) {
@@ -96,35 +94,6 @@ test('Recovery: Plan generation', async () => {
   const plan = await rec.recover(snap);
   assert(plan.canRecover === true, 'recoverable');
   assert(plan.actions.some(a => a.nodeId === 'fail' && a.action === 'retry'), 'failed node retries');
-});
-
-// 6. Harness initialization
-test('Harness: Initialize and get context', async () => {
-  const harness = await AgentHarness.create(b =>
-    b.setIntent('Test integration', ['Use TS'])
-      .setPlan('plan_int', { nodes: [] })
-      .setExecutionState('running')
-  );
-  const ctx = harness.getContext();
-  assert(ctx.intent.goal === 'Test integration', 'intent preserved');
-  assert(ctx.executionState.status === 'running', 'state preserved');
-});
-
-// 7. Harness context versioning
-test('Harness: Context version tracking', async () => {
-  const harness = await AgentHarness.create(b =>
-    b.setIntent('V1', []).setPlan('p1', {}).setExecutionState('idle')
-  );
-  const v1 = harness.contextVersion;
-  harness.updateIntent({ goal: 'V2' });
-  assert(harness.contextVersion > v1, 'version bumped on update');
-});
-
-// 8. Memory activation via harness
-test('Memory: Activation via harness', () => {
-  // Verify MemoryActivationEngine type compatibility with AgentHarness
-  const hasMethod = typeof AgentHarness.prototype.attachMemoryEngine === 'function';
-  assert(hasMethod, 'Harness supports memory engine attachment');
 });
 
 // ── Results ──

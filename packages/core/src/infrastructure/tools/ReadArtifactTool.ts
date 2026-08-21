@@ -9,7 +9,7 @@ type AgentToolResultAny = _AgentToolResult;
 import { Type, optionalProp } from '../../infrastructure/adapters/pi-ai-types.js';
 import { ArtifactRegistry } from '../../knowledge/artifact/registry/ArtifactRegistry.js';
 import type { ArtifactInstance } from '../../knowledge/artifact/registry/types.js';
-import type { AgentHarness } from '../../execution/harness/AgentHarness.js';
+
 
 export class ReadArtifactTool implements AgentTool {
   name = 'ReadArtifact';
@@ -22,11 +22,9 @@ export class ReadArtifactTool implements AgentTool {
   });
 
   private registry: ArtifactRegistry;
-  private harness: AgentHarness | null;
 
-  constructor(registry: ArtifactRegistry, harness?: AgentHarness | null) {
+  constructor(registry: ArtifactRegistry) {
     this.registry = registry;
-    this.harness = harness ?? null;
   }
 
   async execute(
@@ -42,15 +40,7 @@ export class ReadArtifactTool implements AgentTool {
       throw new Error(`无效的 Artifact URI: "${uri}"。格式应为 artifact://{domain}/{type}/{id}`);
     }
 
-    // Phase 11: Harness-first path (with permission check)
-    let artifact: ArtifactInstance | null = null;
-    if (this.harness?.isInitialized) {
-      artifact = this.harness.getArtifact(uri) as ArtifactInstance | null;
-    }
-    // Fallback
-    if (!artifact) {
-      artifact = this.registry.resolve(uri) ?? null;
-    }
+    const artifact = this.registry.resolve(uri) ?? null;
     if (!artifact) {
       throw new Error(`产物不存在: ${uri}`);
     }
@@ -68,7 +58,7 @@ export class ReadArtifactTool implements AgentTool {
         domain: parsed.domain, version: artifact.version, status: artifact.status,
         fullSize: typeof artifact.content === 'string' ? artifact.content.length : JSON.stringify(artifact.content).length,
         availableSections,
-        path: this.harness?.isInitialized ? 'harness' : 'direct',
+        path: 'direct',
       },
     };
   }
@@ -143,7 +133,6 @@ export class ReadArtifactTool implements AgentTool {
 
 export function createReadArtifactTool(
   registry: ArtifactRegistry,
-  harness?: AgentHarness | null,
 ): ReadArtifactTool {
-  return new ReadArtifactTool(registry, harness);
+  return new ReadArtifactTool(registry);
 }
