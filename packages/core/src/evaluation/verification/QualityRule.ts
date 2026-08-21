@@ -1,3 +1,6 @@
+/**
+ * QualityRule — 质量检查规则接口（QualityCheck）与规则注册（L6）
+ */
 export interface QualityCheck {
   name: string;
   description: string;

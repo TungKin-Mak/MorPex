@@ -1,3 +1,6 @@
+/**
+ * QualityScorer — 质量评分：scoreSystem(metrics) → {overall, dimensions, suggestions}（5 维评分，L6）
+ */
 export interface ScoreReport {
   overall: number;
   dimensions: Array<{ name: string; score: number; weight: number }>;

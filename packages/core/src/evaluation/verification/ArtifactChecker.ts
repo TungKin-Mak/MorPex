@@ -1,3 +1,6 @@
+/**
+ * ArtifactChecker — 基于 QualityRule 的产物质量检查（CheckResult，L6 验证）
+ */
 import { QualityRule } from './QualityRule.js';
 import type { QualityCheck } from './QualityRule.js';
 

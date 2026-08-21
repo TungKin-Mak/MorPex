@@ -1,3 +1,6 @@
+/**
+ * VerificationEngine — L6 验证引擎：组合 QualityRule+ExecutionVerifier+RepairPlanner 对产物做质量验证并生成修复计划
+ */
 import { QualityRule } from './QualityRule.js';
 import { ExecutionVerifier } from './ExecutionVerifier.js';
 import { RepairPlanner } from './RepairPlanner.js';

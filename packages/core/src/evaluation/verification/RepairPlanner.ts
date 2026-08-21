@@ -1,3 +1,6 @@
+/**
+ * RepairPlanner — 基于 VerificationResult 的修复计划（regenerate/fix/escalate，L6）
+ */
 import type { VerificationResult } from './ExecutionVerifier.js';
 
 export interface RepairPlan {

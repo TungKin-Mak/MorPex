@@ -1,3 +1,6 @@
+/**
+ * amazon-policy — 电商（Amazon）策略校验器：合规/风险规则检查（领域 validators）
+ */
 export interface ValidationResult {
   pass: boolean;
   violations: string[];

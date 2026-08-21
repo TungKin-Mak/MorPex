@@ -1,3 +1,6 @@
+/**
+ * ExecutionVerifier — 基于 ArtifactChecker 的执行结果验证（VerificationResult，L6）
+ */
 import { ArtifactChecker } from './ArtifactChecker.js';
 import type { ArtifactNode as Artifact } from '../../infrastructure/protocol/contracts/artifact-lifecycle.js';
 
