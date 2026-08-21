@@ -19,7 +19,7 @@
 读取完成前，不开始任何任务。
 ```
 
-**为什么必须读 AGENTS.md**：本文件只是薄壳（速览+硬约束摘要），完整规则（§1 按需加载 / §8.5 文档同步 / 架构铁律细节 / 模块分层）在 AGENTS.md。不读 AGENTS.md = 缺失关键规则。
+**为什么必须读 AGENTS.md**：本文件只是薄壳（速览+硬约束摘要），完整规则分两层：`AGENTS.md`＝总纲（流程/索引/导航），`docs/DEVELOPMENT.md`＝详细开发规范（SOP/铁律/质量/门禁/提交）。不读两者 = 缺失关键规则。
 
 **按需加载**（不默认全读）：涉及架构改动才读 `docs/AICOS_CORE_ARCHITECTURE.md` + `docs/AICOS_CORE_FILE_REGISTRY.md`；涉及执行链/模型配置/测试分别读 `docs/AICOS_FLOW.md` / `docs/MODEL_CONFIG.md` / `docs/TESTING_PLAN.md`（详见 AGENTS.md §1 按需表）。读完即弃，不长期占用上下文。
 

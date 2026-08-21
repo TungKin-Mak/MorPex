@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 规范-简 | **开发规范重整（参考成熟 LLM 项目范式）**：AGENTS.md 从 261 行/16 章精简为 ~80 行总纲（项目/导航/命令/铁律速览/流程/文档导航/会话约定）；详细规范迁移新建 docs/DEVELOPMENT.md（SOP 定位→理解→实现→收尾文档、第一性原理、架构铁律、质量、文档同步协议+防零碎、门禁、流水线、提交、知识路由）；新流程强调「查能力索引定位替代盲目 grep」；.pi/SYSTEM.md 入口指向调整。待建：CAPABILITY_INDEX / HOOK_MAP | ✅ 已提交 |
 | 规则-文档 | **增强 §8.5 文档同步规则（改码必更文档）**：映射表新增★主检项——**改任意代码文件 → 文件功能职责说明（FILE_REGISTRY）必更新 + 影响函数/调用链 → 重新生成关系链文档 BACKEND_CODE_MAP**（`scripts/_backend-code-analyze.ts`）；新增“文件树/目录变化同步”行；规则区新增 #7 关系链同步；`.pi/SYSTEM.md` 速览对齐 | ✅ 已提交 |
 | 事件规格 | **任务事件载荷规格落地（EVENT_PAYLOAD_SPEC v1）**：定稿 Envelope(稳定头)+MessageBox(可扩展分块) 可扩展规格，8 块（refs/task/state/human/artifacts/media/error/extensions，未来新块=加命名空间）；媒体引用优先（不塞二进制，LLM 经工具按引用取用/本地打开）；实施 P1——新建 protocol/events/Envelope.ts（类型投影）+ eventContractCatalog 增补 13 执行链任务卡片契约（mission/execution/step/artifact 块级校验）+ TaskStateProjector 对齐可选块（status/stage/human/media/error）；门禁 tsc 0/契约 15 过/架构 100%；后续 P2 试点发射规范化 + 前端卡片 | ✅ 已提交 |
 | 精简-收 | **精简收束 + 文档更新**：B/C 类复评均证实结构已高度收敛（execution 编排为复杂度分级策略、policy/learning/governance 为成熟职责分离），继续手术=负收益 → 到止为止；P0 安全减量 22 文件/3.3k 行全部落地。文档同步最新：BACKEND_CODE_MAP 重新生成（483 文件/2768 函数/12742 调用），FILE_REGISTRY 末尾统计更新（studio/server 46→29 等），README TS 文件数 442→656 | ✅ 已提交 |
