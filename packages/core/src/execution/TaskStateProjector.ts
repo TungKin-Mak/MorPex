@@ -45,9 +45,20 @@ export interface TaskProjection {
   dag?: TaskDagProjection | null;
   createdAt: number;
   updatedAt: number;
+  // ── EVENT_PAYLOAD_SPEC v1 可选块（向后兼容；UI 按块读取）──
+  status?: 'queued' | 'running' | 'waiting_human' | 'done' | 'failed' | 'cancelled';
+  stage?: string;
+  human?: { kind: string; status: string; question?: string; requestId?: string };
+  media?: Array<{ kind: string; ref: string; mime?: string; size?: number }>;
+  error?: { code: string; message: string; recoverable?: boolean; retries?: number };
 }
 
 const STEP_EVENT_START = 'execution.step.started';
+
+/** 本地 isRecord（EVENT_PAYLOAD_SPEC 块读取用） */
+function isRecord(v: unknown): v is Record<string, unknown> {
+  return typeof v === 'object' && v !== null && !Array.isArray(v);
+}
 const STEP_EVENT_RESULT = 'execution.step.result';
 const DAG_EVENT = 'execution.dag';
 const WF_START = 'workflow.step_started';
@@ -118,6 +129,15 @@ export class TaskStateProjector {
     }
 
     p.updatedAt = Date.now();
+    // EVENT_PAYLOAD_SPEC v1 可选块读取（向后兼容：旧事件无则忽略）
+    const st = isRecord(payload.state) ? payload.state : undefined;
+    if (st) {
+      if (typeof st.status === 'string' && st.status !== p.status) p.status = st.status as TaskProjection['status'];
+      if (typeof st.stage === 'string') p.stage = st.stage;
+    }
+    if (isRecord(payload.human)) p.human = payload.human as TaskProjection['human'];
+    if (Array.isArray(payload.media)) p.media = payload.media as TaskProjection['media'];
+    if (isRecord(payload.error)) p.error = payload.error as TaskProjection['error'];
     this.recomputeProgress(p);
     this.persist();
   }
@@ -132,6 +152,7 @@ export class TaskStateProjector {
       progress: '',
       steps: [],
       dag: null,
+      status: 'queued' as const,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };

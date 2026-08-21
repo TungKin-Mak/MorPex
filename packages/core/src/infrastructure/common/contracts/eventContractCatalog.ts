@@ -51,6 +51,19 @@ function errorsOf(...checks: Array<string | null>): string[] {
  * 核心事件契约定义。类型名尽量与 EventType 枚举一致；协议层事件（如 evolution.*）
  * 以 docs/AICOS_CORE_ARCHITECTURE.md §10 为准，使用字符串字面量。
  */
+
+/** 执行链事件共享校验（EVENT_PAYLOAD_SPEC v1·渐进式）：任务卡片必须 missionId；state 块陈旧值枚举把关 */
+function execPayloadChecks(p: unknown): string[] {
+  const o = isRecord(p) ? p : {};
+  const errs = errorsOf(reqStr(o, 'missionId'));
+  const st = isRecord(o.state) ? o.state : undefined;
+  if (st && typeof st.status === 'string'
+      && !['queued','running','waiting_human','done','failed','cancelled'].includes(st.status)) {
+    errs.push(`state.status 非法值: ${String(st.status)}`);
+  }
+  return errs;
+}
+
 const contracts: Array<EventContract & { type: string }> = [
   // ══════════ L1 Governance ══════════
   defineContract({
@@ -300,6 +313,21 @@ const contracts: Array<EventContract & { type: string }> = [
     projected: true,
     validatePayload: (p) => errorsOf(reqStr(isRecord(p) ? p : {}, 'executionId')),
   }),
+
+  // ══════════ 执行链 Task/Step（EVENT_PAYLOAD_SPEC v1：任务卡片事件，块级契约）══════════
+  defineContract({ type: 'mission.created', description: '任务创建：卡片入列', producer: 'MissionController', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'mission.completed', description: '任务完成', producer: 'MissionRuntime', consumers: ['studio','evolution'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'mission.failed', description: '任务失败（含 error 块）', producer: 'MissionRuntime', consumers: ['studio','evolution','anomaly'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'execution.started', description: '执行开始（卡片进入 running）', producer: 'UnifiedExecutionEngine', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'execution.completed', description: '执行完成', producer: 'UnifiedExecutionEngine', consumers: ['studio','evaluation'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'execution.failed', description: '执行失败', producer: 'UnifiedExecutionEngine', consumers: ['studio','evolution'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'execution.step.started', description: '步骤开始（cards steps.running）', producer: 'StepAgentExecutor', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'execution.step.result', description: '步骤结果（success/failed）', producer: 'StepAgentExecutor', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'workflow.step_started', description: '工作流步骤开始（含 missionId/goal + state 进度），UI 实时卡片', producer: 'DAGRuntime', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'workflow.step_completed', description: '工作流步骤完成', producer: 'DAGRuntime', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'workflow.step_failed', description: '工作流步骤失败', producer: 'DAGRuntime', consumers: ['studio','TaskStateProjector'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'artifact.created', description: '产物创建（卡片产物区引用）', producer: 'ArtifactFacade', consumers: ['studio','knowledge'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
+  defineContract({ type: 'artifact.verified', description: '产物校验通过', producer: 'ArtifactProjector', consumers: ['studio','evaluation'], projected: true, validatePayload: (p) => execPayloadChecks(p) }),
 ];
 
 // ── 导出目录 ──
