@@ -30,6 +30,7 @@
 
 | 会话 | 主题 | 结果 |
 |---|---|---|
+| 新会话-检索 | **补强“新 session 自动检索对接”**：.pi/SYSTEM.md 新增 §0.5「收到新需求→自动检索四连」（强制：定位→理解→决策→收尾，不得盲 grep 判无）；skills/README 加“工具自动发现适配”（pi 读 §0.5 / Claude Code 复制到 .claude/skills 自动触发 / 其他按 AGENTS§5） | ✅ |
 | 检索验收 | **试改功能端到端验收（策略）**：以“执行后自动生成一页复盘简报”走查——①索引定位命中产物/artifact（ArtifactFacade/Blueprint）②关系链展开 BackCode_MAP 给 ArtifactFacade 22 函数③HOOK_MAP 给出后置挂点（evaluation.profile.scored）。**暴露真实缺口**：代码已有 19 个 report/brief/summary 函数（BrainFacade.generateCEOReport/CompanyFacade.generateDailyReport/EvaluationEngine.computeReport/AuditTrail.generateReport/StudioServer.generateTaskSummary…）但索引未覆盖“报告/汇总”域 → 会误判“没有”；已补 CAPABILITY_INDEX 新能力域条目（带别名），修复后重新检索命中，决策路径明确（勿重复造，订阅 evaluation.profile.scored 扩展） | ✅ 验收+修复 |
 | 复核-A·收 | **FILE_REGISTRY 逐项复核·批④（evaluation/evolution+独立包）收尾**：125 低相似候选抽查代表（QualityScorer/FileSystemConnector/capabilities/cognee-client/IWorkflowAdapter）→ 登记与代码相符，无文档偏差；补 6 处 L6 缺 JSDoc（QualityScorer/ArtifactChecker/ExecutionVerifier/QualityRule/RepairPlanner/VerificationEngine）+ 独立包 1 处（amazon-policy）；搜索证明独立包基本自带 JSDoc。**复核四批完成**：①governance+knowledge ②execution+cognition ③infrastructure ④evaluation/evolution+独立包，共抽查 60+ 文件 → FILE_REGISTRY 职责文字与代码全部相符（无文档偏差），补自述注释 16+7=23 处 | ✅ 全部完成 |
 | 复核-A·③ | **FILE_REGISTRY 逐项复核·批③（infrastructure）**：45 低相似候选，抽查最可疑（EventTypes/ToolFactory/ToolRegistry/artifact-lifecycle/SqliteEventStore）→ 登记与代码相符，无文档偏差；补 3 处缺 JSDoc 自述注释（EventTypes/ToolFactory/ToolRegistry）；infrastructure 缺 JSDoc 清零；门禁 tsc 0。累计：① governance+knowledge 无偏差+3 ② execution+cognition 无偏差+10 ③ infrastructure 无偏差+3 | ✅ |

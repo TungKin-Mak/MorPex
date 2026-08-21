@@ -27,6 +27,17 @@
 
 **文档同步（强制）**：**每次修改代码文件都必须同步更新对应文档**（文件功能职责说明 FILE_REGISTRY、函数关系链 BACKEND_CODE_MAP/BACKEND_CODE_MAP 可由 `scripts/_backend-code-analyze.ts` 重生成、ARCHITECTURE/AICOS_FLOW/MODEL_CONFIG/TESTING_PLAN、文件树，映射见 AGENTS.md §8.5）；无对应文档时须在提交信息显式注明“文档不涉及（原因）”。人工审核确认后更新，文档与代码同次提交。
 
+## 0.5 收到新需求 → 自动检索对接（新增·强制）
+
+> 用户在新会话直接提出修改/新功能需求时，**必须自动执行以下检索路径**（不得直接改码/不得盲目 grep 判“没有”）：
+```
+1 定位：查 docs/CAPABILITY_INDEX.md —— 功能→锚点+别名(防重复/grep误判)；已实现→读锚点决定复用/扩展
+2 理解：查 docs/HOOK_MAP.md（插哪/前后）+ docs/BACKEND_CODE_MAP.md（锚点函数关系链）
+        + docs/AICOS_FLOW.md（业务流）+ docs/EVENT_PAYLOAD_SPEC.md（消息格式）
+3 决策：输出【是否已实现/锚点在哪/消息怎么传/该插哪个函数前或后】再动手
+4 收尾：按 docs/DEVELOPMENT.md §6 更新文档（能力索引/职责/关系链/文件树）与代码同提交
+```
+
 ## 1. 项目速览
 
 **MorPex v16** — 一人公司 AI 工作助理（TypeScript / Node.js / pi-ai 0.81.1）
