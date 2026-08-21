@@ -37,7 +37,7 @@
 - **UI 迭代**（待做）：异常告警阈值 UI、进化审批 UI。
 - **验证**（可选）：opencode 50 轮 / 大样本 batch。
 - **沙箱/Linux 执行**（暂缓，用户重提再动）：MSYS 桥 + 程序级 sandbox（Job Object/目录白名单）方案已设计。
-- **DevKit 已产出**：项目内 `devkit/`（README 接入指南 + AGENTS/DEVELOPMENT/CAPABILITY_INDEX/HOOK_MAP/SESSION_LOG 骨架 .skeleton.md）+ `skills/src/devkit-bootstrap` skill（description 触发“新项目启动规范”）：任何项目拷入即用，按模板填占位符即获得整套开发规范，免繁琐搭建。
+- **DEVKIT 单文件已产出**：`devkit/DEVKIT.md`——LLM 新项目读它（或探测未初始化）即自动建 AGENTS/DEVELOPMENT/CAPABILITY_INDEX/HOOK_MAP/SESSION_LOG/skills 并引导填占位符；旧多骨架建议已清理（改用单文件）。
 
 ## 关键教训（避免重蹈）
 
