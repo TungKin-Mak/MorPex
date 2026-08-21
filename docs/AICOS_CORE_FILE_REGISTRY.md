@@ -535,7 +535,7 @@
 | `packages/memory/src/wiki/schema.ts` | MemoryWiki SQLite Schema：按领域分表 | 只做 DDL |
 | `packages/memory/src/wiki/types.ts` | MemoryWiki 类型契约 | 只定义类型 |
 
-## `studio/server/`（46 文件 · 后端 API 服务器）
+## `studio/server/`（29 文件 · 后端 API 服务器）
 
 > 层边界规则：后端 HTTP/SSE 服务器（默认 5473 端口）+ 可观测/模拟/验证子系统；消费 core 的 bootstrapUnified 装配；仅经 HTTP/SSE 暴露 core 能力；不含领域逻辑；位于 core 包之外（不属于 AICOS-Core 8 层核心分层）。
 
@@ -570,23 +570,6 @@
 | `.../observability/observability-api.ts` | Observability REST API：为前端/debug 提供数据（含 G1 事件契约对账端点 /api/observability/event-contracts） | 只做路由 |
 | `.../observability/ws-handler.ts` | WebSocket 实时推送 TraceEvent + Observation 给前端 | 只做推送 |
 | `.../observability/index.ts` | Observability Plane 统一导出 | barrel |
-| `.../simulation/simulation-twin.ts` | 仿真孪生：基于历史执行数据构建 Mission 孪生画像 | 只做画像 |
-| `.../simulation/simulation-engine.ts` | 仿真引擎主入口：编排 Twin/PlanSimulator/CostEstimator/Risk/Success | 只做编排 |
-| `.../simulation/plan-simulator.ts` | 计划仿真器：对 MissionPlan 仿真推演 | 只做推演 |
-| `.../simulation/cost-estimator.ts` | 成本预估器：基于 Mission Plan 预估执行成本 | 只做预估 |
-| `.../simulation/risk-predictor.ts` | 风险预测器：基于 Plan 与孪生画像预测风险 | 只做预测 |
-| `.../simulation/success-predictor.ts` | 成功率预测器：基于历史+计划特征预测成功率 | 只做预测 |
-| `.../simulation/execution-predictor.ts` | 执行预测器（蓝图 §2 Intelligence Plane） | 只做预测 |
-| `.../simulation/types.ts` | 仿真孪生类型系统 | 只定义类型 |
-| `.../simulation/index.ts` | Simulation Twin 导出入口 | barrel |
-| `.../verification/behavior-verification-engine.ts` | 行为验证引擎主入口：编排 ExpectedTraceBuilder/TraceComparator/QualityScore/ViolationDetector | 只做编排 |
-| `.../verification/expected-trace-builder.ts` | 从 MissionPlan 构建预期执行轨迹 | 只做构建 |
-| `.../verification/trace-comparator.ts` | 轨迹比较器：比较 ExpectedTrace 与 RuntimeTrace 差异 | 只做比较 |
-| `.../verification/violation-detector.ts` | 违规/偏差检测器：检预期轨迹与实际运行偏差 | 只做检测 |
-| `.../verification/quality-score.ts` | 质量评分引擎（蓝图 §6 五维评分公式） | 只做评分 |
-| `.../verification/regression-store.ts` | 回归存储（SQLite）：存 Verification 历史，按 missionId/时间段/grade 查询 | 只做存储 |
-| `.../verification/types.ts` | 行为验证引擎类型系统 | 只定义类型 |
-| `.../verification/index.ts` | 行为验证导出入口 | barrel |
 
 ## `workflows/`（29 文件 · 领域插件 · 后端）
 
