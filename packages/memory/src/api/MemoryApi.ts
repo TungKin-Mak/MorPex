@@ -143,7 +143,7 @@ export class MemoryApi implements MemoryAPI {
         confidence: conf,
         reason: 'graph_unavailable',
         scope: input.scope ?? this.defaultScope,
-        metadata: { source: input.source ?? 'user', reason: w.reason },
+        metadata: { source: input.source ?? 'user', reason: w.reason, name: input.name, kind: input.kind },
       });
       return { status: 'pending_confirm', ticketId };
     }
@@ -167,8 +167,11 @@ export class MemoryApi implements MemoryAPI {
     if (ticket.status !== 'pending') return; // 幂等：已决工单不再重复执行引擎写入（防重复 approve 双写）
     if (decision === 'accept') {
       // T6 覆盖语义：纠错/澄清批准时先失效同主题旧条目（防新旧结论并存让 LLM 抓阄）；失败不阻塞主入库
-      const kind = ticket.metadata?.kind as string | undefined;
-      const subject = ticket.metadata?.name as string | undefined;
+      // 兼容三种入队分支的 metadata 形态：low_confidence={name,kind}｜new_entity={input:{name,kind}}｜graph_unavailable（补齐后同 low_confidence）
+      const md = ticket.metadata as Record<string, unknown> | undefined;
+      const nested = md?.input as Record<string, unknown> | undefined;
+      const kind = (md?.kind ?? nested?.kind) as string | undefined;
+      const subject = (md?.name ?? nested?.name) as string | undefined;
       if ((kind === 'correction' || kind === 'clarification') && subject) {
         try {
           await this.invalidate(subject, new Date().toISOString());
