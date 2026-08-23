@@ -572,31 +572,33 @@ export class OrchestratorAgent {
     const results = new Map<string, unknown>();
     const sessions = new Map<string, string>();
     const failures = new Map<string, string>();
+    // T1 parent 链：stepName → 已建会话句柄（ensureStepSession 写入；DAG/单步两路径共用）
+    const handles = new Map<string, { session: unknown; sessionPath: string; sessionId: string }>();
 
-    // 会话 4：预创建本步骤会话（parentSessionPath = 第一个依赖步骤的会话路径）
-    const ensureStepSession = async (step: OrchestratorStep): Promise<{ session?: unknown; sessionPath?: string }> => {
+    // 会话 4：预创建本步骤会话（parentSessionPath/Id = 第一个依赖步骤的会话；T1 parent 链）
+    const ensureStepSession = async (step: OrchestratorStep): Promise<{ session?: unknown; sessionPath?: string; sessionId?: string }> => {
       if (!this.opts.sessionStore) return {};
-      const parentPath = (step.deps || []).map(d => sessions.get(d)).find(Boolean);
+      const parentRef = (step.deps || []).map(d => handles.get(d)).find(Boolean);
       const handle = await this.opts.sessionStore.createSession({
         component: 'step-agent',
         id: `step_${sanitizeSessionId(step.name)}_${Date.now()}`,
         goal,
         departmentId,
-        parentSessionPath: parentPath,
+        parentSessionPath: parentRef?.sessionPath,
+        parentSessionId: parentRef?.sessionId,
         metadata: { stepName: step.name, deps: step.deps || [] },
       });
       sessions.set(step.name, handle.path);
-      return { session: handle.session, sessionPath: handle.path };
+      return { session: handle.session, sessionPath: handle.path, sessionId: handle.sessionId };
     };
 
     // 复杂任务：DAG 工具分发（nodeHandler 已接 step-agent + 上游成果注入）
     // ═══ 会话 15 P1-②：DAG 失败节点不抛错——收集进 failures（仍合并成功节点成果），run 返回显式部分成果 ═══
     if (this.opts.dagRuntime && steps.length > 1) {
       // 会话 4：预创建所有 step 会话（parentSessionPath 按依赖链），经 ctx 传给 nodeHandler
-      const handles = new Map<string, { session: unknown; sessionPath: string }>();
       for (const s of steps) {
         const h = await ensureStepSession(s);
-        if (h.sessionPath) handles.set(s.name, { session: h.session, sessionPath: h.sessionPath });
+        if (h.sessionPath && h.sessionId) handles.set(s.name, { session: h.session, sessionPath: h.sessionPath, sessionId: h.sessionId });
       }
       const dagResult = await this.opts.dagRuntime.execute(
         goal,

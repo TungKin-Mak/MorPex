@@ -38,6 +38,9 @@ import { answerAsk, getPendingAsks } from '../../core/src/execution/UserAskServi
 import { confirmPlan, getPendingPlans, setAutoExecute } from '../../core/src/execution/PlanGateService.js';
 import { listPendingDecisions } from '../../core/src/execution/DecisionStore.js';
 import { loadMorpexConfig } from '../../core/src/infrastructure/adapters/pi-bridge/yamlConfig.js';
+import { TranscriptStore } from './transcript/TranscriptStore.js';
+import { TranscriptIndexer } from './transcript/Indexer.js';
+import { ChatTranscriptService } from './transcript/ChatTranscriptService.js';
 import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
 import { startObservabilityBridge, wireObservabilityServices } from './observability/runtime-bridge.js';
@@ -193,8 +196,8 @@ export class StudioServer {
 
   /** ═══ T0 多轮连续：同一会话执行串行化护栏（chatSessionId → in-flight promise）═══ */
   private chatInflight = new Map<string, Promise<void>>();
-  /** ═══ T0 多轮连续：chatSessionId → orchestrator 账本路径映射（持久化于 <sessionsRoot>/chat-orch-map.json）═══ */
-  private chatOrchPaths: Map<string, string> | null = null;
+  /** ═══ T1 档案室：chat 会话绑定/索引（替代 T0 的 chat-orch-map.json，真相源 transcript_windows 表）═══ */
+  private transcripts?: ChatTranscriptService;
 
   /** 会话 16c（3+4）：execution-stats 总成功率（跨模式加权） */
   private calcOverallRate(quality: Record<string, { success: number; total: number; avgDuration: number; successRate: number }>): number {
@@ -207,65 +210,50 @@ export class StudioServer {
     return total > 0 ? Number((success / total).toFixed(4)) : 0;
   }
 
-  // ── T0 多轮连续：orchestrator 账本映射（chatSessionId → jsonl 路径，重启不丢）──
+  // ── T1 档案室：chat 会话绑定（替代 T0 的 chat-orch-map.json 三方法）──
 
-  private chatOrchMapPath(): string {
-    return path.resolve(this.config.sessionsRoot ?? 'data/sessions', 'chat-orch-map.json');
-  }
-
-  private loadChatOrchPaths(): Map<string, string> {
-    if (!this.chatOrchPaths) {
-      this.chatOrchPaths = new Map();
-      try {
-        const p = this.chatOrchMapPath();
-        if (fs.existsSync(p)) {
-          const raw = JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, string>;
-          for (const [k, v] of Object.entries(raw)) this.chatOrchPaths.set(k, String(v));
-        }
-      } catch (err) {
-        console.warn('[Studio] ⚠️ chat-orch-map.json 读取失败（视为空重建）:', err instanceof Error ? err.message : String(err));
-      }
-    }
-    return this.chatOrchPaths;
-  }
-
-  private persistChatOrchPaths(): void {
+  /** 懒初始化 Transcript 档案室（依赖 boot 后的 agentSessionStore；未就绪或初始化失败返回 undefined，降级直读 jsonl） */
+  private getTranscripts(): ChatTranscriptService | undefined {
+    if (this.transcripts) return this.transcripts;
+    const store = this.boot?.container.agentSessionStore;
+    if (!store) return undefined;
     try {
-      const p = this.chatOrchMapPath();
-      fs.mkdirSync(path.dirname(p), { recursive: true });
-      // 原子写：先写临时文件再 rename，避免进程中途崩溃留下半截 JSON（损坏时虽可自愈重建，但会丢全部绑定）
-      const tmp = `${p}.tmp`;
-      fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.loadChatOrchPaths()), null, 2));
-      fs.renameSync(tmp, p);
+      const root = path.resolve(this.config.sessionsRoot ?? 'data/sessions');
+      const tstore = new TranscriptStore(path.join(root, 'transcript.db'));
+      const indexer = new TranscriptIndexer(tstore);
+      this.transcripts = new ChatTranscriptService({
+        store: tstore,
+        indexer,
+        legacyMapPath: path.join(root, 'chat-orch-map.json'),
+        openHandle: (p) => store.openHandle(p),
+        createOrchestratorSession: async (chatSessionId) => {
+          const handle = await store.createSession({
+            component: 'orchestrator',
+            id: `orch_chat_${Date.now()}`,
+            metadata: { chatSessionId, origin: 'chat-session-reuse' },
+          });
+          return { sessionId: handle.sessionId, path: handle.path };
+        },
+      });
+    // T1 parent 链：step/executor 会话创建 → 登记 transcript_windows（父标识随回调携带，老账本按路径兑底反查）
+    store.onSessionCreated = (info) => this.transcripts?.registerComponentSession(info);
+    return this.transcripts;
     } catch (err) {
-      console.warn('[Studio] ⚠️ chat-orch-map.json 写入失败（多轮记忆仅内存态）:', err instanceof Error ? err.message : String(err));
+      // SQLite 打不开（损坏/锁/磁盘）：降级为 undefined → 绑定走旧内存路径、history 直读 jsonl（设计 §4.4 降级保底）
+      console.warn('[Studio] ⚠️ Transcript 档案室初始化失败（降级：绑定不持久化/历史直读 jsonl）:', err instanceof Error ? err.message : String(err));
+      return undefined;
     }
   }
 
   /**
-   * resolveOrchestratorSessionPath — 同一 chat 会话复用同一本 orchestrator 账本。
-   * 有映射且文件在 → 直接返回（resume）；无 → 新建账本并登记。失败返回 undefined（降级为旧行为）。
+   * resolveOrchestratorSessionPath — 同一 chat 会话复用同一本 orchestrator 账本（T1：绑定持久化于 transcript_windows 表）。
+   * 失败/未就绪返回 undefined（降级为旧行为）。
    */
-  private async resolveOrchestratorSessionPath(chatSessionId: string): Promise<string | undefined> {
-    const map = this.loadChatOrchPaths();
-    const hit = map.get(chatSessionId);
-    if (hit && fs.existsSync(hit)) return hit;
-    try {
-      const store = this.boot?.container.agentSessionStore;
-      if (!store) return undefined;
-      const handle = await store.createSession({
-        component: 'orchestrator',
-        id: `orch_chat_${Date.now()}`,
-        metadata: { chatSessionId, origin: 'chat-session-reuse' },
-      });
-      map.set(chatSessionId, handle.path);
-      this.persistChatOrchPaths();
-      console.log(`[Studio] 🔖 会话 ${chatSessionId} 绑定 orchestrator 账本: ${handle.path}`);
-      return handle.path;
-    } catch (err) {
-      console.warn('[Studio] ⚠️ 创建/绑定 orchestrator 账本失败（本轮降级为新建会话）:', (err as Error).message);
-      return undefined;
-    }
+  private async resolveOrchestratorSessionPath(chatSessionId: string): Promise<{ sessionId: string; path: string } | undefined> {
+    const svc = this.getTranscripts();
+    if (!svc) return undefined;
+    const ref = await svc.resolveOrchestratorPath(chatSessionId);
+    return ref ? { sessionId: ref.sessionId, path: ref.path } : undefined;
   }
 
   constructor(config: StudioServerConfig = {}) {
@@ -937,16 +925,9 @@ export class StudioServer {
             console.warn('[Studio] ⚠️ task.routed 事件发射失败（前端将等任务完成后再跳转）:', (err as Error).message);
           }
         }
-        // ═══ 17i.2：用户消息先落库再执行——任务执行中会话即可见（侧栏/历史）；
-        //     P1：带初步归属（kind/spaceId），executeGoal 返回后回填权威 mode/missionId ═══
-        if (sessionId) {
-          this.sessionStore?.appendChatMessage(sessionId, {
-            role: 'user', content: originalMessage, timestamp: Date.now(),
-            kind: intent === 'task' ? 'task' : 'chat',
-            spaceId: routedSpace?.id ?? 'hq',
-            departmentId: routedSpace?.id,
-          });
-        }
+        // ═══ 17i.2 → T1 回合级落库：user 消息不再提前入账——回合收尾与 assistant 总结一次性写入，
+        //     权威归属（kind/spaceId/threadId）落库即最终态，消灭"先记半句再 patch 回填"双写窗口。
+        //     执行中可见性由前端本地回显 + SSE 流承担（设计 §4.2）。═══
         // ═══ 附件上下文注入：文本附件截断拼入消息，二进制仅引用 ═══
         const attachments: Array<{ fileId: string; name?: string }> = Array.isArray(req.body?.attachments) ? req.body.attachments : [];
         if (attachments.length > 0) {
@@ -977,14 +958,18 @@ export class StudioServer {
         const runExecution = () => (sessionId
           ? this.resolveOrchestratorSessionPath(sessionId)
           : Promise.resolve(undefined)
-        ).then((orchestratorSessionPath) =>
+        ).then((orchRef) =>
           companyFacade.executeGoal(message, {
             departmentId: routedSpace?.id ?? req.body?.departmentId,
             departmentName: req.body?.departmentName,
             managerPersona: routedSpace?.managerPersona,
             capabilities: routedSpace?.capabilities,
             intentHint: intent,
-            orchestratorSessionPath,
+            orchestratorSessionPath: orchRef?.path,
+          }).then((result) => {
+            // T1：回合收尾触发增量索引（幂等，失败静默——真相源永远在 jsonl）
+            if (orchRef) this.getTranscripts()?.indexNow(orchRef.sessionId, orchRef.path);
+            return result;
           }),
         );
         const prevExec = sessionId ? this.chatInflight.get(sessionId) : undefined;
@@ -1010,14 +995,14 @@ export class StudioServer {
           }
         }
         if (sessionId) {
-          // P1：回填用户消息归属（权威 mode + missionId = threadId）
-          if (isTask && missionId) {
-            this.sessionStore?.patchLastUserMessage(sessionId, {
-              threadId: missionId, spaceId: routedSpace?.id ?? 'hq', departmentId: routedSpace?.id, kind: 'task',
-            });
-          } else if (!isTask) {
-            this.sessionStore?.patchLastUserMessage(sessionId, { spaceId: 'hq', kind: 'chat' });
-          }
+          // T1 回合级落库：user 消息（带最终权威归属）+ assistant 总结成对入账
+          this.sessionStore?.appendChatMessage(sessionId, {
+            role: 'user', content: originalMessage, timestamp: Date.now(),
+            kind: isTask ? 'task' : 'chat',
+            spaceId: isTask ? (routedSpace?.id ?? 'hq') : 'hq',
+            threadId: isTask ? missionId : undefined,
+            departmentId: isTask ? routedSpace?.id : undefined,
+          });
           this.sessionStore?.appendChatMessage(sessionId, {
             role: 'system',
             content: naturalReport ?? result.report ?? JSON.stringify(result),

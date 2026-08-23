@@ -156,34 +156,8 @@ export class SessionStore {
   }
 
   /**
-   * P1 部门 Space：回填最后一条无 threadId 的用户消息（executeGoal 返回 missionId/mode 后补充归属）。
-   * 重写 jsonl 对应行（文件小，可接受）。找不到匹配则静默跳过。
+   * T1：patchLastUserMessage 已删除——回合级落库后 user 消息落库即最终态，无需回填（设计 §4.2）。
    */
-  patchLastUserMessage(sessionId: string, patch: { threadId?: string; spaceId?: string; departmentId?: string; kind?: 'chat' | 'task' }): void {
-    if (!this.isValidSessionId(sessionId)) return;
-    const filePath = path.join(this.chatHistoryDir, `${sessionId}.jsonl`);
-    try {
-      if (!fs.existsSync(filePath)) return;
-      const lines = fs.readFileSync(filePath, 'utf-8').split('\n');
-      for (let i = lines.length - 1; i >= 0; i--) {
-        if (!lines[i]) continue;
-        try {
-          const msg = JSON.parse(lines[i]);
-          if (msg.role === 'user' && !msg.threadId) {
-            msg.threadId = patch.threadId ?? msg.threadId;
-            msg.spaceId = patch.spaceId ?? msg.spaceId;
-            msg.departmentId = patch.departmentId ?? msg.departmentId;
-            msg.kind = patch.kind ?? msg.kind;
-            lines[i] = JSON.stringify(msg);
-            fs.writeFileSync(filePath, lines.join('\n'), 'utf-8');
-            return;
-          }
-        } catch { /* 跳过损坏行 */ }
-      }
-    } catch (err) {
-      console.error(`[ChatHistory] 回填失败: ${(err as Error).message}`);
-    }
-  }
   getChatHistory(sessionId: string): any[] {
     if (!this.isValidSessionId(sessionId)) return [];
     const filePath = path.join(this.chatHistoryDir, `${sessionId}.jsonl`);

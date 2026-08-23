@@ -144,6 +144,8 @@ CREATE TABLE IF NOT EXISTS chat_index (
 ) STRICT;
 ```
 
+> **实现偏离记录（T1 落地时补充，均已验证）**：① `transcript_windows` 增加 `file_path` 列——定位账本文件必需（OpenClaw 键即路径；MorPex 的 pi repo 需显式 path）；② 新增 `index_watermark` 表——增量扫描需按字节记水位，chat_index 按 chat 维度组织不合用；③ seq 采用物理行号而非 pi 内部序号（追加式文件下行序 = 条目序，且与 byte_offset 水位互为校验）。
+
 ### 3.3 sessionKey 格式（适配 MorPex 概念，非照抄 channel）
 
 ```

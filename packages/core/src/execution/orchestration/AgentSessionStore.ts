@@ -42,6 +42,7 @@ export interface AgentSessionMeta {
   metadata?: Record<string, unknown>;
 }
 
+/** 会话创建选项（T1 parent 链：parentSessionId 为 transcript_windows 的唯一权威父标识） */
 export interface AgentSessionCreateOptions {
   component: AgentComponent;
   /** 自定义 id（缺省 repo 自动生成 uuidv7） */
@@ -50,6 +51,19 @@ export interface AgentSessionCreateOptions {
   departmentId?: string;
   /** 父会话路径（跨会话引用/会话树） */
   parentSessionPath?: string;
+  /** 父会话 id（transcript_windows.parent_session_id 权威来源；缺省时由消费方按路径反查） */
+  parentSessionId?: string;
+  metadata?: Record<string, unknown>;
+}
+
+/** 会话创建回调信息（T1：studio 侧据此登记 transcript_windows 窗口） */
+export interface AgentSessionCreatedInfo {
+  sessionId: string;
+  path: string;
+  component: AgentComponent;
+  parentSessionPath?: string;
+  parentSessionId?: string;
+  /** 创建时的元数据（T1：含 chatSessionId 时以 chat:<id> 为路由键登记，否则 agent:* 键） */
   metadata?: Record<string, unknown>;
 }
 
@@ -79,6 +93,9 @@ export class AgentSessionStore {
   private readonly repo: AgentSessionRepo;
   private readonly root: string;
 
+  /** T1 parent 链：会话创建后回调（由 studio 侧注入登记 transcript_windows；core 不依赖读模型） */
+  onSessionCreated?: (info: AgentSessionCreatedInfo) => void;
+
   constructor(root = 'data/sessions/agent-sessions') {
     this.root = path.resolve(root);
     this.repo = PiBridge.createJsonlSessionRepo(this.root);
@@ -104,6 +121,19 @@ export class AgentSessionStore {
       },
     });
     const meta = await (session as unknown as SessionLike).getMetadata();
+    // T1 parent 链：通知外部读模型登记窗口（失败不影响主流程）
+    try {
+      this.onSessionCreated?.({
+        sessionId: meta.id,
+        path: meta.path,
+        component: opts.component,
+        parentSessionPath: opts.parentSessionPath,
+        parentSessionId: opts.parentSessionId,
+        metadata: opts.metadata,
+      });
+    } catch (err) {
+      console.warn('[AgentSessionStore] ⚠️ onSessionCreated 回调失败（不影响会话创建）:', err instanceof Error ? err.message : String(err));
+    }
     return {
       sessionId: meta.id,
       path: meta.path,

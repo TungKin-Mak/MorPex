@@ -542,7 +542,10 @@
 | 文件 | 功能 | 职责边界 |
 |---|---|---|
 | `packages/studio/server/index.ts` | Studio Server 入口：启动 bootstrapUnified 装配 | 只做启动 |
-| `packages/studio/server/StudioServer.ts` | 理想架构对齐版服务器：只消费 10 层组件（CompanyFacade/ControlPlane/Gate/Ontology 等），暴露 REST + SSE；T0: chat/send 按会话绑定 orchestrator 账本 + 并发排队 + chat 直答历史注入；T0 多轮连续：新增 orchestratorSessionPath 透传/resume（chat 会话复用同一本 orchestrator 账本，历史注入分析 prompt） | 只做编排/路由；不改引擎 |
+| `packages/studio/server/StudioServer.ts` | 理想架构对齐版服务器：只消费 10 层组件（CompanyFacade/ControlPlane/Gate/Ontology 等），暴露 REST + SSE；T0: chat/send 按会话绑定 orchestrator 账本 + 并发排队 + chat 直答历史注入；T1: 绑定持久化迁至 transcript_windows 表（ChatTranscriptService 替代 chat-orch-map.json，回合收尾触发增量索引） | 只做编排/路由；不改引擎 |
+| `packages/studio/server/transcript/TranscriptStore.ts` | 单一 Transcript SQLite 读模型：transcript_windows（窗口目录，file_path 定位账本）/ transcript_events（指针式 byte_offset+kind+role+preview，不存正文）/ chat_index / index_watermark 四表，WAL 幂等建表；存储总原则=正文唯一存 jsonl，库只存坐标（约 0.05×开销） | 只做读模型存取；不 import @earendil-works/* |
+| `packages/studio/server/transcript/Indexer.ts` | 抄写员：jsonl→指针索引。水位线增量（index_watermark.indexed_bytes）；只认完整行（换行结尾+parse 通过）；主键幂等 upsert；文件回缩自动全量重建；classifyEntryLine 做 kind 分类（chat/approval/internal）与 preview 提取 | 纯索引器；失败静默不影响主流程 |
+| `packages/studio/server/transcript/ChatTranscriptService.ts` | 档案管理员：resolve(chatSessionId) 查/建窗口复用同一本 orchestrator 账本（经注入回调隔离 pi）；T0 旧 chat-orch-map.json 自动迁移（载入即改名 .imported，懒迁移入库）；indexNow 回合收尾触发 | 会话绑定/迁移；pi 细节留在调用方 |
 | `packages/studio/server/RuntimeAPI.ts` | 运行时引擎能力 REST 路由：暴露后端引擎能力给前端，零修改现有后端业务代码 | 只加路由；不改引擎 |
 | `packages/studio/server/security-middleware.ts` | 生产安全加固中间件：API Key 验证（可选）/请求体大小限制/内容校验 | 只做安全；不承载业务 |
 | `packages/studio/server/SessionStore.ts` | 会话持久化管理：聊天历史/节点执行历史 JSONL 读写 | 只做会话存取 |
