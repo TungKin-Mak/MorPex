@@ -43,6 +43,7 @@
 
 ## 待办（按优先级）
 
+- **T7 独立评审建议项（reviewer 2026-08-24）**：① memory-consolidate.mts 衰减非幂等（连跑两次双重减半，computeDecay 只看 lastSeen 无 lastDecayedAt 标记，文件头“幂等可重跑”声明失实）；② routeCandidate 显式分支忽略 upsert 返回 status（rejected/new_entity 时仍报 explicit_written 且建档权重）；③ 敏感信息 LLM 标注可加正则二次兑底（用户已否决正则做触发，但安全兑底另议）。
 - **文档体系持续维护**：能力索引随代码补全（发现"索引未覆盖但代码已有"→补条目，防漏判）；`check:docs` 保持 0。
 - **事件 P2**（可选）：试点发射规范化（DAGRuntime workflow.step_started 带 state 块）+ 前端任务卡片消费标准字段。
 - **UI 迭代**（待做）：异常告警阈值 UI、进化审批 UI。
