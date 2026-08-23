@@ -31,6 +31,7 @@ import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js
 import { CostController } from '../../core/src/governance/CostController.js';
 import { getSharedPiBridge } from '../../core/src/infrastructure/adapters/pi-bridge/PiBridge.js';
 import { registerMemoryExtractor } from './transcript/memory-extractor.js';
+import { MemoryWeightStore } from '../../memory/src/storage/MemoryWeightStore.js';
 import { IntentClassifier } from '../../core/src/cognition/planning/goal-intelligence/IntentClassifier.js';
 import type { Space } from '../../core/src/governance/control-plane/space-types.js';
 import type { SpaceService } from '../../core/src/governance/control-plane/SpaceService.js';
@@ -203,6 +204,8 @@ export class StudioServer {
 
   /** ═══ T0 多轮连续：同一会话执行串行化护栏（chatSessionId → in-flight promise）═══ */
   private chatInflight = new Map<string, Promise<void>>();
+  /// T7 记忆权重簿（可选：初始化失败时记忆功能仍可用，仅无沉淀/衰减）
+  private memoryWeightStore?: MemoryWeightStore;
   /** ═══ T1 档案室：chat 会话绑定/索引（替代 T0 的 chat-orch-map.json，真相源 transcript_windows 表）═══ */
   private transcripts?: ChatTranscriptService;
   private transcriptStore?: TranscriptStore;
@@ -363,10 +366,17 @@ export class StudioServer {
       console.warn('[Studio] ⚠️ llm-tracer 启动失败（忽略）:', err instanceof Error ? err.message : String(err));
     }
 
-    // ═══ T5 跨会话用户画像记忆：订阅回合收尾事件 → 提取候选 → 确认工单 ═══
+    // ═══ T5/T7 跨会话记忆：订阅回合收尾事件 → LLM 提取 → 四路分流（显式直写/工单/遗忘/丢弃）+ 权重簿 ═══
     if (container.companyMemoryApi) {
-      registerMemoryExtractor(container.eventBus, { memoryApi: container.companyMemoryApi });
-      console.log('[Studio] ✅ MemoryExtractor 就绪（chat.turn.completed → 画像候选 → 待确认工单）');
+      let weightStore: MemoryWeightStore | undefined;
+      try {
+        weightStore = new MemoryWeightStore(path.join(process.cwd(), 'data', 'sessions', 'memory-weights.db'));
+      } catch (err) {
+        console.warn('[Studio] ⚠️ 权重簿初始化失败（记忆仍可用，仅无沉淀/衰减）：', err instanceof Error ? err.message : String(err));
+      }
+      registerMemoryExtractor(container.eventBus, { memoryApi: container.companyMemoryApi, weightStore });
+      this.memoryWeightStore = weightStore;
+      console.log('[Studio] ✅ MemoryExtractor 就绪（chat.turn.completed → LLM 提取 → 四路分流）');
     }
 
     // 运行时 API（RuntimeAPI：FSM/DAG/ArtifactGraph/Learning/SSE）
@@ -1124,6 +1134,10 @@ export class StudioServer {
               ...toLines(qc).filter((c) => c.includes('约定:')),     // 协作约定（实体名前缀，见 mapCandidateEntity）
             ];
             const termLines = toLines(qc).filter((c) => c.includes('术语:'));
+            // T7 权重簿：召回命中即计一次提及（mention_count++），供 30 天沉淀晋升判定；失败不阻塞
+            try {
+              this.memoryWeightStore?.recordMentionsFromContents([...profileLines, ...termLines]);
+            } catch { /* 权重簿是可降级依赖 */ }
             let memoryBlock = '';
             if (profileLines.length > 0) {
               memoryBlock += `【用户画像与协作约定（来自长期记忆库，已经用户确认）】\n${profileLines.join('\n')}`;

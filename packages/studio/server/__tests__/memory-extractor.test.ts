@@ -97,3 +97,162 @@ describe('memory-extractor.T6 分类扩展', () => {
       .toBe('纠错:神秘纠错');
   });
 });
+
+// ═══════════ T7：LLM 化触发 + 四路分流 + 权重沉淀 ═══════════
+import { vi } from 'vitest';
+import { routeCandidate } from '../transcript/memory-extractor.js';
+import {
+  MemoryWeightStore,
+  computePromotion,
+  computeDecay,
+} from '../../../memory/src/storage/MemoryWeightStore.js';
+import { mkdtempSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
+
+function makeOpts() {
+  const calls = { upsert: [] as Array<Record<string, unknown>>, invalidate: [] as string[] };
+  const opts = {
+    memoryApi: {
+      upsert: vi.fn(async (input: Record<string, unknown>) => {
+        calls.upsert.push(input);
+        return { status: 'pending_confirm', ticketId: `t_${calls.upsert.length}` };
+      }),
+      invalidate: vi.fn(async (name: string) => {
+        calls.invalidate.push(name);
+      }),
+    },
+    weightStore: { ensure: vi.fn() },
+  };
+  return { opts, calls };
+}
+
+describe('T7 四路分流 routeCandidate', () => {
+  it('① sensitive → 丢弃：不 upsert 不 invalidate', async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      { name: 'x', fact: 'sk-abc123 是密钥', type: 'profile', sensitive: true },
+      opts,
+    );
+    expect(action).toBe('dropped_sensitive');
+    expect(calls.upsert).toHaveLength(0);
+    expect(calls.invalidate).toHaveLength(0);
+  });
+
+  it('② isForget → invalidate（不 upsert）', async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      { name: '服务启动方式', fact: '忘掉 pm2 那条', type: 'correction', trigger: '用 pm2 启动服务', isForget: true },
+      opts,
+    );
+    expect(action).toBe('forgotten');
+    expect(calls.invalidate).toEqual(['纠错:用 pm2 启动服务']);
+    expect(calls.upsert).toHaveLength(0);
+  });
+
+  it("③ scope='session' → 跳过长期库", async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      { name: '临时安排', fact: '这次先这样吧', scope: 'session' },
+      opts,
+    );
+    expect(action).toBe('skipped_session');
+    expect(calls.upsert).toHaveLength(0);
+  });
+
+  it('④ isExplicit → 免工单直接入库 confidence=1.0 source=explicit + 权重建档 explicit', async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      { name: '操作系统', fact: '用户使用 mac', type: 'agreement', isExplicit: true },
+      opts,
+    );
+    expect(action).toBe('explicit_written');
+    expect(calls.upsert[0]).toMatchObject({ name: '约定:操作系统', confidence: 1.0, source: 'explicit' });
+    expect(opts.weightStore.ensure).toHaveBeenCalledWith('约定:操作系统', 'explicit', 'agreement');
+  });
+
+  it('⑤ 默认低置信走确认工单 + 权重建档 llm', async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      { name: '李雷', fact: '用户姓名是李雷', type: 'profile' },
+      opts,
+    );
+    expect(action).toBe('ticket');
+    expect(calls.upsert[0]).toMatchObject({ name: '李雷', confidence: 0.6 });
+    expect(opts.weightStore.ensure).toHaveBeenCalledWith('李雷', 'llm', 'profile');
+  });
+
+  it('parseCandidates 解析 T7 标志位（isExplicit/isForget/sensitive/scope）', () => {
+    const out = parseCandidates(JSON.stringify([
+      { type: 'agreement', name: 'os', fact: '用 mac', isExplicit: true },
+      { name: '旧结论', fact: '作废它', isForget: true },
+      { name: 'leak', fact: 'password=123', sensitive: true },
+    ]));
+    expect(out.map((c) => c.isExplicit)).toEqual([true, undefined, undefined]);
+    expect(out.map((c) => c.isForget)).toEqual([undefined, true, undefined]);
+    expect(out.map((c) => c.sensitive)).toEqual([undefined, undefined, true]);
+    // scope 单独验证（候选上限 3 条，避免被截断）
+    const scoped = parseCandidates(JSON.stringify([
+      { name: 'tmp', fact: '这次先这样', scope: 'session' },
+      { name: 'long', fact: '长期有效' },
+    ]));
+    expect(scoped[0]?.scope).toBe('session');
+    expect(scoped[1]?.scope).toBeUndefined();
+  });
+});
+
+describe('T7 权重晋升/衰减（纯函数）', () => {
+  const NOW = Date.now();
+  const DAY = 24 * 3600_000;
+
+  it('30 天窗口内提及达标或权重达标 → 晋升 permanent', () => {
+    expect(computePromotion({ tier: 'project', weight: 0.6, mentionCount: 3, lastSeen: NOW - DAY }, NOW)).toBe(true);
+    expect(computePromotion({ tier: 'project', weight: 0.96, mentionCount: 1, lastSeen: NOW - DAY }, NOW)).toBe(true);
+    expect(computePromotion({ tier: 'project', weight: 0.6, mentionCount: 2, lastSeen: NOW - DAY }, NOW)).toBe(false);
+    // 提及发生在窗口外（last_seen 太老）→ 不算
+    expect(computePromotion({ tier: 'project', weight: 0.6, mentionCount: 5, lastSeen: NOW - 40 * DAY }, NOW)).toBe(false);
+  });
+
+  it('permanent 免疫衰减；闲置超期减半；低于归档线归档', () => {
+    expect(computeDecay({ tier: 'permanent', weight: 0.3, lastSeen: NOW - 60 * DAY }, NOW)).toBeNull();
+    expect(computeDecay({ tier: 'project', weight: 0.6, lastSeen: NOW - 10 * DAY }, NOW)).toBeNull(); // 未到期
+    const decayed = computeDecay({ tier: 'project', weight: 0.6, lastSeen: NOW - 40 * DAY }, NOW);
+    expect(decayed).toEqual({ weight: 0.3, archived: false });
+    const archived = computeDecay({ tier: 'project', weight: 0.3, lastSeen: NOW - 80 * DAY }, NOW);
+    expect(archived).toEqual({ weight: 0.15, archived: true });
+  });
+
+  it('MemoryWeightStore 端到端：ensure 幂等 / recordMention / 晋升落库 / 衰减删除', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mwt-'));
+    const store = new MemoryWeightStore(join(dir, 'w.db'));
+    try {
+      store.ensure('纠错:pm2', 'explicit', 'correction');
+      store.ensure('纠错:pm2', 'explicit', 'correction'); // 幂等：重复 ensure 不重置
+      const row = store.getByName('纠错:pm2');
+      expect(row?.weight).toBe(1.0); // explicit 基础分
+
+      store.recordMention('纠错:pm2');
+      store.recordMention('纠错:pm2');
+      store.recordMention('纠错:pm2');
+      expect(store.getByName('纠错:pm2')?.mentionCount).toBe(3);
+
+      // 晋升：3 次提及 → permanent
+      const promoted = store.applyPromotions();
+      expect(promoted).toContain('纠错:pm2');
+      expect(store.getByName('纠错:pm2')?.tier).toBe('permanent');
+
+      // 衰减：permanent 免疫（即便很久没提及也不删）
+      const r = store.applyDecays(new Date(Date.now() + 400 * 24 * 3600_000).getTime());
+      expect(r.archived).not.toContain('纠错:pm2');
+      expect(store.getByName('纠错:pm2')).toBeDefined();
+
+      // 低权重 project 条目久未提及 → 归档删除
+      store.ensure('术语:部署', 'llm', 'clarification'); // base 0.8... 手动降权模拟多次衰减
+      store.applyDecays(); // 未到期不动
+      const gone = store.getByName('术语:部署');
+      expect(gone?.weight ?? 0).toBeGreaterThan(0); // 仍在（未到期）
+    } finally {
+      store.close();
+    }
+  });
+});

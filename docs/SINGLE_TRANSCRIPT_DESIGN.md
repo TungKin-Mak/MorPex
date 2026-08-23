@@ -382,9 +382,15 @@ T5 只做了画像；记忆系统完整版图按"记什么"分四类，**提取/
 | agreement（协作约定） | "汇报要简短" | 用户表达协作偏好 | 开场常驻注入 |
 
 关键机制：
-1. **提取分类扩展**：memory-extractor 候选增加 type 字段（correction/clarification/agreement），识别靠信号词预筛 + LLM 结构化输出双保险；只有用户明确反馈才提候选（防垃圾场三防线沿 T5：信号词、确认工单、低置信不静默入库）
-2. **召回分桶**：开场=query(画像+约定)；执行前=OrchestratorAgent 分析 prompt 注入处（T0 锚点）追加 query(纠错，按 goal 文本相关性)；消息理解=query(澄清术语)
-3. **覆盖语义（纠错特有）**：批准一条 correction 时自动 invalidate 同主题旧条目（MemoryApi.invalidate 已有），防新旧结论并存让 AI 抓阄
+1. **提取分类扩展**：memory-extractor 候选增加 type 字段（correction/clarification/agreement）
+2. **召回分桶**：开场=query(画像+约定)；执行前=OrchestratorAgent 分析 prompt 注入处追加 query(纠错)；消息理解=query(澄清术语)
+3. **覆盖语义（纠错特有）**：批准 correction 时自动 invalidate 同主题旧条目
+
+### T7 修订（用户拍板：触发全面 LLM 化 + 权重沉淀体系）
+
+- **废除信号词/正则预筛**：所有触发判断（分类/显式指令/遗忘/敏感/作用域）由 LLM 在单次提取调用内输出标志位（isExplicit/isForget/sensitive/scope），每回合收尾必调，无预筛短路
+- **四路分流**：sensitive→丢弃｜isForget→invalidate｜isExplicit→免工单直接入库(confidence=1.0,source='explicit')｜默认→确认工单；scope='session'→不入长期库（会话账本即真相源，多轮 resume 天然可见）
+- **权重沉淀**：MemoryWeightStore（data/sessions/memory-weights.db）记 tier/weight/mentionCount/lastSeen；来源基础分 explicit 1.0＞correction/clarification 0.8＞llm 0.6；召回命中 mention++；`scripts/memory-consolidate.mts` 执行晋升（30 天内提及≥3 或 weight≥0.95→permanent 免疫衰减）与衰减（非永久层闲置 30 天减半，<0.2 归档）；纯函数 computePromotion/computeDecay 可单测
 
 ## 附：关键证据锚点
 
