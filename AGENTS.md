@@ -49,7 +49,7 @@ npx tsx scripts/_backend-code-analyze.ts   # 重新生成函数关系链文档�
 | `docs/DEVELOPMENT.md` | 开发/改代码前（完整流程/门禁/质量/提交） | 中 |
 | `docs/CAPABILITY_INDEX.md` | 新增/改造功能前（功能→锚点+别名+状态，防重复/防误删/防 grep 误判） | ✅ |
 | `docs/HOOK_MAP.md` | 新功能要插入时的接入点/前后顺序/事件挂点 | ✅ |
-| `skills/<name>/SKILL.md` | 按需技能包（locate-capability/insert-hook/event-messaging/dev-flow/backend-flow/architecture-rule）；支持 skill 的 agent 按 description 触发加载 | 精炼+指向 docs |
+| `.pi/skills/<name>/SKILL.md` | 按需技能包（locate-capability/insert-hook/event-messaging/dev-flow/backend-flow/architecture-rule）；pi 启动自动注入 description，任务匹配时按需 `read` 全文；源码在 `skills/src/` | 精炼+指向 docs |
 | `docs/AICOS_CORE_ARCHITECTURE.md` | 架构/层间改动 | 中 |
 | `docs/AICOS_CORE_FILE_REGISTRY.md` | 文件职责登记/更新 | 大（禁止常驻） |
 | `docs/BACKEND_CODE_MAP.md` | 函数关系链/调用面 | 大（禁止常驻） |

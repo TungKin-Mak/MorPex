@@ -62,7 +62,7 @@
 ```
 
 ### 1f. 创建主 skills（小猫支持即可用；不支持也当索引）
-在 `skills/` 建（或从你的参考项目拷贝精炼）：`locate-capability`（改功能前定位，src 指南）、`insert-hook`（接入点）、`dev-flow`（流程+文档同步）、`event-messaging`（事件/消息，若用事件）、`backend-flow`（业务流，若有）。每个 `skills/<name>/SKILL.md` = frontmatter（name/description 触发条件）+ 精炼要点 + 指向 docs。
+在 `skills/src/` 建源码（或从参考项目拷贝精炼）：`locate-capability`（改功能前定位）、`insert-hook`（接入点）、`dev-flow`（流程+文档同步）、`event-messaging`（事件/消息，若用事件）、`backend-flow`（业务流，若有）、`architecture-rule`（架构铁律）。每个 `skills/src/<name>/SKILL.md` = frontmatter（name/description 触发条件）+ 精炼要点 + 指向 docs；建后同步到 `.pi/skills/<name>/SKILL.md`（`cp -r skills/src/* .pi/skills/`，pi 官方发现路径）。
 
 ### 1g. 初始化完成后向用户确认 + 记录
 「已建 AGENTS/DEVELOPMENT/索引/地图/SESSION_LOG/skills；请确认占位资料；之后按日常流程开发」。

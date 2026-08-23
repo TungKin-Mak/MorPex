@@ -16,12 +16,12 @@
 > 新项目一键初始化：拷 `devkit/DEVKIT.md` 到项目根并让 LLM 阅读（检测→建规范→引导填占位）。
 
 ## 新增 skill 规范
-- 目录 `skills/<name>/SKILL.md`，frontmatter 必含 `name` + `description`（自然语言写"何时使用"）。
+- 源码目录 `skills/src/<name>/SKILL.md`，frontmatter 必含 `name` + `description`（自然语言写"何时使用"）。
 - 正文精炼（≤30 行），要点 + `> 参考明细：docs/xxx.md`。
-- 登记本表 + AGENTS §6 导航；按 `dev-flow` §6 同步文档。
+- 改后同步到 `.pi/skills/<name>/SKILL.md`（pi 官方发现路径，`cp -r skills/src/* .pi/skills/`）；登记本表 + AGENTS §6 导航；按 `dev-flow` §6 同步文档。
 
 ## 工具自动发现适配（新 session “自动检索”关键）
-- **pi-coding-agent**：读 `.pi/SYSTEM.md` §0.5 的检索四连（本技能作为按需索引）。
+- **pi-coding-agent**：自动发现 `.pi/skills/<name>/SKILL.md`（项目信任后，启动扫描 name+description 注入 system prompt，任务匹配时按需 `read` 全文；详见 `node_modules/@earendil-works/pi-coding-agent/docs/skills.md`）。源码在 `skills/src/`，需同步到 `.pi/skills/`。
 - **Claude Code / 支持 Agent Skills 的工具**：自动发现 `.claude/skills/<name>/SKILL.md`——
   **使用前把 `skills/src/<name>/SKILL.md` 复制到 `.claude/skills/<name>/`**（凭 frontmatter description 自动触发）。
 - 其它工具：按 `AGENTS.md §5` 流程手动加载对应 SKILL.md。
