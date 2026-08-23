@@ -30,6 +30,7 @@ import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import { CostController } from '../../core/src/governance/CostController.js';
 import { getSharedPiBridge } from '../../core/src/infrastructure/adapters/pi-bridge/PiBridge.js';
+import { registerMemoryExtractor } from './transcript/memory-extractor.js';
 import { IntentClassifier } from '../../core/src/cognition/planning/goal-intelligence/IntentClassifier.js';
 import type { Space } from '../../core/src/governance/control-plane/space-types.js';
 import type { SpaceService } from '../../core/src/governance/control-plane/SpaceService.js';
@@ -360,6 +361,12 @@ export class StudioServer {
       llmTracer.start();
     } catch (err) {
       console.warn('[Studio] ⚠️ llm-tracer 启动失败（忽略）:', err instanceof Error ? err.message : String(err));
+    }
+
+    // ═══ T5 跨会话用户画像记忆：订阅回合收尾事件 → 提取候选 → 确认工单 ═══
+    if (container.companyMemoryApi) {
+      registerMemoryExtractor(container.eventBus, { memoryApi: container.companyMemoryApi });
+      console.log('[Studio] ✅ MemoryExtractor 就绪（chat.turn.completed → 画像候选 → 待确认工单）');
     }
 
     // 运行时 API（RuntimeAPI：FSM/DAG/ArtifactGraph/Learning/SSE）
@@ -1091,6 +1098,20 @@ export class StudioServer {
             console.warn('[Studio] ⚠️ 注入聊天历史失败（按无历史处理）:', (err as Error).message);
           }
         }
+        // ═══ T5 跨会话画像召回：新会话也“认识”老用户（放在历史注入之后 ⇒ 画像位于最上方）═══
+        if (sessionId && this.boot?.container.companyMemoryApi) {
+          try {
+            const qr = await this.boot.container.companyMemoryApi.query({ text: '用户 姓名 称呼 偏好 画像', limit: 5 });
+            const profileLines = (qr.hits ?? [])
+              .map((h) => String(h.content ?? '').slice(0, 150))
+              .filter(Boolean);
+            if (profileLines.length > 0) {
+              message = `【用户画像（来自长期记忆库，已经用户确认）】\n${profileLines.join('\n')}\n\n${message}`;
+            }
+          } catch (err) {
+            console.warn('[Studio] ⚠️ 记忆召回失败（跳过）:', (err as Error).message);
+          }
+        }
         // ═══ T0 多轮连续①：同一 chatSessionId 复用同一本 orchestrator 账本 + 并发护栏 ═══
         // resolve 放在排队闭包内（而非排队前）：同一会话的首次绑定被串行化，避免并发首请求各自 createSession 产生孤儿账本
         // ★ 无 sessionId 的请求不参与绑定/复用（否则会共享一个 "undefined" 账本，造成无关对话上下文串门）
@@ -1154,7 +1175,7 @@ export class StudioServer {
                 timestamp: Date.now(),
                 executionId: `turn_${Date.now()}`,
                 source: 'studio-chat',
-                payload: { sessionId, lastSeq: turn.lastSeq, kind: turnMeta.kind },
+                payload: { sessionId, lastSeq: turn.lastSeq, kind: turnMeta.kind, userText: originalMessage.slice(0, 500) },
               });
             } catch { /* SSE 对账事件失败不影响主流程 */ }
           } else {
@@ -1384,6 +1405,28 @@ export class StudioServer {
       try {
         await mem.rememberEpisode(String(req.body?.content), { source: req.body?.source ?? 'api' });
         return res.json({ ok: true });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // ── T5 用户画像记忆：待确认工单 + 批准/拒绝（复用 MemoryApi 确认队列）──
+    this.app.get('/api/memory/pending', async (_req, res) => {
+      const mem = container.companyMemoryApi;
+      if (!mem) return res.status(400).json({ ok: false, error: 'memory not initialized' });
+      try {
+        return res.json({ ok: true, tickets: await mem.listPendingConfirmations(20) });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+    this.app.post('/api/memory/confirm/:ticketId', async (req, res) => {
+      const mem = container.companyMemoryApi;
+      if (!mem) return res.status(400).json({ ok: false, error: 'memory not initialized' });
+      const decision = req.body?.decision === 'accept' ? ('accept' as const) : ('reject' as const);
+      try {
+        await mem.confirm(String(req.params.ticketId), decision); // accept → 引擎落库；reject → 丢弃
+        return res.json({ ok: true, decision });
       } catch (err) {
         return res.status(500).json({ ok: false, error: (err as Error).message });
       }
