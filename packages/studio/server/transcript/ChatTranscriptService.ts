@@ -28,6 +28,8 @@ export interface ChatTranscriptServiceOptions {
   openHandle: (path: string) => Promise<ChatWindowRef>;
   /** 新建一本 orchestrator 账本（调用方接到 AgentSessionStore.createSession） */
   createOrchestratorSession: (chatSessionId: string) => Promise<ChatWindowRef>;
+  /** T2 回合记录：向账本追加一条自定义条目（调用方接到 AgentSessionStore.appendCustom，不进 LLM 上下文） */
+  appendCustomEntry?: (ledgerPath: string, type: string, data: unknown) => Promise<void>;
   /** T0 遗留映射文件路径（存在则自动迁移）；不传则跳过 */
   legacyMapPath?: string;
 }
@@ -107,6 +109,62 @@ export class ChatTranscriptService {
   /** 供 history 类接口使用：按 sessionKey 取窗口 */
   findWindow(chatSessionId: string): TranscriptWindowRow | undefined {
     return this.opts.store.findWindowByKey(`chat:${chatSessionId}`);
+  }
+
+  /** T2：会话列表（chat_index 速查行）；供 /api/sessions 合并 legacy 扫描 */
+  listChatSessions(): Array<{ id: string; name?: string; createdAt: number; preview?: string; messageCount?: number; source: 'transcript' }> {
+    try {
+      return this.opts.store.listChatIndex().map((r) => ({
+        id: r.chat_session_id,
+        createdAt: r.updated_at,
+        preview: r.preview ?? undefined,
+        messageCount: r.message_count,
+        source: 'transcript' as const,
+      }));
+    } catch {
+      return [];
+    }
+  }
+
+  /**
+   * appendDisplayTurn — T2 回合记录：每轮对话收尾往账本追加一条 morpex.turn 自定义条目。
+   *
+   * 为什么不是两条 message 条目：任务模式下 OrchestratorAgent 已入账 goal(user)+交付物(assistant)
+   * 服务 LLM 上下文；展示层需要的是 naturalReport（拟人化总结）而非截断的 raw deliverable——
+   * 用 custom 条目承载展示语义（appendCustom 不进 LLM 上下文，零污染），投影层唯一放行它（§5.1）。
+   *
+   * 返回回合收尾水位 lastSeq（SSE 对账游标）；无窗口/失败返回 undefined（降级为旧 chat-history 写入）。
+   */
+  async appendDisplayTurn(
+    chatSessionId: string,
+    turn: { userText: string; assistantText: string; kind: 'chat' | 'task'; threadId?: string; spaceId?: string },
+  ): Promise<{ lastSeq: number } | undefined> {
+    if (!this.opts.appendCustomEntry) return undefined;
+    const win = this.findWindow(chatSessionId);
+    if (!win || !fs.existsSync(win.file_path)) return undefined;
+    try {
+      await this.opts.appendCustomEntry(win.file_path, 'morpex.turn', {
+        user: turn.userText,
+        assistant: turn.assistantText,
+        kind: turn.kind,
+        threadId: turn.threadId,
+        spaceId: turn.spaceId,
+        timestamp: Date.now(),
+      });
+      this.indexNow(win.session_id, win.file_path);
+      const lastSeq = this.opts.store.getWatermark(win.session_id)?.last_seq ?? 0;
+      this.opts.store.upsertChatIndex({
+        chat_session_id: chatSessionId,
+        last_seq: lastSeq,
+        last_role: 'assistant',
+        preview: turn.assistantText.replace(/\s+/g, ' ').trim().slice(0, 120) || null,
+        updated_at: Date.now(),
+      });
+      return { lastSeq };
+    } catch (err) {
+      console.warn('[Transcript] ⚠️ 回合记录写入失败（降级为旧 chat-history）:', err instanceof Error ? err.message : String(err));
+      return undefined;
+    }
   }
 
   /**

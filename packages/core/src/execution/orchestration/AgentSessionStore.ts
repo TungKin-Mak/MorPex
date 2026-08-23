@@ -218,6 +218,28 @@ export class AgentSessionStore {
   }
 
   /**
+   * appendCustomMessage — 写入可显示自定义条目（custom_message，T3 审批/留言存根用）。
+   * 与 appendCustom 的区别：type=custom_message 且携带 display 标记——投影层（T2）按 display
+   * 决定是否上屏；Indexer 按 customType 前缀分类 kind='approval' 等。
+   */
+  async appendCustomMessage(session: unknown, customType: string, content: unknown, display: boolean): Promise<void> {
+    if (!session) return;
+    try {
+      const s = session as SessionLike & {
+        appendCustomMessageEntry?: (customType: string, content: unknown, display: boolean) => Promise<string>;
+      };
+      if (typeof s.appendCustomMessageEntry !== 'function') {
+        // 老 pi 版本兑底：降级为内部 custom 条目（审计不丢，仅 UI 不显卡片）
+        await s.appendCustomEntry(customType, { content, display });
+        return;
+      }
+      await s.appendCustomMessageEntry(customType, content, display);
+    } catch (err) {
+      console.warn(`[AgentSessionStore] ⚠️ appendCustomMessage(${customType}) 失败: ${(err as Error).message}`);
+    }
+  }
+
+  /**
    * appendSessionName — 设置会话显示名
    */
   async appendSessionName(session: unknown, name: string): Promise<void> {

@@ -19,8 +19,9 @@ type LLMFn = (
 
 const CHAT_SYSTEM = [
   '你是 MorPex 的意图判别器。判断用户消息属于哪一类：',
-  '- chat：闲聊、问候、寒暄、简单问句（不要求执行具体任务）',
-  '- task：要求写代码/做分析/生成文档/部署/翻译/总结等具体任务',
+  '- chat：闲聊、问候、寒暄、自我介绍、分享信息、记忆类请求（如“记住”“我叫X”）、情感表达、对 AI 的提问——不需要产出交付物',
+  '- task：要求写代码/做分析/生成文档/部署/翻译/总结等需要交付成果的具体任务',
+  '示例：「我叫张三，请记住」→ chat；「帮我写个爬虫」→ task；「你觉得今天天气怎么样」→ chat；「总结这个文件」→ task。',
   '只回答一个词：chat 或 task。',
 ].join('\n');
 
@@ -49,11 +50,17 @@ function heuristic(message: string): IntentKind | 'unknown' {
   if (!isQuestionLike(t) && STRONG_TASK_RE.test(t)) return 'task';
   // 铁定闲聊：问候/道谢/再见 → chat（0 成本）
   if (CHAT_HINT_RE.test(t)) return 'chat';
+  // T2 校准：记忆/自我介绍/闲聊追问 → chat（非疑问句也直答，不再交 LLM 偏判）
+  if (MEMORY_CHAT_RE.test(t) && !STRONG_TASK_RE.test(t)) return 'chat';
   // 极短且非任务/非疑问 → 闲聊（0 成本）
   if (t.length <= 6 && !isQuestionLike(t) && !TASK_HINT_RE.test(t)) return 'chat';
   // 疑问/歧义 → 交给 LLM
   return 'unknown';
 }
+
+/** T2 校准：记忆/自我介绍/闲聊追问类（此前被 LLM 偏向判成 task，致 chat 直答分支零实测） */
+const MEMORY_CHAT_RE =
+  /(我(叫|姓|是)|请?记住|记一下|记得|你知道吗|你喜欢|你觉得(怎么样|如何)?|陪我|聊聊|说说话|讲个|猜猜)/i;
 
 export class IntentClassifier {
   /**

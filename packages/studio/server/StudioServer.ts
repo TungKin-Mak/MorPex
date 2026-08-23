@@ -41,6 +41,12 @@ import { loadMorpexConfig } from '../../core/src/infrastructure/adapters/pi-brid
 import { TranscriptStore } from './transcript/TranscriptStore.js';
 import { TranscriptIndexer } from './transcript/Indexer.js';
 import { ChatTranscriptService } from './transcript/ChatTranscriptService.js';
+import { AgentMessageStore } from './transcript/AgentMessageStore.js';
+import { createSessionToolsBridge } from './transcript/session-tools.js';
+import { registerApprovalRoutes } from './transcript/approval-routes.js';
+import { setTranscriptToolBridge } from '../../core/src/execution/TranscriptToolBridge.js';
+import { projectEvents } from './transcript/projection.js';
+import { readEntryAt } from './transcript/readAt.js';
 import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
 import { startObservabilityBridge, wireObservabilityServices } from './observability/runtime-bridge.js';
@@ -198,6 +204,9 @@ export class StudioServer {
   private chatInflight = new Map<string, Promise<void>>();
   /** ═══ T1 档案室：chat 会话绑定/索引（替代 T0 的 chat-orch-map.json，真相源 transcript_windows 表）═══ */
   private transcripts?: ChatTranscriptService;
+  private transcriptStore?: TranscriptStore;
+  private messageStore?: AgentMessageStore;
+  private approvalRoutesRegistered = false;
 
   /** 会话 16c（3+4）：execution-stats 总成功率（跨模式加权） */
   private calcOverallRate(quality: Record<string, { success: number; total: number; avgDuration: number; successRate: number }>): number {
@@ -220,12 +229,18 @@ export class StudioServer {
     try {
       const root = path.resolve(this.config.sessionsRoot ?? 'data/sessions');
       const tstore = new TranscriptStore(path.join(root, 'transcript.db'));
+      this.transcriptStore = tstore;
       const indexer = new TranscriptIndexer(tstore);
       this.transcripts = new ChatTranscriptService({
         store: tstore,
         indexer,
         legacyMapPath: path.join(root, 'chat-orch-map.json'),
         openHandle: (p) => store.openHandle(p),
+        // T2 回合记录：账本追加自定义条目（不进 LLM 上下文，投影层唯一放行的对话面）
+        appendCustomEntry: async (p, type, data) => {
+          const h = await store.openHandle(p);
+          await store.appendCustom(h.session, type, data);
+        },
         createOrchestratorSession: async (chatSessionId) => {
           const handle = await store.createSession({
             component: 'orchestrator',
@@ -237,12 +252,55 @@ export class StudioServer {
       });
     // T1 parent 链：step/executor 会话创建 → 登记 transcript_windows（父标识随回调携带，老账本按路径兑底反查）
     store.onSessionCreated = (info) => this.transcripts?.registerComponentSession(info);
+    // T3 组织通信：留言表 + session_read/send_message 桥注入（core 哑工具 ← server 真实现）
+    this.messageStore = new AgentMessageStore(path.join(root, 'transcript.db'));
+    setTranscriptToolBridge(createSessionToolsBridge({
+      store: tstore,
+      indexer,
+      messageStore: this.messageStore,
+      appendStubTo: async (win, type, content, display) => {
+        const h = await store.openHandle(win.file_path);
+        await store.appendCustomMessage(h.session, type, content, display);
+      },
+    }));
+    // 路由注册放这里（懒初始化点）：registerRoutes 时 boot 未就绪、messageStore 还不存在；
+    // Express 支持监听后追加路由，首次 chat/send 触发初始化后即生效
+    if (!this.approvalRoutesRegistered) {
+      this.approvalRoutesRegistered = true;
+      registerApprovalRoutes(this.app, { messageStore: this.messageStore, transcriptStore: tstore });
+    }
     return this.transcripts;
     } catch (err) {
       // SQLite 打不开（损坏/锁/磁盘）：降级为 undefined → 绑定走旧内存路径、history 直读 jsonl（设计 §4.4 降级保底）
       console.warn('[Studio] ⚠️ Transcript 档案室初始化失败（降级：绑定不持久化/历史直读 jsonl）:', err instanceof Error ? err.message : String(err));
       return undefined;
     }
+  }
+
+  /** T2：history/events 路由用的只读索引入口（随档案室初始化；未初始化为 undefined → 路由走降级分支） */
+  private getTranscriptStore(): TranscriptStore | undefined {
+    this.getTranscripts(); // 确保已尝试初始化
+    return this.transcriptStore;
+  }
+
+  /** T2：近期对话轮次——账本投影优先，降级旧 chat-history。供 chat 直答历史注入 */
+  private loadRecentTurns(sessionId: string, limit: number): Array<{ role: string; content: string }> {
+    const svc = this.getTranscripts();
+    const win = svc?.findWindow(sessionId);
+    if (svc && win && fs.existsSync(win.file_path)) {
+      try {
+        svc.indexNow(win.session_id, win.file_path);
+        const store = this.getTranscriptStore();
+        if (store) {
+          const rows = store.eventsBySession(win.session_id);
+          const projected = projectEvents(rows, win.file_path, readEntryAt);
+          return projected.slice(-limit * 2).map((m) => ({ role: m.role, content: m.content }));
+        }
+      } catch (err) {
+        console.warn('[Studio] ⚠️ 账本投影取历史失败（降级旧存储）:', (err as Error).message);
+      }
+    }
+    return (this.sessionStore?.getChatHistory(sessionId) ?? []).slice(-limit * 2).map((m) => ({ role: String(m.role), content: String(m.content ?? '') }));
   }
 
   /**
@@ -379,9 +437,16 @@ export class StudioServer {
       res.json({ ok: true, guard: !!forcedQueryGuard, service: !!ontology });
     });
 
-    // ── 会话（SessionStore 为唯一真相源：以 chat-history/*.jsonl 为准）──
+    // ── 会话（T2：/api/sessions = chat_index ∪ legacy 目录扫描；/history 投影自账本，无窗口降级旧存储）──
     this.app.get('/api/sessions', (_req, res) => {
-      res.json({ sessions: this.sessionStore?.listSessions() ?? [] });
+      const legacy = this.sessionStore?.listSessions() ?? [];
+      const svc = this.getTranscripts();
+      if (!svc) return res.json({ sessions: legacy });
+      const indexed = svc.listChatSessions();
+      const seen = new Set(indexed.map((s) => s.id));
+      // chat_index 优先（有预览/计数），legacy 补充未入索引的老会话
+      const merged = [...indexed, ...legacy.filter((s) => !seen.has(s.id)).map((s) => ({ ...s, source: 'legacy' as const }))];
+      return res.json({ sessions: merged });
     });
 
     this.app.post('/api/session/create', (req, res) => {
@@ -392,8 +457,51 @@ export class StudioServer {
       res.json({ ok: true, sessionId: id });
     });
 
+    // ── T2 history v2：投影自账本（morpex.turn 回合记录）；无窗口会话降级旧 chat-history ──
+    // 前端零改动：路径与消息形状兼容（role user/assistant + content + timestamp），新增 cursor 字段
     this.app.get('/api/session/:id/history', (req, res) => {
-      res.json({ ok: true, messages: this.sessionStore?.getChatHistory(req.params.id) ?? [] });
+      const id = req.params.id;
+      const opts = {
+        thinking: req.query.thinking === '1',
+        tools: req.query.tools === '1',
+      };
+      const svc = this.getTranscripts();
+      const win = svc?.findWindow(id);
+      if (svc && win && fs.existsSync(win.file_path)) {
+        try {
+          svc.indexNow(win.session_id, win.file_path); // 懒对账：确保索引追平真相源
+          const rows = this.getTranscriptStore()!.eventsBySession(win.session_id);
+          const messages = projectEvents(rows, win.file_path, readEntryAt, opts);
+          const lastSeq = this.getTranscriptStore()!.getWatermark(win.session_id)?.last_seq ?? 0;
+          return res.json({ ok: true, messages, cursor: lastSeq, source: 'transcript' });
+        } catch (err) {
+          console.warn('[Studio] ⚠️ history v2 投影失败（降级直读旧存储）:', (err as Error).message);
+        }
+      }
+      return res.json({ ok: true, messages: this.sessionStore?.getChatHistory(id) ?? [], source: 'legacy' });
+    });
+
+    // ── T2 增量对账：SSE 断线重连后按 after=seq 拉增量（游标统一 pi entry 物理行号）──
+    this.app.get('/api/session/:id/events', (req, res) => {
+      const id = req.params.id;
+      const after = Number(req.query.after ?? 0) || 0;
+      const svc = this.getTranscripts();
+      const win = svc?.findWindow(id);
+      if (!svc || !win || !fs.existsSync(win.file_path)) {
+        return res.json({ ok: true, messages: [], cursor: after });
+      }
+      try {
+        svc.indexNow(win.session_id, win.file_path);
+        const store = this.getTranscriptStore()!;
+        const rows = store.eventsBySession(win.session_id, after);
+        const messages = projectEvents(rows, win.file_path, readEntryAt, {
+          thinking: req.query.thinking === '1',
+          tools: req.query.tools === '1',
+        });
+        return res.json({ ok: true, messages, cursor: store.getWatermark(win.session_id)?.last_seq ?? after });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
     });
 
     // ── P1 部门 Space：空间树（总部 + 部门）──
@@ -938,9 +1046,10 @@ export class StudioServer {
         // 17i.15：是否问用户由 LLM 自主决定（ask_user 工具），不再预置澄清门。
         // P1：intentHint 与 executeGoal 共享预判（避免二次判断不一致）；部门 persona/capabilities 随路由注入编排器。
         // ═══ T0 多轮连续②：chat 直答路径注入近期对话历史（否则闲聊对 AI 永远无记忆）═══
+        // T2：优先从账本回合记录取（与新真相源一致）；无窗口降级旧 chat-history
         if (intent === 'chat' && sessionId) {
           try {
-            const hist = this.sessionStore?.getChatHistory(sessionId) ?? [];
+            const hist = this.loadRecentTurns(sessionId, 8);
             // 刚刚已 append 当前这条 user 消息 → 去掉末尾同文条目，只取更早的历史
             const prior = hist.filter((m, i) => !(i === hist.length - 1 && m.role === 'user' && m.content === originalMessage));
             const recent = prior.slice(-8);
@@ -995,23 +1104,47 @@ export class StudioServer {
           }
         }
         if (sessionId) {
-          // T1 回合级落库：user 消息（带最终权威归属）+ assistant 总结成对入账
-          this.sessionStore?.appendChatMessage(sessionId, {
-            role: 'user', content: originalMessage, timestamp: Date.now(),
-            kind: isTask ? 'task' : 'chat',
-            spaceId: isTask ? (routedSpace?.id ?? 'hq') : 'hq',
+          // T2 回合级落库：优先写账本回合记录（morpex.turn，投影层唯一放行的对话面）；
+          // 无窗口（未绑定/降级）时回退旧 chat-history。两路互斥，消灭双写。
+          const displayText = naturalReport ?? result.report ?? JSON.stringify(result);
+          const turnMeta = {
+            userText: originalMessage,
+            assistantText: displayText,
+            kind: isTask ? ('task' as const) : ('chat' as const),
             threadId: isTask ? missionId : undefined,
-            departmentId: isTask ? routedSpace?.id : undefined,
-          });
-          this.sessionStore?.appendChatMessage(sessionId, {
-            role: 'system',
-            content: naturalReport ?? result.report ?? JSON.stringify(result),
-            timestamp: Date.now(),
-            kind: isTask ? 'task' : 'chat',
             spaceId: isTask ? (routedSpace?.id ?? 'hq') : 'hq',
-            threadId: isTask ? missionId : undefined,
-            departmentId: isTask ? routedSpace?.id : undefined,
-          });
+          };
+          const turn = await this.getTranscripts()?.appendDisplayTurn(sessionId, turnMeta);
+          if (turn) {
+            // T2 SSE 对账：回合结束携带游标（pi entry 物理行号），前端据此 events?after=seq 补拉
+            try {
+              this.boot?.container.eventBus.emit({
+                id: `evt_turn_${Date.now()}`,
+                type: 'chat.turn.completed',
+                timestamp: Date.now(),
+                executionId: `turn_${Date.now()}`,
+                source: 'studio-chat',
+                payload: { sessionId, lastSeq: turn.lastSeq, kind: turnMeta.kind },
+              });
+            } catch { /* SSE 对账事件失败不影响主流程 */ }
+          } else {
+            this.sessionStore?.appendChatMessage(sessionId, {
+              role: 'user', content: originalMessage, timestamp: Date.now(),
+              kind: isTask ? 'task' : 'chat',
+              spaceId: isTask ? (routedSpace?.id ?? 'hq') : 'hq',
+              threadId: isTask ? missionId : undefined,
+              departmentId: isTask ? routedSpace?.id : undefined,
+            });
+            this.sessionStore?.appendChatMessage(sessionId, {
+              role: 'system',
+              content: displayText,
+              timestamp: Date.now(),
+              kind: isTask ? 'task' : 'chat',
+              spaceId: isTask ? (routedSpace?.id ?? 'hq') : 'hq',
+              threadId: isTask ? missionId : undefined,
+              departmentId: isTask ? routedSpace?.id : undefined,
+            });
+          }
         }
         return res.json({
           ...result,

@@ -38,6 +38,11 @@ export function classifyEntryLine(line: string): { kind: string; role: string | 
     const display = e.display !== false;
     return { kind: display ? kind : 'internal', role: null, preview: extractPreview(e.content) };
   }
+  // T2：morpex.turn 回合记录（appendCustomEntry 写 type='custom' + data 字段）→ 对话面
+  if (type === 'custom' && e.customType === 'morpex.turn') {
+    const d = (e.data ?? {}) as Record<string, unknown>;
+    return { kind: 'chat', role: 'assistant', preview: extractPreview(d.assistant ?? d) };
+  }
   return { kind: 'internal', role: null, preview: null };
 }
 

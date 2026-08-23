@@ -88,6 +88,21 @@ export interface EngineHealth {
   uptime: number;
 }
 
+/**
+ * ManualRuntimeLike — 部门手册（声明式 YAML 工作流）运行时窄接口
+ *
+ * 四件套之"解释器"（YamlWorkflowRuntime）实现本接口；引擎在原语快路径与
+ * 总大脑编排之间插入手册判定：命中 match(goal) 即按手册 DAG 确定性执行，
+ * 不经 OrchestratorAgent 自由拆解。未注入/未命中不影响既有两路径。
+ */
+export interface ManualRuntimeLike {
+  readonly name: string;
+  /** 目标是否命中某部门手册（别名匹配） */
+  match(goal: string): boolean;
+  /** 按手册执行；返回与 ExecutionResult 同形结果 */
+  execute(request: ExecutionRequest): Promise<ExecutionResult>;
+}
+
 // ═══════════════════════════════════════════════════════════════════
 // 执行模块接口（松耦合，不直接引用具体类）
 // ═══════════════════════════════════════════════════════════════════
@@ -138,6 +153,9 @@ export class UnifiedExecutionEngine {
   /** NL→结构化参数提取钩子（简单操作类任务路由到原语时使用；bootstrap 注入） */
   private paramExtractor: ((goal: string, primitiveName: string, inputSchema: Record<string, unknown>) => Promise<Record<string, unknown>>) | null = null;
 
+  /** 部门手册运行时（可选；bootstrap 注入后 executeAuto 在编排前优先判定） */
+  private manualRuntime: ManualRuntimeLike | null = null;
+
   constructor(eventBus: EventBus) {
     if (!eventBus) throw new Error('[UnifiedExecutionEngine] EventBus 是必填参数');
     this.eventBus = eventBus;
@@ -146,6 +164,11 @@ export class UnifiedExecutionEngine {
   /** 会话 3：注入总大脑（OrchestratorAgent）——现行唯一执行后端 */
   setOrchestratorAgent(orchestrator: OrchestratorAgentLike): void {
     this.orchestrator = orchestrator;
+  }
+
+  /** 注入部门手册运行时（YamlWorkflowRuntime）；未注入时手册路径不启用 */
+  setManualRuntime(runtime: ManualRuntimeLike): void {
+    this.manualRuntime = runtime;
   }
 
   /**
@@ -471,6 +494,15 @@ export class UnifiedExecutionEngine {
           duration: 0,
         };
       }
+    }
+
+    // ═══ 部门手册路径（yaml+解释器）：快路径未命中且手册匹配 → 确定性 DAG 执行，不经总大脑 ═══
+    if (this.manualRuntime && this.manualRuntime.match(request.goal)) {
+      request.onProgress?.(makeProgressEvent('task.progress', `任务 → 部门手册（${this.manualRuntime.name}）`, 10, {
+        taskId: executionId, departmentId: request.departmentId,
+      }));
+      this.recordExecutionPath(request, executionId, 'manual-workflow', `手册运行时 ${this.manualRuntime.name} 命中目标，走声明式 DAG 执行`);
+      return this.manualRuntime.execute(request);
     }
 
     // 其余（生成类 / 复杂 / 无匹配）→ 总大脑编排（唯一执行后端）

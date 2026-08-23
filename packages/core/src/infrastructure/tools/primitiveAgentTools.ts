@@ -20,6 +20,7 @@ import { DomainPrimitiveRegistry } from './DomainPrimitiveRegistry.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
 import { createAskUserTool, setAskEventBus } from '../../execution/UserAskService.js';
 import { getMailbox } from '../../execution/AgentMailbox.js';
+import { getTranscriptToolBridge } from '../../execution/TranscriptToolBridge.js';
 
 /** 工具参数 schema 窄接口（inputSchema：JSON Schema 子集，仅用 required/properties 类型；
  *  会话 15 扩展 examples/minLength/additionalProperties 供 TypeBox 校验与 LLM 提示） */
@@ -62,6 +63,8 @@ export interface PrimitiveToolOptions {
   sessionId?: string;
   /** P2：跨部门/工位交流（mail 原语）上下文——调用发起方角色与归属。eventBus + mailboxCtx 齐备才注册 mail 工具。 */
   mailboxCtx?: { from: string; spaceId?: string; taskId?: string; goal?: string };
+  /** T3：会话工具发起方身份——bridge 在且带身份才注册 session_read / send_message 工具 */
+  transcriptCtx?: { requesterSessionPath: string; requesterComponent: string };
 }
 
 /** 原语 → AgentTool 名称映射（name 为原语注册名） */
@@ -286,6 +289,70 @@ export function createPrimitiveAgentTools(options: PrimitiveToolOptions = {}): A
   // ═══ P2：追加 mail 工具——跨部门/工位真交流（step-agent 主动咨询另一工位/部门，LLM 扮演目标角色回复）═══
   if (options.eventBus && options.mailboxCtx && getMailbox()) {
     tools.push(createMailTool(options.mailboxCtx) as unknown as PrimitiveAgentTool);
+  }
+
+  // ═══ T3 组织通信三原语①②：session_read（查档案）/ send_message（留言）═══
+  // 权限矩阵与账本读取在 server 侧 TranscriptToolBridge 实现内；core 只透传。
+  const tBridge = getTranscriptToolBridge();
+  if (tBridge && options.transcriptCtx) {
+    const { requesterSessionPath, requesterComponent } = options.transcriptCtx;
+    tools.push({
+      name: 'session_read',
+      label: 'session_read',
+      description:
+        '查阅另一个会话的工作记录（需权限：上司可看下属全文；同部门同事只能看摘要）。' +
+        '参数 targetSessionId 填目标会话 ID（可在任务上下文的会话引用中找到）。',
+      parameters: {
+        type: 'object',
+        properties: {
+          targetSessionId: { type: 'string', description: '目标会话 ID' },
+          mode: { type: 'string', description: "读取模式：full(全文，需上司权限) 或 summary(摘要，同部门)", enum: ['full', 'summary'] },
+        },
+        required: ['targetSessionId'],
+        additionalProperties: false,
+      },
+      execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
+        const p = (params ?? {}) as Record<string, unknown>;
+        const target = String(p.targetSessionId ?? '');
+        const mode = p.mode === 'full' ? 'full' : 'summary';
+        try {
+          const text = await tBridge.sessionRead(requesterSessionPath, target, mode);
+          return { content: [{ type: 'text', text }], isError: false };
+        } catch (err) {
+          return { content: [{ type: 'text', text: `[session_read] ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+        }
+      },
+    } as unknown as PrimitiveAgentTool);
+    tools.push({
+      name: 'send_message',
+      label: 'send_message',
+      description:
+        '给另一个会话留真实消息（对方下次开工时可见；经理之间也可用此交流）。' +
+        '这不是提问（那用 mail），而是单向留言/交接。',
+      parameters: {
+        type: 'object',
+        properties: {
+          toSessionId: { type: 'string', description: '目标会话 ID' },
+          body: { type: 'string', description: '消息正文', minLength: 1 },
+        },
+        required: ['toSessionId', 'body'],
+        additionalProperties: false,
+      },
+      execute: async (_toolCallId: string, params: unknown): Promise<AgentToolResult> => {
+        const p = (params ?? {}) as Record<string, unknown>;
+        const to = String(p.toSessionId ?? '');
+        const body = String(p.body ?? '');
+        if (!body.trim()) {
+          return { content: [{ type: 'text', text: '[send_message] body 不能为空' }], isError: true };
+        }
+        try {
+          const confirm = await tBridge.sendMessage(requesterSessionPath, to, body);
+          return { content: [{ type: 'text', text: confirm }], isError: false };
+        } catch (err) {
+          return { content: [{ type: 'text', text: `[send_message] ${err instanceof Error ? err.message : String(err)}` }], isError: true };
+        }
+      },
+    } as unknown as PrimitiveAgentTool);
   }
 
   // ═══ 会话 16l·7：PrimitiveAgentTool 运行时含 prepareArguments（pi-agent-core 运行时读取），

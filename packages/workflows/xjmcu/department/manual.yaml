@@ -1,0 +1,160 @@
+# ═══════════════════════════════════════════════════════════════
+# XJMCU 部门手册（declarative workflow manual）
+#
+# 这是"部门的工作手册"——纯数据，不含代码。
+# 通用解释器 YamlWorkflowRuntime 读取本文件并驱动执行：
+#   - depends_on   → DAG 依赖排序
+#   - on_failure   → 失败回跳语义（backjump:<step_id> / retry(n) / skip / abort）
+#   - ask          → 人审门（阻塞等待用户回答，禁止 LLM 猜测）
+# 工具经 MCP/DomainPrimitiveRegistry 调用；LLM 步骤由 step-agent 执行。
+# ═══════════════════════════════════════════════════════════════
+
+name: xjmcu-firmware
+version: 1
+description: 矽杰微 MCU 固件开发七步流程（需求→手册→原理图→编码→编译→仿真→交付）
+
+match:
+  aliases:
+    - xjmcu
+    - 矽杰
+    - mcu
+    - 固件
+    - firmware
+
+inputs:
+  type: object
+  properties:
+    requirement:
+      type: string
+      description: 用户功能需求描述
+    chip:
+      type: string
+      description: 芯片型号（如 XC8P9530）
+    schematic:
+      type: string
+      description: 电路板原理图文件路径（可选）
+  required:
+    - requirement
+
+outputs:
+  - firmware.hex
+  - firmware.xbin
+  - simulation_report
+
+steps:
+  # ── ① 需求分析 + 澄清（有疑问必须问用户，禁止猜测）──
+  - id: analyze
+    action: llm
+    description: >-
+      分析用户的功能需求，拆出：功能点清单、涉及的 IO 口/外设、时序要求。
+      若需求中存在歧义（IO 口未指定、时序不明确、外设冲突），必须列出问题清单。
+    ask:
+      when: "需求存在歧义或缺少关键信息"
+      prompt: "请补充以下需求细节：{{missing_points}}"
+      timeout: reject
+    outputs: [requirement_spec]
+
+  # ── ② 确定芯片型号（缺省经知识库补全，仍不确定则问用户）──
+  - id: select_chip
+    action: llm
+    description: >-
+      确定目标芯片型号。优先使用用户指定型号；未指定时查询知识库中可用芯片并推荐。
+      知识检索必经 knowledge_query 原语（Ontology Gate 强制）。
+    inputs:
+      requirement: ${steps.analyze.outputs.requirement_spec}
+    depends_on: [analyze]
+    ask:
+      when: "无法从需求与知识库确定唯一芯片型号"
+      prompt: "请选择芯片型号：{{candidates}}"
+      timeout: reject
+    outputs: [chip]
+
+  # ── ③ 查阅芯片 datasheet / 用法知识（经 Gate 检索 knowledge/*.yaml）──
+  - id: datasheet
+    action: llm
+    description: >-
+      用 knowledge_query 原语检索该芯片的寄存器、外设、引脚用法知识
+      （来源 packages/workflows/xjmcu/knowledge/*.yaml），整理为编码参考。
+    tools: [knowledge]
+    inputs:
+      chip: ${steps.select_chip.outputs.chip}
+    depends_on: [select_chip]
+    on_failure: backjump:select_chip
+    outputs: [datasheet_notes]
+
+  # ── ④ 阅读电路板原理图（用户提供路径时读取，否则跳过标注）──
+  - id: schematic
+    action: llm
+    description: >-
+      若用户提供了原理图路径，用 file 原语读取并提取：IO 口分配、外设接线、上下拉/晶振配置。
+      未提供时在编码参考中标注"无原理图约束"。
+    tools: [file]
+    inputs:
+      chip: ${steps.select_chip.outputs.chip}
+      requirement: ${steps.analyze.outputs.requirement_spec}
+    depends_on: [analyze]
+    outputs: [schematic_notes]
+
+  # ── ⑤ 编写固件代码（结合 datasheet + 原理图 + 需求三者）──
+  - id: generate
+    action: xjmcu.generate
+    description: >-
+      结合 datasheet 笔记、原理图笔记与需求规格编写 C 源码：
+      按 datasheet 配置寄存器/外设，按原理图分配 IO，实现需求逻辑。
+      先生成骨架再填充逻辑，产物落沙箱工作目录。
+    tools: [file, artifact]
+    inputs:
+      chip: ${steps.select_chip.outputs.chip}
+      requirement: ${steps.analyze.outputs.requirement_spec}
+      datasheet: ${steps.datasheet.outputs.datasheet_notes}
+      schematic: ${steps.schematic.outputs.schematic_notes}
+    depends_on: [datasheet, schematic]
+    on_failure: abort
+    outputs: [src_path]
+
+  # ── ⑥ 人工评审代码（fail 则回跳重写）──
+  - id: review
+    action: llm
+    description: >-
+      自审生成的源码：寄存器配置是否与 datasheet 一致、IO 是否与原理图一致、
+      需求逻辑是否完整。发现问题即判 fail 并说明原因。
+    inputs:
+      src: ${steps.generate.outputs.src_path}
+      datasheet: ${steps.datasheet.outputs.datasheet_notes}
+    depends_on: [generate]
+    on_failure: backjump:generate
+    outputs: [review_pass]
+
+  # ── ⑦ 编译（buildcli）──
+  - id: compile
+    action: xjmcu.compile
+    description: buildcli 编译 C 源码，产出 firmware.hex / firmware.xbin。
+    inputs:
+      chip: ${steps.select_chip.outputs.chip}
+      source: ${steps.generate.outputs.src_path}
+    depends_on: [review]
+    on_failure: backjump:generate
+    outputs: [hex, xbin]
+
+  # ── ⑧ 仿真验证（astrocli freerun）——失败跳过并显式标注，不阻塞交付 ──
+  - id: simulate
+    action: xjmcu.simulate
+    description: astrocli 仿真运行固件，校验功能时序与需求一致。
+    inputs:
+      xbin: ${steps.compile.outputs.xbin}
+    depends_on: [compile]
+    on_failure: skip
+    outputs: [simulation_report]
+
+  # ── ⑨ 交付报告 ──
+  - id: report
+    action: llm
+    description: >-
+      汇总交付物：源码路径、hex/xbin 产物、仿真结论、已知限制。
+      用 artifact 原语落盘交付报告。
+    tools: [artifact]
+    inputs:
+      hex: ${steps.compile.outputs.hex}
+      simulation: ${steps.simulate.outputs.simulation_report}
+    depends_on: [simulate]
+    outputs: [delivery_report]

@@ -19,6 +19,21 @@
 
 import { agentSpawner } from '../../../infrastructure/adapters/agent-spawner.js';
 import { createPrimitiveAgentTools, createPrimitiveBeforeToolCall } from '../../../infrastructure/tools/primitiveAgentTools.js';
+import { createToolCallApprovalHook, type ToolApprovalHook } from '../../ToolCallApprovalService.js';
+import { getTranscriptToolBridge } from '../../TranscriptToolBridge.js';
+
+/** T3：组合多个 beforeToolCall 钩子——顺序执行，首个 block 生效；参数修正类钩子在前 */
+function composeBeforeToolCall(
+  ...hooks: Array<ToolApprovalHook | ReturnType<typeof createPrimitiveBeforeToolCall>>
+): ToolApprovalHook {
+  return async (params) => {
+    for (const hook of hooks) {
+      const r = await hook(params);
+      if (r?.block) return r;
+    }
+    return undefined;
+  };
+}
 import type { AgentTool } from '../../../infrastructure/adapters/pi-bridge/index.js';
 import * as path from 'node:path';
 import * as fs from 'node:fs';
@@ -303,6 +318,10 @@ export class StepAgentExecutor {
           sessionId: stepSession?.sessionId || this.opts.goal,
           // ⬅️ P2：mail 工具（跨部门/工位交流）发起方上下文
           mailboxCtx: this.opts.mailboxCtx,
+          // ⬅️ T3：session_read / send_message（bridge 已注入且本步骤有账本时才注册）
+          ...(getTranscriptToolBridge() && stepSession?.path
+            ? { transcriptCtx: { requesterSessionPath: stepSession.path, requesterComponent: 'step-agent' } }
+            : {}),
         }),
         ...(this.opts.extraTools ?? []),
       ];
@@ -316,10 +335,20 @@ export class StepAgentExecutor {
         // ⬅️ 会话 4：注入持久化会话（对话/工具调用自动落盘）
         session: stepSession?.session,
         // ⬅️ 会话 15（工具可靠性 P0）：工具执行前钩子——空参拦截强制重发 + knowledge goal 兜底
-        beforeToolCall: createPrimitiveBeforeToolCall({
-          departmentId: this.opts.departmentId,
-          goal: this.opts.goal,
-        }),
+        // ⬅️ T3：叠加审批钩子——高危工具（shell/file写/api非GET）先等用户批准，超时=拒绝
+        beforeToolCall: composeBeforeToolCall(
+          createPrimitiveBeforeToolCall({
+            departmentId: this.opts.departmentId,
+            goal: this.opts.goal,
+          }),
+          createToolCallApprovalHook({
+            sessionId: stepSession?.sessionId,
+            sessionPath: stepSession?.path,
+            eventBus: this.opts.eventBus,
+            recordStub: (type, content, display) =>
+              this.opts.sessionStore?.appendCustomMessage(stepSession?.session, type, content, display),
+          }),
+        ),
       });
 
       // ═══ 会话 17i.12：流式 token 转发（Codex 式实时输出）→ EventBus → SSE → 前端终端转录 ═══

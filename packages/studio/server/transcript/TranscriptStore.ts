@@ -232,6 +232,25 @@ export class TranscriptStore {
     this.stmt('DELETE FROM index_watermark WHERE session_id = ?').run(sessionId);
   }
 
+  // ── chat_index（T2：会话列表速查，O(1) 替代目录扫描）──
+
+  upsertChatIndex(row: { chat_session_id: string; last_seq: number; last_role: string | null; preview: string | null; updated_at: number }): void {
+    this.stmt(
+        `INSERT INTO chat_index (chat_session_id, last_seq, last_role, preview, message_count, updated_at)
+         VALUES (?, ?, ?, ?, 1, ?)
+         ON CONFLICT(chat_session_id) DO UPDATE SET
+           last_seq = excluded.last_seq, last_role = excluded.last_role,
+           preview = excluded.preview, message_count = chat_index.message_count + 1,
+           updated_at = excluded.updated_at`,
+      )
+      .run(row.chat_session_id, row.last_seq, row.last_role, row.preview, row.updated_at);
+  }
+
+  listChatIndex(limit = 200): Array<{ chat_session_id: string; preview: string | null; message_count: number; updated_at: number }> {
+    return this.stmt('SELECT chat_session_id, preview, message_count, updated_at FROM chat_index ORDER BY updated_at DESC LIMIT ?')
+      .all(limit) as Array<{ chat_session_id: string; preview: string | null; message_count: number; updated_at: number }>;
+  }
+
   /** 批量写事务包裹（WAL 下逐条隐式事务代价高；批量原子提交，失败整体回滚——水位不前进、下次重抄，幂等） */
   withTransaction<T>(fn: () => T): T {
     return this.db.transaction(fn)();
