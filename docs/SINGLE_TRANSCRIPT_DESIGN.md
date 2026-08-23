@@ -370,6 +370,22 @@ GET  /api/sessions?archived=1    → chat_index 查询
 
 ---
 
+## 10.5 T6 扩展设计：记忆分类与召回分级（用户构想，已拍板推进）
+
+T5 只做了画像；记忆系统完整版图按"记什么"分四类，**提取/确认/召回时机各不相同**：
+
+| 类型 | 例子 | 提取信号 | 召回时机 |
+|---|---|---|---|
+| profile（画像） | 姓名/偏好/称呼 | ✅ T5 已做 | 开场常驻注入 |
+| **correction（纠错）** | "pm2 起不来，用 maintenance 脚本" | 用户表达不满/纠正（信号词+LLM 双重判断） | ⭐ executeGoal 执行前注入相关教训 |
+| **clarification（澄清）** | "我说的部署指前端构建" | 术语/歧义被用户主动解释 | 消息理解时注入语境 |
+| agreement（协作约定） | "汇报要简短" | 用户表达协作偏好 | 开场常驻注入 |
+
+关键机制：
+1. **提取分类扩展**：memory-extractor 候选增加 type 字段（correction/clarification/agreement），识别靠信号词预筛 + LLM 结构化输出双保险；只有用户明确反馈才提候选（防垃圾场三防线沿 T5：信号词、确认工单、低置信不静默入库）
+2. **召回分桶**：开场=query(画像+约定)；执行前=OrchestratorAgent 分析 prompt 注入处（T0 锚点）追加 query(纠错，按 goal 文本相关性)；消息理解=query(澄清术语)
+3. **覆盖语义（纠错特有）**：批准一条 correction 时自动 invalidate 同主题旧条目（MemoryApi.invalidate 已有），防新旧结论并存让 AI 抓阄
+
 ## 附：关键证据锚点
 
 - MorPex 现状双写：`packages/studio/server/StudioServer.ts:841`（chat/send）、`:886`（appendChatMessage user）、`:920`（patchLastUserMessage + system 总结）

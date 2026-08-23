@@ -363,6 +363,19 @@ export class ServiceContainer {
       maxTotalTokens: 200_000,
       // 会话 4（Session 化）：总大脑会话 + step 会话追踪
       sessionStore: this.agentSessionStore,
+      // ═══ T6 纠错召回：按 goal 文本查历史教训（用户曾纠正过的做法）；core 不依赖 memory 包，经回调注入 ═══
+      lessonQuery: async (goalText: string) => {
+        const mem = self.companyMemoryApi;
+        if (!mem) return [];
+        const qr = await Promise.race([
+          mem.query({ text: goalText.slice(0, 200), limit: 8 }),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('memory query timeout')), 3000)),
+        ]);
+        return (qr.hits ?? [])
+          .map((h) => String(h.content ?? ''))
+          .filter((c) => c.includes('纠错:'))            // 只取纠错类（实体名前缀，见 memory-extractor.mapCandidateEntity）
+          .map((c) => c.replace(/\s+/g, ' ').slice(0, 150));
+      },
       // ⑤ 全链路计费：编排 LLM token 经事件总线上报（CostController 监听 execution.gate.token_usage）
       onTokenUsage: (tokens: number) => {
         if (tokens <= 0) return;

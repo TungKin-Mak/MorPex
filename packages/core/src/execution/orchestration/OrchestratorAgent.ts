@@ -85,6 +85,11 @@ export interface OrchestratorOptions {
   /** 会话 4（Session 化）：组件会话仓库——总大脑/step-agent 独立持久化会话 */
   sessionStore?: AgentSessionStore;
   /**
+   * T6 纠错召回（可选）：执行前按 goal 文本查历史教训（用户曾纠正过的做法）。
+   * 返回教训文本数组（≤3 条）；失败/超时由实现方自行降级为空数组。ServiceContainer 注入，core 不依赖 memory 包
+   */
+  lessonQuery?: (goalText: string) => Promise<string[]>;
+  /**
    * 会话 4（执行肢解锁）：Gate 两阶段签发回调（ServiceContainer 注入）。
    * 返回 KnowledgeContextPackage 或 null（不可用/失败 → 不阻断，破坏性操作维持硬拦截）。
    * 一次签发覆盖整个编排（分析/审计/汇总的 token 已计，不重复两阶段）。
@@ -353,7 +358,22 @@ export class OrchestratorAgent {
     const analysisPromptBase = opts.contextHint
       ? `${ANALYSIS_PROMPT(goal, personaBlock)}\n\n【上次尝试失败参考（仅作规避指引，勿照抄失败路径）】\n${opts.contextHint}`
       : ANALYSIS_PROMPT(goal, personaBlock);
-    const analysisPrompt = `${analysisPromptBase}${historyBlock}`;
+    // ═══ T6 纠错召回：执行前把相关历史教训摆在编排器面前（同坑不摔第二次）；失败/超时静默跳过 ═══
+    let lessonsBlock = '';
+    if (this.opts.lessonQuery) {
+      try {
+        const lessons = await Promise.race([
+          this.opts.lessonQuery(goal),
+          new Promise<never>((_, rej) => setTimeout(() => rej(new Error('lesson query timeout (3s)')), 3000)),
+        ]);
+        if (lessons.length > 0) {
+          lessonsBlock = `\n\n【过往教训（用户曾纠正过的做法，本轮务必遵守）】\n${lessons.map((l) => `- ${l}`).join('\n')}`;
+        }
+      } catch (err) {
+        console.warn('[OrchestratorAgent] ⚠️ 教训召回失败（跳过）:', (err as Error).message);
+      }
+    }
+    const analysisPrompt = `${analysisPromptBase}${historyBlock}${lessonsBlock}`;
     const res = await this.llm.generateText({ prompt: analysisPrompt, temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(res));
     chargeTokens(tokenCount(res));

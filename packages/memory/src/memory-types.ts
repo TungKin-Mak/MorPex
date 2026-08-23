@@ -72,6 +72,8 @@ export interface UpsertEntityInput {
   scope?: string;
   dataset?: string;
   source?: string;               // user | agent | consolidation | ...
+  /** T6 记忆分类：profile|correction|clarification|agreement（覆盖语义：批准 correction/clarification 时自动失效同主题旧条目） */
+  kind?: string;
 }
 
 export type UpsertResult =

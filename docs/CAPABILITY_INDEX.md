@@ -30,6 +30,7 @@
 | 记忆 API（cognee/wiki/SQLite） | 记忆、Memory API | `memory/src/MemoryApi.ts`（引擎 cognee/mock） | ✅ | 新引擎→engines/factory |
 | MemoryWiki 持久化 | wiki、SQLite 记忆 | `memory/src/wiki/MemoryWiki.ts` | ✅ | 扩展 schema |
 | 用户画像记忆（跨会话） | 画像、记住我、长期记忆、memory extractor | `studio/server/transcript/memory-extractor.ts`（订阅 chat.turn.completed 提取候选→确认工单）｜`MemoryApi.confirm/listPendingConfirmations`（批准落库）｜`StudioServer.ts:1101` 召回注入直答开场 | ✅ T5 | 新候选类型→EXTRACT_SYSTEM 提示词；调阈值→confidence 0.6/autoWrite 0.8 |
+| 记忆分类与召回分级（纠错/澄清/约定） | 纠错、教训、澄清、术语表、约定、T6 | `memory-extractor.ts`（四类候选+mapCandidateEntity 实体名前缀 纠错:/术语:/约定:）｜`MemoryApi.confirm`（覆盖语义：批准纠错/澄清自动 invalidate 同主题旧条目）｜`OrchestratorAgent.lessonQuery`（执行前教训召回，ServiceContainer 注入）｜StudioServer 直答三路查询（画像/约定/术语表） | ✅ T6 | 新分类→VALID_TYPES+EXTRACT_SYSTEM+mapCandidateEntity 三处同步；调召回→各处 query 文本与前缀过滤 |
 | 任务瞬间上下文装配（RAG-lazy） | 上下文、RAG、聚焦摘要 | `knowledge/context/ContextAssemblyEngine.ts` | ✅ | 新 fragment 源→ContextFragmentRegistry |
 
 ## 3. 认知 / 规划（L4）
