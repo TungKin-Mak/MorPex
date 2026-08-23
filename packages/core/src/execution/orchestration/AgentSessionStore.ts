@@ -159,6 +159,45 @@ export class AgentSessionStore {
   }
 
   /**
+   * compactViaSession — T4 管理面：对既有账本执行上下文压缩（不依赖活跃 harness）。
+   * 流程：读全部条目 → 取尾部保留段 → summarize 回调生成摘要（调用方注入 LLM）
+   *   → pi 原生 appendCompaction 写入压缩条目（后续 buildContext 的默认 compaction 变换会自动生效）。
+   */
+  async compactViaSession(
+    path: string,
+    summarize: (prompt: string) => Promise<string>,
+    opts?: { keepTail?: number },
+  ): Promise<{ ok: boolean; tokensBefore: number; compactedCount: number; keptCount: number }> {
+    const KEEP_TAIL = Math.max(2, opts?.keepTail ?? 8);
+    const session = await this.repo.open({ path } as never) as unknown as SessionLike & {
+      appendCompaction?: (summary: string, firstKeptEntryId: string | undefined, tokensBefore: number) => Promise<string>;
+      appendMessage?: (msg: Record<string, unknown>) => Promise<string>;
+    };
+    const all = (await session.getEntries()) as Array<Record<string, unknown>>;
+    const messages = all.filter((e) => e.type === 'message');
+    if (messages.length <= KEEP_TAIL || typeof session.appendCompaction !== 'function') {
+      return { ok: false, tokensBefore: 0, compactedCount: 0, keptCount: messages.length };
+    }
+    const keepFrom = messages.length - KEEP_TAIL;
+    const compacted = messages.slice(0, keepFrom);
+    const kept = messages.slice(keepFrom);
+    const tokensBefore = compacted.reduce((acc, e) => acc + Math.ceil(JSON.stringify(e).length / 4), 0);
+    const digest = compacted
+      .map((e) => {
+        const msg = e.message as { role?: string; content?: unknown } | undefined;
+        const text = typeof msg?.content === 'string' ? msg.content : JSON.stringify(msg?.content ?? '');
+        return `[${msg?.role ?? '?'}] ${String(text).slice(0, 300)}`;
+      })
+      .join('\n');
+    const summary = await summarize(
+      `以下是 agent 会话中被压缩的历史消息，请输出一份保留关键决策/结论/用户偏好的紧凑摘要（中文，≤500 字）：\n\n${digest}`,
+    );
+    const firstKeptId = typeof kept[0]?.id === 'string' ? (kept[0].id as string) : undefined;
+    await session.appendCompaction(summary, firstKeptId, tokensBefore);
+    return { ok: true, tokensBefore, compactedCount: compacted.length, keptCount: kept.length };
+  }
+
+  /**
    * list — 列出会话（按组件过滤可选；按 createdAt 倒序）
    */
   async list(component?: AgentComponent): Promise<AgentSessionMeta[]> {

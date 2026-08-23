@@ -30,16 +30,10 @@ export interface ChatTranscriptServiceOptions {
   createOrchestratorSession: (chatSessionId: string) => Promise<ChatWindowRef>;
   /** T2 回合记录：向账本追加一条自定义条目（调用方接到 AgentSessionStore.appendCustom，不进 LLM 上下文） */
   appendCustomEntry?: (ledgerPath: string, type: string, data: unknown) => Promise<void>;
-  /** T0 遗留映射文件路径（存在则自动迁移）；不传则跳过 */
-  legacyMapPath?: string;
 }
 
 export class ChatTranscriptService {
-  private legacy: Map<string, string> | null = null;
-
-  constructor(private opts: ChatTranscriptServiceOptions) {
-    this.importLegacyIfNeeded();
-  }
+  constructor(private opts: ChatTranscriptServiceOptions) {}
 
   /**
    * resolve — 返回该 chat 会话绑定的 orchestrator 账本；失败返回 undefined（降级为旧行为：每轮新建会话）。
@@ -63,24 +57,7 @@ export class ChatTranscriptService {
         console.warn(`[Transcript] ⚠️ 会话 ${chatSessionId} 登记的账本文件丢失，重建: ${row.file_path}`);
       }
 
-      // ② T0 遗留映射懒迁移：老绑定 → 打开拿真实 id → 入库
-      const legacyPath = this.legacy?.get(chatSessionId);
-      if (legacyPath && fs.existsSync(legacyPath)) {
-        const ref = await this.opts.openHandle(legacyPath);
-        this.opts.store.upsertWindow({
-          session_id: ref.sessionId,
-          session_key: key,
-          file_path: ref.path,
-          component: 'orchestrator',
-          reason: 'initial',
-        });
-        this.legacy?.delete(chatSessionId);
-        console.log(`[Transcript] 🔖 会话 ${chatSessionId} 迁移旧绑定 → 窗口 ${ref.sessionId}`);
-        return ref;
-      }
-      this.legacy?.delete(chatSessionId); // 老绑定文件已不存在，清掉
-
-      // ③ 全新会话 → 新建账本 + 登记
+      // ② 全新会话 → 新建账本 + 登记
       const created = await this.opts.createOrchestratorSession(chatSessionId);
       this.opts.store.upsertWindow({
         session_id: created.sessionId,
@@ -109,6 +86,37 @@ export class ChatTranscriptService {
   /** 供 history 类接口使用：按 sessionKey 取窗口 */
   findWindow(chatSessionId: string): TranscriptWindowRow | undefined {
     return this.opts.store.findWindowByKey(`chat:${chatSessionId}`);
+  }
+
+  /**
+   * resetSession — T4 管理面：重开会话（不物理删）。
+   * 旧窗口转 archived；新账本以 reason:'reset' 登记，previous_session_id 链接旧窗口。
+   * LLM 上下文自然断裂（新 jsonl 无历史条目），审计链经 previous_session_id 保留。
+   */
+  async resetSession(chatSessionId: string): Promise<ChatWindowRef | undefined> {
+    const key = `chat:${chatSessionId}`;
+    try {
+      const old = this.opts.store.findWindowByKey(key);
+      let prevId: string | null = null;
+      if (old) {
+        this.opts.store.setStatus(old.session_id, 'archived');
+        prevId = old.session_id;
+      }
+      const created = await this.opts.createOrchestratorSession(chatSessionId);
+      this.opts.store.upsertWindow({
+        session_id: created.sessionId,
+        session_key: key,
+        file_path: created.path,
+        component: 'orchestrator',
+        reason: 'reset',
+        previous_session_id: prevId,
+      });
+      console.log(`[Transcript] ♻️ 会话 ${chatSessionId} 已重开: 新窗口 ${created.sessionId}${prevId ? ` ← ${prevId}` : ''}`);
+      return created;
+    } catch (err) {
+      console.warn('[Transcript] ⚠️ reset 失败:', err instanceof Error ? err.message : String(err));
+      return undefined;
+    }
   }
 
   /** T2：会话列表（chat_index 速查行）；供 /api/sessions 合并 legacy 扫描 */
@@ -202,21 +210,4 @@ export class ChatTranscriptService {
     }
   }
 
-  /** T0 遗留 chat-orch-map.json → 内存 Map 并改名 .imported（数据不丢：若懒迁移完成前崩溃，重启会从 .imported 重新载入） */
-  private importLegacyIfNeeded(): void {
-    if (!this.opts.legacyMapPath) return;
-    const main = this.opts.legacyMapPath;
-    const imported = `${main}.imported`;
-    // 主文件不存在时回退读 .imported（上次启动改名后、懒迁移未完就崩的场景，避免旧绑定永久孤儿化）
-    const source = fs.existsSync(main) ? main : fs.existsSync(imported) ? imported : null;
-    if (!source) return;
-    try {
-      const raw = JSON.parse(fs.readFileSync(source, 'utf-8')) as Record<string, string>;
-      this.legacy = new Map(Object.entries(raw).map(([k, v]) => [k, String(v)]));
-      if (source === main) fs.renameSync(main, imported);
-      console.log(`[Transcript] 📦 已载入旧 chat-orch-map（${this.legacy.size} 条，源=${path.basename(source)}），待懒迁移`);
-    } catch (err) {
-      console.warn('[Transcript] ⚠️ 旧 chat-orch-map 载入失败（跳过，不影响新架构）:', err instanceof Error ? err.message : String(err));
-    }
-  }
 }

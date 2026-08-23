@@ -81,7 +81,7 @@ export class TranscriptStore {
     this.db.exec(`
       CREATE TABLE IF NOT EXISTS transcript_windows (
         session_id          TEXT PRIMARY KEY,
-        session_key         TEXT NOT NULL UNIQUE,
+        session_key         TEXT NOT NULL,
         file_path           TEXT NOT NULL,
         previous_session_id TEXT,
         reason              TEXT CHECK (reason IS NULL OR reason IN ('initial','reset','fork','rewind','compaction')),
@@ -93,6 +93,9 @@ export class TranscriptStore {
         created_at          INTEGER NOT NULL,
         updated_at          INTEGER NOT NULL
       ) STRICT;
+      -- T4：同键只允许一个活跃窗口（reset 后旧窗口 archived 释放键；全局 UNIQUE 会阻断 reset 链）
+      CREATE UNIQUE INDEX IF NOT EXISTS idx_windows_active_key
+        ON transcript_windows(session_key) WHERE status = 'active';
 
       CREATE TABLE IF NOT EXISTS transcript_events (
         session_id   TEXT NOT NULL REFERENCES transcript_windows(session_id) ON DELETE CASCADE,
@@ -129,8 +132,11 @@ export class TranscriptStore {
   // ── windows ──
 
   findWindowByKey(sessionKey: string): TranscriptWindowRow | undefined {
-    return this.stmt('SELECT * FROM transcript_windows WHERE session_key = ?')
-      .get(sessionKey) as TranscriptWindowRow | undefined;
+    // 优先活跃窗口（reset 后同键存在 archived 旧行，链路经 previous_session_id 回溯）
+    return (
+      this.stmt('SELECT * FROM transcript_windows WHERE session_key = ? AND status = ? ORDER BY updated_at DESC')
+        .get(sessionKey, 'active') as TranscriptWindowRow | undefined
+    ) ?? (this.stmt('SELECT * FROM transcript_windows WHERE session_key = ? ORDER BY updated_at DESC').get(sessionKey) as TranscriptWindowRow | undefined);
   }
 
   findWindowById(sessionId: string): TranscriptWindowRow | undefined {
@@ -152,6 +158,7 @@ export class TranscriptStore {
     parent_session_id?: string | null;
     reason?: (typeof REASONS)[number] | null;
     display_name?: string | null;
+    previous_session_id?: string | null;
   }): void {
     const now = Date.now();
     this.stmt(
@@ -168,7 +175,7 @@ export class TranscriptStore {
         session_id: w.session_id,
         session_key: w.session_key,
         file_path: w.file_path,
-        previous_session_id: null,
+        previous_session_id: w.previous_session_id ?? null,
         reason: w.reason ?? 'initial',
         display_name: w.display_name ?? null,
         component: w.component ?? null,
@@ -187,6 +194,30 @@ export class TranscriptStore {
         ? this.stmt(sql).all(opts.status, opts.limit ?? 200)
         : this.stmt(sql).all(opts?.limit ?? 200)
     ) as TranscriptWindowRow[];
+  }
+
+  /** T4：窗口状态流转（active→archived；不物理删） */
+  setStatus(sessionId: string, status: (typeof STATUSES)[number]): boolean {
+    const r = this.stmt('UPDATE transcript_windows SET status = ?, updated_at = ? WHERE session_id = ?')
+      .run(status, Date.now(), sessionId);
+    return Number(r.changes) > 0;
+  }
+
+  /** T4 孤儿检测（只报告不自动修）：无 events 的窗口 / 无 windows 的 events */
+  orphanReport(): { emptyWindows: TranscriptWindowRow[]; ghostEventSessionIds: string[] } {
+    const emptyWindows = this.stmt(
+        `SELECT w.* FROM transcript_windows w
+         LEFT JOIN transcript_events e ON e.session_id = w.session_id
+         GROUP BY w.session_id HAVING COUNT(e.seq) = 0`,
+      )
+      .all() as unknown as TranscriptWindowRow[];
+    const ghostRows = this.stmt(
+        `SELECT DISTINCT e.session_id AS sid FROM transcript_events e
+         LEFT JOIN transcript_windows w ON w.session_id = e.session_id
+         WHERE w.session_id IS NULL`,
+      )
+      .all() as unknown as Array<{ sid: string }>;
+    return { emptyWindows, ghostEventSessionIds: ghostRows.map((r) => r.sid) };
   }
 
   // ── events ──

@@ -82,8 +82,8 @@ data/sessions/
 ├── transcript.db                  # 新：SQLite 读模型（WAL 模式）
 ├── transcripts/<sessionId>.jsonl  # 新：UI 会话真相源（JsonlSessionRepo 格式）
 ├── agent-sessions/...             # 保留：编排子会话树（orchestrator/step/executor），父链挂 UI 会话
-├── chat-history/                  # 冻结：迁移后只读，最终移入 _legacy/
-└── _legacy/                       # 迁移归档（不删，可回滚）
+├── _archive/                      # T4：gzip 归档（archived 超 30 天，maintenance.mjs 产出）
+└── _legacy/                       # 一次性保险包（pre-t4-wipe-*.zip，可整体回滚后删除）
 ```
 
 ### 3.2 SQLite DDL 草案（better-sqlite3，STRICT 表）
@@ -319,16 +319,15 @@ SELECT session_id, seq, byte_offset FROM transcript_events WHERE kind='approval'
 
 ---
 
-## 7. 数据迁移与兼容
+## 7. 旧数据处理（已改拍板：删除重建）
 
-| 对象 | 策略 |
-|---|---|
-| `chat-history/sess_*.jsonl` | 一次性脚本 `scripts/migrate-chat-to-transcript.mjs`：每 sess 文件 → 建 `chat:<id>` 窗口，user/system 消息转为 MessageEntry/custom_message（保留原 timestamp），写完打 `reason:'initial'`。原文件移动到 `_legacy/`（不删，可整体回滚） |
-| `agent-sessions/**` | **不动**。它们是编排内部日志，价值在子会话树；仅对新任务开始写 `parent_session_id` 关联。提供可选脚本为历史任务回填 parent（按时间窗匹配，标注 `matchedBy:'heuristic'`） |
-| `session-names.json` | 导入 transcript_windows.display_name 后废弃 |
-| 切换策略 | 无灰度开关，一次性切换：迁移脚本跑完 → 新路径生效 → 同一提交内删除旧 chat-history 读写代码 |
+> 原迁移方案（migrate-chat-to-transcript.mjs + parent 启发式回填）**已废弃**——用户最终拍板：旧聊天数据不做迁移，全部清空重来。
 
-验收：迁移脚本幂等（重跑跳过已迁移 sessionId）；迁移后新旧 history API 对同一会话的消息条数一致（对账测试）。
+实际执行（T4）：
+- 清空前全量打包 `data/sessions/_legacy/pre-t4-wipe-<时间戳>.zip`（一次性保险，可回滚）
+- 删除：chat-history/、agent-sessions/、session-names.json、sessions.json、task-history、chat-orch-map.json.imported、transcript.db（含 WAL/SHM）
+- Q4 历史 parent 回填随之作废（无旧账本可回填）；新数据自 T1 起自动带完整关系
+- ChatTranscriptService 的 importLegacy 懒迁移代码路径同步移除
 
 ---
 
@@ -355,7 +354,7 @@ GET  /api/sessions?archived=1    → chat_index 查询
 | **T1（核心，2-3 天）** | TranscriptStore(SQLite DDL) + ChatTranscriptService(resolve/appendTurn) + Indexer(指针式) + 回合级落库替换 patch 双写 + parent 链接入（§4.3 兼容层） | packages/studio/server/transcript/*（新）、StudioServer chat/send 改造、AgentSessionStore 加 parent 链接 | ✅ | 崩杀后端进程重启，历史完整恢复且 LLM 上下文连续 | 中：写入路径变更，需 e2e 用例覆盖崩溃恢复 |
 | **T2（投影上线，1-2 天）** | projection/sanitize + history v2 + sessions 列表 API + 前端切换 + SSE 对账事件 | studio/server/transcript/projection.ts（新）、web 拉取层小改 | ✅ | 刷新页面/断线重连后 UI 与落库一致；thinking 展示且无 signature 泄漏（单测断言） | 中：前端回归 |
 | **T3（审批+组织通信，2 天）** | approval_request/decision custom_message + confirmation queue 接线 + 超时兜底 + 审计查询 + `session_read` 门控工具（含权限矩阵）+ `agent_messages` 表及留言路由 | confirmation/queue.ts 桥接、新 approval 路由、primitiveAgentTools 加 session_read/send_message | ✅ | 高危工具有审批卡片，拒绝后工具不执行且有审计记录；下游 step 可读同树上游摘要；跨部门经理可留言 | 中：需核实 pi 0.81 工具拦截钩子形态（开放问题 Q2） |
-| **T4（迁移+管理面+回填，1-1.5 天）** | 迁移脚本 + reset/compact/清理 + 删除旧 chat-history 读写路径 + 历史 parent 启发式回填（Q4） | scripts/migrate-chat-to-transcript.mjs、backfill-parents.mjs、maintenance.mjs、路由清理 | ✅ | 迁移对账测试过；旧路径删除后全门禁绿；回填结果可抽查纠错 | 低 |
+| **T4（管理面收官+清空重建）** | reset/compact 路由 + maintenance.mjs（30 天归档+孤儿检测）+ 删除旧数据（§7 删除重建决策）+ 移除 importLegacy 迁移路径 + session_key 改部分唯一索引（同键单活跃窗口） | StudioServer reset/compact 路由、AgentSessionStore.compactViaSession、TranscriptStore.setStatus/orphanReport/DDL 修订、ChatTranscriptService.resetSession、scripts/maintenance.mjs | ✅ | 冷启动建表/reset 窗口链/compact 落账/maintenance 幂等 全部实测过（11/11 验收脚本） | 低 |
 
 依赖顺序 T0 → T1 → (T2,T3 可并行) → T4。总计约 6-9 个工作日（含测试）。
 

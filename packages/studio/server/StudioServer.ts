@@ -234,7 +234,6 @@ export class StudioServer {
       this.transcripts = new ChatTranscriptService({
         store: tstore,
         indexer,
-        legacyMapPath: path.join(root, 'chat-orch-map.json'),
         openHandle: (p) => store.openHandle(p),
         // T2 回合记录：账本追加自定义条目（不进 LLM 上下文，投影层唯一放行的对话面）
         appendCustomEntry: async (p, type, data) => {
@@ -479,6 +478,37 @@ export class StudioServer {
         }
       }
       return res.json({ ok: true, messages: this.sessionStore?.getChatHistory(id) ?? [], source: 'legacy' });
+    });
+
+    // ── T4 管理面：重开会话（新窗口链旧窗口，LLM 上下文断裂，不物理删）──
+    this.app.post('/api/session/:id/reset', async (req, res) => {
+      const svc = this.getTranscripts();
+      if (!svc) return res.status(503).json({ ok: false, error: 'transcript service unavailable' });
+      const created = await svc.resetSession(req.params.id);
+      if (!created) return res.status(500).json({ ok: false, error: 'reset failed (see server log)' });
+      return res.json({ ok: true, sessionId: req.params.id, newLedgerSessionId: created.sessionId, path: created.path });
+    });
+
+    // ── T4 管理面：上下文压缩（pi 原生 appendCompaction；摘要经共享 PiBridge LLM 生成）──
+    this.app.post('/api/session/:id/compact', async (req, res) => {
+      const svc = this.getTranscripts();
+      const store = this.boot?.container.agentSessionStore;
+      const win = svc?.findWindow(req.params.id);
+      if (!store || !win || !fs.existsSync(win.file_path)) {
+        return res.status(404).json({ ok: false, error: 'session window not found' });
+      }
+      try {
+        const keepTail = typeof req.body?.keepTail === 'number' ? req.body.keepTail : undefined;
+        const result = await store.compactViaSession(
+          win.file_path,
+          (prompt: string) => getSharedPiBridge().generateText({ system: '你是会话摘要助手', prompt }).then((r) => r.text),
+          { keepTail },
+        );
+        console.log(`[Transcript] 🗜️ 会话 ${req.params.id} compact: ${result.compactedCount} 条入摘要，保留 ${result.keptCount} 条`);
+        return res.json({ ...result, ok: result.ok });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
     });
 
     // ── T2 增量对账：SSE 断线重连后按 after=seq 拉增量（游标统一 pi entry 物理行号）──
