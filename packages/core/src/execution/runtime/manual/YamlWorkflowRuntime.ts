@@ -93,6 +93,19 @@ export class YamlWorkflowRuntime {
 
     // 步骤失败信息（回跳时注入下游上下文）
     const failureNotes = new Map<string, string>();
+    // retry 预算记账（C-1）：stepId → 已用重试次数；总尝试 ≤ times+1（Bounded Autonomy）
+    const retryBudgets = new Map<string, number>();
+    // 因上游失败被 DAGRuntime 连坐标记的下游节点（C-4）：策略非 abort 时必须捞回重跑
+    const depSkipped = new Set<string>();
+    const restoreDepSkipped = () => {
+      for (const id of depSkipped) {
+        const i = skipped.indexOf(id);
+        if (i >= 0) skipped.splice(i, 1);
+        stepOutputs.delete(id); // 撤掉占位，等上游真实产物/新占位
+        pendingIds.add(id);
+      }
+      depSkipped.clear();
+    };
 
     // 全量 DAG（首次执行）
     const fullDag = this.buildDag();
@@ -127,7 +140,17 @@ export class YamlWorkflowRuntime {
       }
       for (const n of subDag.nodes) {
         const err = this.findFailure(result, n.id);
-        if (err) failedNow.push({ id: n.id, error: err });
+        if (!err) continue;
+        // ═══ 修复（skip 链）：下游因上游失败被 DAGRuntime 标记 skipped（"Skipped: dependency failed"）
+        // 不算真失败——它属于被跳过链路，由真正失败的节点的 on_failure 决定去向。
+        if (err.startsWith('Skipped: dependency')) {
+          if (!skipped.includes(n.id)) skipped.push(n.id);
+          this.markOutputsPlaceholder(n.id, stepOutputs);
+          pendingIds.delete(n.id);
+          depSkipped.add(n.id);
+          continue;
+        }
+        failedNow.push({ id: n.id, error: err });
       }
 
       if (failedNow.length === 0) break; // 全部成功
@@ -136,14 +159,15 @@ export class YamlWorkflowRuntime {
       failedNow.sort((a, b) => this.topoIndex(a.id) - this.topoIndex(b.id));
       const failed = failedNow[0]!;
       const step = this.stepById(failed.id)!;
-      const policy = parseFailurePolicy(failed.id, step.on_failure);
+      const policy = parseFailurePolicy(step.on_failure);
 
       switch (policy.kind) {
         case 'skip': {
           skipped.push(failed.id);
           pendingIds.delete(failed.id);
-          // 下游不再依赖它的产物（置空占位），继续跑
+          // 下游不再依赖它的产物（置空占位），继续跑；被连坐的下游捞回（C-4）
           this.markOutputsPlaceholder(failed.id, stepOutputs);
+          restoreDepSkipped();
           continue outer;
         }
         case 'abort': {
@@ -151,8 +175,22 @@ export class YamlWorkflowRuntime {
           break outer;
         }
         case 'retry': {
-          // retry(n) 语义由 DAGRuntime 节点级 maxRetries 承担；此处仅再入队一次兜底
-          pendingIds = new Set([failed.id]);
+          // ═══ C-1 修复：retry 预算由外层记账（retryBudgets），总尝试 ≤ n+1，防无界循环 ═══
+          // 重入队范围 = failed + 下游闭包 + 其余未完成节点（不丢兄弟/下游 → 不再假成功）。
+          // DAGNode.maxRetries 已在 buildDag 中置 0（见 parseRetries 注释），避免双层重试计数。
+          const budgetKey = `${failed.id}:retry`;
+          const used = retryBudgets.get(budgetKey) ?? 0;
+          if (used >= policy.times) {
+            lastError = `步骤 ${failed.id} 重试 ${used} 次仍失败: ${failed.error}`;
+            break outer;
+          }
+          retryBudgets.set(budgetKey, used + 1);
+          const retrySet = this.closureDownstream(failed.id, pendingIds);
+          for (const id of pendingIds) retrySet.add(id); // 保留其余未完成兄弟/下游
+          stepOutputs.delete(failed.id);
+          failureNotes.set(failed.id, `重试第${used + 1}次自失败: ${failed.error}`);
+          pendingIds = retrySet;
+          restoreDepSkipped(); // 被连坐的下游随重试一并重跑（必须在队列重赋值之后，否则加到旧集合上白搭）
           continue outer;
         }
         case 'backjump': {
@@ -161,14 +199,16 @@ export class YamlWorkflowRuntime {
             break outer;
           }
           backjumps++;
-          failureNotes.set(policy.target, `第${backjumps}次回跳自 ${failed.id}: ${failed.error}`);
-          // 重置目标及其全部下游（在 pending 集合内），上游成功产物保留复用
+          // ═══ C-2 修复：先清旧注记/产物（resetSet 含 target），后写入新失败注记 ═══
+          // （原实现 set 在前、delete 在后，刚写的失败上下文立即被删 → 回跳盲跑）
           const resetSet = this.closureDownstream(policy.target, pendingIds);
           for (const id of resetSet) {
             stepOutputs.delete(id);
             failureNotes.delete(id); // 清掉被重置节点的旧失败注记
           }
+          failureNotes.set(policy.target, `第${backjumps}次回跳自 ${failed.id}: ${failed.error}`);
           pendingIds = resetSet;
+          restoreDepSkipped(); // 回跳重跑范围内含被连坐节点的，一并捞回（C-4）
           continue outer;
         }
         default: {
@@ -256,9 +296,9 @@ export class YamlWorkflowRuntime {
       console.warn(`[YamlWorkflowRuntime] ⚠️ 步骤 ${step.id} 配置了 ask 但未注入 askTool——跳过人审门（不阻断）`);
       return;
     }
-    const prompt = this.renderTemplate(ask.prompt, this.resolveInputs({}, {}, stepOutputs), failureNotes.get(step.id))
-      .replace(/\{\{missing_points\}\}/g, failureNotes.get('analyze') ?? '')
-      .replace(/\{\{candidates\}\}/g, String(stepOutputs.get('select_chip')?.get('chip') ?? '见知识库'));
+    // ═══ C-3 修复：通用 {{key}} 解析，无任何领域步骤 id 硬编码 ═══
+    // 可用变量：failureNotes 值（失败注记） + stepOutputs 展开的 outputName→value
+    const prompt = this.renderAskTemplate(ask.prompt, stepOutputs, failureNotes);
     console.log(`[YamlWorkflowRuntime] ❓ 人审门 [${step.id}] 等待用户回答: ${prompt.slice(0, 120)}`);
     const r = await this.opts.askTool.execute({ question: prompt });
     const answer = r.content?.map(c => c.text).join('\n') ?? '';
@@ -310,6 +350,27 @@ export class YamlWorkflowRuntime {
     return text;
   }
 
+  /**
+   * ask 门专用模板渲染（C-3）：{{key}} 通用解析——
+   *   - key 命中某步骤的失败注记 → 注记文本
+   *   - 否则在全部步骤产物包中找同名字段
+   *   - 找不到保留原文（宽松，供用户/LLM 自行判断）
+   */
+  private renderAskTemplate(tpl: string, stepOutputs: Map<string, Map<string, unknown>>, failureNotes: Map<string, string>): string {
+    const note = failureNotes.get('__current__') ?? '';
+    let text = tpl.replace(/\{\{([\w-]+)\}\}/g, (_, key: string) => {
+      const fromNote = failureNotes.get(key);
+      if (fromNote !== undefined) return fromNote;
+      for (const bag of stepOutputs.values()) {
+        const v = bag.get(key);
+        if (v !== undefined && v !== null) return String(v);
+      }
+      return `{{${key}}}`; // 缺值保留原文
+    });
+    if (note) text += `\n\n【上次尝试失败参考】${note}`;
+    return text;
+  }
+
   // ── 内部：图构造与操作 ──
 
   /** 手册 → ExecutionDAG（deps 即 depends_on） */
@@ -337,9 +398,10 @@ export class YamlWorkflowRuntime {
     };
   }
 
-  private parseRetries(s: ManualStep): number {
-    const p = parseFailurePolicy(s.id, s.on_failure);
-    return p.kind === 'retry' ? p.times : 0;
+  private parseRetries(_s: ManualStep): number {
+    // C-1：节点级重试一律禁用（0）——retry(n) 预算由外层 retryBudgets 统一记账，
+    // 避免 DAGRuntime 内层 maxRetries × 外层重入队双重计数（n+1 次变无界循环）。
+    return 0;
   }
 
   /** 从全量 DAG 取子图（只含 ids 及其内部边）——用于回跳重跑 */
@@ -347,7 +409,9 @@ export class YamlWorkflowRuntime {
     return {
       ...full,
       id: `${full.id}_sub_${Date.now()}`,
-      nodes: full.nodes.filter(n => ids.has(n.id)).map(n => ({ ...n, status: 'pending' as const })),
+      // ★ 剥离图外依赖：不在本子图的上游视为已满足（其产物已在 stepOutputs）——
+    // 否则 DependencyResolver 因外部 dep 永远不满足而饿死该节点（C-4 根因）
+      nodes: full.nodes.filter(n => ids.has(n.id)).map(n => ({ ...n, status: 'pending' as const, deps: n.deps.filter(d => ids.has(d)) })),
       edges: full.edges.filter(e => ids.has(e.from) && ids.has(e.to)),
     };
   }

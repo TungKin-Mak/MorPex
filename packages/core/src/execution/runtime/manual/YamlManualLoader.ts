@@ -109,7 +109,7 @@ export function validateManual(m: WorkflowManual | null | undefined): ManualVali
     for (const dep of s.depends_on ?? []) {
       if (!ids.has(dep)) errors.push({ step: s.id, message: `depends_on 引用不存在的步骤: ${dep}` });
     }
-    const policy = parseFailurePolicy(s.id, s.on_failure);
+    const policy = parseFailurePolicy(s.on_failure);
     if (policy.kind === 'invalid') {
       errors.push({ step: s.id, message: `on_failure 非法: "${s.on_failure}"（合法: backjump:<id> / retry(n) / skip / abort）` });
     } else if (policy.kind === 'backjump' && !ids.has(policy.target)) {
@@ -132,7 +132,6 @@ export function validateManual(m: WorkflowManual | null | undefined): ManualVali
 
 /** on_failure 字符串 → 结构化策略 */
 export function parseFailurePolicy(
-  stepId: string,
   raw?: string,
 ): { kind: 'backjump'; target: string } | { kind: 'retry'; times: number } | { kind: 'skip' } | { kind: 'abort' } | { kind: 'invalid' } {
   if (!raw) return { kind: 'abort' }; // 默认：失败即中止（显式优于隐式）
@@ -143,7 +142,6 @@ export function parseFailurePolicy(
   if (retry) return { kind: 'retry', times: Math.max(1, parseInt(retry[1]!, 10)) };
   const bj = t.match(/^backjump:([\w-]+)$/);
   if (bj) return { kind: 'backjump', target: bj[1]! };
-  void stepId;
   return { kind: 'invalid' };
 }
 
