@@ -11,7 +11,8 @@
  *
  * 步骤执行分派（nodeHandler）：
  *   action === 'llm'          → stepExecutor.executeStep（step-agent 工具循环；未注入则显式失败）
- *   action === '<primitive>'  → DomainPrimitiveRegistry.execute（含 xjmcu.compile 等；
+ *   action === '<primitive>'  → DomainPrimitiveRegistry.execute（领域原语或 MCP 桥接动作，
+
  *                                MCP 工具由注册方桥接进 Registry，本层协议无关）
  *
  * 变量替换：${inputs.x} / ${steps.<id>.outputs.<name>} → 执行期上下文解析。
@@ -248,7 +249,6 @@ export class YamlWorkflowRuntime {
   private async runAskGate(
     step: ManualStep,
     stepOutputs: Map<string, Map<string, unknown>>,
-    inputs: Record<string, unknown>,
     failureNotes: Map<string, string>,
   ): Promise<void> {
     const ask = step.ask!;

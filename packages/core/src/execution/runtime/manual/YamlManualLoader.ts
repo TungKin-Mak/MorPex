@@ -39,7 +39,7 @@ export interface AskGate {
 /** 单步骤定义（8 键） */
 export interface ManualStep {
   id: string;
-  /** 'llm' = step-agent 执行；其他 = DomainPrimitiveRegistry 注册的原语名（如 xjmcu.compile）*/
+  /** 'llm' = step-agent 执行；其他 = DomainPrimitiveRegistry 注册的原语名（如 <domain>.<action>）*/
   action: string;
   description: string;
   /** ${inputs.x} / ${steps.<id>.outputs.<name>} 表达式映射 */
