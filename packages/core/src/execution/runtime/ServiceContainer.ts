@@ -52,6 +52,8 @@ export class ServiceContainer {
   readonly executionEngine: UnifiedExecutionEngine;
   /** 会话 3 多 Agent 框架：总大脑（编排 + 审计循环） */
   readonly orchestratorAgent: OrchestratorAgent;
+  /** step-agent 执行器（Orchestrator 与部门手册 YamlWorkflowRuntime 共用） */
+  stepAgentExecutor!: StepAgentExecutor;
   /** 会话 4（Session 化）：编排组件持久化会话仓库（总大脑/step-agent 独立 Session） */
   readonly agentSessionStore: AgentSessionStore;
   readonly artifactFacade: ArtifactFacade;
@@ -343,6 +345,7 @@ export class ServiceContainer {
       // ⬅️ 会话 16j（B2 指针消费端）：按 taskRef 拉取被裁详情（装配「可拉取详情」的消费端）
       recallTask: (taskRef) => this.recallTaskForAgent(taskRef),
     });
+    this.stepAgentExecutor = stepExecutor;
     return new OrchestratorAgent({
       llm: {
         generateText: async (opts: { prompt: string; temperature?: number }) => {

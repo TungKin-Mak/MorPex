@@ -649,6 +649,67 @@ export async function bootstrapUnified(options?: {
   });
   console.log(`[bootstrapUnified] ✅ 第 6 层已接通：5 个通用原语注册 + 真实 PiBridge + ConnectorRegistry/fs/LLM 注入（注册中心共 ${DomainPrimitiveRegistry.list().length} 个原语）`);
 
+  // 8.1) 部门手册运行时（yaml+解释器）：加载各领域 manual.yaml，注入引擎（executeAuto 在编排前优先判定）
+  try {
+    const { loadManual, matchManual } = await import('./execution/runtime/manual/YamlManualLoader.js');
+    const { YamlWorkflowRuntime } = await import('./execution/runtime/manual/YamlWorkflowRuntime.js');
+    const { createAskUserTool } = await import('./execution/UserAskService.js');
+    const { resolve } = await import('path');
+    // 领域手册清单：新增部门 = 加一行（路径指向 packages/workflows/<domain>/department/manual.yaml）
+    const manualEntries = [
+      { domain: 'xjmcu', path: resolve('packages/workflows/xjmcu/department/manual.yaml') },
+    ] as Array<{ domain: string; path: string }>;
+    for (const entry of manualEntries) {
+      try {
+        const manual = loadManual(entry.path);
+        const askTool = createAskUserTool({ goal: manual.description ?? manual.name });
+        const runtime = new YamlWorkflowRuntime({
+          manual,
+          eventBus: container.eventBus,
+          departmentId: entry.domain,
+          askTool: { execute: (p: Record<string, unknown>) => askTool.execute(p) },
+          stepExecutor: {
+            executeStep: async (node, upstreamResults) => {
+              // 复用编排侧 step-agent 执行器（工具循环 + Gate 凭证），与 Orchestrator 单节点同路径
+              return container.stepAgentExecutor.executeStep(
+                { id: node.id, name: node.name, description: node.description, agentType: 'general' },
+                upstreamResults,
+                {},
+              );
+            },
+          },
+        });
+        container.executionEngine.setManualRuntime({
+          name: `manual:${manual.name}`,
+          match: (goal: string) => matchManual(manual, goal),
+          execute: async (request) => {
+            const executionId = request.taskId ? `manual_${request.taskId}` : `manual_${Date.now()}`;
+            const inputs: Record<string, unknown> = {
+              requirement: request.goal,
+              ...(request.context as Record<string, unknown> | undefined),
+            };
+            const r = await runtime.run(inputs);
+            return {
+              ok: r.success,
+              executionId,
+              mode: 'auto' as const,
+              status: r.success ? ('completed' as const) : ('failed' as const),
+              output: Object.fromEntries([...r.outputs.entries()].map(([k, v]) => [k, Object.fromEntries(v)])),
+              error: r.error,
+              duration: r.duration,
+              metrics: { backjumps: r.backjumps, skippedSteps: r.skippedSteps },
+            };
+          },
+        });
+        console.log(`[bootstrapUnified] ✅ 部门手册已注入: ${entry.domain} (${manual.steps.length} 步)`);
+      } catch (err) {
+        console.warn(`[bootstrapUnified] ⚠️ 部门手册 ${entry.domain} 加载失败（跳过）:`, (err as Error).message);
+      }
+    }
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ 部门手册运行时初始化失败:', (err as Error).message);
+  }
+
   // 设置 Trace 事件钩子
   if (eventStore) {
     forcedQueryGuard.setOnTrace(async (executionId, trace, missionId) => {
