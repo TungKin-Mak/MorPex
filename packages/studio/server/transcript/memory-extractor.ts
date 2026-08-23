@@ -50,6 +50,9 @@ const EXTRACT_SYSTEM = [
 /** 每会话上次提取时间（进程内防抖；重启即清零无妨——漏一次提取无害） */
 const lastRunAt = new Map<string, number>();
 
+/** 重复订阅防护：多次 boot/register 只生效一次（退订函数被上层忽略时防泄漏+防双提取） */
+let registeredBus: EventBus | null = null;
+
 /** 解析 LLM 输出为候选数组（容错：剥 code fence / 截取首个 JSON 数组 / 逐项校验）；导出供单测 */
 export function parseCandidates(raw: string): MemoryCandidate[] {
   const text = raw.trim().replace(/^```(?:json)?\s*/i, '').replace(/```\s*$/, '');
@@ -83,6 +86,8 @@ export function registerMemoryExtractor(
   eventBus: EventBus,
   opts: MemoryExtractorOptions,
 ): () => void {
+  if (registeredBus === eventBus) return () => {}; // 同一 bus 已注册 → 幂等短路
+  registeredBus = eventBus;
   const debounceMs = opts.debounceMs ?? 60_000;
   return eventBus.on('chat.turn.completed', (event) => {
     void handleTurn(event, opts, debounceMs).catch((err: unknown) => {

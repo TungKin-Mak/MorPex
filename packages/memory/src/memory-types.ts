@@ -89,6 +89,8 @@ export interface ConfirmTicket {
   scope: string;
   metadata?: Record<string, unknown>;
   createdAt: string;
+  /** 工单状态（幂等判断依据：非 pending 的重复 confirm 直接短路） */
+  status: 'pending' | 'accepted' | 'rejected';
 }
 
 export type ConfirmDecision = 'accept' | 'reject';

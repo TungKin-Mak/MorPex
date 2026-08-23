@@ -164,6 +164,7 @@ export class MemoryApi implements MemoryAPI {
   async confirm(ticketId: string, decision: ConfirmDecision, meta?: Record<string, unknown>): Promise<void> {
     const ticket = this.queue.get(ticketId);
     if (!ticket) return;
+    if (ticket.status !== 'pending') return; // 幂等：已决工单不再重复执行引擎写入（防重复 approve 双写）
     if (decision === 'accept') {
       const factText = meta?.content ? String(meta.content) : ticket.content;
       await this.engine.remember(factText, { dataset: this.defaultDataset, scope: ticket.scope });

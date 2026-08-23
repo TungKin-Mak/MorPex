@@ -85,6 +85,7 @@ export class ConfirmationQueue {
       scope: r.scope,
       metadata: JSON.parse(r.metadata ?? '{}'),
       createdAt: r.created_at,
+      status: 'pending', // listPending 只查 status='pending' 行
     }));
   }
 
@@ -109,6 +110,7 @@ export class ConfirmationQueue {
       scope: r.scope,
       metadata: JSON.parse(r.metadata ?? '{}'),
       createdAt: r.created_at,
+      status: r.status as ConfirmTicket['status'],
     };
   }
 

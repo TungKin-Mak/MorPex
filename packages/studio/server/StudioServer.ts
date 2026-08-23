@@ -1099,9 +1099,14 @@ export class StudioServer {
           }
         }
         // ═══ T5 跨会话画像召回：新会话也“认识”老用户（放在历史注入之后 ⇒ 画像位于最上方）═══
+        // 优化：3s 超时降级 —— cognee 引擎可能慢（网络），不拖慢消息热路径（超时=本轮无画像，语义不变）
         if (sessionId && this.boot?.container.companyMemoryApi) {
+          const memApi = this.boot.container.companyMemoryApi;
           try {
-            const qr = await this.boot.container.companyMemoryApi.query({ text: '用户 姓名 称呼 偏好 画像', limit: 5 });
+            const qr = await Promise.race([
+              memApi.query({ text: '用户 姓名 称呼 偏好 画像', limit: 5 }),
+              new Promise<never>((_, rej) => setTimeout(() => rej(new Error('memory recall timeout (3s)')), 3000)),
+            ]);
             const profileLines = (qr.hits ?? [])
               .map((h) => String(h.content ?? '').slice(0, 150))
               .filter(Boolean);
