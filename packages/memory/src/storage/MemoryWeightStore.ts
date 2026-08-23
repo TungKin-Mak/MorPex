@@ -23,6 +23,8 @@ export interface MemoryWeightRow {
   mentionCount: number;
   /** 最近一次被召回/提及的 epoch ms */
   lastSeen: number;
+  /** 最近一次被衰减的 epoch ms（幂等锚：衰减计时以 max(lastSeen, lastDecayedAt) 起） */
+  lastDecayedAt: number;
   source: string;
 }
 
@@ -51,13 +53,15 @@ export function computePromotion(
 /**
  * 衰减判定（纯函数）：返回新 weight 或 null=归档。permanent 永不衰减。
  * 非 permanent 且闲置超期 → 权重减半；低于 ARCHIVE_WEIGHT → 归档。
+ * 幂等锚：闲置计时以 max(lastSeen, lastDecayedAt) 起算——刚衰减过的条目要再等满一个周期才会再衰。
  */
 export function computeDecay(
-  row: Pick<MemoryWeightRow, 'tier' | 'weight' | 'lastSeen'>,
+  row: Pick<MemoryWeightRow, 'tier' | 'weight' | 'lastSeen'> & { lastDecayedAt?: number },
   now = Date.now(),
 ): { weight: number; archived: boolean } | null {
   if (row.tier === 'permanent') return null; // 免疫衰减
-  if (now - row.lastSeen <= DECAY_IDLE_MS) return null; // 未到期，不动
+  const idleSince = Math.max(row.lastSeen, row.lastDecayedAt ?? 0);
+  if (now - idleSince <= DECAY_IDLE_MS) return null; // 未到期（含刚衰减过），不动
   const halved = Math.max(0.05, row.weight / 2);
   return { weight: halved, archived: halved < ARCHIVE_WEIGHT };
 }
@@ -84,9 +88,16 @@ export class MemoryWeightStore {
         mention_count INTEGER NOT NULL DEFAULT 0,
         last_seen     INTEGER NOT NULL,
         source        TEXT NOT NULL DEFAULT 'llm',
-        updated_at    INTEGER NOT NULL
+        updated_at    INTEGER NOT NULL,
+        last_decayed_at INTEGER NOT NULL DEFAULT 0
       ) STRICT;
     `);
+    // 老库迁移：补 last_decayed_at 列（已存在则忽略报错）
+    try {
+      this.db.exec('ALTER TABLE memory_weights ADD COLUMN last_decayed_at INTEGER NOT NULL DEFAULT 0');
+    } catch {
+      /* 列已存在 */
+    }
   }
 
   /** 写入侧登记：不存在则以基础分建档（幂等——已存在不重置权重） */
@@ -155,7 +166,7 @@ export class MemoryWeightStore {
     return promoted;
   }
 
-  /** 应用衰减（consolidate 脚本调用）。返回 { decayed, archived } 名单 */
+  /** 应用衰减（consolidate 脚本调用）。幂等：同一周期内重复调用不重复衰减。返回 { decayed, archived } 名单 */
   applyDecays(now = Date.now()): { decayed: string[]; archived: string[] } {
     const decayed: string[] = [];
     const archived: string[] = [];
@@ -167,8 +178,8 @@ export class MemoryWeightStore {
         archived.push(row.name);
       } else {
         this.db
-          .prepare('UPDATE memory_weights SET weight=?, updated_at=? WHERE name=?')
-          .run(r.weight, now, row.name);
+          .prepare('UPDATE memory_weights SET weight=?, last_decayed_at=?, updated_at=? WHERE name=?')
+          .run(r.weight, now, now, row.name);
         decayed.push(row.name);
       }
     }
@@ -186,6 +197,7 @@ export class MemoryWeightStore {
       weight: Number(r.weight),
       mentionCount: Number(r.mention_count),
       lastSeen: Number(r.last_seen),
+      lastDecayedAt: Number(r.last_decayed_at ?? 0),
       source: String(r.source),
     };
   }

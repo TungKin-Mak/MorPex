@@ -171,6 +171,44 @@ describe('T7 四路分流 routeCandidate', () => {
     expect(opts.weightStore.ensure).toHaveBeenCalledWith('约定:操作系统', 'explicit', 'agreement');
   });
 
+  it('④b 显式入库被拒 → explicit_failed + 告警日志 + 不建权重档（返回值检查）', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { opts } = makeOpts();
+    opts.memoryApi.upsert = vi.fn(async () => ({ status: 'rejected', reason: '本体白名单外' }));
+    const action = await routeCandidate(
+      { name: '怪实体', fact: '用户使用 mac', type: 'agreement', isExplicit: true },
+      opts,
+    );
+    expect(action).toBe('explicit_failed');
+    expect(warn).toHaveBeenCalled();
+    expect(opts.weightStore.ensure).not.toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it('④c 显式入库抛异常 → explicit_failed 且不向调用方抛出', async () => {
+    const warn = vi.spyOn(console, 'warn').mockImplementation(() => {});
+    const { opts } = makeOpts();
+    opts.memoryApi.upsert = vi.fn(async () => {
+      throw new Error('引擎离线');
+    });
+    await expect(
+      routeCandidate({ name: 'x', fact: '用户使用 mac', type: 'profile', isExplicit: true }, opts),
+    ).resolves.toBe('explicit_failed');
+    expect(warn).toHaveBeenCalled();
+    warn.mockRestore();
+  });
+
+  it("①′ LLM 漏标但内容含高置信凭证格式 → 安全兑底硬拒", async () => {
+    const { opts, calls } = makeOpts();
+    const action = await routeCandidate(
+      // sensitive 未标——兑底层必须接住
+      { name: 'x', fact: '我的 api_key = akfjw034jsdlkmn23', type: 'profile' },
+      opts,
+    );
+    expect(action).toBe('dropped_sensitive');
+    expect(calls.upsert).toHaveLength(0);
+  });
+
   it('⑤ 默认低置信走确认工单 + 权重建档 llm', async () => {
     const { opts, calls } = makeOpts();
     const action = await routeCandidate(
@@ -222,6 +260,19 @@ describe('T7 权重晋升/衰减（纯函数）', () => {
     expect(archived).toEqual({ weight: 0.15, archived: true });
   });
 
+  it('衰减幂等（纯函数）：刚衰减过（lastDecayedAt 新）不再重复衰减，即便 last_seen 很老', () => {
+    // 上次衰减才过 5 天，不满一个周期 → 不动
+    expect(
+      computeDecay({ tier: 'project', weight: 0.3, lastSeen: NOW - 40 * DAY, lastDecayedAt: NOW - 5 * DAY }, NOW),
+    ).toBeNull();
+    // 距上次衰减满 31 天 → 才继续衰（0.6 减半 0.3，仍在归档线上）
+    const again = computeDecay(
+      { tier: 'project', weight: 0.6, lastSeen: NOW - 40 * DAY, lastDecayedAt: NOW - 31 * DAY },
+      NOW,
+    );
+    expect(again).toEqual({ weight: 0.3, archived: false });
+  });
+
   it('MemoryWeightStore 端到端：ensure 幂等 / recordMention / 晋升落库 / 衰减删除', () => {
     const dir = mkdtempSync(join(tmpdir(), 'mwt-'));
     const store = new MemoryWeightStore(join(dir, 'w.db'));
@@ -251,6 +302,51 @@ describe('T7 权重晋升/衰减（纯函数）', () => {
       store.applyDecays(); // 未到期不动
       const gone = store.getByName('术语:部署');
       expect(gone?.weight ?? 0).toBeGreaterThan(0); // 仍在（未到期）
+    } finally {
+      store.close();
+    }
+  });
+
+  it('衰减幂等（端到端）：连跑三遍 applyDecays 只衰一次', () => {
+    const dir = mkdtempSync(join(tmpdir(), 'mwt-idem-'));
+    const store = new MemoryWeightStore(join(dir, 'w.db'));
+    try {
+      store.ensure('术语:缓存', 'llm', 'clarification'); // base 0.8
+      const future = new Date(Date.now() + 400 * 24 * 3600_000).getTime();
+      const r1 = store.applyDecays(future); // 0.8 → 0.4
+      expect(r1.decayed).toContain('术语:缓存');
+      const w1 = store.getByName('术语:缓存')?.weight;
+      // 立刻重跑两遍：距上次衰减未满周期 → 不再衰
+      for (let i = 0; i < 2; i++) {
+        const r = store.applyDecays(future);
+        expect(r.decayed).not.toContain('术语:缓存');
+      }
+      expect(store.getByName('术语:缓存')?.weight).toBe(w1); // 幂等实锤
+    } finally {
+      store.close();
+    }
+  });
+
+  it('老库迁移：无 last_decayed_at 列的旧表自动补列且不丢数据', () => {
+    // eslint-disable-next-line @typescript-eslint/no-var-requires
+    const Database = require('better-sqlite3');
+    const dir = mkdtempSync(join(tmpdir(), 'mwt-mig-'));
+    const dbPath = join(dir, 'legacy.db');
+    const raw = new Database(dbPath);
+    raw.exec(`
+      CREATE TABLE memory_weights (
+        name TEXT PRIMARY KEY, tier TEXT NOT NULL DEFAULT 'project',
+        weight REAL NOT NULL DEFAULT 0.6, mention_count INTEGER NOT NULL DEFAULT 0,
+        last_seen INTEGER NOT NULL, source TEXT NOT NULL DEFAULT 'llm', updated_at INTEGER NOT NULL
+      ) STRICT;
+      INSERT INTO memory_weights VALUES ('旧条目', 'project', 0.7, 1, ${Date.now()}, 'llm', ${Date.now()});
+    `);
+    raw.close();
+    const store = new MemoryWeightStore(dbPath); // 构造器 ALTER 补列成功
+    try {
+      const row = store.getByName('旧条目');
+      expect(row?.weight).toBe(0.7); // 数据未丢
+      expect(row?.lastDecayedAt).toBe(0); // 新列默认值
     } finally {
       store.close();
     }

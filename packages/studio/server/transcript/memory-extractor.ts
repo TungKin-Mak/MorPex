@@ -15,6 +15,8 @@
  *
  * T7 原则（用户拍板）：所有触发判断一律 LLM，禁止信号词/正则预筛（易纰漏）；
  *       敏感信息也由 LLM 在同一调用里标注 sensitive 字段。每回合都过 LLM（无防抖短路）。
+ *       唯一例外 = looksLikeCredential()：入库前最后一道**安全兜底层**（非触发机制），
+ *       高置信凭证格式命中即拒——宁可误杀不可漏放，与触发判断的 LLM 化原则不冲突。
  *
  * 铁律：本文件不 import @earendil-works/*（LLM 经 getSharedPiBridge 封装层）；
  *       写入只走 MemoryApi 正规入口（Knowledge Gate 合规）；空结果静默跳过。
@@ -58,7 +60,7 @@ export interface MemoryExtractorOptions {
       confidence?: number;
       kind?: string;
       source?: string;
-    }): Promise<{ status: string; ticketId?: string }>;
+    }): Promise<{ status: string; ticketId?: string; reason?: string }>;
     /** T7 遗忘指令：登记同主题旧条目失效 */
     invalidate(name: string, validUntil?: string): Promise<void> | void;
   };
@@ -170,13 +172,39 @@ export async function extractMemoryCandidates(userText: string): Promise<MemoryC
   return parseCandidates(r.text);
 }
 
+/**
+ * 高置信凭证格式硬校验（安全兜底层，非触发机制——见文件头注释）。
+ * 只收高置信模式，避免误杀普通内容；宁可误杀不可漏放。
+ */
+export function looksLikeCredential(text: string): boolean {
+  const patterns = [
+    /\bsk-[A-Za-z0-9_-]{16,}/, // OpenAI 风格密钥
+    /\bAKIA[0-9A-Z]{16}/, // AWS AccessKeyId
+    /-----BEGIN [A-Z ]*PRIVATE KEY-----/, // 私钥块
+    /\b(?:password|passwd|pwd|secret|api[_-]?key|access[_-]?token|private[_-]?key)\s*[=:]\s*\S+/i,
+    /\bxox[baprs]-[A-Za-z0-9-]{10,}/, // Slack token
+    /\bgh[pousr]_[A-Za-z0-9]{20,}/, // GitHub token
+  ];
+  return patterns.some((p) => p.test(text));
+}
+
 /** 单条候选的四路分流（导出供单测）。返回动作标签供日志聚合 */
 export async function routeCandidate(
   c: MemoryCandidate,
   opts: MemoryExtractorOptions,
-): Promise<'dropped_sensitive' | 'forgotten' | 'skipped_session' | 'explicit_written' | 'ticket' | 'written'> {
+): Promise<
+  | 'dropped_sensitive'
+  | 'forgotten'
+  | 'skipped_session'
+  | 'explicit_written'
+  | 'explicit_failed'
+  | 'ticket'
+  | 'written'
+> {
   // ① 敏感内容：永不入库（LLM 已标注；这里不做二次正则——原则统一由 LLM 判断）
   if (c.sensitive) return 'dropped_sensitive';
+  // ①′ 安全兜底层（非触发机制，宁误杀不漏放）：LLM 漏标但内容含高置信凭证格式 → 硬拒
+  if (looksLikeCredential(c.fact)) return 'dropped_sensitive';
   // ② 遗忘指令：invalidate 同主题旧条目
   if (c.isForget) {
     const entity = mapCandidateEntity({ ...c, type: c.type ?? 'correction' });
@@ -188,16 +216,28 @@ export async function routeCandidate(
   if (c.scope === 'session') return 'skipped_session';
   const entity = mapCandidateEntity(c);
   if (c.isExplicit) {
-    // ④ 显式指令：免工单直接入库（用户亲口说 = 审批），权重档最高
-    await opts.memoryApi.upsert({
-      ...entity,
-      facts: [c.fact],
-      confidence: 1.0,
-      kind: c.type ?? 'profile',
-      source: 'explicit',
-    });
-    opts.weightStore?.ensure(entity.name, 'explicit', c.type);
-    return 'explicit_written';
+    // ④ 显式指令：免工单直接入库（用户亲口说 = 审批），权重档最高。
+    //    返回值必须检查：rejected/异常都要留痕且不阻断后续候选与回合收尾。
+    try {
+      const res = await opts.memoryApi.upsert({
+        ...entity,
+        facts: [c.fact],
+        confidence: 1.0,
+        kind: c.type ?? 'profile',
+        source: 'explicit',
+      });
+      if (res.status === 'rejected') {
+        console.warn(
+          `[MemoryExtractor] 显式入库被拒（${res.reason ?? '未知原因'}）：${entity.name} —— 不建权重档`,
+        );
+        return 'explicit_failed';
+      }
+      opts.weightStore?.ensure(entity.name, 'explicit', c.type);
+      return 'explicit_written';
+    } catch (err) {
+      console.warn(`[MemoryExtractor] 显式入库异常（不影响回合收尾）：${entity.name}`, err);
+      return 'explicit_failed';
+    }
   }
   // ⑤ 默认：低置信走确认工单（confidence 0.6 < autoWrite 0.8 ⇒ pending）
   const res = await opts.memoryApi.upsert({
@@ -223,14 +263,22 @@ async function handleTurn(
   const candidates = await extractMemoryCandidates(userText);
   if (candidates.length === 0) return;
 
-  // 四路分流聚合
-  let forgotten = 0, dropped = 0, explicitWritten = 0, ticketed = 0, sessionSkipped = 0;
+  // 四路分流聚合（单条失败不阻断其余候选与回合收尾）
+  let forgotten = 0, dropped = 0, explicitWritten = 0, ticketed = 0, sessionSkipped = 0, failed = 0;
   for (const c of candidates) {
-    const action = await routeCandidate(c, opts);
+    let action: string;
+    try {
+      action = await routeCandidate(c, opts);
+    } catch (err) {
+      console.warn(`[MemoryExtractor] 候选分流异常（跳过该条）：`, err);
+      failed += 1;
+      continue;
+    }
     if (action === 'dropped_sensitive') dropped += 1;
     else if (action === 'forgotten') forgotten += 1;
     else if (action === 'skipped_session') sessionSkipped += 1;
     else if (action === 'explicit_written') explicitWritten += 1;
+    else if (action === 'explicit_failed') failed += 1;
     else if (action === 'ticket') ticketed += 1;
   }
   const parts = [
@@ -239,6 +287,7 @@ async function handleTurn(
     forgotten > 0 ? `遗忘 ${forgotten}` : '',
     sessionSkipped > 0 ? `会话级跳过 ${sessionSkipped}` : '',
     dropped > 0 ? `敏感丢弃 ${dropped}` : '',
+    failed > 0 ? `入库失败 ${failed}` : '',
   ].filter(Boolean);
   if (parts.length > 0) {
     console.log(`[MemoryExtractor] 会话 ${sessionId}: ${parts.join('｜')}`);
