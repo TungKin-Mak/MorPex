@@ -477,11 +477,12 @@
 | `package.json` | 桌面包清单（devDeps: @tauri-apps/cli + concurrently；scripts: dev/dev:all/build/check） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 | `src-tauri/Cargo.toml` | Rust 依赖（tauri 2 + serde；无业务依赖） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 | `src-tauri/build.rs` | tauri-build 构建脚本 | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
-| `scripts/bundle-backend.mjs` | 打包可移植后端运行时 → desktop/portable（node.exe + repo.zip）：复制源码/配置 + npm install --omit=dev + 剥离 .d.ts/.map + bsdtar 打 zip | 桌面壳；打包工具，不承载后端逻辑 |
+| `scripts/bundle-server.mjs` | esbuild 单文件打包：入口 studio/server/index.ts → portable/repo-dist/server.mjs（--platform=node --format=esm --target=node20 --minify）+ better-sqlite3 闭包 node_modules（better-sqlite3/bindings/file-uri-to-path prebuilt）+ config 模板复制；external=better-sqlite3/jiti；banner shim=createRequire+__filename+__dirname；导出 buildRuntime(outDir) 供 bundle-backend 复用，可独立执行 | 桌面壳；打包工具，不承载后端逻辑 |
+| `scripts/bundle-backend.mjs` | 打包可移植后端运行时 → desktop/portable：默认新布局 = node.exe + runtime/{server.mjs, node_modules/, config/}（调 buildRuntime()）+ bsdtar 打 repo.zip（zip 根即 server.mjs）；`--legacy` 保留旧 tsx 流程（源码树 + npm install --omit=dev）作 fallback | 桌面壳；打包工具，不承载后端逻辑 |
 | `src-tauri/tauri.conf.json` | 壳配置：frontendDist=../../web/dist、devUrl=:5173、窗口 1280x800、NSIS 安装包（currentUser + SimpChinese）、resources=portable/node.exe+repo.zip | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 | `src-tauri/capabilities/default.json` | v1 空权限集（core:default，无 IPC command） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 | `src-tauri/src/main.rs` | 壳入口（Windows 子系统，调 lib run） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
-| `src-tauri/src/lib.rs` | 壳 Builder + 后端生命周期：优先解压安装包内置运行时（%LOCALAPPDATA%/MorPex/runtime，tar 解压 repo.zip + 版本 marker）并启动；无资源则回退开发模式（仓库）；用户 API Key 读 %APPDATA%/MorPex/config.env 注入环境；退出 taskkill 由壳拉起的后端；无任何 command | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API；不承载后端逻辑 |
+| `src-tauri/src/lib.rs` | 壳 Builder + 后端生命周期：优先解压安装包内置运行时（%LOCALAPPDATA%/MorPex/runtime，tar 解压 repo.zip + 版本 marker；解压校验 = server.mjs 存在 或 旧版 tsx+entry 存在）→ RuntimeLayout 探测（SingleFile=`node server.mjs` / LegacyTsx=旧 tsx 命令，SingleFile 优先）→ spawn_backend(node, args, cwd=runtime 目录)；无资源则回退开发模式（仓库 tsx）；用户 API Key 读 %APPDATA%/MorPex/config.env 注入环境；退出 taskkill 由壳拉起的后端；无任何 command | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API；不承载后端逻辑 |
 | `src-tauri/icons/` | 占位图标集（tauri icon 生成，后续换正式 Logo） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 | `README.md` | 桌面壳上手文档（前置条件/启动/构建/镜像降级） | 桌面壳；仅开窗加载渲染层并经 HTTP/SSE 消费 StudioServer API |
 

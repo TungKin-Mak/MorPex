@@ -3,10 +3,11 @@
  *
  * 职责（薄壳：开窗加载渲染层 + 管理后端生命周期）：
  *   1. 启动时探测 localhost:5473，未运行则自动拉起后端（二选一）：
- *      - 安装包模式：从资源目录启动打包的运行时
- *        <resource>/runtime/node.exe  <resource>/runtime/repo/node_modules/tsx/dist/cli.mjs
- *        <resource>/runtime/repo/packages/studio/server/index.ts  (cwd=<resource>/runtime/repo)
- *      - 开发模式（无资源）：从仓库启动 node tsx packages/studio/server/index.ts
+ *      - 安装包模式：从资源目录启动打包的运行时（esbuild 单文件，方案 A）
+ *        <resource>/runtime/node.exe  <解压目录>/server.mjs  (cwd=<解压目录>，即 server.mjs 同级)
+ *        兼容旧版运行时布局（repo.zip 内为 tsx + 源码树）：自动探测回退
+ *      - 开发模式（无内置运行时）：从仓库启动 node tsx packages/studio/server/index.ts
+ *        （仓库探测 MORPEX_REPO / 向上找标记仅服务于此开发回退路径）
  *   2. 用户 API Key 配置：%APPDATA%/<identifier>/config.env（首次运行自动生成模板），
  *      解析后作为环境变量注入后端（后端 morpex.yaml 用 ${VAR} 引用）。
  *   3. 退出时杀掉由本壳拉起的后端（手动已跑的不杀）。
@@ -24,6 +25,8 @@ const BACKEND_PORT: u16 = 5473;
 /// 安装包资源（bundle.resources: node.exe / repo.zip → runtime/）
 const RES_NODE: &str = "runtime/node.exe";
 const RES_ZIP: &str = "runtime/repo.zip";
+/// 新版单文件运行时入口（repo.zip 解压后的根，方案 A esbuild 产物）
+const RUNTIME_ENTRY_MJS: &str = "server.mjs";
 /// 首启解压目录：%LOCALAPPDATA%/MorPex/runtime（repo.zip 解压到此 = 后端仓库根）
 const RUNTIME_MARKER: &str = ".morpex-version";
 /// 用户配置文件（%APPDATA%/MorPex/config.env）
@@ -78,7 +81,7 @@ fn runtime_dir() -> PathBuf {
 }
 
 /// 首启把 repo.zip 解压到运行时目录（按版本号标记，版本变化则重新解压）。
-/// 返回解压后的仓库根（含 tsx + server 入口），失败返回 None。
+/// 解压成功判定兼容两种布局：新版单文件（server.mjs）/ 旧版 tsx+源码树。失败返回 None。
 fn ensure_runtime_extracted(res: &Path, version: &str) -> Option<PathBuf> {
     let dir = runtime_dir();
     let zip = res.join(RES_ZIP);
@@ -99,9 +102,9 @@ fn ensure_runtime_extracted(res: &Path, version: &str) -> Option<PathBuf> {
             .arg("-C")
             .arg(&dir)
             .status();
-        let extracted_ok = dir.join("package.json").is_file()
-            && dir.join("node_modules/tsx/dist/cli.mjs").is_file()
-            && dir.join("packages/studio/server/index.ts").is_file();
+        let extracted_ok = dir.join(RUNTIME_ENTRY_MJS).is_file()
+            || (dir.join("node_modules/tsx/dist/cli.mjs").is_file()
+                && dir.join("packages/studio/server/index.ts").is_file());
         if extracted_ok {
             let _ = std::fs::write(&marker, version);
         } else {
@@ -109,13 +112,25 @@ fn ensure_runtime_extracted(res: &Path, version: &str) -> Option<PathBuf> {
             return None;
         }
     }
-    if dir.join("node_modules/tsx/dist/cli.mjs").is_file()
-        && dir.join("packages/studio/server/index.ts").is_file()
-    {
-        Some(dir)
-    } else {
-        None
+    Some(dir)
+}
+
+/// 运行时布局（决定拉起命令形态）。
+enum RuntimeLayout {
+    /// 方案 A：esbuild 单文件。启动 `node server.mjs`，cwd=runtime 目录
+    /// （require('better-sqlite3') 解析到同级 node_modules，config/ 相对可寻址）。
+    SingleFile,
+    /// 旧版：tsx + 源码树（兼容已按版本缓存、未重新解压的老用户）。
+    LegacyTsx { tsx: PathBuf, entry: PathBuf },
+}
+
+fn detect_runtime_layout(dir: &Path) -> Option<RuntimeLayout> {
+    if dir.join(RUNTIME_ENTRY_MJS).is_file() {
+        return Some(RuntimeLayout::SingleFile);
     }
+    let tsx = dir.join("node_modules/tsx/dist/cli.mjs");
+    let entry = dir.join("packages/studio/server/index.ts");
+    (tsx.is_file() && entry.is_file()).then_some(RuntimeLayout::LegacyTsx { tsx, entry })
 }
 
 /// 用户 API Key 配置：首次运行生成模板，读取 KEY=VALUE 行。
@@ -157,11 +172,10 @@ fn ensure_user_env() -> Vec<(String, String)> {
     out
 }
 
-/// spawn 后端子进程（cwd 见参数，日志追加 cwd/logs/desktop-backend.log）。
+/// spawn 后端子进程（args 为完整命令参数；cwd 见参数，日志追加 cwd/logs/desktop-backend.log）。
 fn spawn_backend(
     node: &str,
-    tsx: &Path,
-    entry: &Path,
+    args: &[String],
     cwd: &Path,
     user_env: &[(String, String)],
 ) -> std::io::Result<Child> {
@@ -173,8 +187,7 @@ fn spawn_backend(
         .open(log_dir.join("desktop-backend.log"))?;
     let err = log.try_clone()?;
     let mut cmd = Command::new(node);
-    cmd.arg(tsx)
-        .arg(entry)
+    cmd.args(args)
         .current_dir(cwd)
         .env("PORT", BACKEND_PORT.to_string())
         .stdin(Stdio::null())
@@ -223,15 +236,24 @@ pub fn run() {
             let res = app.path().resource_dir().ok();
             let spawned = if let Some(res_dir) = res.as_ref() {
                 if has_bundled_runtime(res_dir) {
-                    match ensure_runtime_extracted(res_dir, &version) {
-                        Some(runtime) => {
+                    match ensure_runtime_extracted(res_dir, &version).and_then(|rt| {
+                        detect_runtime_layout(&rt).map(|layout| (rt, layout))
+                    }) {
+                        Some((runtime, layout)) => {
                             let node = res_dir.join(RES_NODE);
-                            let tsx = runtime.join("node_modules/tsx/dist/cli.mjs");
-                            let entry = runtime.join("packages/studio/server/index.ts");
+                            let args: Vec<String> = match layout {
+                                RuntimeLayout::SingleFile => {
+                                    vec![runtime.join(RUNTIME_ENTRY_MJS).to_string_lossy().into_owned()]
+                                }
+                                RuntimeLayout::LegacyTsx { tsx, entry } => vec![
+                                    tsx.to_string_lossy().into_owned(),
+                                    entry.to_string_lossy().into_owned(),
+                                ],
+                            };
+                            // cwd 一律 = runtime 目录（新版：better-sqlite3/config 相对解析；旧版等价于原 repo 布局）
                             spawn_backend(
                                 node.to_str().unwrap_or("node"),
-                                &tsx,
-                                &entry,
+                                &args,
                                 &runtime,
                                 &user_env,
                             )
@@ -267,12 +289,16 @@ pub fn run() {
                 }
             }
 
-            // 开发模式：从仓库启动
+            // 开发模式：从仓库启动（仓库探测仅服务此回退路径）
             match find_repo_root() {
                 Some(repo) => {
                     let tsx = repo.join("node_modules/tsx/dist/cli.mjs");
                     let entry = repo.join("packages/studio/server/index.ts");
-                    match spawn_backend("node", &tsx, &entry, &repo, &user_env) {
+                    let args = vec![
+                        tsx.to_string_lossy().into_owned(),
+                        entry.to_string_lossy().into_owned(),
+                    ];
+                    match spawn_backend("node", &args, &repo, &user_env) {
                         Ok(child) => {
                             println!("[desktop] 已从仓库启动后端 (pid={})", child.id());
                             app.manage(BackendHandle(Mutex::new(Some(child))));

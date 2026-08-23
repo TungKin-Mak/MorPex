@@ -8,7 +8,7 @@ MorPex 桌面应用壳（`packages/studio/desktop`）：Tauri 2 原生窗口，*
 
 `npm run bundle` + `npm run build:installer` 产出 `MorPex Studio_0.1.0_x64-setup.exe`（~47MB），**安装后完全独立**：
 
-- **后端打进安装包**：内置 `node.exe`（92MB）+ `repo.zip`（162MB，剥离 .d.ts/.map 的源码+依赖），首次运行由壳解压到 `%LOCALAPPDATA%/MorPex/runtime`（按版本号自动重新解压），用户**无需本机 Node / 无需仓库**。
+- **后端打进安装包**：内置 `node.exe`（~92MB）+ `repo.zip`（~23MB，esbuild 单文件运行时 `server.mjs` + better-sqlite3 prebuilt 闭包 + config 模板，由 `scripts/bundle-server.mjs` 产出），首次运行由壳解压到 `%LOCALAPPDATA%/MorPex/runtime`（按版本号自动重新解压；兼容旧版 tsx+源码树布局，自动探测回退），用户**无需本机 Node / 无需仓库**，冷启动约 **4s**。
 - **用户 API Key**：首次运行自动生成 `%APPDATA%/MorPex/config.env` 模板（AGNES_API_KEY / SILICONFLOW_API_KEY / MINICPM_API_KEY），用户填 key 重启生效；壳把 key 注入后端环境变量（morpex.yaml 的 `${VAR}` 引用）。
 - **NSIS 安装**：简体中文向导、当前用户安装（免管理员）、开始菜单快捷方式、卸载程序。
 - **数据位置**：`%LOCALAPPDATA%/MorPex/runtime/data/`（数据库/产物）；卸载重装会清空（v1 限制）。
@@ -17,8 +17,8 @@ MorPex 桌面应用壳（`packages/studio/desktop`）：Tauri 2 原生窗口，*
 
 **`MorPex-Studio.exe`**（`packages/studio/desktop/` 下，由 `npm run build:exe` 复制）双击即可打开应用（**不会弹出多余的 CLI 黑窗口**）——壳会自动完成：
 
-1. **探测** `localhost:5473`：后端未运行 → 自动拉起 `node <仓库>/node_modules/tsx/dist/cli.mjs <仓库>/packages/studio/server/index.ts`（后端默认端口 5473，日志写 `logs/desktop-backend.log`）
-2. 开窗加载渲染层；后端启动约 **40s**（真实 cognee 冷启动可能更久），期间界面显示「后端未就绪，自动重试中…」，就绪后自动连接
+1. **探测** `localhost:5473`：后端未运行 → 安装包模式自动拉起 `node server.mjs`（单文件运行时）；开发模式从仓库拉起 `node tsx <仓库>/packages/studio/server/index.ts`（后端默认端口 5473，日志写 `<cwd>/logs/desktop-backend.log`）
+2. 开窗加载渲染层；安装包模式后端启动约 **4s**（开发模式 tsx 冷启动 ~40s），期间界面显示「后端未就绪，自动重试中…」，就绪后自动连接
 3. **关闭窗口 → 自动停止由壳拉起的后端**（若后端本就是手动运行的则不杀）
 
 **仓库定位**：`MORPEX_REPO` 环境变量优先；否则从 exe 位置向上找（标记=`packages/studio/server/index.ts`），故 exe 需放在仓库内（`packages/studio/desktop/MorPex-Studio.exe` 即为标准位置）。
