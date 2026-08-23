@@ -201,8 +201,15 @@ export async function bootstrapUnified(options?: {
   // 5. 创建 CompanyFacade（构造时强制要求 Runtime + ControlPlane）
   const eventBus = container.eventBus;
   const departmentManager = new DepartmentManager(eventBus);
-  // ═══ P1 部门 Space 化：组织空间服务（懒加载；首次 getTree/routeGoal 时扫描 WorkflowProvider 生成部门 Space）═══
+  // ═══ P1 部门 Space 化：组织空间服务 ═══
   const spaceService = new SpaceService(eventBus);
+  // ═══ 四件套之“部门”：装工作流即装部门——启动即扫（原懒加载改为显式扫描），UI 首屏/路由立即可用 ═══
+  try {
+    spaceService.scanWorkflowProviders();
+    console.log('[bootstrapUnified] ✅ 部门 Space 已扫描（WorkflowProvider → Space）');
+  } catch (err) {
+    console.warn('[bootstrapUnified] ⚠️ 部门 Space 扫描失败:', (err as Error).message);
+  }
   // ═══ P2 跨部门/工位真交流：AgentMailbox（LLM 扮演目标角色回复；step-agent 经 mail 工具调用）═══
   const mailbox = new AgentMailbox();
   // ═══ P-A 任务状态投影：订阅执行事件 → data/tasks/<missionId>.json（真相源，切视图/重启可恢复）═══

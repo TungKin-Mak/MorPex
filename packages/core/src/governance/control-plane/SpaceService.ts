@@ -23,7 +23,7 @@ import * as path from 'node:path';
 const DEFAULT_ALIASES: SpaceAliasMap = {
   software: '软件部',
   ecommerce: '电商部',
-  xjmcu: '嵌入式部',
+  xjmcu: '矽杰微开发部',
   hardware: '硬件部',
 };
 

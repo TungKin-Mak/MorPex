@@ -125,6 +125,7 @@ export interface Space {
   workflowId?: string;
   managerPersona?: string;
   capabilities?: string[];
+  routeHint?: string; // 部门路由提示（含职责/能力描述，SpaceService.buildDepartmentSpace 生成）
   createdAt: number;
 }
 

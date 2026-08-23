@@ -9,6 +9,7 @@ import { createRouter } from './ui/router.js';
 import { renderArtifacts } from './views/artifacts.js';
 import { renderConsole } from './views/console.js';
 import { renderDashboard } from './views/dashboard.js';
+import { renderDepartmentXJMcu } from './views/department-xjmcu.js';
 import { renderEvents } from './views/events.js';
 
 /** 高亮顶部导航中与当前路由匹配的 tab。 */
@@ -27,6 +28,7 @@ function main(): void {
       console: renderConsole,
       events: renderEvents,
       artifacts: renderArtifacts,
+      xjmcu: renderDepartmentXJMcu,
     },
     api,
     activateTab,
