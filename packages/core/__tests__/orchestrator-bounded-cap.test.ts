@@ -10,6 +10,9 @@
 
 import { describe, it, expect } from 'vitest';
 import { OrchestratorAgent } from '../src/execution/orchestration/OrchestratorAgent.js';
+// 编排测试直调 run()：必须显式跳过方案确认门（交互模式会无限等待用户确认，见 PlanGateService 17i.22）
+import { setAutoExecute } from '../src/execution/PlanGateService.js';
+setAutoExecute(true);
 
 /** 生成 mock LLM：analysis 返回指定 steps，其余按 match 依次回 */
 function makeLlm(analysisSteps: Array<{ name: string; description: string; deps: string[] }>) {

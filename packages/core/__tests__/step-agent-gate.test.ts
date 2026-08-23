@@ -17,6 +17,9 @@ import type { ActionPrimitive } from '../src/infrastructure/tools/primitives/typ
 import { createPrimitiveAgentTools } from '../src/infrastructure/tools/primitiveAgentTools.js';
 import { OrchestratorAgent } from '../src/execution/orchestration/OrchestratorAgent.js';
 import type { KnowledgeContextPackage } from '../src/gate/context.js';
+// 编排测试直调 run()：必须显式跳过方案确认门（交互模式会无限等待用户确认，见 PlanGateService 17i.22）
+import { setAutoExecute } from '../src/execution/PlanGateService.js';
+setAutoExecute(true);
 
 /** 有效 Gate 凭证（模拟 Gate 两阶段签发结果） */
 function validGatePackage(): KnowledgeContextPackage {

@@ -50,6 +50,7 @@ export function requestPlanConfirm(
   stepNames: string[],
 ): Promise<boolean> {
   if (autoExecute) return Promise.resolve(false);
+  console.log(`[PlanGate] ⏸️ 方案待确认（id=${id}）：已发 plan.ready 并持久化未决项，等待 POST /api/plan/${id}/continue 或 goalMode 自动放行（无超时，17i.22 设计）`);
   return new Promise<boolean>((resolve) => {
     pending.set(id, {
       id,

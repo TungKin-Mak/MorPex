@@ -17,6 +17,7 @@
 
 ## 最近进度（里程碑，细节以 git 为准）
 
+- **T0 多轮对话连续性热修（单一 Transcript 架构第一步）**：ExecuteGoalOptions/RunOptions/ExecutionRequest 全链透传 `orchestratorSessionPath`；OrchestratorAgent.run 支持账本 resume（不再每次 `orch_${ts}` 新建）+ 历史注入分析 prompt + goal/交付物以 message 条目入账；AgentSessionStore 新增 openHandle/appendMessage；StudioServer chat/send 按 sessionId 绑定账本（chat-orch-map.json 持久化）+ 并发排队护栏（reviewer 修复：无 sessionId 请求不参与绑定，避免 "undefined" 账本上下文串门）+ chat 直答注入近期历史。验证：tsc 0 错；实测同一 sessionId 三次请求写同一 jsonl；openHandle/readEntries/appendMessage 闭环脚本通过。**同轮修复存量挂起（原误判为 step-agent 问题）**：根因 = PlanGateService 方案确认门交互模式无限等待且零日志（decisions.jsonl 新增 pending 记录实锤），chat/send 未带 goalMode 即静默卡死、5 个编排测试文件直调 run() 同因超时；修复 = requestPlanConfirm 等待时打日志 + 测试显式 setAutoExecute(true)；39/39 用例通过（1.8s，原先 330s+ 超时）、端到端 goalMode 任务 completed。设计文档：docs/SINGLE_TRANSCRIPT_DESIGN.md（Q1/Q3 已拍板：思考链默认隐藏、归档 30 天；Q4 已拍板：做回填，入 T4）。
 - **文档体系全建成**：AGENTS 精简(261→80) + DEVELOPMENT + CAPABILITY_INDEX + HOOK_MAP + skills×6 + check:docs 门禁 + EVENT_PAYLOAD_SPEC/Envelope/契约 + BACKEND_CODE_MAP 代码驱动重生成（485 文件/2775 函数/12832 调用）。
 - **职责复核四批完成**：governance+knowledge / execution+cognition / infrastructure / evaluation·evolution+独立包 → 抽查 60+ 文件，FILE_REGISTRY 职责文字与代码**全部相符（0 偏差）**；补 23 处缺失 JSDoc 自述；死代码=ts-prune 0，重复=仅 core/connectors secureExec 同源内联等已知项。
 - **检索验收**：以"复盘简报"走查端到端命中产物/关系链/插入点；暴露并修复 CAPABILITY_INDEX 缺"报告/汇总"能力域（19 个 report 函数曾不可检索→已补别名条目）。

@@ -58,6 +58,8 @@ export interface RunOptions {
   capabilities?: string[];
   /** 功能③：聚焦上下文（CompanyFacade 装配产出，注入执行路径；可选） */
   assembledContext?: string;
+  /** T0 多轮连续：orchestrator 账本路径（存在时 resume 同一本账，多轮对话历史不丢） */
+  orchestratorSessionPath?: string;
   /** 自定义扩展属性 */
   [key: string]: unknown;
 }
@@ -391,6 +393,7 @@ export class MorPexRuntime {
         departmentId: context.team.departments[0],
         managerPersona: options?.managerPersona,
         capabilities: options?.capabilities,
+        orchestratorSessionPath: options?.orchestratorSessionPath,
         context: {
           executionId: context.executionId,
           missionId: context.mission.missionId,

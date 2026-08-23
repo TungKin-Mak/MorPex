@@ -45,6 +45,8 @@ export interface ExecuteGoalOptions {
   intentHint?: 'chat' | 'task';
   /** 预估成本（用于资源检查） */
   estimatedCost?: number;
+  /** T0 多轮连续：orchestrator 账本路径（存在时 resume 同一本账，多轮对话历史不丢；由 StudioServer 按 chatSessionId resolve） */
+  orchestratorSessionPath?: string;
   [key: string]: unknown;
 }
 
@@ -218,6 +220,7 @@ export class CompanyFacade {
       departmentId: options.departmentId ?? deptId,
       managerPersona: options.managerPersona,
       capabilities: options.capabilities,
+      orchestratorSessionPath: options.orchestratorSessionPath,
     };
 
     // ── 3. 执行 Runtime 管线（统一入口：orchestrate 创建 Mission → MissionRuntime 内部规划/编排/执行）──

@@ -16,6 +16,9 @@ import * as path from 'node:path';
 import { AgentSessionStore, type AgentSessionHandle } from '../src/execution/orchestration/AgentSessionStore.js';
 import { StepAgentExecutor } from '../src/execution/runtime/dag/StepAgentExecutor.js';
 import { OrchestratorAgent, type OrchestratorStep } from '../src/execution/orchestration/OrchestratorAgent.js';
+// 编排测试直调 run()：必须显式跳过方案确认门（交互模式会无限等待用户确认，见 PlanGateService 17i.22）
+import { setAutoExecute } from '../src/execution/PlanGateService.js';
+setAutoExecute(true);
 
 // ═══ 会话 15（去兜底化）：StepAgentExecutor 不再有 agentDisabled/fallbackExecutor。
 //     测试改为 mock agentSpawner（返回成功 agent）验证真实 agent 路径 + 会话记录。

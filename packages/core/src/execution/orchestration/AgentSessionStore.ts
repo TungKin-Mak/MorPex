@@ -119,6 +119,16 @@ export class AgentSessionStore {
   }
 
   /**
+   * openHandle — 按路径打开既有会话并返回完整句柄（T0 多轮连续：同一 chat 会话复用同一本 orchestrator 账本）。
+   * resume 语义：repo.open 后 pi 引擎自动重放全部 entries 为 LLM 上下文。
+   */
+  async openHandle(path: string): Promise<AgentSessionHandle> {
+    const session = await this.repo.open({ path } as never) as unknown as SessionLike;
+    const meta = await session.getMetadata();
+    return { sessionId: meta.id, path: meta.path, session: session as unknown as MPSession };
+  }
+
+  /**
    * list — 列出会话（按组件过滤可选；按 createdAt 倒序）
    */
   async list(component?: AgentComponent): Promise<AgentSessionMeta[]> {
@@ -151,6 +161,18 @@ export class AgentSessionStore {
       path: meta.path,
       session: session as MPSession,
     };
+  }
+
+  /**
+   * appendMessage — 写入对话消息条目（进 LLM 上下文；T0 多轮连续：goal/最终交付物落账，resume 时回读注入分析）
+   */
+  async appendMessage(session: unknown, message: { role: 'user' | 'assistant'; content: string; timestamp?: number }): Promise<void> {
+    if (!session) return;
+    try {
+      await (session as SessionLike).appendMessage(message);
+    } catch (err) {
+      console.warn(`[AgentSessionStore] ⚠️ appendMessage 失败: ${(err as Error).message}`);
+    }
   }
 
   /**

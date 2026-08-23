@@ -191,6 +191,11 @@ export class StudioServer {
   private sseClients = new Map<string, { res: express.Response; connectedAt: number }>();
   private sseIdCounter = 0;
 
+  /** ═══ T0 多轮连续：同一会话执行串行化护栏（chatSessionId → in-flight promise）═══ */
+  private chatInflight = new Map<string, Promise<void>>();
+  /** ═══ T0 多轮连续：chatSessionId → orchestrator 账本路径映射（持久化于 <sessionsRoot>/chat-orch-map.json）═══ */
+  private chatOrchPaths: Map<string, string> | null = null;
+
   /** 会话 16c（3+4）：execution-stats 总成功率（跨模式加权） */
   private calcOverallRate(quality: Record<string, { success: number; total: number; avgDuration: number; successRate: number }>): number {
     let total = 0;
@@ -200,6 +205,67 @@ export class StudioServer {
       success += q.success;
     }
     return total > 0 ? Number((success / total).toFixed(4)) : 0;
+  }
+
+  // ── T0 多轮连续：orchestrator 账本映射（chatSessionId → jsonl 路径，重启不丢）──
+
+  private chatOrchMapPath(): string {
+    return path.resolve(this.config.sessionsRoot ?? 'data/sessions', 'chat-orch-map.json');
+  }
+
+  private loadChatOrchPaths(): Map<string, string> {
+    if (!this.chatOrchPaths) {
+      this.chatOrchPaths = new Map();
+      try {
+        const p = this.chatOrchMapPath();
+        if (fs.existsSync(p)) {
+          const raw = JSON.parse(fs.readFileSync(p, 'utf-8')) as Record<string, string>;
+          for (const [k, v] of Object.entries(raw)) this.chatOrchPaths.set(k, String(v));
+        }
+      } catch (err) {
+        console.warn('[Studio] ⚠️ chat-orch-map.json 读取失败（视为空重建）:', err instanceof Error ? err.message : String(err));
+      }
+    }
+    return this.chatOrchPaths;
+  }
+
+  private persistChatOrchPaths(): void {
+    try {
+      const p = this.chatOrchMapPath();
+      fs.mkdirSync(path.dirname(p), { recursive: true });
+      // 原子写：先写临时文件再 rename，避免进程中途崩溃留下半截 JSON（损坏时虽可自愈重建，但会丢全部绑定）
+      const tmp = `${p}.tmp`;
+      fs.writeFileSync(tmp, JSON.stringify(Object.fromEntries(this.loadChatOrchPaths()), null, 2));
+      fs.renameSync(tmp, p);
+    } catch (err) {
+      console.warn('[Studio] ⚠️ chat-orch-map.json 写入失败（多轮记忆仅内存态）:', err instanceof Error ? err.message : String(err));
+    }
+  }
+
+  /**
+   * resolveOrchestratorSessionPath — 同一 chat 会话复用同一本 orchestrator 账本。
+   * 有映射且文件在 → 直接返回（resume）；无 → 新建账本并登记。失败返回 undefined（降级为旧行为）。
+   */
+  private async resolveOrchestratorSessionPath(chatSessionId: string): Promise<string | undefined> {
+    const map = this.loadChatOrchPaths();
+    const hit = map.get(chatSessionId);
+    if (hit && fs.existsSync(hit)) return hit;
+    try {
+      const store = this.boot?.container.agentSessionStore;
+      if (!store) return undefined;
+      const handle = await store.createSession({
+        component: 'orchestrator',
+        id: `orch_chat_${Date.now()}`,
+        metadata: { chatSessionId, origin: 'chat-session-reuse' },
+      });
+      map.set(chatSessionId, handle.path);
+      this.persistChatOrchPaths();
+      console.log(`[Studio] 🔖 会话 ${chatSessionId} 绑定 orchestrator 账本: ${handle.path}`);
+      return handle.path;
+    } catch (err) {
+      console.warn('[Studio] ⚠️ 创建/绑定 orchestrator 账本失败（本轮降级为新建会话）:', (err as Error).message);
+      return undefined;
+    }
   }
 
   constructor(config: StudioServerConfig = {}) {
@@ -890,13 +956,48 @@ export class StudioServer {
         // 引擎级意图分流：chat → 轻量直答（不建 Mission）；task → 完整执行管线
         // 17i.15：是否问用户由 LLM 自主决定（ask_user 工具），不再预置澄清门。
         // P1：intentHint 与 executeGoal 共享预判（避免二次判断不一致）；部门 persona/capabilities 随路由注入编排器。
-        const result = await companyFacade.executeGoal(message, {
-          departmentId: routedSpace?.id ?? req.body?.departmentId,
-          departmentName: req.body?.departmentName,
-          managerPersona: routedSpace?.managerPersona,
-          capabilities: routedSpace?.capabilities,
-          intentHint: intent,
-        });
+        // ═══ T0 多轮连续②：chat 直答路径注入近期对话历史（否则闲聊对 AI 永远无记忆）═══
+        if (intent === 'chat' && sessionId) {
+          try {
+            const hist = this.sessionStore?.getChatHistory(sessionId) ?? [];
+            // 刚刚已 append 当前这条 user 消息 → 去掉末尾同文条目，只取更早的历史
+            const prior = hist.filter((m, i) => !(i === hist.length - 1 && m.role === 'user' && m.content === originalMessage));
+            const recent = prior.slice(-8);
+            if (recent.length > 0) {
+              const lines = recent.map((m) => `${m.role === 'user' ? '用户' : 'AI'}: ${String(m.content ?? '').slice(0, 200)}`);
+              message = `【近期对话记录（供上下文参考）】\n${lines.join('\n')}\n\n【用户本轮消息】\n${message}`;
+            }
+          } catch (err) {
+            console.warn('[Studio] ⚠️ 注入聊天历史失败（按无历史处理）:', (err as Error).message);
+          }
+        }
+        // ═══ T0 多轮连续①：同一 chatSessionId 复用同一本 orchestrator 账本 + 并发护栏 ═══
+        // resolve 放在排队闭包内（而非排队前）：同一会话的首次绑定被串行化，避免并发首请求各自 createSession 产生孤儿账本
+        // ★ 无 sessionId 的请求不参与绑定/复用（否则会共享一个 "undefined" 账本，造成无关对话上下文串门）
+        const runExecution = () => (sessionId
+          ? this.resolveOrchestratorSessionPath(sessionId)
+          : Promise.resolve(undefined)
+        ).then((orchestratorSessionPath) =>
+          companyFacade.executeGoal(message, {
+            departmentId: routedSpace?.id ?? req.body?.departmentId,
+            departmentName: req.body?.departmentName,
+            managerPersona: routedSpace?.managerPersona,
+            capabilities: routedSpace?.capabilities,
+            intentHint: intent,
+            orchestratorSessionPath,
+          }),
+        );
+        const prevExec = sessionId ? this.chatInflight.get(sessionId) : undefined;
+        const queuedResult = prevExec ? prevExec.then(runExecution, runExecution) : runExecution();
+        if (sessionId) {
+          const tail = queuedResult.then(() => undefined, () => undefined);
+          this.chatInflight.set(sessionId, tail);
+          // 护栏防泄漏：本请求仍是队尾时清除条目，否则保留链尾供后续请求接续
+          void tail.finally(() => {
+            if (this.chatInflight.get(sessionId!) === tail) this.chatInflight.delete(sessionId!);
+          });
+        }
+        const result = await queuedResult;
         const isTask = result.mode !== 'chat';
         const missionId = (result as { missionId?: string }).missionId;
         // 17i.33：任务完成后 → LLM 生成拟人化总结（流式 chat.stream.delta；失败回退原始 report）

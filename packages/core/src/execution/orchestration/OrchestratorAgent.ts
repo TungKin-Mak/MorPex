@@ -265,7 +265,7 @@ export class OrchestratorAgent {
   /**
    * run — 总大脑完整闭环：编排 → 执行 → 审计（迭代）→ 汇总
    */
-  async run(goal: string, opts: { departmentId?: string; contextHint?: string; managerPersona?: string; capabilities?: string[] } = {}): Promise<OrchestrationResult> {
+  async run(goal: string, opts: { departmentId?: string; contextHint?: string; managerPersona?: string; capabilities?: string[]; /** T0 多轮连续：外部传入的 orchestrator 账本路径——存在时 resume 而非新建（同一 chat 会话复用同一本账） */ orchestratorSessionPath?: string } = {}): Promise<OrchestrationResult> {
     const start = Date.now();
     const maxIterations = this.opts.maxIterations ?? 3;
     // ═══ P2-8（会话 16l·3）：步骤数 cap + 总 token 预算 ═══
@@ -303,19 +303,44 @@ export class OrchestratorAgent {
     }
 
     // ═══ 会话 4（Session 化）：总大脑会话 ═══
+    // ═══ T0 多轮连续：opts.orchestratorSessionPath 存在 → resume 既有账本（pi 引擎重放全部历史为 LLM 上下文）；否则新建 ═══
     let orchSession: AgentSessionHandle | null = null;
     if (this.opts.sessionStore) {
       try {
-        orchSession = await this.opts.sessionStore.createSession({
-          component: 'orchestrator',
-          id: `orch_${Date.now()}`,
-          goal,
-          departmentId: opts.departmentId,
-          metadata: { goal, departmentId: opts.departmentId },
-        });
-        await this.opts.sessionStore.appendSessionName(orchSession.session, goal.slice(0, 60));
+        orchSession = opts.orchestratorSessionPath
+          ? await this.opts.sessionStore.openHandle(opts.orchestratorSessionPath)
+          : await this.opts.sessionStore.createSession({
+              component: 'orchestrator',
+              id: `orch_${Date.now()}`,
+              goal,
+              departmentId: opts.departmentId,
+              metadata: { goal, departmentId: opts.departmentId },
+            });
+        if (!opts.orchestratorSessionPath) {
+          await this.opts.sessionStore.appendSessionName(orchSession.session, goal.slice(0, 60));
+        }
       } catch (err) {
-        console.warn(`[OrchestratorAgent] ⚠️ 总大脑会话创建失败（不影响执行）: ${(err as Error).message}`);
+        console.warn(`[OrchestratorAgent] ⚠️ 总大脑会话创建/恢复失败（降级为无账本执行，不影响主流程）: ${(err as Error).message}`);
+      }
+    }
+
+    // ═══ T0 多轮连续③：resume 时回读账本中的历史对话注入分析；并把本轮目标写进账本（对话内容入账）═══
+    let historyBlock = '';
+    if (orchSession && this.opts.sessionStore) {
+      try {
+        if (opts.orchestratorSessionPath) {
+          const priorEntries = await this.opts.sessionStore.readEntries(orchSession.path);
+          const turns = priorEntries
+            .filter((e) => e.type === 'message' && (e.role === 'user' || e.role === 'assistant'))
+            .slice(-8)
+            .map((e) => `${e.role === 'user' ? '用户' : 'AI'}: ${previewText(e.content, 300)}`);
+          if (turns.length > 0) {
+            historyBlock = `\n\n【与该用户的近期对话历史（供理解本轮诉求；勿重复执行其中已完成的旧任务）】\n${turns.join('\n')}`;
+          }
+        }
+        await this.opts.sessionStore.appendMessage(orchSession.session, { role: 'user', content: goal });
+      } catch (err) {
+        console.warn(`[OrchestratorAgent] ⚠️ 会话历史读写失败（按无历史继续）: ${(err as Error).message}`);
       }
     }
 
@@ -325,9 +350,10 @@ export class OrchestratorAgent {
     const personaBlock = opts.managerPersona
       ? `${opts.managerPersona}${opts.capabilities?.length ? `\n本部门可用能力：${opts.capabilities.join('、')}` : ''}`
       : undefined;
-    const analysisPrompt = opts.contextHint
+    const analysisPromptBase = opts.contextHint
       ? `${ANALYSIS_PROMPT(goal, personaBlock)}\n\n【上次尝试失败参考（仅作规避指引，勿照抄失败路径）】\n${opts.contextHint}`
       : ANALYSIS_PROMPT(goal, personaBlock);
+    const analysisPrompt = `${analysisPromptBase}${historyBlock}`;
     const res = await this.llm.generateText({ prompt: analysisPrompt, temperature: 0 });
     this.opts.onTokenUsage?.(tokenCount(res));
     chargeTokens(tokenCount(res));
@@ -504,6 +530,8 @@ export class OrchestratorAgent {
       await this.opts.sessionStore.appendCustom(orchSession.session, 'orchestration.synthesis', {
         outputPreview: previewText(finalOutput),
       });
+      // ═══ T0 多轮连续④：最终交付物以 assistant 消息入账（下轮 resume 可见）═══
+      await this.opts.sessionStore.appendMessage(orchSession.session, { role: 'assistant', content: previewText(finalOutput, 4000) });
     }
 
     const failed = [...stepResults.values()].length === 0;

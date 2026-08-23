@@ -65,6 +65,8 @@ export interface ExecutionRequest {
   managerPersona?: string;
   /** P1 部门 Space：工位能力提示（可选；仅作参考，工位由 LLM 动态编排） */
   capabilities?: string[];
+  /** T0 多轮连续：orchestrator 账本路径（存在时 resume 同一本账，多轮对话历史不丢） */
+  orchestratorSessionPath?: string;
   /** 进度回调（Phase 4.6） */
   onProgress?: ProgressCallback;
 }
@@ -100,7 +102,7 @@ export interface DAGRuntimeLike {
 /** OrchestratorAgentLike — 多 Agent 总大脑（会话 3）：编排 → 执行 → 审计（迭代）→ 汇总 */
 export interface OrchestratorAgentLike {
   readonly name: string;
-  run(goal: string, opts?: { departmentId?: string; contextHint?: string; managerPersona?: string; capabilities?: string[] }): Promise<{
+  run(goal: string, opts?: { departmentId?: string; contextHint?: string; managerPersona?: string; capabilities?: string[]; orchestratorSessionPath?: string }): Promise<{
     success: boolean;
     output?: unknown;
     iterations: number;
@@ -340,6 +342,7 @@ export class UnifiedExecutionEngine {
           contextHint,
           managerPersona: request.managerPersona,
           capabilities: request.capabilities,
+          orchestratorSessionPath: request.orchestratorSessionPath,
         });
         return (request.timeoutMs && request.timeoutMs > 0)
           ? this.withTimeout(p, request.timeoutMs, `编排执行超时（${request.timeoutMs}ms）`)
