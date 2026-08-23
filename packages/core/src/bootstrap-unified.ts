@@ -667,6 +667,19 @@ export async function bootstrapUnified(options?: {
           manual,
           eventBus: container.eventBus,
           departmentId: entry.domain,
+          gateRunner: async (goal: string, _deptId?: string) => {
+            try {
+              const { runOntologyGroundedReasoning } = await import('./gate/runOntologyGroundedReasoning.js');
+              const pkg = await runOntologyGroundedReasoning({
+                goal,
+                ontology,
+                guard: forcedQueryGuard,
+                piBridge: piBridgeWrapper,
+                eventBus: container.eventBus,
+              } as never);
+              return pkg as unknown;
+            } catch { return null; }
+          },
           askTool: { execute: (p: Record<string, unknown>) => askTool.execute(p) },
           stepExecutor: {
             executeStep: async (node, upstreamResults) => {

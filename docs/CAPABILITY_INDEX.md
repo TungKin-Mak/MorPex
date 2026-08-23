@@ -72,3 +72,4 @@
 | 硬件/固件/仿真 | hardware、MCU | `workflows/hardware/`（firmware+simulation） | ✅ | 同上 |
 | 软件开发流程 | software、GitHub/Docker | `workflows/software/workflow-provider.ts` | ✅ | 同上 |
 | MCU 开发 | xjmcu、编译/烧录 | `workflows/xjmcu/src/actions/*.ts` | ✅ | 同上 |
+| 部门手册（yaml 工作流） | 部门、yaml、manual、矽杰微开发部、回跳 | `execution/runtime/manual/YamlManualLoader.ts` + `YamlWorkflowRuntime.ts` + `workflows/xjmcu/department/manual.yaml` | ✅ | 新部门=加 manual.yaml 一行 + `bootstrap-unified` 清单注册 |

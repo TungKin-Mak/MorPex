@@ -234,6 +234,8 @@
 | `execution/runtime/dag/TaskNode.ts` | TaskNode — DAG 执行节点 包装 DAGNode，添加运行时执行状态。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/types.ts` | DAG Plugin — 类型定义 DAG 节点、边、验证、状态相关类型。 从 src/core/types.ts 中的 AdaptiveDAGNode 等类型迁移。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/manual/YamlManualLoader.ts` | YamlManualLoader — 部门手册（声明式工作流 YAML）解析/校验/匹配（load/validate/match），纯数据层不执行 | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/manual/YamlWorkflowRuntime.ts` | YamlWorkflowRuntime — 部门手册通用解释器（复用 DAGRuntime + 回跳语义 backjump/skip/retry + ask 人审门 + Gate 凭证） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/index.ts` | ── Runtime Kernel (Phase 1 / MorPex v8) ── | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/MissionController.ts` | MissionController — Mission 生命周期控制（状态机推进 + 事件广播） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/mission/MissionRuntime.ts` | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 | MissionRuntime — Mission 运行时主引擎 Phase 3 / MorPex v8: 用户意图 → Mission → Plan → Execution 的核心编排器。 职责： 1. 从 IncomingMessage 创建 Mission 2. 管理 Mission 的完整生命周期（MissionState 流转） 3. 委托 Planner 生成执行计划 4. 委托 Executor 执行计划 5. 通过 EventBus 发射所有状态转换事件 6. 支持 Mission 取消 与现有组件的 |
@@ -615,10 +617,13 @@
 | `packages/workflows/software/workflow-provider.ts` | 软件 WorkflowProvider（旧接口兼容层） | legacy 兼容 |
 | `packages/workflows/xjmcu/src/actions/generate.ts` | XJMCU 生成动作：生成固件源码骨架（ActionPrimitive） | 领域动作 |
 | `packages/workflows/xjmcu/src/actions/compile.ts` | XJMCU 编译动作：buildcli 编译固件（ActionPrimitive） | 领域动作 |
+| `packages/workflows/xjmcu/src/actions/simulate.ts` | XJMCU 仿真动作：astrocli 仿真固件（ActionPrimitive，与 pipeline 共用实现） | 领域动作 |
 | `packages/workflows/xjmcu/src/actions/pipeline.ts` | XJMCU 全流程动作：生成→编译→仿真（ActionPrimitive） | 领域动作 |
 | `packages/workflows/xjmcu/src/bootstrap.ts` | XJMCU 插件 Bootstrap：注册 ActionPrimitive（幂等） | 只做注册 |
 | `packages/workflows/xjmcu/src/rules/platform-rule.ts` | XJMCU 平台 API 白名单规则（防误用 STM32 HAL/LL 等） | 领域规则 |
 | `packages/workflows/xjmcu/workflow-provider.ts` | XJMCU WorkflowProvider（旧接口兼容层） | legacy 兼容 |
+| `packages/workflows/xjmcu/department/manual.yaml` | XJMCU 部门手册（7 步声明式工作流，deps/on_failure/ask），部门 Space 数据源 | 领域数据 |
+| `packages/workflows/xjmcu/src/mcp/server.ts` | XJMCU MCP Server（stdio JSON-RPC，暴露 xjmcu_compile/simulate，内部复用 ActionPrimitive） | MCP 桥接 |
 
 ## `workflow-sdk/src/`（8 文件 · 后端 SDK）
 

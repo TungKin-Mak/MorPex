@@ -1,16 +1,16 @@
 # MorPex 后端代码函数与关系链分析
 
-> 生成时间：2026-08-21 20:09:09 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
+> 生成时间：2026-08-23 21:21:34 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
 
 ## 0. 统计概览
 
 | 指标 | 值 |
 |---|---|
 | 扫描根 | packages/core/src/facade、packages/core/src/governance、packages/core/src/knowledge、packages/core/src/gate、packages/core/src/cognition、packages/core/src/execution、packages/core/src/evaluation、packages/core/src/evolution、packages/core/src/infrastructure、packages/core/src/workflow、packages/connectors/src、packages/memory/src、packages/studio/server、packages/workflows、packages/workflow-sdk/src、packages/contracts、scripts |
-| 文件数 | 485 |
-| 函数/方法数 | 2775 |
-| 调用表达式数 | 12832 |
-| import 数 | 987 |
+| 文件数 | 501 |
+| 函数/方法数 | 2889 |
+| 调用表达式数 | 13507 |
+| import 数 | 1045 |
 
 ## 1. 文件间依赖关系链（import 图）
 
@@ -456,6 +456,11 @@
 ### packages\core\src\execution\TeamBuilder.ts
 - `./types.js` → TeamSpec
 
+### packages\core\src\execution\ToolCallApprovalService.ts
+- `../infrastructure/common/EventBus.js` → EventBus
+
+### packages\core\src\execution\TranscriptToolBridge.ts
+- （无 import）
 ### packages\core\src\execution\UnifiedExecutionEngine.ts
 - `../infrastructure/common/EventBus.js` → EventBus
 - `../governance/control-plane/DepartmentContext.js` → DepartmentContext
@@ -636,6 +641,8 @@
 ### packages\core\src\execution\runtime\dag\StepAgentExecutor.ts
 - `../../../infrastructure/adapters/agent-spawner.js` → agentSpawner
 - `../../../infrastructure/tools/primitiveAgentTools.js` → createPrimitiveAgentTools, createPrimitiveBeforeToolCall
+- `../../ToolCallApprovalService.js` → createToolCallApprovalHook, ToolApprovalHook
+- `../../TranscriptToolBridge.js` → getTranscriptToolBridge
 - `../../../infrastructure/adapters/pi-bridge/index.js` → AgentTool
 - `node:path` → *
 - `node:fs` → *
@@ -656,6 +663,18 @@
 - （无 import）
 ### packages\core\src\execution\runtime\index.ts
 - （无 import）
+### packages\core\src\execution\runtime\manual\YamlManualLoader.ts
+- `node:fs` → readFileSync
+- `yaml` → parse
+
+### packages\core\src\execution\runtime\manual\YamlWorkflowRuntime.ts
+- `../dag/types.js` → ExecutionDAG, DAGNode
+- `../dag/DAGRuntime.js` → DAGRuntime
+- `../../../infrastructure/tools/DomainPrimitiveRegistry.js` → DomainPrimitiveRegistry
+- `../../../infrastructure/common/EventBus.js` → EventBus
+- `./YamlManualLoader.js` → WorkflowManual, ManualStep
+- `./YamlManualLoader.js` → parseFailurePolicy
+
 ### packages\core\src\execution\runtime\mission\MissionController.ts
 - `../../../infrastructure/common/EventBus.js` → EventBus
 - `../../../infrastructure/protocol/events/EventType.js` → EventType
@@ -1199,6 +1218,7 @@
 - `../../gate/context.js` → KnowledgeContextPackage
 - `../../execution/UserAskService.js` → createAskUserTool, setAskEventBus
 - `../../execution/AgentMailbox.js` → getMailbox
+- `../../execution/TranscriptToolBridge.js` → getTranscriptToolBridge
 
 ### packages\core\src\infrastructure\tools\primitives\APICallPrimitive.ts
 - `./types.js` → ActionPrimitive, ActionResult, APICallRequest
@@ -1571,6 +1591,7 @@
 - `../../core/src/bootstrap-unified.js` → UnifiedBootstrapResult
 - `../../core/src/governance/CostController.js` → CostController
 - `../../core/src/infrastructure/adapters/pi-bridge/PiBridge.js` → getSharedPiBridge
+- `./transcript/memory-extractor.js` → registerMemoryExtractor
 - `../../core/src/cognition/planning/goal-intelligence/IntentClassifier.js` → IntentClassifier
 - `../../core/src/governance/control-plane/space-types.js` → Space
 - `../../core/src/governance/control-plane/SpaceService.js` → SpaceService
@@ -1579,6 +1600,15 @@
 - `../../core/src/execution/PlanGateService.js` → confirmPlan, getPendingPlans, setAutoExecute
 - `../../core/src/execution/DecisionStore.js` → listPendingDecisions
 - `../../core/src/infrastructure/adapters/pi-bridge/yamlConfig.js` → loadMorpexConfig
+- `./transcript/TranscriptStore.js` → TranscriptStore
+- `./transcript/Indexer.js` → TranscriptIndexer
+- `./transcript/ChatTranscriptService.js` → ChatTranscriptService
+- `./transcript/AgentMessageStore.js` → AgentMessageStore
+- `./transcript/session-tools.js` → createSessionToolsBridge
+- `./transcript/approval-routes.js` → registerApprovalRoutes
+- `../../core/src/execution/TranscriptToolBridge.js` → setTranscriptToolBridge
+- `./transcript/projection.js` → projectEvents
+- `./transcript/readAt.js` → readEntryAt
 - `./SessionStore.js` → SessionStore
 - `./observability/index.js` → createObservabilityRouter
 - `./observability/runtime-bridge.js` → startObservabilityBridge, wireObservabilityServices
@@ -1696,6 +1726,47 @@
 
 ### packages\studio\server\security-middleware.ts
 - `express` → Request, Response, NextFunction
+
+### packages\studio\server\transcript\AgentMessageStore.ts
+- `better-sqlite3` → Database
+- `node:fs` → *
+- `node:path` → *
+
+### packages\studio\server\transcript\ChatTranscriptService.ts
+- `node:fs` → *
+- `node:path` → *
+- `./TranscriptStore.js` → TranscriptStore, TranscriptWindowRow
+- `./Indexer.js` → TranscriptIndexer
+
+### packages\studio\server\transcript\Indexer.ts
+- `node:fs` → *
+- `./TranscriptStore.js` → TranscriptStore
+
+### packages\studio\server\transcript\TranscriptStore.ts
+- `better-sqlite3` → Database
+- `node:fs` → *
+- `node:path` → *
+
+### packages\studio\server\transcript\approval-routes.ts
+- `express` → Express
+- `../../../core/src/execution/ToolCallApprovalService.js` → resolveToolApproval, listPendingToolApprovals
+- `./AgentMessageStore.js` → AgentMessageStore
+- `./TranscriptStore.js` → TranscriptStore
+
+### packages\studio\server\transcript\memory-extractor.ts
+- `../../../core/src/infrastructure/common/EventBus.js` → EventBus
+- `../../../core/src/infrastructure/adapters/pi-bridge/PiBridge.js` → getSharedPiBridge
+
+### packages\studio\server\transcript\projection.ts
+- （无 import）
+### packages\studio\server\transcript\readAt.ts
+- `node:fs` → *
+
+### packages\studio\server\transcript\session-tools.ts
+- `node:fs` → *
+- `./TranscriptStore.js` → TranscriptStore, TranscriptWindowRow
+- `./Indexer.js` → TranscriptIndexer
+- `./AgentMessageStore.js` → AgentMessageStore
 
 ### packages\workflow-sdk\src\IWorkflowAdapter.ts
 - `./types.js` → WorkflowContext, WorkflowExecutionResult, OptimizationProposal
@@ -1871,15 +1942,28 @@
 - `fs` → existsSync, mkdirSync, writeFileSync
 - `@morpex/core` → ActionPrimitive, ActionResult
 
+### packages\workflows\xjmcu\src\actions\simulate.ts
+- `child_process` → execSync
+- `path` → resolve, dirname
+- `url` → fileURLToPath
+- `fs` → existsSync
+- `@morpex/core` → ActionPrimitive, ActionResult
+
 ### packages\workflows\xjmcu\src\bootstrap.ts
 - `@morpex/core` → DomainPrimitiveRegistry
 - `./actions/compile.js` → XJMcuCompileAction
 - `./actions/generate.js` → XJMcuGenerateAction
 - `./actions/pipeline.js` → XJMcuPipelineAction
+- `./actions/simulate.js` → XJMcuSimulateAction
 - `./rules/platform-rule.js` → registerPlatformRules
 
 ### packages\workflows\xjmcu\src\index.ts
 - （无 import）
+### packages\workflows\xjmcu\src\mcp\server.ts
+- `node:process` → Readable, Writable
+- `../actions/compile.js` → XJMcuCompileAction
+- `../actions/simulate.js` → XJMcuSimulateAction
+
 ### packages\workflows\xjmcu\src\rules\platform-rule.ts
 - `@morpex/core` → RuleRegistry, RuleEntity
 
@@ -1937,6 +2021,12 @@
 - `k6/http` → http
 - `k6` → check, sleep, group
 - `k6/metrics` → Rate
+
+### scripts\maintenance.mjs
+- `node:zlib` → createGzip
+- `node:fs` → createReadStream, createWriteStream, existsSync, mkdirSync, statSync
+- `node:path` → join, resolve
+- `better-sqlite3` → Database
 
 ### scripts\ops-validate.ts
 - `../packages/core/src/bootstrap-unified.js` → bootstrapUnified
@@ -2111,12 +2201,12 @@
 ### packages\core\src\cognition\ReflectionEngine.ts（6 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 56 |
-| setLLMCaller | method |  |  | 61 |
-| reflect | method | Y |  | 65 |
-| deepReflect | method | Y |  | 94 |
-| parseLLMResponse | method |  |  | 131 |
-| ruleBasedReflect | method |  |  | 147 |
+| (anon) | ctor |  |  | 59 |
+| setLLMCaller | method |  |  | 64 |
+| reflect | method | Y |  | 68 |
+| deepReflect | method | Y |  | 97 |
+| parseLLMResponse | method |  |  | 134 |
+| ruleBasedReflect | method |  |  | 150 |
 
 ### packages\core\src\cognition\SafetyMonitor.ts（5 个）
 | 函数 | kind | async | export | 行 |
@@ -2473,20 +2563,20 @@
 ### packages\core\src\cognition\planning\HierarchicalPlanner.ts（14 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 95 |
-| setBrainFacade | method |  |  | 100 |
-| setOntology | method |  |  | 105 |
-| setForcedQueryGuard | method |  |  | 110 |
-| setPiBridge | method |  |  | 115 |
-| setOntologyGroundingEnabled | method |  |  | 120 |
-| createPlan | method | Y |  | 124 |
-| decomposeGoal | method | Y |  | 275 |
-| ruleBasedDecompose | method |  |  | 293 |
-| sgId | const-fn |  |  | 295 |
-| buildDAGNodes | method |  |  | 342 |
-| inferCapabilities | method |  |  | 351 |
-| assessComplexity | method |  |  | 362 |
-| assessRiskLevel | method |  |  | 368 |
+| (anon) | ctor |  |  | 98 |
+| setBrainFacade | method |  |  | 103 |
+| setOntology | method |  |  | 108 |
+| setForcedQueryGuard | method |  |  | 113 |
+| setPiBridge | method |  |  | 118 |
+| setOntologyGroundingEnabled | method |  |  | 123 |
+| createPlan | method | Y |  | 127 |
+| decomposeGoal | method | Y |  | 278 |
+| ruleBasedDecompose | method |  |  | 296 |
+| sgId | const-fn |  |  | 298 |
+| buildDAGNodes | method |  |  | 345 |
+| inferCapabilities | method |  |  | 354 |
+| assessComplexity | method |  |  | 365 |
+| assessRiskLevel | method |  |  | 371 |
 
 ### packages\core\src\cognition\planning\goal-intelligence\ConstraintAnalyzer.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -2513,9 +2603,9 @@
 ### packages\core\src\cognition\planning\goal-intelligence\IntentClassifier.ts（3 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| isQuestionLike | fn |  |  | 38 |
-| heuristic | fn |  |  | 46 |
-| classify | method | Y |  | 64 |
+| isQuestionLike | fn |  |  | 39 |
+| heuristic | fn |  |  | 47 |
+| classify | method | Y |  | 71 |
 
 ### packages\core\src\cognition\planning\goal-intelligence\RequirementExtractor.ts（2 个）
 | 函数 | kind | async | export | 行 |
@@ -2676,9 +2766,9 @@
 ### packages\core\src\evaluation\QualityScorer.ts（3 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| score | method |  |  | 17 |
-| scoreSystem | method |  |  | 47 |
-| decide | method |  |  | 71 |
+| score | method |  |  | 20 |
+| scoreSystem | method |  |  | 50 |
+| decide | method |  |  | 74 |
 
 ### packages\core\src\evaluation\index.ts（0 个）
 - （无顶层函数/方法提取）
@@ -2696,30 +2786,30 @@
 ### packages\core\src\evaluation\verification\ArtifactChecker.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| check | method | Y |  | 10 |
+| check | method | Y |  | 13 |
 
 ### packages\core\src\evaluation\verification\ExecutionVerifier.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| verify | method | Y |  | 11 |
+| verify | method | Y |  | 14 |
 
 ### packages\core\src\evaluation\verification\QualityRule.ts（3 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| register | method |  |  | 10 |
-| getChecks | method |  |  | 14 |
-| init | method |  |  | 18 |
+| register | method |  |  | 13 |
+| getChecks | method |  |  | 17 |
+| init | method |  |  | 21 |
 
 ### packages\core\src\evaluation\verification\RepairPlanner.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| planRepairs | method |  |  | 10 |
+| planRepairs | method |  |  | 13 |
 
 ### packages\core\src\evaluation\verification\VerificationEngine.ts（2 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 17 |
-| verify | method | Y |  | 22 |
+| (anon) | ctor |  |  | 20 |
+| verify | method | Y |  | 25 |
 
 ### packages\core\src\evolution\ActiveEvolutionTrigger.ts（15 个）
 | 函数 | kind | async | export | 行 |
@@ -2950,7 +3040,7 @@
 ### packages\core\src\execution\AgentAllocator.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| allocate | method |  |  | 4 |
+| allocate | method |  |  | 7 |
 
 ### packages\core\src\execution\AgentMailbox.ts（18 个）
 | 函数 | kind | async | export | 行 |
@@ -2989,8 +3079,8 @@
 ### packages\core\src\execution\DependencyCoordinator.ts（2 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| buildDependencyGraph | method |  |  | 4 |
-| getBlockedTeams | method |  |  | 15 |
+| buildDependencyGraph | method |  |  | 7 |
+| getBlockedTeams | method |  |  | 18 |
 
 ### packages\core\src\execution\DynamicTeamOrchestrator.ts（7 个）
 | 函数 | kind | async | export | 行 |
@@ -3010,8 +3100,8 @@
 | setAutoExecute | fn |  | Y | 33 |
 | isAutoExecute | fn |  | Y | 38 |
 | requestPlanConfirm | fn |  | Y | 46 |
-| confirmPlan | fn |  | Y | 78 |
-| getPendingPlans | fn |  | Y | 90 |
+| confirmPlan | fn |  | Y | 79 |
+| getPendingPlans | fn |  | Y | 91 |
 
 ### packages\core\src\execution\SubAgentFork.ts（22 个）
 | 函数 | kind | async | export | 行 |
@@ -3060,30 +3150,48 @@
 ### packages\core\src\execution\TeamBuilder.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| buildTeams | method |  |  | 4 |
+| buildTeams | method |  |  | 7 |
 
-### packages\core\src\execution\UnifiedExecutionEngine.ts（19 个）
+### packages\core\src\execution\ToolCallApprovalService.ts（7 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| setToolApprovalEventBus | fn |  | Y | 46 |
+| needsToolApproval | fn |  | Y | 51 |
+| riskOf | fn |  |  | 58 |
+| summarizeArgs | fn |  |  | 63 |
+| createToolCallApprovalHook | fn |  | Y | 87 |
+| resolveToolApproval | fn |  | Y | 154 |
+| listPendingToolApprovals | fn |  | Y | 163 |
+
+### packages\core\src\execution\TranscriptToolBridge.ts（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| setTranscriptToolBridge | fn |  | Y | 30 |
+| getTranscriptToolBridge | fn |  | Y | 34 |
+
+### packages\core\src\execution\UnifiedExecutionEngine.ts（20 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | isGenerativePrimitive | fn |  |  | 34 |
-| (anon) | ctor |  |  | 139 |
-| setOrchestratorAgent | method |  |  | 145 |
-| setParamExtractor | method |  |  | 154 |
-| isReady | method |  |  | 161 |
-| execute | method | Y |  | 174 |
-| analyzeComplexity | method |  |  | 282 |
-| executeViaOrchestrator | method | Y |  | 321 |
-| runOnce | const-fn | Y |  | 337 |
-| hasRetryableFailure | method |  |  | 405 |
-| executeAuto | method | Y |  | 420 |
-| recordExecutionPath | method |  |  | 484 |
-| withTimeout | method | Y |  | 512 |
-| recordExecutionQuality | method |  |  | 533 |
-| getExecutionQuality | method |  |  | 544 |
-| getExecution | method |  |  | 559 |
-| listExecutions | method |  |  | 568 |
-| cancel | method | Y |  | 577 |
-| getHealth | method |  |  | 587 |
+| (anon) | ctor |  |  | 159 |
+| setOrchestratorAgent | method |  |  | 165 |
+| setManualRuntime | method |  |  | 170 |
+| setParamExtractor | method |  |  | 179 |
+| isReady | method |  |  | 186 |
+| execute | method | Y |  | 199 |
+| analyzeComplexity | method |  |  | 307 |
+| executeViaOrchestrator | method | Y |  | 346 |
+| runOnce | const-fn | Y |  | 362 |
+| hasRetryableFailure | method |  |  | 431 |
+| executeAuto | method | Y |  | 446 |
+| recordExecutionPath | method |  |  | 519 |
+| withTimeout | method | Y |  | 547 |
+| recordExecutionQuality | method |  |  | 568 |
+| getExecutionQuality | method |  |  | 579 |
+| getExecution | method |  |  | 594 |
+| listExecutions | method |  |  | 603 |
+| cancel | method | Y |  | 612 |
+| getHealth | method |  |  | 622 |
 
 ### packages\core\src\execution\UserAskService.ts（4 个）
 | 函数 | kind | async | export | 行 |
@@ -3117,20 +3225,24 @@
 - （无顶层函数/方法提取）
 ### packages\core\src\execution\index.ts（0 个）
 - （无顶层函数/方法提取）
-### packages\core\src\execution\orchestration\AgentSessionStore.ts（11 个）
+### packages\core\src\execution\orchestration\AgentSessionStore.ts（15 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 82 |
-| rootPath | getter |  |  | 87 |
-| createSession | method | Y |  | 94 |
-| open | method | Y |  | 117 |
-| list | method | Y |  | 124 |
-| fork | method | Y |  | 139 |
-| appendCustom | method | Y |  | 159 |
-| appendSessionName | method | Y |  | 171 |
-| readEntries | method | Y |  | 189 |
-| normalizeEntry | fn |  |  | 212 |
-| contentToText | fn |  |  | 258 |
+| (anon) | ctor |  |  | 99 |
+| rootPath | getter |  |  | 104 |
+| createSession | method | Y |  | 111 |
+| open | method | Y |  | 147 |
+| openHandle | method | Y |  | 155 |
+| compactViaSession | method | Y |  | 166 |
+| list | method | Y |  | 203 |
+| fork | method | Y |  | 218 |
+| appendMessage | method | Y |  | 238 |
+| appendCustom | method | Y |  | 250 |
+| appendCustomMessage | method | Y |  | 264 |
+| appendSessionName | method | Y |  | 284 |
+| readEntries | method | Y |  | 302 |
+| normalizeEntry | fn |  |  | 325 |
+| contentToText | fn |  |  | 371 |
 
 ### packages\core\src\execution\orchestration\OrchestratorAgent.ts（19 个）
 | 函数 | kind | async | export | 行 |
@@ -3149,38 +3261,38 @@
 | run | method | Y |  | 268 |
 | chargeTokens | const-fn |  |  | 276 |
 | capSteps | const-fn |  |  | 283 |
-| executeSteps | method | Y |  | 538 |
-| ensureStepSession | const-fn | Y |  | 549 |
-| formatResults | method |  |  | 629 |
-| snapshotStepResults | method |  |  | 640 |
-| writePlanFile | method |  |  | 670 |
+| executeSteps | method | Y |  | 566 |
+| ensureStepSession | const-fn | Y |  | 579 |
+| formatResults | method |  |  | 659 |
+| snapshotStepResults | method |  |  | 670 |
+| writePlanFile | method |  |  | 700 |
 
 ### packages\core\src\execution\runtime\ExecutionContext.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\execution\runtime\MorPexRuntime.ts（10 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 89 |
-| setOntology | method |  |  | 120 |
-| setEventStore | method |  |  | 123 |
-| setContextAssemblyEngine | method |  |  | 126 |
-| setPlanner | method |  |  | 131 |
-| setForcedQueryGuard | method |  |  | 135 |
-| setPiBridge | method |  |  | 137 |
-| setEvaluationEngine | method |  |  | 139 |
-| run | method | Y |  | 141 |
-| learnFromVerification | method |  |  | 725 |
+| (anon) | ctor |  |  | 94 |
+| setOntology | method |  |  | 125 |
+| setEventStore | method |  |  | 128 |
+| setContextAssemblyEngine | method |  |  | 131 |
+| setPlanner | method |  |  | 136 |
+| setForcedQueryGuard | method |  |  | 140 |
+| setPiBridge | method |  |  | 142 |
+| setEvaluationEngine | method |  |  | 144 |
+| run | method | Y |  | 146 |
+| learnFromVerification | method |  |  | 731 |
 
 ### packages\core\src\execution\runtime\PersistentArtifactStore.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 10 |
-| init | method | Y |  | 14 |
-| save | method |  |  | 28 |
-| transition | method |  |  | 41 |
-| get | method |  |  | 59 |
-| getByTask | method |  |  | 60 |
-| replay | method |  |  | 62 |
+| (anon) | ctor |  |  | 13 |
+| init | method | Y |  | 17 |
+| save | method |  |  | 31 |
+| transition | method |  |  | 44 |
+| get | method |  |  | 62 |
+| getByTask | method |  |  | 63 |
+| replay | method |  |  | 65 |
 
 ### packages\core\src\execution\runtime\PersistentMissionStore.ts（7 个）
 | 函数 | kind | async | export | 行 |
@@ -3196,29 +3308,29 @@
 ### packages\core\src\execution\runtime\PipelineOrchestrator.ts（3 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 15 |
-| setWorkflowRegistry | method |  |  | 25 |
-| orchestrate | method | Y |  | 29 |
+| (anon) | ctor |  |  | 18 |
+| setWorkflowRegistry | method |  |  | 28 |
+| orchestrate | method | Y |  | 32 |
 
 ### packages\core\src\execution\runtime\ServiceContainer.ts（16 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| eventStore | getter |  |  | 76 |
-| getContextPersistence | method |  |  | 90 |
-| recallTaskContext | method | Y |  | 103 |
-| recallTaskForAgent | method | Y |  | 120 |
-| (anon) | ctor |  |  | 149 |
-| setOntology | method |  |  | 239 |
-| setContextAssemblyEngine | method |  |  | 249 |
-| registerRealProviders | method |  |  | 257 |
-| ready | getter |  |  | 271 |
-| createEventStoreAppender | method |  |  | 282 |
-| initEventStore | method | Y |  | 292 |
-| createOrchestratorAgent | method |  |  | 333 |
-| createMissionRuntime | method |  |  | 414 |
-| createDAGRuntime | method |  |  | 419 |
-| ensurePiBridge | method | Y |  | 567 |
-| initLearningPersistence | method | Y |  | 587 |
+| eventStore | getter |  |  | 81 |
+| getContextPersistence | method |  |  | 95 |
+| recallTaskContext | method | Y |  | 108 |
+| recallTaskForAgent | method | Y |  | 125 |
+| (anon) | ctor |  |  | 154 |
+| setOntology | method |  |  | 244 |
+| setContextAssemblyEngine | method |  |  | 254 |
+| registerRealProviders | method |  |  | 262 |
+| ready | getter |  |  | 276 |
+| createEventStoreAppender | method |  |  | 287 |
+| initEventStore | method | Y |  | 297 |
+| createOrchestratorAgent | method |  |  | 338 |
+| createMissionRuntime | method |  |  | 420 |
+| createDAGRuntime | method |  |  | 425 |
+| ensurePiBridge | method | Y |  | 573 |
+| initLearningPersistence | method | Y |  | 593 |
 
 ### packages\core\src\execution\runtime\approval\ApprovalEngine.ts（12 个）
 | 函数 | kind | async | export | 行 |
@@ -3345,27 +3457,28 @@
 | schedule | method |  |  | 33 |
 | getStatus | method |  |  | 61 |
 
-### packages\core\src\execution\runtime\dag\StepAgentExecutor.ts（18 个）
+### packages\core\src\execution\runtime\dag\StepAgentExecutor.ts（19 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| isToolFailureOutput | fn |  |  | 46 |
-| isSafetyBlockedOutput | fn |  |  | 56 |
-| classifyStepOutput | fn |  | Y | 65 |
-| classifyStepError | fn |  | Y | 76 |
-| buildStepSystemPrompt | fn |  |  | 153 |
-| formatUpstreamResults | fn |  |  | 177 |
-| formatUpstreamSessionRefs | fn |  |  | 189 |
-| sanitizeSessionId | fn |  |  | 196 |
-| previewText | fn |  |  | 201 |
-| (anon) | ctor |  |  | 213 |
-| executeStep | method | Y |  | 224 |
-| flushStream | const-fn |  |  | 329 |
-| emitStepStarted | method |  |  | 465 |
-| emitStepResult | method |  |  | 489 |
-| recordStepResult | method | Y |  | 514 |
-| withSessionMeta | method | Y |  | 537 |
-| withTimeout | method | Y |  | 552 |
-| extractText | fn |  | Y | 569 |
+| composeBeforeToolCall | fn |  |  | 26 |
+| isToolFailureOutput | fn |  |  | 61 |
+| isSafetyBlockedOutput | fn |  |  | 71 |
+| classifyStepOutput | fn |  | Y | 80 |
+| classifyStepError | fn |  | Y | 91 |
+| buildStepSystemPrompt | fn |  |  | 168 |
+| formatUpstreamResults | fn |  |  | 192 |
+| formatUpstreamSessionRefs | fn |  |  | 204 |
+| sanitizeSessionId | fn |  |  | 211 |
+| previewText | fn |  |  | 216 |
+| (anon) | ctor |  |  | 228 |
+| executeStep | method | Y |  | 239 |
+| flushStream | const-fn |  |  | 358 |
+| emitStepStarted | method |  |  | 494 |
+| emitStepResult | method |  |  | 518 |
+| recordStepResult | method | Y |  | 543 |
+| withSessionMeta | method | Y |  | 566 |
+| withTimeout | method | Y |  | 581 |
+| extractText | fn |  | Y | 598 |
 
 ### packages\core\src\execution\runtime\dag\TaskGraph.ts（16 个）
 | 函数 | kind | async | export | 行 |
@@ -3404,24 +3517,58 @@
 - （无顶层函数/方法提取）
 ### packages\core\src\execution\runtime\index.ts（0 个）
 - （无顶层函数/方法提取）
+### packages\core\src\execution\runtime\manual\YamlManualLoader.ts（7 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| loadManual | fn |  | Y | 74 |
+| validateManual | fn |  | Y | 87 |
+| parseFailurePolicy | fn |  | Y | 134 |
+| topoOrder | fn |  |  | 149 |
+| visit | const-fn |  |  | 153 |
+| hasCycle | fn |  |  | 172 |
+| matchManual | fn |  | Y | 177 |
+
+### packages\core\src\execution\runtime\manual\YamlWorkflowRuntime.ts（19 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| (anon) | ctor |  |  | 82 |
+| run | method | Y |  | 90 |
+| restoreDepSkipped | const-fn |  |  | 111 |
+| executeNode | method | Y |  | 246 |
+| runAskGate | method | Y |  | 301 |
+| resolveInputs | method |  |  | 327 |
+| resolveExpr | method |  |  | 339 |
+| renderTemplate | method |  |  | 356 |
+| renderAskTemplate | method |  |  | 371 |
+| buildDag | method |  |  | 389 |
+| parseRetries | method |  |  | 413 |
+| subDag | method |  |  | 420 |
+| closureDownstream | method |  |  | 432 |
+| stepById | method |  |  | 448 |
+| topoIndex | method |  |  | 452 |
+| toBag | method |  |  | 457 |
+| recordOutputs | method |  |  | 472 |
+| markOutputsPlaceholder | method |  |  | 477 |
+| findFailure | method |  |  | 486 |
+
 ### packages\core\src\execution\runtime\mission\MissionController.ts（15 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 13 |
-| setPersistentStore | method |  |  | 18 |
-| setEventStore | method |  |  | 26 |
-| createMission | method | Y |  | 30 |
-| updateMission | method |  |  | 63 |
-| addBlock | method |  |  | 96 |
-| resolveBlock | method |  |  | 118 |
-| autoRecover | method |  |  | 135 |
-| addRisk | method |  |  | 173 |
-| getMission | method |  |  | 180 |
-| listMissions | method |  |  | 181 |
-| getActiveMissions | method |  |  | 184 |
-| getBlockedMissions | method |  |  | 185 |
-| recover | method |  |  | 191 |
-| getAllMissions | method |  |  | 224 |
+| (anon) | ctor |  |  | 16 |
+| setPersistentStore | method |  |  | 21 |
+| setEventStore | method |  |  | 29 |
+| createMission | method | Y |  | 33 |
+| updateMission | method |  |  | 66 |
+| addBlock | method |  |  | 99 |
+| resolveBlock | method |  |  | 121 |
+| autoRecover | method |  |  | 138 |
+| addRisk | method |  |  | 176 |
+| getMission | method |  |  | 183 |
+| listMissions | method |  |  | 184 |
+| getActiveMissions | method |  |  | 187 |
+| getBlockedMissions | method |  |  | 188 |
+| recover | method |  |  | 194 |
+| getAllMissions | method |  |  | 227 |
 
 ### packages\core\src\execution\runtime\mission\MissionRuntime.ts（21 个）
 | 函数 | kind | async | export | 行 |
@@ -3560,27 +3707,27 @@
 ### packages\core\src\facade\CompanyFacade.ts（21 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 59 |
-| ensureBootstrapped | method | Y |  | 91 |
-| createDepartment | method | Y |  | 103 |
-| setLLMProvider | method |  |  | 117 |
-| setChatStreamer | method |  |  | 123 |
-| setContextAssemblyEngine | method |  |  | 131 |
-| sendTask | method | Y |  | 138 |
-| getDepartmentStatus | method |  |  | 147 |
-| listDepartments | method |  |  | 148 |
-| getStats | method |  |  | 149 |
-| executeGoal | method | Y |  | 151 |
-| generateDailyReport | method | Y |  | 291 |
-| searchAcrossDepartments | method | Y |  | 301 |
-| setBrainFacade | method |  |  | 303 |
-| setTeamOrchestrator | method |  |  | 306 |
-| getTeams | method |  |  | 311 |
-| getTeam | method |  |  | 316 |
-| setGoalIntelligenceFacade | method |  |  | 320 |
-| setFeedbackService | method |  |  | 323 |
-| setOntology | method |  |  | 324 |
-| setCEO | method |  |  | 325 |
+| (anon) | ctor |  |  | 61 |
+| ensureBootstrapped | method | Y |  | 93 |
+| createDepartment | method | Y |  | 105 |
+| setLLMProvider | method |  |  | 119 |
+| setChatStreamer | method |  |  | 125 |
+| setContextAssemblyEngine | method |  |  | 133 |
+| sendTask | method | Y |  | 140 |
+| getDepartmentStatus | method |  |  | 149 |
+| listDepartments | method |  |  | 150 |
+| getStats | method |  |  | 151 |
+| executeGoal | method | Y |  | 153 |
+| generateDailyReport | method | Y |  | 294 |
+| searchAcrossDepartments | method | Y |  | 304 |
+| setBrainFacade | method |  |  | 306 |
+| setTeamOrchestrator | method |  |  | 309 |
+| getTeams | method |  |  | 314 |
+| getTeam | method |  |  | 319 |
+| setGoalIntelligenceFacade | method |  |  | 323 |
+| setFeedbackService | method |  |  | 326 |
+| setOntology | method |  |  | 327 |
+| setCEO | method |  |  | 328 |
 
 ### packages\core\src\facade\gateway\ExecutionGateway.ts（10 个）
 | 函数 | kind | async | export | 行 |
@@ -3768,13 +3915,13 @@
 ### packages\core\src\governance\AlertEngine.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 11 |
-| getInstance | method |  |  | 15 |
-| init | method |  |  | 20 |
-| emit | method |  |  | 22 |
-| getRecent | method |  |  | 31 |
-| getByLevel | method |  |  | 32 |
-| getAll | method |  |  | 33 |
+| (anon) | ctor |  |  | 15 |
+| getInstance | method |  |  | 19 |
+| init | method |  |  | 24 |
+| emit | method |  |  | 26 |
+| getRecent | method |  |  | 35 |
+| getByLevel | method |  |  | 36 |
+| getAll | method |  |  | 37 |
 
 ### packages\core\src\governance\AnomalyDetector.ts（6 个）
 | 函数 | kind | async | export | 行 |
@@ -3939,14 +4086,14 @@
 ### packages\core\src\governance\RuntimeManager.ts（8 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| getInstance | method |  |  | 16 |
-| init | method |  |  | 21 |
-| getActiveCount | method |  |  | 34 |
-| getActiveContexts | method |  |  | 35 |
-| isResourceAvailable | method |  |  | 37 |
-| allocateResource | method |  |  | 40 |
-| releaseResource | method |  |  | 43 |
-| getStatus | method |  |  | 47 |
+| getInstance | method |  |  | 20 |
+| init | method |  |  | 25 |
+| getActiveCount | method |  |  | 38 |
+| getActiveContexts | method |  |  | 39 |
+| isResourceAvailable | method |  |  | 41 |
+| allocateResource | method |  |  | 44 |
+| releaseResource | method |  |  | 47 |
+| getStatus | method |  |  | 51 |
 
 ### packages\core\src\governance\capability\AgentCapabilityRegistry.ts（14 个）
 | 函数 | kind | async | export | 行 |
@@ -3969,7 +4116,7 @@
 ### packages\core\src\governance\capability\CapabilityDiscoverer.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| discover | method |  |  | 5 |
+| discover | method |  |  | 9 |
 
 ### packages\core\src\governance\capability\CapabilityRegistry.ts（12 个）
 | 函数 | kind | async | export | 行 |
@@ -4763,27 +4910,27 @@
 ### packages\core\src\infrastructure\tools\ToolFactory.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 78 |
-| setLLMCaller | method |  |  | 83 |
-| generateToolForTask | method | Y |  | 87 |
-| matchPreset | method |  |  | 121 |
-| llmGenerate | method | Y |  | 135 |
-| generateCodeImpl | method |  |  | 169 |
-| generateAndRegister | method | Y |  | 181 |
+| (anon) | ctor |  |  | 81 |
+| setLLMCaller | method |  |  | 86 |
+| generateToolForTask | method | Y |  | 90 |
+| matchPreset | method |  |  | 124 |
+| llmGenerate | method | Y |  | 138 |
+| generateCodeImpl | method |  |  | 172 |
+| generateAndRegister | method | Y |  | 184 |
 
 ### packages\core\src\infrastructure\tools\ToolRegistry.ts（10 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| init | method |  |  | 36 |
-| register | method | Y |  | 40 |
-| get | method |  |  | 73 |
-| findByName | method |  |  | 77 |
-| list | method |  |  | 81 |
-| updateStats | method |  |  | 86 |
-| getTopTools | method |  |  | 111 |
-| clear | method |  |  | 121 |
-| getStats | method |  |  | 125 |
-| getQualityReport | method |  |  | 137 |
+| init | method |  |  | 39 |
+| register | method | Y |  | 43 |
+| get | method |  |  | 76 |
+| findByName | method |  |  | 80 |
+| list | method |  |  | 84 |
+| updateStats | method |  |  | 89 |
+| getTopTools | method |  |  | 114 |
+| clear | method |  |  | 124 |
+| getStats | method |  |  | 128 |
+| getQualityReport | method |  |  | 140 |
 
 ### packages\core\src\infrastructure\tools\index.ts（0 个）
 - （无顶层函数/方法提取）
@@ -4810,16 +4957,16 @@
 ### packages\core\src\infrastructure\tools\primitiveAgentTools.ts（10 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| isEmptyValue | fn |  |  | 121 |
-| enrichSchemaForTool | fn |  |  | 133 |
-| validateRequiredParams | fn |  | Y | 160 |
-| buildMissingParamMessage | fn |  | Y | 179 |
-| createPrimitiveAgentTools | fn |  | Y | 207 |
-| recallTaskTool | fn |  |  | 299 |
-| createPrimitiveBeforeToolCall | fn |  | Y | 342 |
-| listPrimitiveAgentToolNames | fn |  | Y | 378 |
-| createMailTool | fn |  |  | 387 |
-| sayUnavailable | const-fn |  |  | 390 |
+| isEmptyValue | fn |  |  | 124 |
+| enrichSchemaForTool | fn |  |  | 136 |
+| validateRequiredParams | fn |  | Y | 163 |
+| buildMissingParamMessage | fn |  | Y | 182 |
+| createPrimitiveAgentTools | fn |  | Y | 210 |
+| recallTaskTool | fn |  |  | 366 |
+| createPrimitiveBeforeToolCall | fn |  | Y | 409 |
+| listPrimitiveAgentToolNames | fn |  | Y | 445 |
+| createMailTool | fn |  |  | 454 |
+| sayUnavailable | const-fn |  |  | 457 |
 
 ### packages\core\src\infrastructure\tools\primitives\APICallPrimitive.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -5692,7 +5839,7 @@
 |---|---|---|---|---|
 | registerRuntimeRoutes | fn |  | Y | 12 |
 
-### packages\studio\server\SessionStore.ts（13 个）
+### packages\studio\server\SessionStore.ts（12 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | (anon) | ctor |  |  | 30 |
@@ -5704,31 +5851,35 @@
 | listSessions | method |  |  | 85 |
 | deleteSession | method |  |  | 113 |
 | appendChatMessage | method |  |  | 136 |
-| patchLastUserMessage | method |  |  | 162 |
-| getChatHistory | method |  |  | 187 |
-| appendTaskMessage | method |  |  | 211 |
-| getTaskMessages | method |  |  | 223 |
+| getChatHistory | method |  |  | 161 |
+| appendTaskMessage | method |  |  | 185 |
+| getTaskMessages | method |  |  | 197 |
 
-### packages\studio\server\StudioServer.ts（17 个）
+### packages\studio\server\StudioServer.ts（22 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| sanitizeFileName | fn |  |  | 75 |
-| mimeOf | fn |  |  | 80 |
-| isTextLike | fn |  |  | 85 |
-| isTextViewable | fn |  |  | 92 |
-| generateTaskSummary | fn | Y |  | 100 |
-| routeTaskToSpace | fn | Y |  | 129 |
-| buildAttachmentContext | fn |  |  | 156 |
-| calcOverallRate | method |  |  | 195 |
-| (anon) | ctor |  |  | 205 |
-| start | method | Y |  | 212 |
-| getPort | method |  |  | 273 |
-| registerIdealRoutes | method |  |  | 281 |
-| collectHumanDecisions | const-fn |  |  | 679 |
-| llmRoute | const-fn |  |  | 851 |
-| registerSSE | method |  |  | 1146 |
-| cleanup | const-fn |  |  | 1170 |
-| stop | method | Y |  | 1178 |
+| sanitizeFileName | fn |  |  | 85 |
+| mimeOf | fn |  |  | 90 |
+| isTextLike | fn |  |  | 95 |
+| isTextViewable | fn |  |  | 102 |
+| generateTaskSummary | fn | Y |  | 110 |
+| routeTaskToSpace | fn | Y |  | 139 |
+| buildAttachmentContext | fn |  |  | 166 |
+| calcOverallRate | method |  |  | 213 |
+| getTranscripts | method |  |  | 226 |
+| getTranscriptStore | method |  |  | 281 |
+| loadRecentTurns | method |  |  | 287 |
+| resolveOrchestratorSessionPath | method | Y |  | 310 |
+| (anon) | ctor |  |  | 317 |
+| start | method | Y |  | 324 |
+| getPort | method |  |  | 391 |
+| registerIdealRoutes | method |  |  | 399 |
+| collectHumanDecisions | const-fn |  |  | 878 |
+| llmRoute | const-fn |  |  | 1050 |
+| runExecution | const-fn |  |  | 1118 |
+| registerSSE | method |  |  | 1438 |
+| cleanup | const-fn |  |  | 1462 |
+| stop | method | Y |  | 1470 |
 
 ### packages\studio\server\index.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -5980,6 +6131,103 @@
 | inputValidation | fn |  |  | 173 |
 | applySecurityMiddleware | fn |  | Y | 205 |
 
+### packages\studio\server\transcript\AgentMessageStore.ts（6 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| stmt | method |  |  | 25 |
+| (anon) | ctor |  |  | 34 |
+| insert | method |  |  | 53 |
+| listUnread | method |  |  | 58 |
+| markRead | method |  |  | 63 |
+| close | method |  |  | 70 |
+
+### packages\studio\server\transcript\ChatTranscriptService.ts（8 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| (anon) | ctor |  |  | 36 |
+| resolveOrchestratorPath | method | Y |  | 42 |
+| indexNow | method |  |  | 78 |
+| findWindow | method |  |  | 87 |
+| resetSession | method | Y |  | 96 |
+| listChatSessions | method |  |  | 123 |
+| appendDisplayTurn | method | Y |  | 146 |
+| registerComponentSession | method |  |  | 183 |
+
+### packages\studio\server\transcript\Indexer.ts（5 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| classifyEntryLine | fn |  | Y | 18 |
+| extractPreview | fn |  |  | 49 |
+| (anon) | ctor |  |  | 68 |
+| indexFile | method |  |  | 71 |
+| rebuild | method |  |  | 136 |
+
+### packages\studio\server\transcript\TranscriptStore.ts（21 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| stmt | method |  |  | 62 |
+| (anon) | ctor |  |  | 71 |
+| initTables | method |  |  | 80 |
+| findWindowByKey | method |  |  | 134 |
+| findWindowById | method |  |  | 142 |
+| findWindowByFilePath | method |  |  | 148 |
+| upsertWindow | method |  |  | 153 |
+| listWindows | method |  |  | 187 |
+| setStatus | method |  |  | 200 |
+| orphanReport | method |  |  | 207 |
+| insertEventIgnore | method |  |  | 225 |
+| deleteEvents | method |  |  | 234 |
+| countEvents | method |  |  | 238 |
+| eventsBySession | method |  |  | 243 |
+| getWatermark | method |  |  | 250 |
+| setWatermark | method |  |  | 254 |
+| clearWatermark | method |  |  | 262 |
+| upsertChatIndex | method |  |  | 268 |
+| listChatIndex | method |  |  | 280 |
+| withTransaction | method |  |  | 286 |
+| close | method |  |  | 290 |
+
+### packages\studio\server\transcript\approval-routes.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| registerApprovalRoutes | fn |  | Y | 22 |
+
+### packages\studio\server\transcript\memory-extractor.ts（4 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| parseCandidates | fn |  | Y | 54 |
+| registerMemoryExtractor | fn |  | Y | 82 |
+| extractMemoryCandidates | fn | Y | Y | 95 |
+| handleTurn | fn | Y |  | 105 |
+
+### packages\studio\server\transcript\projection.ts（6 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| projectEntry | fn |  | Y | 40 |
+| projectEvents | fn |  | Y | 101 |
+| truncate | fn |  |  | 115 |
+| asStr | fn |  |  | 118 |
+| asKind | fn |  |  | 121 |
+| previewText | fn |  |  | 124 |
+
+### packages\studio\server\transcript\readAt.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| readEntryAt | fn |  | Y | 19 |
+
+### packages\studio\server\transcript\session-tools.ts（9 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| treeRoot | fn |  |  | 20 |
+| isDescendantOf | fn |  |  | 32 |
+| checkPermission | fn |  | Y | 48 |
+| minimalSanitizeMessage | fn |  | Y | 71 |
+| readTranscriptMessages | fn |  | Y | 84 |
+| createSessionToolsBridge | fn |  | Y | 130 |
+| resolveWindowByRequester | const-fn |  |  | 136 |
+| sessionRead | method | Y |  | 143 |
+| sendMessage | method | Y |  | 156 |
+
 ### packages\workflow-sdk\src\IWorkflowAdapter.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\workflow-sdk\src\PiModelRegistry.ts（5 个）
@@ -6112,7 +6360,7 @@
 ### packages\workflows\ecommerce\validators\amazon-policy.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| check | method |  |  | 7 |
+| check | method |  |  | 10 |
 
 ### packages\workflows\ecommerce\workflow-provider.ts（0 个）
 - （无顶层函数/方法提取）
@@ -6261,15 +6509,29 @@
 | execute | method | Y |  | 36 |
 | (anon) | fn | Y | Y | 82 |
 
+### packages\workflows\xjmcu\src\actions\simulate.ts（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| canHandle | method |  |  | 29 |
+| execute | method | Y |  | 34 |
+
 ### packages\workflows\xjmcu\src\bootstrap.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| bootstrapXJMcuWorkflow | fn | Y | Y | 12 |
+| bootstrapXJMcuWorkflow | fn | Y | Y | 13 |
 
 ### packages\workflows\xjmcu\src\index.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | run | fn | Y | Y | 15 |
+
+### packages\workflows\xjmcu\src\mcp\server.ts（4 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| callTool | fn | Y |  | 52 |
+| handleLine | fn |  |  | 71 |
+| reply | const-fn |  |  | 80 |
+| write | fn |  |  | 123 |
 
 ### packages\workflows\xjmcu\src\rules\platform-rule.ts（1 个）
 | 函数 | kind | async | export | 行 |
@@ -6359,6 +6621,12 @@
 |---|---|---|---|---|
 | setup | fn |  | Y | 36 |
 | (anon) | fn |  | Y | 50 |
+
+### scripts\maintenance.mjs（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| argOf | const-fn |  |  | 22 |
+| hasFlag | const-fn |  |  | 26 |
 
 ### scripts\ops-validate.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -6470,9 +6738,9 @@
 ### packages/core/src/execution/UnifiedExecutionEngine.ts
 | 调用目标 | 频次 | | 调用目标 | 频次 |
 |---|---|---|---|---|
-| Date.now | 17 || request.onProgress | 6 | 
-| makeProgressEvent | 6 || this.eventBus.emit | 4 | 
-| Math.random | 4 || this.recordExecutionPath | 3 | 
+| Date.now | 17 || request.onProgress | 7 | 
+| makeProgressEvent | 7 || this.eventBus.emit | 4 | 
+| Math.random | 4 || this.recordExecutionPath | 4 | 
 | this.executionRecords.set | 2 || runOnce | 2 | 
 | String | 2 || this.analyzeComplexity | 2 | 
 | this.executeViaOrchestrator | 2 || this.executionRecords.get | 2 | 
@@ -6486,12 +6754,12 @@
 | tokenCount | 10 || lines.push | 8 | 
 | Date.now | 6 || this.llm.generateText | 5 | 
 | this.opts.onTokenUsage | 5 || chargeTokens | 5 | 
-| this.opts.sessionStore.appendCustom | 5 || Array.isArray | 3 | 
-| toStringList | 3 || extractJsonObject | 3 | 
-| capSteps | 3 || results.set | 3 | 
-| JSON.stringify | 2 || this.opts.sessionStore.createSession | 2 | 
+| this.opts.sessionStore.appendCustom | 5 || previewText | 4 | 
+| Array.isArray | 3 || toStringList | 3 | 
+| extractJsonObject | 3 || capSteps | 3 | 
+| results.set | 3 || JSON.stringify | 2 | 
+| this.opts.sessionStore.createSession | 2 || this.opts.sessionStore.appendMessage | 2 | 
 | ANALYSIS_PROMPT | 2 || parseAnalysis | 2 | 
-| this.formatResults | 2 || stepFailures.entries | 2 | 
 
 ### packages/core/src/facade/CompanyFacade.ts
 | 调用目标 | 频次 | | 调用目标 | 频次 |
@@ -6606,15 +6874,15 @@
 ### packages/studio/server/StudioServer.ts
 | 调用目标 | 频次 | | 调用目标 | 频次 |
 |---|---|---|---|---|
-| res.status | 67 || res.json | 57 | 
-| this.app.get | 31 || Date.now | 15 | 
-| this.app.post | 15 || path.resolve | 12 | 
-| String | 12 || getSharedPiBridge | 5 | 
-| fs.readFileSync | 5 || Number | 5 | 
-| JSON.stringify | 5 || history.filter | 5 | 
-| path.join | 4 || fs.existsSync | 4 | 
-| /^[A-Za-z0-9_-]{1,128}$/.test | 4 || path.basename | 3 | 
-| path.extname | 3 || Math.random | 3 | 
+| res.status | 76 || res.json | 65 | 
+| this.app.get | 33 || Date.now | 19 | 
+| String | 18 || this.app.post | 18 | 
+| path.resolve | 13 || this.getTranscripts | 10 | 
+| fs.existsSync | 8 || getSharedPiBridge | 6 | 
+| path.join | 6 || Number | 6 | 
+| fs.readFileSync | 5 || JSON.stringify | 5 | 
+| history.filter | 5 || svc?.findWindow | 4 | 
+| this.getTranscriptStore | 4 || /^[A-Za-z0-9_-]{1,128}$/.test | 4 | 
 
 
 ### 主链值说明（8 层架构）

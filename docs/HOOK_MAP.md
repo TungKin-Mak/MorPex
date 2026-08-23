@@ -19,6 +19,7 @@
 | **LLM 输入/媒体** | `PiBridge.generateText` 前的媒体装配 / `EVENT_PAYLOAD_SPEC.media` | 进 LLM 请求前 | 引用 → MediaAdapter（待建）/ 工具取用 | 传图片给模型 |
 | **前端卡片** | `studio/web/src/views/` + 任务投影 `TaskStateProjector` | 事件 → 投影 → 卡片 | SSE + /api/tasks | 加"成本"卡片区 |
 | **规则/合规** | `governance/PolicyRuleRegistry` + `gate/rules/` | 决策/生成前 | 前置检查 | 加合规规则 |
+| **部门手册（yaml 工作流）** | `execution/runtime/manual/YamlWorkflowRuntime` + `workflows/<domain>/department/manual.yaml` | `UnifiedExecutionEngine.executeAuto` 快路径后、编排前 | `matchManual` 判定 → `YamlWorkflowRuntime.run` 经 `DAGRuntime` + `ask` 人审门 | 加部门 7 步流程 |
 
 ## 2. 主流程各阶段的"挂点"（按顺序，知道插在前还是后）
 
@@ -30,6 +31,7 @@
   ↓ L4 规划：DeliveryPlanner ──⚠️可插：新规划策略/约束
   ↓ L5 执行：UnifiedExecutionEngine(MissionRuntime)
   │   ├─ 简单→原语(可加原语/hook: tool.called 后)
+  │   ├─ 部门手册→YamlWorkflowRuntime（yaml+解释器，match 命中时优先于编排）
   │   └─ 复杂→OrchestratorAgent + step-agent(可加工具/capacity)
   │   ⚠️可插：问用户(UserAskService) / 熔断(BudgetManager) / 沙箱(executor)
   ↓ L6 评价：EvaluationEngine ──⚠️可插：评分后置(evaluation.profile.scored 订阅)

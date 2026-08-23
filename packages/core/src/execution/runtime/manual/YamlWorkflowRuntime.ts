@@ -57,6 +57,8 @@ export interface YamlWorkflowRuntimeOptions {
   /** 回跳硬上限（默认 3，Bounded Autonomy） */
   maxBackjumps?: number;
   departmentId?: string;
+  /** L3 Gate 凭证签发器（与 OrchestratorAgent 同源，避免破坏性原语被硬拦） */
+  gateRunner?: (goal: string, departmentId?: string) => Promise<unknown>;
 }
 
 export interface ManualRunResult {
@@ -87,6 +89,15 @@ export class YamlWorkflowRuntime {
    */
   async run(inputs: Record<string, unknown> = {}): Promise<ManualRunResult> {
     const start = Date.now();
+    // C-1 Gate 凭证签发（与 OrchestratorAgent 同源，避免 report 等破坏性步骤被硬拦）
+    let gateContext: unknown = null;
+    if (this.opts.gateRunner) {
+      try {
+        gateContext = await this.opts.gateRunner(this.manual.description ?? this.manual.name, this.opts.departmentId);
+      } catch (err) {
+        console.warn(`[YamlWorkflowRuntime] ⚠️ Gate 凭证签发失败（破坏性操作保持硬拦截）: ${(err as Error).message}`);
+      }
+    }
     const stepOutputs = new Map<string, Map<string, unknown>>(); // stepId -> outputName -> value
     const skipped: string[] = [];
     let backjumps = 0;
@@ -121,7 +132,7 @@ export class YamlWorkflowRuntime {
         continueOnFailure: true,
         nodeHandler: (node, ctx) => {
           const upstream = ((ctx as Record<string, unknown>)?.upstreamResults ?? new Map()) as Map<string, unknown>;
-          return this.executeNode(node.id, upstream, inputs, stepOutputs, failureNotes);
+          return this.executeNode(node.id, upstream, inputs, stepOutputs, failureNotes, gateContext);
         },
       });
       const result = await runtime.run(subDag, {
@@ -238,6 +249,7 @@ export class YamlWorkflowRuntime {
     workflowInputs: Record<string, unknown>,
     stepOutputs: Map<string, Map<string, unknown>>,
     failureNotes: Map<string, string>,
+    gateContext?: unknown,
   ): Promise<unknown> {
     const step = this.stepById(nodeId);
     if (!step) throw new Error(`[YamlWorkflowRuntime] 手册中不存在步骤: ${nodeId}`);
@@ -268,7 +280,7 @@ export class YamlWorkflowRuntime {
       const r = await this.opts.stepExecutor.executeStep(
         { id: nodeId, name: nodeId, description, agentType: 'general' },
         new Map(Object.entries(resolved)),
-        { departmentId: this.opts.departmentId },
+        { departmentId: this.opts.departmentId, gateContext: gateContext as never },
       );
       if (!r.success) throw new Error(r.error ?? `llm 步骤 ${nodeId} 失败`);
       return r.output;
