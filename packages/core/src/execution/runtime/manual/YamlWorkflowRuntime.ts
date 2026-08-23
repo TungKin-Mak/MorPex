@@ -105,7 +105,10 @@ export class YamlWorkflowRuntime {
       const runtime = new DAGRuntime({
         eventBus: this.opts.eventBus,
         continueOnFailure: true,
-        nodeHandler: (node, ctx) => this.executeNode(node.id, ctx as Record<string, unknown>, inputs, stepOutputs, failureNotes),
+        nodeHandler: (node, ctx) => {
+          const upstream = ((ctx as Record<string, unknown>)?.upstreamResults ?? new Map()) as Map<string, unknown>;
+          return this.executeNode(node.id, upstream, inputs, stepOutputs, failureNotes);
+        },
       });
       const result = await runtime.run(subDag, {
         goal: this.manual.description ?? this.manual.name,
@@ -190,7 +193,7 @@ export class YamlWorkflowRuntime {
 
   private async executeNode(
     nodeId: string,
-    ctx: Record<string, unknown>,
+    upstream: Map<string, unknown>,
     workflowInputs: Record<string, unknown>,
     stepOutputs: Map<string, Map<string, unknown>>,
     failureNotes: Map<string, string>,
@@ -200,11 +203,20 @@ export class YamlWorkflowRuntime {
 
     // ── ask 人审门（先问后做；用户未答则阻塞，超时按 timeout 策略）──
     if (step.ask) {
-      await this.runAskGate(step, ctx, workflowInputs, failureNotes);
+      const liveForAsk = new Map(stepOutputs);
+      for (const [depId, out] of upstream) {
+        liveForAsk.set(depId, this.toBag(out, this.stepById(depId)?.outputs ?? []));
+      }
+      await this.runAskGate(step, liveForAsk, failureNotes);
     }
 
     // ── 输入解析：${inputs.x} / ${steps.<id>.outputs.<name>} ──
-    const resolved = this.resolveInputs(step.inputs ?? {}, workflowInputs, stepOutputs);
+    // 跨步引用优先取本运行内上游新鲜产出（upstream），回跳轮次再落 stepOutputs 历史
+    const liveOutputs = new Map(stepOutputs);
+    for (const [depId, out] of upstream) {
+      liveOutputs.set(depId, this.toBag(out, this.stepById(depId)?.outputs ?? []));
+    }
+    const resolved = this.resolveInputs(step.inputs ?? {}, workflowInputs, liveOutputs);
 
     // ── 分派 ──
     if (step.action === 'llm') {
@@ -235,7 +247,7 @@ export class YamlWorkflowRuntime {
   /** ask 门：模板渲染后调 askTool 阻塞等待；reject 策略下超时/失败抛错走 on_failure */
   private async runAskGate(
     step: ManualStep,
-    ctx: Record<string, unknown>,
+    stepOutputs: Map<string, Map<string, unknown>>,
     inputs: Record<string, unknown>,
     failureNotes: Map<string, string>,
   ): Promise<void> {
@@ -244,9 +256,9 @@ export class YamlWorkflowRuntime {
       console.warn(`[YamlWorkflowRuntime] ⚠️ 步骤 ${step.id} 配置了 ask 但未注入 askTool——跳过人审门（不阻断）`);
       return;
     }
-    const prompt = this.renderTemplate(ask.prompt, this.resolveInputs(ctx as Record<string, string>, inputs, new Map()), failureNotes.get(step.id))
+    const prompt = this.renderTemplate(ask.prompt, this.resolveInputs({}, {}, stepOutputs), failureNotes.get(step.id))
       .replace(/\{\{missing_points\}\}/g, failureNotes.get('analyze') ?? '')
-      .replace(/\{\{candidates\}\}/g, String((ctx as Record<string, unknown>)?.chipCandidates ?? '见知识库'));
+      .replace(/\{\{candidates\}\}/g, String(stepOutputs.get('select_chip')?.get('chip') ?? '见知识库'));
     console.log(`[YamlWorkflowRuntime] ❓ 人审门 [${step.id}] 等待用户回答: ${prompt.slice(0, 120)}`);
     const r = await this.opts.askTool.execute({ question: prompt });
     const answer = r.content?.map(c => c.text).join('\n') ?? '';
@@ -365,23 +377,24 @@ export class YamlWorkflowRuntime {
     return this.manual.steps.findIndex(s => s.id === id);
   }
 
-  /** 把步骤产出到 outputNames 映射（单产物挂全部声明名；对象产物按下字段展开） */
-  private recordOutputs(stepId: string, raw: unknown, sink: Map<string, Map<string, unknown>>): void {
-    const step = this.stepById(stepId);
-    const names = step?.outputs ?? [];
+  /** 原始产出 → outputName→value 包（recordOutputs/markOutputsPlaceholder 共用） */
+  private toBag(raw: unknown, names: string[]): Map<string, unknown> {
     const bag = new Map<string, unknown>();
     if (raw !== null && typeof raw === 'object') {
       for (const [k, v] of Object.entries(raw as Record<string, unknown>)) bag.set(k, v);
     }
     if (names.length > 0) {
-      const obj = raw as Record<string, unknown> | null;
-      for (const n of names) {
-        bag.set(n, obj && typeof obj === 'object' && n in obj ? (obj as Record<string, unknown>)[n] : raw);
-      }
+      const obj = raw !== null && typeof raw === 'object' ? raw as Record<string, unknown> : null;
+      for (const n of names) bag.set(n, obj && n in obj ? obj[n] : raw);
     } else {
       bag.set('output', raw);
     }
-    sink.set(stepId, bag);
+    return bag;
+  }
+
+  /** 把步骤产出到 outputNames 映射（单产物挂全部声明名；对象产物按下字段展开） */
+  private recordOutputs(stepId: string, raw: unknown, sink: Map<string, Map<string, unknown>>): void {
+    sink.set(stepId, this.toBag(raw, this.stepById(stepId)?.outputs ?? []));
   }
 
   /** skip 后给下游一个空占位，防引用悬空 */

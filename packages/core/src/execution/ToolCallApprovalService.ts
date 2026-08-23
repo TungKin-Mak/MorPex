@@ -35,6 +35,8 @@ export interface PendingToolApproval {
 interface PendingRecord {
   info: PendingToolApproval;
   resolve: (d: ToolApprovalDecision) => void;
+  /** 超时定时器：决策提前到达时清除；unref 不阻塞进程退出 */
+  timer?: NodeJS.Timeout;
 }
 
 const pending = new Map<string, PendingRecord>();
@@ -120,13 +122,15 @@ export function createToolCallApprovalHook(opts: ToolApprovalHookOptions = {}): 
     console.warn(`[ToolApproval] ⏸️ 工具 ${toolName} 待审批 (${id})，等待决策或 ${Math.round(timeoutMs / 1000)}s 超时`);
     const decision = await new Promise<ToolApprovalDecision>((resolve) => {
       const rec: PendingRecord = { info, resolve };
-      pending.set(id, rec);
-      setTimeout(() => {
+      const t = setTimeout(() => {
         if (pending.get(id) === rec) {
           pending.delete(id);
           resolve('timeout');
         }
       }, timeoutMs);
+      t.unref?.(); // 决策未到时不阻止进程正常退出
+      rec.timer = t;
+      pending.set(id, rec);
     });
 
     await opts.recordStub?.('morpex.approval_decision', {
@@ -151,6 +155,7 @@ export function resolveToolApproval(id: string, decision: 'approve' | 'deny'): b
   const rec = pending.get(id);
   if (!rec) return false;
   pending.delete(id);
+  if (rec.timer) clearTimeout(rec.timer); // 提前决策：撤销超时定时器
   rec.resolve(decision);
   return true;
 }
