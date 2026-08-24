@@ -110,6 +110,12 @@ export function parseCandidates(raw: string): MemoryCandidate[] {
   if (!Array.isArray(parsed)) return [];
   const out: MemoryCandidate[] = [];
   for (const item of parsed) {
+    // 弱模型容错：裸字符串项（如 ["张三"]）→ 按画像候选兜底（后续仍走确认工单人审，误分类被人闸门拦住）
+    if (typeof item === 'string') {
+      const s = item.trim().slice(0, 200);
+      if (s) out.push({ name: s.slice(0, 40), fact: s, type: 'profile' });
+      continue;
+    }
     if (!item || typeof item !== 'object') continue;
     const rec = item as Record<string, unknown>;
     const name = typeof rec.name === 'string' ? rec.name.trim().slice(0, 40) : '';

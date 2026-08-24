@@ -1115,7 +1115,8 @@ export class StudioServer {
           try {
             const [qr, qc] = await Promise.race([
               Promise.allSettled([
-                memApi.query({ text: '用户 姓名 称呼 偏好 画像', limit: 5 }),
+                // 拼上用户原话：mock 引擎词面匹配需要实体名重叠；cognee 语义引擎下也无害
+                memApi.query({ text: `用户 姓名 称呼 偏好 画像 ${String(originalMessage).slice(0, 120)}`, limit: 5 }),
                 memApi.query({ text: '协作 约定 汇报 风格 习惯', limit: 3 }),
                 memApi.query({ text: '术语 澄清 含义 指的是', limit: 3 }),
               ]),
