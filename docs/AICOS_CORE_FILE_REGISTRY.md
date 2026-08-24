@@ -174,7 +174,8 @@
 | `cognition/planning/HierarchicalPlanner.ts` | HierarchicalPlanner — 分层规划器（支持 Ontology grounded reasoning，产出计划供 L5 执行） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/ConstraintAnalyzer.ts` | ConstraintAnalyzer — 约束分析器 从目标文本中提取预算/期限/平台等约束 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext；v17f 接入 IntentClassifier（闲聊 vs 任务） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/IntentClassifier.ts` | IntentClassifier — 意图判别器（闲聊 chat vs 任务 task）：启发式快速判定 + 歧义走 LLM；CompanyFacade.executeGoal 入口分流，闲聊直答不建 Mission | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/IntentClassifier.ts` | IntentClassifier — 意图判别器（闲聊 chat vs 任务 task）：U1 起主路径全量 LLM 结构化判定（5s 超时），LLM 失败/超时/未注入才降级启发式正则（限流告警可观测）；CompanyFacade.executeGoal 入口分流，闲聊直答不建 Mission | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `execution/orchestration/error-compactor.ts` | error-compactor — 统一错误/结果压缩器（12-Factor U1·G2）：四段结构 {失败了什么/为什么/试过什么/建议下一步}，总长≤800，堆栈只留关键帧；clip 截断带循环引用防护；供 formatResults/replan failuresText 喂 LLM 前调用。注意：这是格式化非触发机制，不违背“触发全 LLM 化”原则 | 理解/推理/规划；纯函数无副作用 |
 | `cognition/planning/goal-intelligence/GoalParser.ts` | GoalParser — 目标解析器 将用户原始语句解析为目标+领域+子目标 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalValidator.ts` | GoalValidator — 目标验证器 检查目标上下文的完整性和可行性 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/RequirementExtractor.ts` | RequirementExtractor — 从目标中提取能力需求 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |

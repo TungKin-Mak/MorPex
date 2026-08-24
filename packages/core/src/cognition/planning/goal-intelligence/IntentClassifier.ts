@@ -2,12 +2,10 @@
  * IntentClassifier — 意图判别器（目标智能层）
  *
  * 区分「闲聊/问候/寒暄」（chat）与「要执行的任务/目标」（task）。
- * 这是 MorPex 引擎缺失的关键一环：此前所有输入一律走 executeGoal 编排，
- * 导致「你好」也被当作任务建 Mission/团队/产物。
  *
- * 策略（兼顾速度与准确）：
- *   1. 启发式快速判定：明确问候 → chat；含任务动词 → task（0 LLM 调用）
- *   2. 歧义时用 LLM 判别（若注入 llm），失败/未注入回退 task
+ * 策略（12-Factor U1 改造：全 LLM 化）：
+ *   1. 主路径：LLM 结构化输出判定（每个带 LLM 提供器的调用都过模型，无预筛短路）
+ *   2. 兜底：LLM 失败/超时/未注入时降级启发式正则（触发时打 warn 可观测）
  */
 export type IntentKind = 'chat' | 'task';
 
@@ -62,29 +60,66 @@ function heuristic(message: string): IntentKind | 'unknown' {
 const MEMORY_CHAT_RE =
   /(我(叫|姓|是)|请?记住|记一下|记得|你知道吗|你喜欢|你觉得(怎么样|如何)?|陪我|聊聊|说说话|讲个|猜猜)/i;
 
+/** LLM 判定超时（防拖慢消息入口；超时走降级） */
+const INTENT_LLM_TIMEOUT_MS = 5_000;
+
+function withTimeout<T>(p: Promise<T>, ms: number): Promise<T> {
+  return new Promise<T>((resolve, reject) => {
+    const t = setTimeout(() => reject(new Error(`intent-llm-timeout:${ms}ms`)), ms);
+    p.then((v) => {
+      clearTimeout(t);
+      resolve(v);
+    }, (e) => {
+      clearTimeout(t);
+      reject(e);
+    });
+  });
+}
+
+/** 降级告警限流：首次必报，之后每 20 次报一次（LLM 网关故障时不刷屏但可观测） */
+let fallbackCount = 0;
+function intentFallbackWarn(reason: string): string | null {
+  fallbackCount += 1;
+  if (fallbackCount === 1 || fallbackCount % 20 === 0) {
+    return `[IntentClassifier] LLM ${reason}，降级启发式正则兜底（累计 ${fallbackCount} 次）`;
+  }
+  return null; // 限流：不产生日志噪音
+}
+
+/** @internal 仅测试用：重置降级告警限流计数 */
+export function resetIntentFallbackWarnForTest(): void {
+  fallbackCount = 0;
+}
+
 export class IntentClassifier {
   /**
    * 判定用户消息意图。
    * @param message 用户原始消息
-   * @param llm 可选 LLM 提供器（歧义时用；失败回退启发式）
+   * @param llm 可选 LLM 提供器。U1 起主路径：有则全量走 LLM（无预筛）；失败/超时/未注入降级启发式正则
    */
   static async classify(message: string, llm?: LLMFn): Promise<IntentKind> {
-    const h = heuristic(message);
-    if (h !== 'unknown') return h;
-
     if (llm) {
       try {
-        const text = await llm(CHAT_SYSTEM, `用户消息：${message}\n\n意图类别：`, {
-          temperature: 0,
-          maxTokens: 10,
-        });
+        const text = await withTimeout(
+          llm(
+            CHAT_SYSTEM,
+            `用户消息：${message.slice(0, 500)}\n\n意图类别：`,
+            { temperature: 0, maxTokens: 10 },
+          ),
+          INTENT_LLM_TIMEOUT_MS,
+        );
         const m = text.trim().toLowerCase().match(/\b(chat|task)\b/);
         if (m) return m[1] as IntentKind;
+        // 输出无法解析也视为失败 → 降级
+        { const w = intentFallbackWarn('输出不可解析'); if (w) console.warn(w); }
       } catch {
-        // LLM 失败 → 回退
+        { const w = intentFallbackWarn('判定失败/超时'); if (w) console.warn(w); }
       }
     }
-    // 17i.35：LLM 失败回退——疑问类 → chat（别把问题当任务执行）；其余 task（避免漏执行）
+    // ── 降级兜底：启发式正则（原逻辑保留）──
+    const h = heuristic(message);
+    if (h !== 'unknown') return h;
+    // 17i.35：疑问类 → chat（别把问题当任务执行）；其余 task（避免漏执行）
     return isQuestionLike(message.trim()) ? 'chat' : 'task';
   }
 }

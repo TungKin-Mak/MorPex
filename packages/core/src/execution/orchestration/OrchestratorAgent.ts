@@ -29,6 +29,7 @@ import { StepAgentExecutor } from '../runtime/dag/StepAgentExecutor.js';
 import type { AgentSessionStore, AgentSessionHandle } from './AgentSessionStore.js';
 import type { KnowledgeContextPackage } from '../../gate/context.js';
 import { requestPlanConfirm } from '../PlanGateService.js';
+import { clip, compactFailure } from './error-compactor.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -460,7 +461,9 @@ export class OrchestratorAgent {
       // ═══ 会话 16d（P2 规划动态性·动态重规划）═══
       // 有硬失败步骤 + 未重规划 → 优先触发重新规划（带失败上下文），用新计划替换原计划（有界 replan=1）。
       if (stepFailures.size > 0 && !replanned) {
-        const failuresText = [...stepFailures.entries()].map(([s, e]) => `${s}: ${e}`).join('；');
+        const failuresText = [...stepFailures.entries()]
+          .map(([s, e]) => compactFailure({ step: s, err: e }))
+          .join('\n\n');
         const replanRes = await this.llm.generateText({ prompt: REPLAN_PROMPT(goal, resultsText, failuresText), temperature: 0 });
         this.opts.onTokenUsage?.(tokenCount(replanRes));
         chargeTokens(tokenCount(replanRes));
@@ -680,7 +683,8 @@ export class OrchestratorAgent {
     if (results.size === 0) return '(无步骤成果)';
     const lines: string[] = [];
     for (const [name, out] of results) {
-      const text = typeof out === 'string' ? out : JSON.stringify(out ?? null);
+      // U1·G2：结果一律经截断（防长 JSON 撑爆上下文），失败条目走统一四段压缩
+      const text = out instanceof Error ? compactFailure({ step: name, err: out }) : clip(out, 2000);
       lines.push(`### ${name}\n${text}`);
     }
     return lines.join('\n\n');
