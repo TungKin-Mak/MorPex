@@ -101,12 +101,14 @@ function truncate(s: string, n: number): string {
 }
 
 interface ChatMsg {
-  role: 'user' | 'assistant';
+  role: 'user' | 'assistant' | 'system';
   content: string;
   ts: number;
   raw?: unknown;
   meta?: Array<{ k: string; v: string }>;
   error?: boolean;
+  /** T7 遗留缺口：'approval'=历史审批只读卡片 */
+  kind?: string;
   /** 17i：任务模式回复 → 渲染为任务卡片（仅本次运行内有效；历史回载无此字段 → 渲染为文本）。 */
   task?: TaskSummary;
   /** P1：Space 归属（任务线程过滤用；历史/空间消息带）。 */
@@ -1997,6 +1999,13 @@ function metaRows(r: Record<string, unknown>): Array<{ k: string; v: string }> {
 }
 
 function buildMsgNode(m: ChatMsg): HTMLElement {
+  // ── 历史审批卡片（T7 遗留缺口）：只读，不进 user/assistant 分支 ──
+  if (m.kind === 'approval') {
+    return el('div', { class: 'chat-msg approval-history' }, [
+      el('div', { class: 'body' }, m.content),
+    ]);
+  }
+
   const head = el('div', { class: 'head' }, [
     el('span', { class: 'who' }, m.role === 'user' ? '你' : 'MorPex'),
     el('span', { class: 'time' }, tsTime(m.ts)),
@@ -2075,6 +2084,8 @@ export function renderConsole(root: HTMLElement, api: ApiClient): () => void {
   // ── DOM ──
   const logEl = el('div', { class: 'chat-log' });
   const taskPanelEl = el('div', { class: 'task-panel' });
+  // T7 遗留缺口：记忆待批面板（确认工单前端化）——插在消息流与输入框之间，有待批才出现
+  const memoryPanelEl = el('div', { class: 'memory-pending' });
   // 17i.28：任务面板按会话归属——切换会话时清空（面板/已完成列表），回到该会话再重建。
   let panelSessionId: string | undefined;
   function syncPanelForSession(id: string | undefined): void {
@@ -2497,6 +2508,51 @@ export function renderConsole(root: HTMLElement, api: ApiClient): () => void {
   }
 
   // ── 会话管理 ──
+  // T7 遗留缺口：记忆待批面板（30s 轮询；有待批才渲染，操作后立即刷新）
+  async function refreshMemoryPending(): Promise<void> {
+    try {
+      const r = await api.getPendingMemories();
+      const tickets = r.ok && Array.isArray(r.tickets) ? r.tickets : [];
+      if (tickets.length === 0) {
+        memoryPanelEl.replaceChildren();
+        memoryPanelEl.classList.remove('has-items');
+        return;
+      }
+      memoryPanelEl.classList.add('has-items');
+      memoryPanelEl.replaceChildren(
+        el('div', { class: 'memory-pending-title' }, `🧠 AI 想记住这些（${tickets.length}），需要你确认：`),
+        ...tickets.map((t) =>
+          el('div', { class: 'memory-pending-item' }, [
+            el('div', { class: 'memory-pending-content' }, t.content),
+            el('div', { class: 'approval-actions' }, [
+              el('button', {
+                class: 'btn small ok',
+                onclick: () => void decideMemory(t.ticketId, 'accept'),
+              }, '✅ 记住'),
+              el('button', {
+                class: 'btn small danger',
+                onclick: () => void decideMemory(t.ticketId, 'reject'),
+              }, '❌ 不记了'),
+            ]),
+          ]),
+        ),
+      );
+    } catch {
+      // 后端不可达：面板保持原状，下轮重试
+    }
+  }
+
+  async function decideMemory(ticketId: string, decision: 'accept' | 'reject'): Promise<void> {
+    try {
+      await api.confirmMemory(ticketId, decision);
+    } catch {
+      // 失败：下一轮轮询会重新拉取待办
+    }
+    await refreshMemoryPending();
+  }
+  let memoryPoller: number | undefined = window.setInterval(() => { void refreshMemoryPending(); }, 30_000);
+  void refreshMemoryPending();
+
   async function refreshSessions(): Promise<Array<{ id: string; name?: string; createdAt: number }> | null> {
     try {
       const r = await api.listSessions();
@@ -2565,9 +2621,10 @@ export function renderConsole(root: HTMLElement, api: ApiClient): () => void {
       const r = await api.getSessionHistory(id);
       if (token !== historyToken) return; // 已有更新的切换，丢弃过期响应
       messages = r.messages.map((m) => ({
-        role: m.role === 'user' ? 'user' : 'assistant',
+        role: m.role === 'user' ? 'user' : m.kind === 'approval' ? 'system' : 'assistant',
         content: m.content,
         ts: m.timestamp,
+        ...(m.kind === 'approval' ? { kind: 'approval' as const } : {}),
       }));
     } catch {
       if (token !== historyToken) return; // 过期失败响应不得清空新会话消息
@@ -3504,6 +3561,7 @@ export function renderConsole(root: HTMLElement, api: ApiClient): () => void {
           threadBarEl,
           taskPanelEl,
           logEl,
+          memoryPanelEl,
           el('div', { class: 'chat-input-bar' }, [
             attachRow,
             el('div', { class: 'input-row' }, [
@@ -3581,6 +3639,10 @@ export function renderConsole(root: HTMLElement, api: ApiClient): () => void {
     if (retryTimer !== undefined) {
       window.clearInterval(retryTimer);
       retryTimer = undefined;
+    }
+    if (memoryPoller !== undefined) {
+      window.clearInterval(memoryPoller);
+      memoryPoller = undefined;
     }
     // 17i.2：切走标签时不关闭运行资源（SSE/计时器/activeRun 模块级存活），
     //         只解除本渲染的 UI 钩子，回页后由新渲染重建。

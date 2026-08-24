@@ -35,6 +35,8 @@ import type {
   MailboxSendRequest,
   MemoryActivateInput,
   MemoryActivateResponse,
+  MemoryConfirmResponse,
+  MemoryPendingResponse,
   MemoryRecallResponse,
   MemoryRememberResponse,
   ModelsResponse,
@@ -196,6 +198,10 @@ export const api = {
     post('/api/memory/remember', { content, source: source ?? 'studio-web' }),
   activateMemory: (input?: MemoryActivateInput): Promise<MemoryActivateResponse> =>
     post('/api/memory/activate', input ?? {}),
+  /** T7 遗留缺口：待确认记忆工单列表 + 批准/拒绝 */
+  getPendingMemories: (): Promise<MemoryPendingResponse> => get('/api/memory/pending'),
+  confirmMemory: (ticketId: string, decision: 'accept' | 'reject'): Promise<MemoryConfirmResponse> =>
+    post(`/api/memory/confirm/${encodeURIComponent(ticketId)}`, { decision }),
 
   // ── 学习 ──
   getLearningStats: (): Promise<LearningStatsResponse> => get('/api/learning/stats'),

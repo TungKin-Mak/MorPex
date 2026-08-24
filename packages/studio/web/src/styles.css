@@ -1379,3 +1379,27 @@ body[data-route="console"] .view {
 .pending-card-q{font-size:13px;color:#24292f;}
 .pending-card-actions{display:flex;gap:8px;align-items:center;flex-wrap:wrap;}
 .pending-card-done{font-size:13px;color:#1a7f37;padding:6px 0;}
+
+/* ── T7 遗留缺口：历史审批卡片 + 记忆待批面板 ── */
+.chat-msg.approval-history {
+  border: 1px solid #d4a72c;
+  background: var(--warn-bg, #fff8c5);
+  border-radius: 8px;
+  padding: 8px 12px;
+  font-size: 13px;
+  color: #6e5b00;
+  max-width: 78%;
+}
+.memory-pending { display: none; flex-direction: column; gap: 8px; margin-top: 8px; }
+.memory-pending.has-items { display: flex; }
+.memory-pending-title { font-weight: 600; color: #9a6700; font-size: 13px; }
+.memory-pending-item {
+  border: 1px solid #d4a72c;
+  background: var(--warn-bg, #fff8c5);
+  border-radius: 8px;
+  padding: 10px 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+}
+.memory-pending-content { font-size: 13px; word-break: break-all; }

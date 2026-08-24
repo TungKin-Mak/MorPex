@@ -27,6 +27,10 @@ export interface ProjectedMessage {
   thinking?: string;
 }
 
+function asStr(v: unknown): string | undefined {
+  return typeof v === 'string' && v ? v : undefined;
+}
+
 export interface ProjectOptions {
   /** 显式开启才下发原始 assistant 条目及其思考链（截断）；默认 false */
   thinking?: boolean;
@@ -56,12 +60,26 @@ export function projectEntry(entry: unknown, seq: number, opts: ProjectOptions =
     return out;
   }
 
-  // ── 可显示自定义事件（未来审批卡片等）；display=false 过滤 ──
+  // ── 可显示自定义事件（审批卡片历史渲染，T7 遗留缺口补全）；display=false 过滤 ──
+  //    request/decision 各自成卡（顺序天然相邻），前端按 kind='approval' 渲染只读卡片
   if (type === 'custom_message') {
     const ct = typeof e.customType === 'string' ? e.customType : '';
-    if (!ct.startsWith('morpex.approval')) return []; // 审批展示归 T3 路由，历史投影不出
+    if (!ct.startsWith('morpex.approval')) return [];
     if (e.display === false) return [];
-    return [{ seq, role: 'system', content: JSON.stringify(e.content ?? {}), kind: 'approval' }];
+    const c = (e.content ?? {}) as Record<string, unknown>;
+    const ts = typeof e.timestamp === 'number' ? e.timestamp : undefined;
+    let text: string;
+    if (ct === 'morpex.approval_decision') {
+      const d = asStr(c.decision);
+      const mark = d === 'approve' ? '✅ 已批准' : d === 'timeout' ? '⏱ 超时未批（自动拒绝）' : '❌ 已拒绝';
+      const by = asStr(c.decidedBy);
+      text = `${mark}${by ? ` · ${by}` : ''} · 工单 ${asStr(c.requestId) ?? '?'}`;
+    } else {
+      const tool = asStr(c.tool) ?? '未知工具';
+      const args = asStr(c.argsSummary);
+      text = `🔐 审批请求：${tool}${args ? ` · ${args}` : ''}`;
+    }
+    return [{ seq, role: 'system', content: text, timestamp: ts, kind: 'approval' }];
   }
 
   // ── 原始 message 条目：默认是内部信封；仅显式开启时按规则部分放行 ──
@@ -114,9 +132,6 @@ export function projectEvents(
 
 function truncate(s: string, n: number): string {
   return s.length > n ? s.slice(0, n) + '…' : s;
-}
-function asStr(v: unknown): string | undefined {
-  return typeof v === 'string' && v ? v : undefined;
 }
 function asKind(v: unknown): string | undefined {
   return v === 'chat' || v === 'task' ? v : undefined;

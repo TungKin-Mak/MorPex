@@ -107,6 +107,29 @@ export interface HistoryMessage {
   role: string;
   content: string;
   timestamp: number;
+  /** 投影层标注：'approval'=审批卡片（历史只读渲染） */
+  kind?: string;
+}
+
+// ── 记忆待批（T7 遗留缺口：确认工单前端化）──
+export interface MemoryPendingTicket {
+  ticketId: string;
+  content: string;
+  confidence?: number;
+  reason?: string;
+  createdAt?: string;
+}
+
+export interface MemoryPendingResponse {
+  ok: boolean;
+  tickets?: MemoryPendingTicket[];
+  error?: string;
+}
+
+export interface MemoryConfirmResponse {
+  ok: boolean;
+  decision?: 'accept' | 'reject';
+  error?: string;
 }
 
 export interface SessionHistoryResponse {
