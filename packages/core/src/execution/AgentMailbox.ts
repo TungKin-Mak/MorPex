@@ -15,6 +15,7 @@
 
 import type { EventBus } from '../infrastructure/common/EventBus.js';
 import type { SpaceService } from '../governance/control-plane/SpaceService.js';
+import { buildMailboxSystemPrompt, buildMailboxUserPrompt, MAIL_FALLBACK_REPLY } from './prompts/mailbox-prompts.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -142,13 +143,8 @@ export class AgentMailbox {
   private async generateReply(msg: MailMessage): Promise<string> {
     const persona = this.resolvePersona(msg);
     if (!this.llmFn) return this.fallbackReply();
-    const system = [
-      `你是 MorPex 的${persona}。`,
-      '你正在协助团队完成一项任务。请以该角色的专业视角，回答同事发来的咨询问题。',
-      '要求：直接给出答案或建议，2-4 句话，不要用 Markdown、列表或符号。',
-      '不知道或不在你职责范围内，如实说「不确定」，不要编造。',
-    ].join('\n');
-    const prompt = `咨询问题：${msg.question}` + (msg.goal ? `\n相关任务背景：${msg.goal}` : '');
+    const system = buildMailboxSystemPrompt(persona);
+    const prompt = buildMailboxUserPrompt(msg.question, msg.goal);
     try {
       const text = (await this.llmFn(system, prompt)).trim();
       return text || this.fallbackReply();
@@ -159,7 +155,7 @@ export class AgentMailbox {
   }
 
   private fallbackReply(): string {
-    return '收到，我核实一下，稍后给你准确答复。';
+    return MAIL_FALLBACK_REPLY;
   }
 
   /** 解析 to 角色的人设：dept:xxx → SpaceService 部门经理 persona；station:xxx → 通用工位人设。 */

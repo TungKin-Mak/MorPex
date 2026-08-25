@@ -38,6 +38,7 @@ import type { HierarchicalPlannerLike, DAGPlan } from './HierarchicalPlanner.js'
 // ── Ontology 迭代1/2 ──
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
 import type { ForcedQueryGuard } from '../../gate/ForcedQueryGuard.js';
+import { buildQuickDecomposePrompt } from '../prompts/delivery-prompts.js';
 
 // ── Types ──
 
@@ -605,14 +606,7 @@ export class DeliveryPlanner {
     const piBridgeForQuick = this.piBridgeRef;
     if (piBridgeForQuick) {
       try {
-        const prompt = `将以下任务分解为 2-5 个具体步骤。返回严格 JSON 数组（不要 markdown）：
-
-任务: "${request.goal}"
-
-格式: [{"step":"步骤描述","capability":"所需能力"}]
-
-能力可选: analyze/design/code/test/write/research/review/deploy
-规则: 简单任务 1-2 步，中等任务 3-4 步。只输出 JSON 数组。`;
+        const prompt = buildQuickDecomposePrompt(request.goal);
 
         const result = await piBridgeForQuick.generateText({ prompt, temperature: 0.2 });
         const steps = this.parseQuickSteps(result.text, planId);
