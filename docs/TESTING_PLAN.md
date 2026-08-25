@@ -1,7 +1,8 @@
 # MorPex 全功能测试方案（v1）
 
 > 目标：**一条命令可测整个项目的所有功能**，且每项功能都有明确归属的测试用例。
-> 基线日期：2026-08-02（master `3b467e6`，AICOS-Core 8 层架构）
+> 基线日期：2026-08-26（单一 Transcript T0-T7 + 12-Factor U1-U4+P0/P1 收官后）
+> ⚠️ 时效标记：本表为 2026-08-26 实测；四个重型闭环/sse-e2e 套件已移入显式运行清单（需真实 LLM 配额），不在默认全量内。测试数据经 `MORPEX_DATA_DIR` 隔离至 `data/.vitest-run`。
 
 ---
 
@@ -11,7 +12,7 @@
 |----|------|------|------|
 | TypeScript 编译 | `npx tsc --noEmit` | ✅ | 0 错误 |
 | 架构对齐校验 | `node scripts/validate-architecture.js` | ✅ | 100%（无违规） |
-| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **91 文件 / 790 测试**（含去黑盒化 16n deblackbox-smoke） |
+| Vitest（单元/集成/契约） | `npx vitest run` | ✅ | **118 文件 / 1073 通过 +5 跳过 / 0 失败**（~74s；含显式清单外的全部套件） |
 | 系统套件（脚本式） | `npx tsx tests/run-all.ts` | ✅ | 11/11（arch/unit/integration/scenarios/chaos） |
 | API 契约 | vitest 内 `packages/studio/server/__tests__/api-contract.test.ts` | ✅ | 26 测试 / 24+ 端点 |
 | Workflow CLI | `npx tsx tests/cli/run-workflow-cli.ts` | ✅ | 11 测试（~45s） |

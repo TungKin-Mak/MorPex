@@ -5,10 +5,10 @@
 
 ---
 
-## 当前状态（2026-08-22，文档体系/复核收尾后）
+## 当前状态（2026-08-26，会话记忆系统 T0-T7 + 12-Factor U1-U4/P0/P1 全部收官后）
 
 - **架构**：AICOS-Core 8 层纯净架构；执行链 = `CompanyFacade.executeGoal` → ControlPlane(L1) → Ontology Gate(L3) → 规划(L4) → `UnifiedExecutionEngine`（简单→原语快 / 复杂→Orchestrator+step-agent）→ 评价(L6) → 演化(L7)；EventBus only；PiBridge 隔离 `adapters/pi-bridge/PiBridge.ts`。
-- **门禁基线**：`tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ check:docs 0 ｜ production 8/8 ｜ vitest ~790（`npm run test:full` 一键）`；关系链文档由 `scripts/_backend-code-analyze.ts` 重生成保证代码驱动。
+- **门禁基线**：`tsc 0 ｜ validate-architecture 100% ｜ depcheck 0 ｜ check:docs 0 ｜ production 8/8 ｜ vitest 全量 118 文件/1073 通过+0 失败 ~74s（重型闭环在显式清单需真实 LLM 配额）`；关系链文档由 `scripts/_backend-code-analyze.ts` 重生成保证代码驱动。
 - **文档体系（开发决策支持，免全量读码）**：`AGENTS`(精简总纲) → `DEVELOPMENT`(SOP/门禁/文档同步) → `CAPABILITY_INDEX`(功能→锚点+别名+状态，定位第一步) → `HOOK_MAP`(插入点/前后) → `BACKEND_CODE_MAP`(函数关系链，可重生成) → `AICOS_FLOW`/`EVENT_PAYLOAD_SPEC`(业务流/事件载荷) → `FILE_REGISTRY`(职责)；6 个 `skills/*` 按需触发（pi 读 `.pi/SYSTEM.md` §0.5 检索四连；Claude Code 用 `.claude/skills` 镜像）。
 - **事件载荷**：`EVENT_PAYLOAD_SPEC v1`（Envelope 稳定头 + MessageBox 分块可扩展：task/state/human/artifacts/media/error/extensions）；`Envelope.ts` 类型化；`eventContractCatalog` 24+13 执行链契约；`TaskStateProjector` 投影对齐（status/stage/human/media/error）。
 - **精简**：P0 已移除 studio simulation/verification(17)+废弃 harness(5)→ -22 文件/-3.3k 行（B/C 复评证实结构已收敛，不再手术）。
