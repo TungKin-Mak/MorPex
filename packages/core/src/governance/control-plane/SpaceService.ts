@@ -16,6 +16,7 @@ import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { WorkflowRegistry } from '../../workflow/WorkflowProvider.js';
 import type { WorkflowProvider } from '../../workflow/WorkflowProvider.js';
 import type { Space, SpaceId, SpaceTree, SpaceAliasMap } from './space-types.js';
+import { buildManagerPersona, buildRouteHint } from '../prompts/space-prompts.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 
@@ -103,14 +104,7 @@ export class SpaceService {
     const actions = provider.getActions();
     const capabilityNames = actions.map((a) => a.name);
     const name = this.aliases[wfId] ?? provider.description?.slice(0, 12) ?? wfId;
-    const routeHint = [
-      `部门：${name}`,
-      provider.description ? `职责：${provider.description}` : '',
-      capabilityNames.length > 0 ? `能力/动作：${capabilityNames.join('、')}` : '',
-      `工作流：${wfId}`,
-    ]
-      .filter(Boolean)
-      .join('。');
+    const routeHint = buildRouteHint(name, provider.description, capabilityNames, wfId);
     return {
       id: `dept_${wfId}`,
       type: 'department',
@@ -119,7 +113,7 @@ export class SpaceService {
       parentId: HQ_SPACE_ID,
       departmentId: undefined, // 映射引擎 Department（P3 完整化；当前不强制创建 Department 实体）
       workflowId: wfId,
-      managerPersona: `你是${name}的经理。部门职责：${provider.description ?? '负责本部门领域任务'}。本部门可用能力：${capabilityNames.join('、') || '通用能力'}。请以经理口吻接单、澄清、拆解任务给工位，工位按任务复杂度动态编排。`,
+      managerPersona: buildManagerPersona(name, provider.description, capabilityNames),
       capabilities: capabilityNames,
       routeHint,
       description: provider.description,

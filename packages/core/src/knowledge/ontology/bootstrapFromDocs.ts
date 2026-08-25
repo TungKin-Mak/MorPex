@@ -15,6 +15,7 @@
  */
 
 import type { OntologyService } from './OntologyService.js';
+import { buildBootstrapSystemPrompt, buildBootstrapUserPrompt } from '../prompts/bootstrap-prompts.js';
 
 export interface BootstrapFromDocsOptions {
   /** 工作流文档原文列表 */
@@ -69,27 +70,8 @@ export async function bootstrapFromWorkflowDocs(
 ): Promise<BootstrapExtraction> {
   const { docs, ontology, piBridge, dryRun = true, knownTypes } = options;
 
-  const systemPrompt = `你是本体工程师。从以下工作流资料中抽取 Ontology 结构。
-只输出 JSON，格式：
-{
-  "objects": [
-    { "type": "类型名（如 Task、Review）", "name": "实例名", "properties": {"key": "value"}, "description": "说明" }
-  ],
-  "relations": [
-    { "from": "源对象名", "to": "目标对象名", "type": "关系类型（如 depends_on、triggers）" }
-  ],
-  "actions": [
-    { "name": "动作名", "description": "说明", "inputs": ["输入1"], "outputs": ["输出1"] }
-  ]
-}
-
-${knownTypes ? `已知类型：${knownTypes.join(', ')}。优先使用已知类型。` : ''}
-只输出 JSON，不要其他文字。`;
-
-  const userPrompt = `工作流资料：
-${docs.join('\n\n---\n\n')}
-
-请分析并抽取出其中的 Object Types、Relations 和 Actions。`;
+  const systemPrompt = buildBootstrapSystemPrompt(knownTypes);
+  const userPrompt = buildBootstrapUserPrompt(docs);
 
   const response = await piBridge.generateText({
     system: systemPrompt,

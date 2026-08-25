@@ -17,14 +17,9 @@ import type { ControlPlane } from '../governance/control-plane/ControlPlane.js';
 // ═══ 去黑盒化（L0 任务摘要，方案定义层首次落地）═══
 import { getSharedDeblackboxRecorder } from '../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
 import { IntentClassifier } from '../cognition/planning/goal-intelligence/IntentClassifier.js';
+import { CHAT_REPLY_SYSTEM } from '../cognition/prompts/company-prompts.js';
 
 type LLMProviderFn = (system: string, prompt: string, opts?: { temperature?: number; maxTokens?: number }) => Promise<string>;
-
-/** 闲聊直答 system 提示（不走执行编排） */
-const CHAT_REPLY_SYSTEM =
-  '你是 MorPex 的对话助手。用户在闲聊/问候/简单寒暄，请直接友好简短地回答（1-3 句）。' +
-  '始终使用与用户相同的语言回复（用户用中文就用中文）。' +
-  '不要执行任何任务，不要创建 Mission/团队/产物，不要提及内部架构与编排。';
 
 export interface ExecuteGoalOptions {
   simulationHardFail?: boolean;
