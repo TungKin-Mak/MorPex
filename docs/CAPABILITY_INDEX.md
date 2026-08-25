@@ -35,6 +35,8 @@
 | 用户画像记忆（跨会话） | 画像、记住我、长期记忆、memory extractor | `studio/server/transcript/memory-extractor.ts`（订阅 chat.turn.completed 提取候选→确认工单）｜`MemoryApi.confirm/listPendingConfirmations`（批准落库）｜`StudioServer.ts:1101` 召回注入直答开场 | ✅ T5 | 新候选类型→EXTRACT_SYSTEM 提示词；调阈值→confidence 0.6/autoWrite 0.8 |
 | 记忆分类与召回分级（纠错/澄清/约定） | 纠错、教训、澄清、术语表、约定、T6 | `memory-extractor.ts`（四类候选+mapCandidateEntity 实体名前缀 纠错:/术语:/约定:）｜`MemoryApi.confirm`（覆盖语义：批准纠错/澄清自动 invalidate 同主题旧条目）｜`OrchestratorAgent.lessonQuery`（执行前教训召回，ServiceContainer 注入）｜StudioServer 直答三路查询（画像/约定/术语表） | ✅ T6 | 新分类→VALID_TYPES+EXTRACT_SYSTEM+mapCandidateEntity 三处同步；调召回→各处 query 文本与前缀过滤 |
 | 任务瞬间上下文装配（RAG-lazy） | 上下文、RAG、聚焦摘要 | `knowledge/context/ContextAssemblyEngine.ts` | ✅ | 新 fragment 源→ContextFragmentRegistry |
+| F13 执行前上下文预取 | 预取、prefetch、预热 | `knowledge/context/prefetch.ts`（MorPexRuntime Phase1.8 调用，3000ms 超时静默不阻塞） | ✅ | 预取参数与真实 assemble 对齐保缓存命中 |
+| LLM 调用去重+LRU 缓存 | 缓存、去重、embed/rerank 缓存 | `infrastructure/common/cache/{LruCache,inflight}.ts` + EmbeddingProvider/Reranker 接线 | ✅ | 有界 1000/512；key 含 model 前缀+长文本哈希 |
 
 ## 3. 认知 / 规划（L4）
 | 能力 | 别名 | 锚点 | 状态 | 扩展怎么做 |

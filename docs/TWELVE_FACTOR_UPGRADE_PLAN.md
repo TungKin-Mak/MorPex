@@ -86,8 +86,8 @@
 |---|---|---|
 | P0-1 | Webhook 加固三件套：event-id 去重（JSON 原子写+7天TTL）+ 固定窗口限流（MORPEX_HOOK_RATE_LIMIT，默认 30/min）+ goal ≤10000 字符 413 | ✅ hook-hardening.ts + StudioServer 接线 |
 | P0-2 | pause 标志持久化：RunRegistry.hydrate() 从事件源水合（ServiceContainer init 后调用），pause 态重启不丢失、cancel 不复活 | ✅ RunRegistry.ts + ServiceContainer.ts |
-| P1-1 | missionId↔sessionId 跨源关联键一等化 | 待办 |
-| P1-2 | F13 实体级预取（orchestrate 前按意图预取高频实体） | 待办 |
+| P1-1 | missionId↔sessionId 跨源关联键一等化 | ⏸ 显式延期：当前经 chat-orch 绑定（transcript_windows.session_key=chat:*）与 mission 事件源已可双向追溯，无实际断链案例；等出现真实跨源查询需求再一等化，避免为关联而关联 |
+| P1-2 | F13 实体级预取 | ✅ 分两步完成：(a) 去重+缓存（LruCache/inflight，Embedding/Reranker/Assembly 三处接线）；(b) 本义预取钩子 prefetch.ts（Phase1.8 执行前预热，命中判定需 registered 片段或召回摘要） |
 
 ## 四、实施方案（分阶段）
 
@@ -121,7 +121,7 @@
 | F11 尾巴·定时触发 | schedule-manager.ts（自写简化 cron+JSON 真相源+分钟 tick）；/api/schedules CRUD；触发委派 chatSendHandler 全链路；宕机错过跳过不补跑 | 测试 7/7 |
 | F5 尾巴·投影防抖窗口 | TaskStateProjector.setTruthSource/reconcileWithTruth：restore 后按 PersistentMissionStore 事件源校正并同步落盘（快照降级为即时兜底）；完结且无痕迹任务不凭空造条目 | 测试 4/4 |
 
-**最终评级：11✅（F5/F6/F11 补完）· 1🟡（F2 其余内联 prompt 低优先打磨）· 0❌**
+**最终评级（P1 收官后）：12✅（F5/F6/F11 补完 + F13 预取/缓存闭环 + F2 主力 prompt 资产化 18 文件）· 1🟡（F2 技术类辅助 prompt 与剩余收编，低优先）· 0❌**
 
 ---
 
