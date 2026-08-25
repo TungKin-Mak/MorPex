@@ -50,15 +50,21 @@ export async function prefetchHighFrequencyEntities(
       }),
       timeoutPromise,
     ]);
-    // 有 focusedSummary 或 fragments.length>0 即算预热成功（已写入下游 LruCache/inflight）
-    const hit = !!(
-      result &&
-      ((result as { focusedSummary?: string }).focusedSummary ||
-        (Array.isArray((result as { fragments?: unknown[] }).fragments) &&
-          (result as { fragments: unknown[] }).fragments.length > 0))
-    );
+    // 命中判定：需至少一个真实 Provider 片段或召回摘要（仅 focusedSummary / fallback 片段不算命中，防空上下文误判）
+    const r = result as {
+      focusedSummary?: string;
+      fragments?: Array<{ attribution?: { providerType?: string } }>;
+      providerAttribution?: Array<{ providerType?: string }>;
+      recentSummaries?: unknown[];
+    } | null | undefined;
+    const hasRegisteredFragment =
+      (Array.isArray(r?.providerAttribution) && r.providerAttribution.some(a => a.providerType === 'registered')) ||
+      (Array.isArray(r?.fragments) && r.fragments.some(f => f.attribution?.providerType === 'registered'));
+    const hasRecentSummaries = Array.isArray(r?.recentSummaries) && r.recentSummaries.length > 0;
+    const hit = !!(r && (hasRegisteredFragment || hasRecentSummaries));
     return { hit, duration: Date.now() - start };
-  } catch {
+  } catch (err) {
+    console.warn('[prefetch] 异常:', err);
     return { hit: false, duration: Date.now() - start };
   } finally {
     if (timer !== undefined) clearTimeout(timer);

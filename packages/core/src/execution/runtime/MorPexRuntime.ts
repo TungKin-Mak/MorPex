@@ -388,18 +388,21 @@ export class MorPexRuntime {
       }
 
       // ── Phase 1.8 F13 预取钩子（执行前预取高频实体，命中下游 LruCache/inflight 缓存）──
+      // 优化：① domain 与 Phase 1.7 同口径（fallback departments[0]，保 assembleKey 一致命中 inflight）
+      //       ② 超时 3000ms 对齐 fragmentTimeout(3000)，避免 1500ms 必超时；③ fire-and-forget 不阻塞主流程
       if (this.contextAssemblyEngine) {
-        try {
-          const pf = await prefetchHighFrequencyEntities(this.contextAssemblyEngine, {
-            goal: context.goal.objective,
-            domain: context.goal.domain,
-            missionId: context.mission.missionId,
-            timeoutMs: 1500,
+        void prefetchHighFrequencyEntities(this.contextAssemblyEngine, {
+          goal: context.goal.objective,
+          domain: context.goal.domain ?? (context.team.departments[0] as string | undefined),
+          missionId: context.mission.missionId,
+          timeoutMs: 3000,
+        })
+          .then(pf => {
+            if (pf.hit) console.log(`[MorPexRuntime] ⚡ F13 预取命中 (${pf.duration}ms, mission=${context.mission.missionId})`);
+          })
+          .catch(err => {
+            console.warn('[MorPexRuntime] ⚠️ F13 预取失败（非阻断）:', (err as Error).message);
           });
-          if (pf.hit) console.log(`[MorPexRuntime] ⚡ F13 预取命中 (${pf.duration}ms, mission=${context.mission.missionId})`);
-        } catch (err) {
-          console.warn('[MorPexRuntime] ⚠️ F13 预取失败（非阻断）:', (err as Error).message);
-        }
       }
 
       // ── Phase 2: Execution（统一执行引擎）──
