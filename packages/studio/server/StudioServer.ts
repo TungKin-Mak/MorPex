@@ -21,6 +21,7 @@
 import express from 'express';
 import cors from 'cors';
 import { CronScheduler, type ScheduleEntry } from './schedule-manager.js';
+import { HookDedup, createFixedWindowLimiter, resolveHookRateLimit, HOOK_GOAL_MAX_CHARS } from './hook-hardening.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import mammoth from 'mammoth';
@@ -1534,6 +1535,9 @@ export class StudioServer {
   // ── U4 Webhook 触发（12-Factor F11 最小版）──
   // ── U 收尾：定时触发调度器（12-Factor F11 补完：cron 入口）──
   private cronScheduler: CronScheduler | null = null;
+  /** P0-1 webhook 加固：去重表 + 限流器（成员级实例，随 server 生命周期） */
+  private hookDedup: HookDedup | null = null;
+  private hookLimiter: ((key: string) => boolean) | null = null;
 
   private registerScheduleRoutes(): void {
     const ensureScheduler = (): CronScheduler => {
@@ -1589,17 +1593,28 @@ export class StudioServer {
   }
 
   private registerWebhookRoutes(): void {
-    this.app.post('/api/hooks/trigger', (req, res) => {
+    this.app.post('/api/hooks/trigger', (req: import('express').Request, res) => {
       const secret = process.env.MORPEX_HOOK_SECRET;
       // 未配置 secret = 功能禁用；404 不暴露端点存在性
       if (!secret) return res.status(404).json({ ok: false });
       const provided = req.header('x-morpex-secret');
       if (!provided || provided !== secret) return res.status(401).json({ ok: false, error: 'unauthorized' });
-      const goal = typeof req.body?.goal === 'string' ? req.body.goal.trim() : '';
-      if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
+      // ── P0-1 加固三件套（顺序：鉴权→限流→去重→校验→受理记账→委派）──
+      if (!this.hookLimiter) this.hookLimiter = createFixedWindowLimiter(resolveHookRateLimit(process.env.MORPEX_HOOK_RATE_LIMIT));
+      if (!this.hookLimiter('hook')) return res.status(429).json({ ok: false, error: 'rate limited' });
+      const goalRaw = typeof req.body?.goal === 'string' ? req.body.goal.trim() : '';
+      if (!goalRaw) return res.status(400).json({ ok: false, error: 'goal required' });
+      if (goalRaw.length > HOOK_GOAL_MAX_CHARS) return res.status(413).json({ ok: false, error: `goal exceeds ${HOOK_GOAL_MAX_CHARS} chars` });
+      const eventId = (typeof req.header('x-morpex-event-id') === 'string' ? req.header('x-morpex-event-id') : '') || (typeof req.body?.eventId === 'string' ? req.body.eventId : '');
+      if (!this.hookDedup) { try { this.hookDedup = new HookDedup(path.resolve(getDataRoot(), 'hooks-dedup.json')); } catch { /* 初始化失败=跳过去重 */ } }
+      if (eventId && this.hookDedup?.isKnown(eventId)) {
+        return res.status(200).json({ ok: true, dedup: true, message: 'event already processed' });
+      }
       const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined;
+      // 受理即记账（委派本身就是副作用；下游 5xx 不回滚记账——idempotency-key 标准语义）
+      if (eventId && this.hookDedup) this.hookDedup.record(eventId);
       // 委派 chat/send 同一处理器（goalMode=true 全自动；并发护栏/会话绑定/意图分流全复用）
-      const syntheticReq = { body: { message: goal, goalMode: true, sessionId }, header: () => provided } as unknown as Parameters<StudioServer['chatSendHandler']>[0];
+      const syntheticReq = { body: { message: goalRaw, goalMode: true, sessionId }, header: () => provided } as unknown as Parameters<StudioServer['chatSendHandler']>[0];
       void this.chatSendHandler(syntheticReq, res);
     });
   }

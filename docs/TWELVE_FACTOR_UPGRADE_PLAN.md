@@ -80,6 +80,15 @@
 3. ~~"失败策略四项修复在主链"~~ → 在休眠的手册运行时里，主链是另一套逻辑
 4. ~~"演化触发器可自动触发改进"~~ → 只发提案事件，非执行入口
 
+## 三.5 P0 加固批（外部交叉审计发现，已完成）
+
+| # | 事项 | 状态 |
+|---|---|---|
+| P0-1 | Webhook 加固三件套：event-id 去重（JSON 原子写+7天TTL）+ 固定窗口限流（MORPEX_HOOK_RATE_LIMIT，默认 30/min）+ goal ≤10000 字符 413 | ✅ hook-hardening.ts + StudioServer 接线 |
+| P0-2 | pause 标志持久化：RunRegistry.hydrate() 从事件源水合（ServiceContainer init 后调用），pause 态重启不丢失、cancel 不复活 | ✅ RunRegistry.ts + ServiceContainer.ts |
+| P1-1 | missionId↔sessionId 跨源关联键一等化 | 待办 |
+| P1-2 | F13 实体级预取（orchestrate 前按意图预取高频实体） | 待办 |
+
 ## 四、实施方案（分阶段）
 
 ### U1：意图 LLM 化 + 错误压缩（F1+F9）｜半天

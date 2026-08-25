@@ -207,7 +207,13 @@ export class ServiceContainer {
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();
-    this.missionStore.init().catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
+    // P0-2：初始化成功后从事件源水合运行控制态（pause/cancel 不因进程重启丢失/复活）
+    this.missionStore.init().then(() => {
+      for (const m of this.missionStore.getAll()) {
+        const rs = this.missionStore.getRunState(m.missionId);
+        if (rs === 'paused' || rs === 'cancelled') RunRegistry.hydrate(m.missionId, rs);
+      }
+    }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
     this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
     // U2+U3：步骤级事件入事件源（订阅总线，EventBus Only 合规）
     this.stepEventRecorder = new StepEventRecorder();

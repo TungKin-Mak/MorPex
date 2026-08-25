@@ -38,6 +38,12 @@ export const RunRegistry = {
     ensure(id).cancelled = true;
     ensure(id).paused = false; // 取消优先于暂停
   },
+  /** P0-2：重启后从事件源重放水合运行控制态（paused/cancelled 不因进程重启丢失/复活） */
+  hydrate(id: string, state: 'paused' | 'cancelled' | 'running'): void {
+    if (state === 'paused') { const c = ensure(id); c.paused = true; c.cancelled = false; }
+    else if (state === 'cancelled') { const c = ensure(id); c.cancelled = true; } // cancelled 不复活
+    // running：无操作（活跃态不需要恢复内存标志）
+  },
   isPaused(id: string): boolean {
     return controls.get(id)?.paused ?? false;
   },

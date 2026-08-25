@@ -31,6 +31,7 @@
 | 用户画像/纠错/澄清/约定四类记忆 + 权重沉淀 | 记住xxx、画像、纠错、澄清、遗忘、永久记忆 | `studio/server/transcript/memory-extractor.ts`（LLM 提取四路分流）+ `memory/src/storage/MemoryWeightStore.ts`（tier/weight）+ `scripts/memory-consolidate.mts`（晋升衰减批处理）+ MemoryApi.confirm/invalidate | ✅ | 新记忆类型→EXTRACT_SYSTEM prompt 分类+routeCandidate 分流；调参→MemoryWeightStore 阈值常量 |
 | MemoryWiki 持久化 | wiki、SQLite 记忆 | `memory/src/wiki/MemoryWiki.ts` | ✅ | 扩展 schema |
 | 定时触发任务 | 定时、cron、schedule、到点执行 | `studio/server/schedule-manager.ts`（CronScheduler）+ StudioServer /api/schedules | ✅ | 触发走 chatSendHandler 同款链路；补跑策略=跳过 |
+| Webhook 外部触发 | webhook、hooks/trigger、外部集成 | `studio/server/StudioServer.ts` /api/hooks/trigger + `hook-hardening.ts`（secret 鉴权/event-id 去重/限流/goal 上限） | ✅ | 加固参数走 MORPEX_HOOK_RATE_LIMIT env；去重表 data/hooks-dedup.json TTL 7 天 |
 | 用户画像记忆（跨会话） | 画像、记住我、长期记忆、memory extractor | `studio/server/transcript/memory-extractor.ts`（订阅 chat.turn.completed 提取候选→确认工单）｜`MemoryApi.confirm/listPendingConfirmations`（批准落库）｜`StudioServer.ts:1101` 召回注入直答开场 | ✅ T5 | 新候选类型→EXTRACT_SYSTEM 提示词；调阈值→confidence 0.6/autoWrite 0.8 |
 | 记忆分类与召回分级（纠错/澄清/约定） | 纠错、教训、澄清、术语表、约定、T6 | `memory-extractor.ts`（四类候选+mapCandidateEntity 实体名前缀 纠错:/术语:/约定:）｜`MemoryApi.confirm`（覆盖语义：批准纠错/澄清自动 invalidate 同主题旧条目）｜`OrchestratorAgent.lessonQuery`（执行前教训召回，ServiceContainer 注入）｜StudioServer 直答三路查询（画像/约定/术语表） | ✅ T6 | 新分类→VALID_TYPES+EXTRACT_SYSTEM+mapCandidateEntity 三处同步；调召回→各处 query 文本与前缀过滤 |
 | 任务瞬间上下文装配（RAG-lazy） | 上下文、RAG、聚焦摘要 | `knowledge/context/ContextAssemblyEngine.ts` | ✅ | 新 fragment 源→ContextFragmentRegistry |
