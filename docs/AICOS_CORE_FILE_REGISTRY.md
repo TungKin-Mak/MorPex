@@ -127,8 +127,9 @@
 | `gate/ForcedQueryGuard.ts` | ForcedQueryGuard — 代码级强制查询守卫 迭代1： - 记录所有 ontology 工具调用 - 断言至少调用了 N 次（代码兜底） - 校验 proposal 引用的 ID 是否确实被查询过 / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/index.ts` | L3 Ontology Gate 强制知识防火墙层 | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/ontologyEvents.ts` | ontologyEvents — Ontology 事件类型定义 迭代2：定义 Ontology 相关事件类型，用于 Event Sourcing 记录。 事件命名空间：ontology.* / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
-| `gate/runOntologyGroundedReasoning.ts` | runOntologyGroundedReasoning — 共享的 Ontology Grounded Reasoning 方法 迭代2+补丁： Phase 1 - 强制查询：LLM 输出查询计划 → 执行 → 记录 - JSON 解析失败时执行默认安全查询兜底 - 空结果自动标记 missing_info Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal - 引用校验失败 → emit ReferenceValidationFailed 事件 可被 DeliveryPlanner | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
+| `gate/runOntologyGroundedReasoning.ts` | runOntologyGroundedReasoning — 共享的 Ontology Grounded Reasoning 方法 迭代2+补丁： Phase 1 - 强制查询：LLM 输出查询计划 → 执行 → 记录 - JSON 解析失败时执行默认安全查询兜底 - 空结果自动标记 missing_info Phase 2 - 基于事实推理：LLM 基于检索到的事实输出 proposal - 引用校验失败 → emit ReferenceValidationFailed 事件 语义复核提示词已收编至 rules/rule-prompts.ts（逐字等价）。可被 DeliveryPlanner | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/types.ts` | Ontology — 轻量本体层类型定义 迭代1：包装现有 MetadataGraph，暴露 4 个 ontology 工具给 LLM / | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
+| `gate/rules/rule-prompts.ts` | 规则链路提示词资产（P1 缺口 #3 内联 prompt 收编示范批）：① RULE_EXTRACT_SYSTEM_PROMPT/buildRuleExtractUserPrompt（原 RuleExtractor 内联逐字抽离）；② SEMANTIC_JUDGEMENT_SYSTEM_PROMPT/buildSemanticJudgementUserPrompt（原 runOntologyGroundedReasoning.semanticJudgement 内联逐字抽离；system 字符串被 semantic-judgement.test 用于区分语义调用，改措辞须同步测试）。只做资产化不做文案调优；剩余待收编清单见 SESSION_LOG | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 | `gate/context.ts` | KnowledgeContextPackage — 运行时 Gate 上下文 + Tier 写入守卫 + 提案状态守卫（Wave 3b）。由 runOntologyGroundedReasoning 签发凭证；Artifact 注册/演化晋升入口硬校验（缺包抛 GateContextRequiredError）；TierWriteGuard：Tier-3 禁覆盖 Tier-0/1、Tier-2 仅 L7 晋升可写；ProposalStatusGuard：未审批只能是 pending | 认识论拦截+信号；只读+不决策/不执行/不改权威知识 |
 
 

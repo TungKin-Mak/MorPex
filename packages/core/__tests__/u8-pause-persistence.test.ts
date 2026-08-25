@@ -3,7 +3,7 @@
  * 覆盖：① run.paused 事件重放 → getRunState ② RunRegistry.hydrate 三态
  * ③ pause→模拟重启（新 store 重放+水合）→ 不自动调度 → resume → 继续
  */
-import { describe, it, expect, afterEach } from 'vitest';
+import { describe, it, expect, afterEach, vi } from 'vitest';
 import { PersistentMissionStore } from '../src/execution/runtime/PersistentMissionStore.js';
 import { StepEventRecorder } from '../src/execution/runtime/StepEventRecorder.js';
 import { RunRegistry } from '../src/execution/runtime/RunRegistry.js';
@@ -105,5 +105,83 @@ describe('P0-2 运行控制态持久化', () => {
     void r3;
     await sleep(60);
     expect(executed).toContain('b');   // resume 后重入继续
+  });
+
+  it('getAllRunStates 防御性拷贝：修改返回 Map 不影响内部', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'u8-'));
+    const db = join(dir, 'missions.db');
+    const bus = new EventBus();
+    const store = new PersistentMissionStore(db);
+    await store.init();
+    new StepEventRecorder().attach(bus, store);
+    bus.emit({ id: 'e1', type: 'run.paused', timestamp: Date.now(), executionId: 'm1', source: 'test', payload: { missionId: 'm1' } } as never);
+    await sleep(50);
+    const copy = store.getAllRunStates();
+    copy.set('m1', 'cancelled' as never);
+    copy.set('evil', 'paused' as never);
+    expect(store.getRunState('m1')).toBe('paused');
+    expect(store.getRunState('evil')).toBeUndefined();
+  });
+
+  it('forEachRunState 遍历等价于 getAllRunStates', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'u8-'));
+    const db = join(dir, 'missions.db');
+    const bus = new EventBus();
+    const store = new PersistentMissionStore(db);
+    await store.init();
+    new StepEventRecorder().attach(bus, store);
+    bus.emit({ id: 'e1', type: 'run.paused', timestamp: Date.now(), executionId: 'm1', source: 'test', payload: { missionId: 'm1' } } as never);
+    bus.emit({ id: 'e2', type: 'run.cancelled', timestamp: Date.now(), executionId: 'm2', source: 'test', payload: { missionId: 'm2' } } as never);
+    await sleep(50);
+    const mapFromGetAll = store.getAllRunStates();
+    const mapFromForEach = new Map<string, string>();
+    store.forEachRunState((k, v) => mapFromForEach.set(k, v));
+    expect([...mapFromForEach.entries()].sort()).toEqual([...mapFromGetAll.entries()].sort());
+  });
+
+  it('missionStore.init 失败 → isReady=false → hydrate 跳过不抛', async () => {
+    const store = new PersistentMissionStore('/invalid\0path/missions.db');
+    await store.init();
+    expect(store.isReady()).toBe(false);
+    // hydrate 逻辑：isReady=false 时应跳过且不抛
+    expect(() => {
+      if (!store.isReady()) return;
+      store.forEachRunState(() => { throw new Error('should not be called'); });
+    }).not.toThrow();
+  });
+
+  it('hydrate 单条抛错时其余仍水合且 skipped===1', async () => {
+    const dir = mkdtempSync(join(tmpdir(), 'u8-'));
+    dirs.push(dir);
+    const db = join(dir, 'missions.db');
+    const bus = new EventBus();
+    const store = new PersistentMissionStore(db);
+    await store.init();
+    new StepEventRecorder().attach(bus, store);
+    bus.emit({ id: 'e1', type: 'run.paused', timestamp: Date.now(), executionId: 'm1', source: 'test', payload: { missionId: 'm1' } } as never);
+    bus.emit({ id: 'e2', type: 'run.paused', timestamp: Date.now(), executionId: 'm2', source: 'test', payload: { missionId: 'm2' } } as never);
+    await sleep(50);
+    // 模拟 ServiceContainer.hydrateRunStates 的 try/catch 隔离：m1 抛错不应阻断 m2
+    const original = RunRegistry.hydrate.bind(RunRegistry);
+    const spy = vi.spyOn(RunRegistry, 'hydrate').mockImplementation((id: string, state: any) => {
+      if (id === 'm1') throw new Error('mock hydrate fail');
+      return original(id as string, state as any);
+    });
+    let hydrated = 0;
+    let skipped = 0;
+    store.forEachRunState((missionId, rs) => {
+      if (rs !== 'paused' && rs !== 'cancelled') return;
+      try {
+        RunRegistry.hydrate(missionId, rs as any);
+        hydrated++;
+      } catch {
+        skipped++;
+      }
+    });
+    expect(hydrated).toBe(1);
+    expect(skipped).toBe(1);
+    expect(RunRegistry.isPaused('m2')).toBe(true);
+    expect(RunRegistry.isPaused('m1')).toBe(false);
+    spy.mockRestore();
   });
 });

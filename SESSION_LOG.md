@@ -54,7 +54,11 @@
 
 ## 待办（按优先级）
 
-- **全量测试基线失败 10 例（新登记）**：step-agent-corrective(1)/semantic-judgement(2)/rule-enforcement-integration(6)/primitives-registry(1) 在 T0 前的旧提交（2f06bd8）上同样失败——非近期回归，是更早的行为变更未同步测试（如 gate 语义判断 LLM 调用次数断言）。修复需考古当时意图，勿盲改计数。
+- **P1-Critical#1: hydrate 可追溯**：`ServiceContainer.ts:artifactStore.init` 豁免 `_ready` 链的 `TODO(P1-Critical#1: hydrate 可追溯)`——若未来产物状态需门控执行，此豁免需复审并收进 `_ready`；告警级别已由 `console.log` 升为 `console.warn`（skipped>0 时），keep 产物生命周期与 RunRegistry 水合分级语义。
+
+- **P1 缺口 #3 内联 prompt 收编（示范批已完成，剩余铺开）**：已建 `gate/rules/rule-prompts.ts`，逐字收编 RuleExtractor（提炼 system/user prompt）+ runOntologyGroundedReasoning.semanticJudgement（语义复核 system/user builder），等价性经 tsx 脚本逐字比对 ✅ + rule 套件全绿（semantic-judgement 2 失败为 T0 前既有基线，stash 对照证实）。模式=照 orchestrator-prompts.ts 先例：逐字抽离、只资产化不调优、builder 函数导出。**剩余待收编（约12文件，grep "你是/只输出 JSON" 启发式枚举，以审计清单为准）**：cognition/planning/DeliveryPlanner.ts、cognition/planning/goal-intelligence/IntentClassifier.ts、cognition/ReflectionEngine.ts、execution/AgentMailbox.ts、execution/runtime/dag/StepAgentExecutor.ts、facade/CompanyFacade.ts、governance/control-plane/SpaceService.ts、infrastructure/tools/paramCompleter.ts、knowledge/ontology/bootstrapFromDocs.ts 等；建议每批 2-3 文件+对应 prompts 文件，勿大爆炸。已知缺口：FILE_REGISTRY 未登记 gate/rules/* 既有文件（本次补登 rule-prompts.ts，其余为历史遗留）。
+
+- **全量测试基线失败 10 例→现存 8 例**：semantic-judgement(2) 于 P1#3 收编时 stash 对照证实为既有基线非回归；其余同前：step-agent-corrective(1)/rule-enforcement-integration(6)/primitives-registry(1) 在 T0 前的旧提交（2f06bd8）上同样失败——非近期回归，是更早的行为变更未同步测试（如 gate 语义判断 LLM 调用次数断言）。修复需考古当时意图，勿盲改计数。（注：rule-enforcement-integration 本次实测 21/21 已绿，实际现存以最新全量为准）
 - **测试数据隔离已建成**：MORPEX_DATA_DIR 环境变量 + vitest env/globalSetup（tests/vitest-isolated-data.global.ts）；三个闭环集成套件与 sse-execute-e2e（需真实 LLM 配额）移入显式运行清单。
 
 - **T7 评审建议三项已全部修复（调度器亲验 2026-08-24，tsc 0 错 + memory-extractor.test 25/25）**：① 衰减幂等——MemoryWeightStore 加 last_decayed_at 列（老库 ALTER 自动迁移），computeDecay 以 max(lastSeen,lastDecayedAt) 起算闲置期，applyDecays 衰减时落 last_decayed_at；端到端断言连跑三遍只衰一次 + 纯函数两例；② routeCandidate 显式分支补返回值检查——rejected→'explicit_failed'+warn+不建权重档，异常同标签且不向调用方抛出（handleTurn 循环加 try/catch 单条隔离，聚合日志新增"入库失败 N"）；③ 敏感兜底——新增 looksLikeCredential()（sk-/AKIA/私钥块/password= 等 6 类高置信模式）在 upsert 前硬拒，文件头注明"安全兜底层非触发机制"，与 LLM 化原则不冲突（宁可误杀不可漏放）。

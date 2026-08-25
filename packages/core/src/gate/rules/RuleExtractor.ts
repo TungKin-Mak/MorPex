@@ -9,6 +9,10 @@
  */
 
 import type { RuleEntity } from './types.js';
+import {
+  RULE_EXTRACT_SYSTEM_PROMPT,
+  buildRuleExtractUserPrompt,
+} from './rule-prompts.js';
 
 /** LLM 接口（与 runOntologyGroundedReasoning 的 piBridge 同构） */
 export interface RuleExtractorLLM {
@@ -19,15 +23,6 @@ export interface RuleExtractorLLM {
     maxTokens?: number;
   }): Promise<{ text: string }>;
 }
-
-const RULE_EXTRACT_SYSTEM_PROMPT = `你是规则提炼器。把人工审核反馈提炼为一条"禁止性规则"。
-输出严格 JSON，不要多余文字：
-{
-  "description": "规则的人话描述（一句话，审计/重试用）",
-  "disallowedPattern": "禁止出现的模式（正则；简单禁词用 | 连接多个词，如 Apple|iPhone）",
-  "aliases": ["常见代称/变体，如 苹果耳机、air pods"]
-}
-要求：disallowedPattern 与 aliases 都只提炼"违反反馈意图"的禁止项，不要扩大范围（如反馈只说竞品A，就不要禁所有品牌）。`;
 
 /** 提炼输入：人工反馈原话 + 目标领域 */
 export interface RuleExtractInput {
@@ -57,7 +52,7 @@ export async function extractRule(input: RuleExtractInput, llm: RuleExtractorLLM
   try {
     const res = await llm.generateText({
       system: RULE_EXTRACT_SYSTEM_PROMPT,
-      prompt: `人工审核反馈：${input.feedback}\n领域：${input.domain}`,
+      prompt: buildRuleExtractUserPrompt(input.feedback, input.domain),
       temperature: 0.2,
     });
     const parsed = parseExtractionJson(res.text);

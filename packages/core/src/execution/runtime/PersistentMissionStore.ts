@@ -55,6 +55,9 @@ export class PersistentMissionStore {
       console.log(`[PersistentMissionStore] ✅ 事件源就绪: ${events.length} 事件, ${this.missions.size} Mission`);
     } catch (err) {
       // ═══ U2+U3：修复静默降级——初始化失败必须显式可见，不再无声变纯内存模式 ═══
+      // 设计取舍（P1 Caveat 显式化）：此处吞错降级为内存模式（ready=false），不 reject，
+      // 以保证无 DB/只读文件系统等环境仍可启动；关键路径通过 isReady() 显式分级告警，
+      // 而非依赖 _ready 链 reject。上游 ServiceContainer._ready.catch 仅兜 hydrate 等意外。
       console.error('╔══════════════════════════════════════════════════╗');
       console.error('║ ⚠️ [PersistentMissionStore] 事件源初始化失败！仅内存模式 ║');
       console.error(`║    原因: ${(err as Error).message}`.padEnd(54) + ' ║');
@@ -149,6 +152,16 @@ export class PersistentMissionStore {
   /** U2+U3：运行终态查询（undefined=无记录） */
   getRunState(missionId: string): 'paused' | 'cancelled' | 'running' | undefined {
     return this.runStates.get(missionId);
+  }
+
+  /** P1 #1 优化：直接遍历运行控制态（O(K) K=paused/cancelled 数），避免 getAll() O(N) 全量拷贝；返回防御性拷贝防外部篡改泄漏内部 Map */
+  getAllRunStates(): ReadonlyMap<string, 'paused' | 'cancelled' | 'running'> {
+    return new Map(this.runStates);
+  }
+
+  /** 内部迭代：零拷贝遍历运行控制态（供 ServiceContainer.hydrate 避免 Map 快照分配）；外部调用请用 getAllRunStates() */
+  forEachRunState(cb: (missionId: string, state: 'paused' | 'cancelled' | 'running') => void): void {
+    for (const [k, v] of this.runStates) cb(k, v);
   }
 
   private applyDirect(missionId: string, type: string): void {

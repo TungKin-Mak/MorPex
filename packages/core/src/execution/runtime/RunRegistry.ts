@@ -41,7 +41,7 @@ export const RunRegistry = {
   /** P0-2：重启后从事件源重放水合运行控制态（paused/cancelled 不因进程重启丢失/复活） */
   hydrate(id: string, state: 'paused' | 'cancelled' | 'running'): void {
     if (state === 'paused') { const c = ensure(id); c.paused = true; c.cancelled = false; }
-    else if (state === 'cancelled') { const c = ensure(id); c.cancelled = true; } // cancelled 不复活
+    else if (state === 'cancelled') { const c = ensure(id); c.cancelled = true; c.paused = false; } // cancelled 终态：不复活且清暂停
     // running：无操作（活跃态不需要恢复内存标志）
   },
   isPaused(id: string): boolean {

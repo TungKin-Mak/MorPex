@@ -21,6 +21,10 @@ import {
   FORCED_QUERY_SYSTEM_PROMPT,
   buildReasoningUserPrompt,
 } from '../knowledge/ontology/prompts/forced-query-system.js';
+import {
+  SEMANTIC_JUDGEMENT_SYSTEM_PROMPT,
+  buildSemanticJudgementUserPrompt,
+} from './rules/rule-prompts.js';
 import type { IEventStore } from '../infrastructure/protocol/events/store/IEventStore.js';
 import {
   createReferenceValidationFailedEvent,
@@ -1006,17 +1010,9 @@ async function semanticJudgement(
   const end = Math.min(fullText.length, idx + kw.length + 80);
   const snippet = (idx >= 0 ? fullText.slice(start, end) : fullText.slice(0, 160)) || '（无法定位片段）';
 
-  const system = '你是规则合规审查员。根据规则要求判断内容是否合规。';
-  const prompt = [
-    `规则要求：${rule.description}`,
-    '',
-    `以下输出涉及关键词「${kw}」：`,
-    snippet,
-    '',
-    '请判断这段输出对该关键词相关内容的处理是否满足规则要求。',
-    '若可能违规/需修正 → triggered=true，并给出理由与修正建议；否则 triggered=false。',
-    '只输出 JSON：{"triggered":boolean,"reason":"...","suggestion":"..."}',
-  ].join('\n');
+  // 提示词已收编至 rules/rule-prompts.ts（逐字等价，P1 缺口 #3 示范批）
+  const system = SEMANTIC_JUDGEMENT_SYSTEM_PROMPT;
+  const prompt = buildSemanticJudgementUserPrompt(rule.description, kw, snippet);
 
   try {
     const resp = await withGateRetry(

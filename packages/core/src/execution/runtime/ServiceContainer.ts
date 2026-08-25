@@ -207,20 +207,32 @@ export class ServiceContainer {
     this.simulator = new ExecutionSimulator();
     this.missionStore = new PersistentMissionStore();
     this.artifactStore = new PersistentArtifactStore();
-    // P0-2：初始化成功后从事件源水合运行控制态（pause/cancel 不因进程重启丢失/复活）
-    this.missionStore.init().then(() => {
-      for (const m of this.missionStore.getAll()) {
-        const rs = this.missionStore.getRunState(m.missionId);
-        if (rs === 'paused' || rs === 'cancelled') RunRegistry.hydrate(m.missionId, rs);
-      }
-    }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
+    // artifactStore.init() 豁免 _ready 链：产物生命周期（artifact.created/transitioned）不参与
+    // RunRegistry shouldPause/shouldCancel 判定，无重启复活风险；重放为最终一致性，允许后台异步完成。
+    // TODO(P1-Critical#1: hydrate 可追溯): 若未来产物状态需门控执行，此豁免需复审并收进 _ready。
     this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
     // U2+U3：步骤级事件入事件源（订阅总线，EventBus Only 合规）
     this.stepEventRecorder = new StepEventRecorder();
     this.stepEventRecorder.attach(this.eventBus, this.missionStore);
-    this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
-    // 连接 EventStore 作为真相源（异步初始化，通过 ready 等待）
-    this._ready = this.initEventStore();
+    this.missionController.setPersistentStore({ save: (m: unknown) => { const mm = m as { missionId: string; status: unknown; phase: unknown; progress: unknown; blocks: unknown; risks: unknown; objective: unknown }; this.missionStore.append('mission.updated', mm.missionId, { status: mm.status as string, phase: mm.phase as string, progress: mm.progress as number, blocks: mm.blocks as unknown[], risks: mm.risks as unknown[], objective: mm.objective as string }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
+    // P1 #1 Critical 修复：RunRegistry 水合必须收进 _ready 链。
+    // 旧代码 missionStore.init().then(hydrate) 为 fire-and-forget，不在 container.ready 范围，
+    // 导致 bootstrap-unified await container.ready 后至 hydrate 完成前的窗口内 shouldPause 误判为 false 而复活已暂停任务。
+    // 优化：EventStore 与 MissionStore 无依赖，并行初始化（不同 DB 文件，耗时取 max 而非 sum），hydrate 仍串行于二者之后。
+    // 语义分级：initEventStore 内部已吞错（非关键，_ready 不因它失败）；PersistentMissionStore.init 亦吞错降级为内存模式
+    // （isReady=false），不通过 reject 传播——此处 catch 仅兜 hydrate 等意外抛错，非死代码；降级通过 then 内 isReady 检查显式告警。
+    this._ready = Promise.all([this.initEventStore(), this.missionStore.init()])
+      .then(() => {
+        if (!this.missionStore.isReady()) {
+          console.warn('[ServiceContainer] ⚠️ MissionStore 降级为内存模式（重启后任务状态丢失）；RunRegistry 水合跳过（无持久化控制态）');
+          return;
+        }
+        this.hydrateRunStates();
+      })
+      .catch((err: Error) => {
+        console.error('[ServiceContainer] ❌ 关键初始化失败 (_ready 链: EventStore/MissionStore/RunRegistry hydrate):', err.message);
+        throw err;
+      });
     this.artifactFacade.setPersistentStore({ save: (_a: unknown) => { /* artifact 通过 transition 持久化 */ }, transition: (id: string, to: string) => this.artifactStore.transition(id, to as unknown as import('../../infrastructure/protocol/contracts/artifact-lifecycle.js').ArtifactStatus) });
     this.controlPlane = new ControlPlane();
 
@@ -283,8 +295,33 @@ export class ServiceContainer {
   private _contextAssemblyEngine: import('../../knowledge/context/ContextAssemblyEngine.js').ContextAssemblyEngine | null = null;
 
   /**
+   * hydrateRunStates — 从 PersistentMissionStore 重放的 runStates 水合 RunRegistry
+   * 仅 paused/cancelled 需恢复；running 为无操作。调用方：_ready 链（Promise.all 二库之后）。
+   * 性能：O(K) K=paused/cancelled 数，零拷贝 forEach 迭代（避免 getAll() O(N) + Map 快照分配）。
+   */
+  private hydrateRunStates(): void {
+    if (!this.missionStore.isReady()) return;
+    let hydrated = 0;
+    let skipped = 0;
+    // 零拷贝迭代：避免 getAllRunStates() 防御性 Map 拷贝（外部 API 仍保留拷贝语义）
+    this.missionStore.forEachRunState((missionId, rs) => {
+      if (rs !== 'paused' && rs !== 'cancelled') return;
+      try {
+        RunRegistry.hydrate(missionId, rs);
+        hydrated++;
+      } catch (err) {
+        skipped++;
+        console.warn(`[ServiceContainer] ⚠️ hydrate 跳过 ${missionId}: ${(err as Error).message}`);
+      }
+    });
+    if (hydrated > 0 || skipped > 0) console.warn(`[ServiceContainer] ✅ RunRegistry 水合完成：成功 ${hydrated} 跳过 ${skipped}`);
+    else console.log('[ServiceContainer] ℹ️ RunRegistry 水合完成（无 paused/cancelled 待恢复）');
+  }
+
+  /**
    * ready — 等待所有异步初始化完成
-   * 确保 EventStore 等关键基础设施就绪后再对外暴露
+   * 确保 EventStore + MissionStore + RunRegistry 水合就绪后再对外暴露
+   * 拒绝路径：_ready 链 catch 已显式 console.error 并 rethrow，下游 await container.ready 可感知失败，不被吞掉
    */
   get ready(): Promise<void> {
     return this._ready;
