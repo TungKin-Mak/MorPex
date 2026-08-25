@@ -113,6 +113,7 @@
 | `cognition/prompts/orchestrator-prompts.ts` | Orchestrator 提示词资产 — ANALYSIS/AUDIT/REPLAN/SYNTHESIS 四件套（U4 自内联逐字迁入，只改引用不改文案） / | 资产化存储；调优改此文件 |
 | `cognition/prompts/artifact-generation-prompt.ts` | 产物生成提示词 — buildArtifactGenerationPrompt（U4 自三元嵌套逐字迁入；knowledgeBlock 由调用方构造） / | 资产化存储；调优改此文件 |
 | `cognition/prompts/reflection-prompts.ts` | 反思提示词资产 — buildReflectionPrompt（P1 #3 自 ReflectionEngine 内联逐字迁入，只改引用不改文案） | 资产化存储；调优改此文件 |
+| `cognition/prompts/intent-prompts.ts` | 意图分流提示词资产 — CHAT_SYSTEM（P1 #3 自 IntentClassifier 内联逐字迁入，只改引用不改文案；零依赖可 tree-shaking） | 资产化存储；调优改此文件 |
 | `knowledge/ontology/prompts/forced-query-system.ts` | forced-query-system — 强制查询系统提示模板 迭代1：用于 LLM 规划阶段，强制先查询 Ontology 再推理。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/prompts/index.ts` | Prompts — 提示词系统统一出口 三级分封架构（Leader Ring 0 → Expert Ring 1 → Fork Ring 2） 的提示词模板与编译函数。 使用方式： import { compileLeaderPrompt, compileExpertPrompt, createAstroMTrace } from './prompts/index.js'; / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/prompts/leader-prompt.ts` | Leader Prompt — Ring 0 中央路由大脑系统提示词 适用对象：控制面主 LLM（如 DeepSeek-R1 等高推理规格模型）， 负责驱动 FSM 状态机与跨领域调度。 三级分封架构： Leader (Ring 0) → Expert (Ring 1) → Fork (Ring 2) 遵循迁移铁律： 0.2 (类型来源法则): 基于 pi-agent-core 扩展 0.4 (删除优先法则): 提示词驱动行为而非代码封装 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -178,7 +179,7 @@
 | `cognition/planning/HierarchicalPlanner.ts` | HierarchicalPlanner — 分层规划器（支持 Ontology grounded reasoning，产出计划供 L5 执行） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/ConstraintAnalyzer.ts` | ConstraintAnalyzer — 约束分析器 从目标文本中提取预算/期限/平台等约束 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalIntelligenceFacade.ts` | GoalIntelligenceFacade — 目标理解引擎入口 v14: 用户一句话目标 → 可执行的 GoalContext；v17f 接入 IntentClassifier（闲聊 vs 任务） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/planning/goal-intelligence/IntentClassifier.ts` | IntentClassifier — 意图判别器（闲聊 chat vs 任务 task）：U1 起主路径全量 LLM 结构化判定（5s 超时），LLM 失败/超时/未注入才降级启发式正则（限流告警可观测）；CompanyFacade.executeGoal 入口分流，闲聊直答不建 Mission | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/planning/goal-intelligence/IntentClassifier.ts` | IntentClassifier — 意图判别器（闲聊 chat vs 任务 task）：U1 起主路径全量 LLM 结构化判定（5s 超时），LLM 失败/超时/未注入才降级启发式正则（限流告警可观测）；CompanyFacade.executeGoal 入口分流，闲聊直答不建 Mission；提示词已收编至 prompts/intent-prompts.ts（逐字等价） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `execution/orchestration/error-compactor.ts` | error-compactor — 统一错误/结果压缩器（12-Factor U1·G2）：四段结构 {失败了什么/为什么/试过什么/建议下一步}，总长≤800，堆栈只留关键帧；clip 截断带循环引用防护；供 formatResults/replan failuresText 喂 LLM 前调用。注意：这是格式化非触发机制，不违背“触发全 LLM 化”原则 | 理解/推理/规划；纯函数无副作用 |
 | `cognition/planning/goal-intelligence/GoalParser.ts` | GoalParser — 目标解析器 将用户原始语句解析为目标+领域+子目标 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/planning/goal-intelligence/GoalValidator.ts` | GoalValidator — 目标验证器 检查目标上下文的完整性和可行性 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -234,7 +235,9 @@
 | `execution/runtime/checkpoint/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/compensation/CompensationEngine.ts` | CompensationEngine — 补偿引擎（Saga 模式） MorPex v8.8: 任务失败时按逆序回滚已执行的操作。 基于 Saga 模式：每个步骤注册对应的补偿操作，失败时自动回滚。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/compensation/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 有界执行+硬边界；不重规划/不评分/不演化 |
-| `execution/runtime/dag/DAGRuntime.ts` | DAGRuntime — DAG 运行时主引擎 将 MetaPlanner 产生的 ExecutionDAG 转换为真实执行。 流程: 1. 接收 ExecutionDAG → 构建 TaskGraph 2. 循环: 解析依赖 → 调度 → 执行 → 直到完成或失败 3. 返回 DAGResult / | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/runtime/dag/DAGRuntime.ts` | DAGRuntime — DAG 运行时主引擎 将 MetaPlanner 产生的 ExecutionDAG 转换为真实执行。 流程: 1. 接收 ExecutionDAG → 构建 TaskGraph 2. 循环: 解析依赖 → 调度 → 执行 → 直到完成或失败 3. 返回 DAGResult / |
+| `execution/runtime/dag/StepAgentExecutor.ts` | StepAgentExecutor — DAG 节点 step-agent 执行器（总大脑拆分 step 的多 Agent 执行肢，沙箱 workspace 隔离）；提示词已收编至 prompts/step-prompts.ts（逐字等价，含知识优先/白名单/沙箱指令） | 有界执行+硬边界；不重规划/不评分/不演化 |
+| `execution/prompts/step-prompts.ts` | StepAgent 系统提示词资产 — buildStepSystemPrompt（P1 #3 自 StepAgentExecutor 内联逐字迁入，含沙箱指令 15 行；零依赖可 tree-shaking） | 资产化存储；调优改此文件 |
 | `execution/runtime/dag/DependencyResolver.ts` | DependencyResolver — 依赖解析器 管理 DAG 节点间的依赖关系，判断哪些节点可以执行。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/ParallelExecutor.ts` | ParallelExecutor — 并行执行器 并发执行多个 TaskNode，处理执行结果和错误。 / | 有界执行+硬边界；不重规划/不评分/不演化 |
 | `execution/runtime/dag/Scheduler.ts` | Scheduler — DAG 调度器 决定下一批可执行的节点，支持优先级和并发控制。 / | 有界执行+硬边界；不重规划/不评分/不演化 |

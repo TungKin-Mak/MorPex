@@ -7,6 +7,8 @@
  *   1. 主路径：LLM 结构化输出判定（每个带 LLM 提供器的调用都过模型，无预筛短路）
  *   2. 兜底：LLM 失败/超时/未注入时降级启发式正则（触发时打 warn 可观测）
  */
+import { CHAT_SYSTEM } from '../../prompts/intent-prompts.js';
+
 export type IntentKind = 'chat' | 'task';
 
 type LLMFn = (
@@ -14,14 +16,6 @@ type LLMFn = (
   prompt: string,
   opts?: { temperature?: number; maxTokens?: number },
 ) => Promise<string>;
-
-const CHAT_SYSTEM = [
-  '你是 MorPex 的意图判别器。判断用户消息属于哪一类：',
-  '- chat：闲聊、问候、寒暄、自我介绍、分享信息、记忆类请求（如“记住”“我叫X”）、情感表达、对 AI 的提问——不需要产出交付物',
-  '- task：要求写代码/做分析/生成文档/部署/翻译/总结等需要交付成果的具体任务',
-  '示例：「我叫张三，请记住」→ chat；「帮我写个爬虫」→ task；「你觉得今天天气怎么样」→ chat；「总结这个文件」→ task。',
-  '只回答一个词：chat 或 task。',
-].join('\n');
 
 const CHAT_HINT_RE =
   /^(你(好|们好|是谁|是做什么的|能干什么|可以做什么|在吗|在么|吃了没|好啊)|嗨|哈喽|hello|hi|hey|good\s*(morning|afternoon|evening)|thanks|thank you|谢谢|感谢|再见|拜拜|bye|晚安|早上好|下午好|晚上好|怎么用|如何使用|你好呀|今天天气|天气怎么样)/i;
