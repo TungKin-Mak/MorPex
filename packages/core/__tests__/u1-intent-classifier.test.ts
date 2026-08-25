@@ -83,3 +83,15 @@ describe('IntentClassifier — 未注入 LLM（行为保持）', () => {
     expect(r).toBe('chat');
   });
 });
+
+describe('U1 回归修复：空白消息不判 chat（恢复空任务拒绝）', () => {
+  afterEach(() => resetIntentFallbackWarnForTest());
+
+  it('空字符串 → task（走 goal 路径被下游校验拒绝）', async () => {
+    expect(await IntentClassifier.classify('')).toBe('task');
+  });
+
+  it('纯空白 → task', async () => {
+    expect(await IntentClassifier.classify('   ')).toBe('task');
+  });
+});

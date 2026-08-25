@@ -54,6 +54,7 @@ import { SessionStore } from './SessionStore.js';
 import { createObservabilityRouter } from './observability/index.js';
 import { startObservabilityBridge, wireObservabilityServices } from './observability/runtime-bridge.js';
 import { registerRuntimeRoutes } from './RuntimeAPI.js';
+import { getDataRoot } from '../../core/src/infrastructure/common/dataRoot.js';
 
 export interface StudioServerConfig {
   port?: number;
@@ -167,7 +168,7 @@ async function routeTaskToSpace(
 /** 组装附件上下文：文本截断 32K 拼入，二进制仅引用；读取失败静默跳过 */
 function buildAttachmentContext(attachments: Array<{ fileId: string; name?: string }>): string {
   const parts: string[] = [];
-  const dir = path.resolve('data/uploads');
+  const dir = path.resolve(getDataRoot(), 'uploads');
   for (const att of attachments) {
     if (!att || typeof att.fileId !== 'string' || !att.fileId) continue;
     const fileId = path.basename(att.fileId); // 防路径穿越
@@ -338,7 +339,7 @@ export class StudioServer {
 
     // ═══ 模型切换持久化恢复：data/runtime-config.json 的 activeModel 覆盖 config 默认 ═══
     try {
-      const rcPath = path.resolve('data/runtime-config.json');
+      const rcPath = path.resolve(getDataRoot(), 'runtime-config.json');
       if (fs.existsSync(rcPath)) {
         const rc = JSON.parse(fs.readFileSync(rcPath, 'utf-8')) as { activeModel?: string };
         if (typeof rc.activeModel === 'string' && rc.activeModel) {
@@ -768,7 +769,7 @@ export class StudioServer {
         const safe = sanitizeFileName(name);
         const isText = isTextLike(safe, buf);
         const fileId = `file_${Date.now()}_${Math.random().toString(36).slice(2, 6)}`;
-        const dir = path.resolve('data/uploads');
+        const dir = path.resolve(getDataRoot(), 'uploads');
         fs.mkdirSync(dir, { recursive: true });
         fs.writeFileSync(path.join(dir, fileId), buf);
         fs.writeFileSync(
@@ -817,7 +818,7 @@ export class StudioServer {
           target = llm?.provider && llm.model ? `${llm.provider}/${llm.model}` : bridge.defaultModel;
           persist = false;
           try {
-            fs.rmSync(path.resolve('data/runtime-config.json'), { force: true });
+            fs.rmSync(path.resolve(getDataRoot(), 'runtime-config.json'), { force: true });
           } catch {
             /* ignore */
           }
@@ -831,7 +832,7 @@ export class StudioServer {
         bridge.setDefaultModel(target);
         if (persist) {
           try {
-            const rcPath = path.resolve('data/runtime-config.json');
+            const rcPath = path.resolve(getDataRoot(), 'runtime-config.json');
             fs.mkdirSync(path.dirname(rcPath), { recursive: true });
             fs.writeFileSync(rcPath, JSON.stringify({ activeModel: target }, null, 2), 'utf-8');
           } catch (err) {
@@ -978,7 +979,7 @@ export class StudioServer {
     this.app.get('/api/plan/file', (req, res) => {
       const p = typeof req.query?.path === 'string' ? req.query.path : '';
       if (!p) return res.status(400).json({ ok: false, error: 'path 必填' });
-      const plansRoot = path.resolve('data/plans');
+      const plansRoot = path.resolve(getDataRoot(), 'plans');
       const target = path.resolve(p);
       if (target !== plansRoot && !target.startsWith(plansRoot + path.sep)) {
         return res.status(400).json({ ok: false, error: '仅允许访问方案目录 data/plans/' });
@@ -994,7 +995,7 @@ export class StudioServer {
     this.app.post('/api/files/open', (req, res) => {
       const p = typeof req.body?.path === 'string' ? req.body.path : '';
       if (!p) return res.status(400).json({ ok: false, error: 'path 必填' });
-      const dataRoot = path.resolve('data');
+      const dataRoot = getDataRoot();
       const target = path.resolve(p);
       if (!target.startsWith(dataRoot + path.sep) || !fs.existsSync(target)) {
         return res.status(400).json({ ok: false, error: '仅允许打开 data/ 下已存在的文件' });
@@ -1016,7 +1017,7 @@ export class StudioServer {
     this.app.get('/api/files/view', async (req, res) => {
       const p = typeof req.query?.path === 'string' ? req.query.path : '';
       if (!p) return res.status(400).json({ ok: false, error: 'path 必填' });
-      const dataRoot = path.resolve('data');
+      const dataRoot = getDataRoot();
       const target = path.resolve(p);
       if (!target.startsWith(dataRoot + path.sep) || !fs.existsSync(target)) {
         return res.status(400).json({ ok: false, error: '仅允许查看 data/ 下已存在的文件' });

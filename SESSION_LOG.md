@@ -49,6 +49,9 @@
 
 ## 待办（按优先级）
 
+- **全量测试基线失败 10 例（新登记）**：step-agent-corrective(1)/semantic-judgement(2)/rule-enforcement-integration(6)/primitives-registry(1) 在 T0 前的旧提交（2f06bd8）上同样失败——非近期回归，是更早的行为变更未同步测试（如 gate 语义判断 LLM 调用次数断言）。修复需考古当时意图，勿盲改计数。
+- **测试数据隔离已建成**：MORPEX_DATA_DIR 环境变量 + vitest env/globalSetup（tests/vitest-isolated-data.global.ts）；三个闭环集成套件与 sse-execute-e2e（需真实 LLM 配额）移入显式运行清单。
+
 - **T7 评审建议三项已全部修复（调度器亲验 2026-08-24，tsc 0 错 + memory-extractor.test 25/25）**：① 衰减幂等——MemoryWeightStore 加 last_decayed_at 列（老库 ALTER 自动迁移），computeDecay 以 max(lastSeen,lastDecayedAt) 起算闲置期，applyDecays 衰减时落 last_decayed_at；端到端断言连跑三遍只衰一次 + 纯函数两例；② routeCandidate 显式分支补返回值检查——rejected→'explicit_failed'+warn+不建权重档，异常同标签且不向调用方抛出（handleTurn 循环加 try/catch 单条隔离，聚合日志新增"入库失败 N"）；③ 敏感兜底——新增 looksLikeCredential()（sk-/AKIA/私钥块/password= 等 6 类高置信模式）在 upsert 前硬拒，文件头注明"安全兜底层非触发机制"，与 LLM 化原则不冲突（宁可误杀不可漏放）。
 - **文档体系持续维护**：能力索引随代码补全（发现"索引未覆盖但代码已有"→补条目，防漏判）；`check:docs` 保持 0。
 - **事件 P2**（可选）：试点发射规范化（DAGRuntime workflow.step_started 带 state 块）+ 前端任务卡片消费标准字段。

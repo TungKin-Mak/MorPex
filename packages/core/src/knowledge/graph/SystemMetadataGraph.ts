@@ -7,6 +7,7 @@ import { EventType } from '../../infrastructure/protocol/events/EventType.js';
 import type { BaseEvent } from '../../infrastructure/protocol/events/BaseEvent.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { getDataRoot } from '../../infrastructure/common/dataRoot.js';
 
 export type EntityType = 'agent' | 'tool' | 'artifact' | 'mission' | 'memory' | 'workflow' | 'capability' | 'goal';
 export type RelationType = 'created_by' | 'used_by' | 'depends_on' | 'improved_from' | 'verified_by' | 'derived_from' | 'generated_by' | 'approved_by' | 'deployed_from' | 'related_to';
@@ -142,7 +143,7 @@ export class SystemMetadataGraph {
   // ═══════════════════════════════════════════════════════════
   // 会话 17i.19：图快照（启动快速恢复，事件重放兜底）
   // ═══════════════════════════════════════════════════════════
-  private snapshotPath = path.resolve('data/graph.snapshot.json');
+  private snapshotPath = path.resolve(getDataRoot(), 'graph.snapshot.json');
   private snapshotTimer: ReturnType<typeof setTimeout> | undefined;
   // ═══ 会话 17i.21：懒加载——启动不载入全图，首次读才从快照合并（启动 O(1)）═══
   private loaded = false;

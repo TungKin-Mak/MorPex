@@ -3,8 +3,10 @@
  * 所有 Mission 状态变化通过事件记录，启动时从事件重放重建状态
  */
 import { UnifiedEventStore } from '../../infrastructure/protocol/events/store/UnifiedEventStore.js';
+import { resolve } from 'node:path';
 import { SYSTEM_EVENT_TYPES } from '../../infrastructure/protocol/events/EventTypes.js';
 import type { MissionState } from './mission/MissionTypes.js';
+import { getDataRoot } from '../../infrastructure/common/dataRoot.js';
 
 export interface StepState {
   nodeId: string;
@@ -40,7 +42,7 @@ export class PersistentMissionStore {
   /** U2+U3：运行控制终态（run.paused/cancelled/resumed 事件重放产物，重启后不复活取消） */
   private runStates: Map<string, 'paused' | 'cancelled' | 'running'> = new Map();
 
-  constructor(dbPath?: string) { this.store = new UnifiedEventStore(dbPath || './data/missions.db'); }
+  constructor(dbPath?: string) { this.store = new UnifiedEventStore(dbPath || resolve(getDataRoot(), 'missions.db')); }
 
   async init(): Promise<void> {
     try {

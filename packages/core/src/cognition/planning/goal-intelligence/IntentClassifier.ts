@@ -98,6 +98,9 @@ export class IntentClassifier {
    * @param llm 可选 LLM 提供器。U1 起主路径：有则全量走 LLM（无预筛）；失败/超时/未注入降级启发式正则
    */
   static async classify(message: string, llm?: LLMFn): Promise<IntentKind> {
+    // 空/纯空白消息不是闲聊：走 goal 路径让下游校验拒绝（U1 回归修复：
+    // 否则空白被启发式默认判 chat，sendTask 空任务不再被拒绝）
+    if (!message || !message.trim()) return 'task';
     if (llm) {
       try {
         const text = await withTimeout(

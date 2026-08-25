@@ -57,6 +57,12 @@ export default defineConfig({
       // (已删: stage1-persistence.test.ts)
       'packages/core/__tests__/unified-eventstore.test.ts',
       // ── tests/ 脚本式（子目录 + 顶层；CI 用 tsx 跑 tests/e2e/v15-full-cycle，保留）──
+      // ── 闭环集成套件（默认排除：单文件 2-15 分钟，需显式指定路径运行；带 data/ 状态依赖）──
+      // ── 真实 LLM E2E（需外部配额，deepseek 实测单文件 ~5-8 分钟）──
+      'packages/studio/server/__tests__/sse-execute-e2e.test.ts',
+      'packages/core/__tests__/deterministic-closed-loop.mock.test.ts',
+      'packages/core/__tests__/full-closed-loop.test.ts',
+      'packages/studio/server/__tests__/observability-bridge.test.ts',
       'tests/architecture/**/*.test.ts',
       'tests/chaos/**/*.test.ts',
       'tests/integration/**/*.test.ts',
@@ -66,6 +72,9 @@ export default defineConfig({
       'tests/failure/**/*.test.ts',
       'tests/performance/**/*.test.ts',
     ],
+    // 测试数据隔离（见 tests/vitest-isolated-data.global.ts）
+    env: { MORPEX_DATA_DIR: './data/.vitest-run' },
+    globalSetup: ['tests/vitest-isolated-data.global.ts'],
     // Force exit after test completion
     forceExit: true,
     // TypeScript configuration — Vitest 4: poolOptions moved to top-level

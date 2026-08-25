@@ -8,9 +8,10 @@
 import type { Router as ExpressRouter } from 'express';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { getDataRoot } from '../../core/src/infrastructure/common/dataRoot.js';
 
 export function registerRuntimeRoutes(app: ExpressRouter): void {
-  const DATA_DIR = path.resolve('data');
+  const DATA_DIR = getDataRoot();
 
   // ═════════════════════════════════════════════
   // Runtime: FSM + DAG 执行状态

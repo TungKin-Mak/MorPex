@@ -11,6 +11,7 @@ import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.j
 import type { IEventStore } from '../../infrastructure/protocol/events/store/IEventStore.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
+import { getDataRoot } from '../../infrastructure/common/dataRoot.js';
 
 export class ArtifactFacade {
   private artifacts: Map<string, ArtifactNode> = new Map();
@@ -18,7 +19,7 @@ export class ArtifactFacade {
   private store?: { save: (artifact: any) => void; transition: (id: string, to: string) => boolean };
   private eventStore?: IEventStore;
   // ═══ 会话 17i.19：产物快照（启动快速恢复；事件重放兜底）═══
-  private snapshotPath = path.resolve('data/artifacts.snapshot.json');
+  private snapshotPath = path.resolve(getDataRoot(), 'artifacts.snapshot.json');
   private snapshotTimer: ReturnType<typeof setTimeout> | undefined;
   // ═══ 会话 17i.21：懒加载——启动不载入全部产物，首次读才从快照合并加载（启动 O(1)，不随产物量增长）═══
   private loaded = false;

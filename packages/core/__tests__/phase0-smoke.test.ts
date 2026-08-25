@@ -186,7 +186,8 @@ describe('Phase 0: 组织层', () => {
 
     it('应拒绝不存在的部门', async () => {
       const { facade } = setup();
-      const result = await facade.sendTask('不存在的部', '任务');
+      // 任务串需含明确任务动词（裸名词会被意图分流判为闲聊直答，绕过部门校验——校准后已知行为）
+      const result = await facade.sendTask('不存在的部', '写一份任务进度报告');
       expect(result.ok).toBe(false);
       expect(result.message).toContain('不存在');
     });

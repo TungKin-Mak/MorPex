@@ -198,6 +198,7 @@ function parseAnalysis(json: Record<string, unknown> | null): OrchestratorAnalys
 
 // ── 提示词（U4 资产化：逐字迁至 cognition/prompts/orchestrator-prompts.ts，只改引用不改文案）──
 
+import { getDataRoot } from '../../infrastructure/common/dataRoot.js';
 import {
   ANALYSIS_PROMPT,
   AUDIT_PROMPT,
@@ -673,7 +674,7 @@ export class OrchestratorAgent {
   /** 17i.22：生成规划方案 markdown 文件（供前端展示/用户审阅），返回文件路径。 */
   private writePlanFile(planId: string, goal: string, analysis: { complexity?: string; steps: Array<{ name?: string; description?: string; deps?: string[] }>; reasoning?: string }): string {
     try {
-      const dir = path.resolve('data/plans');
+      const dir = path.resolve(getDataRoot(), 'plans');
       fs.mkdirSync(dir, { recursive: true });
       const lines: string[] = [
         `# 规划方案（${planId}）`,
