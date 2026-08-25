@@ -79,6 +79,7 @@
 | `knowledge/artifact/registry/index.ts` | （barrel：统一导出，功能以被导出文件为准） | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/artifact/registry/types.ts` | Artifact Plugin — 类型定义 Artifact Model: Blueprint 和 Instance 的共同抽象。 Artifact Instance: 实际交付物（由 Agent 产出）。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/ContextAssemblyEngine.ts` | ContextAssemblyEngine — 上下文组装引擎（核心） v9.1 Context Assembly Layer: 统一上下文构建入口。 流程： 1. 选择模板（按 templateId 或标签匹配） 2. 从注册中心收集必需 + 可选片段 3. 将片段注入 Builder 4. 应用模板基础数据 5. 构建 ExecutionContext 6. 运行增强流水线（可选） 7. 版本快照（可选） 8. 返回最终上下文 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `knowledge/context/prefetch.ts` | prefetch — F13 本义预取钩子（P1 收尾）：MorPexRuntime Phase 1.8 在 orchestrate 后执行前对 goal/domain 做 `ContextAssemblyEngine.assemble` 预热（1500ms 超时 + 失败静默），命中 LruCache/inflight 使后续真实装配零 round-trip / | 权威存储+Tier写规则；只预热不改变执行语义 |
 | `knowledge/context/ContextBuilder.ts` | ContextBuilder — 上下文构建器 v9.1 Context Assembly Layer: 将多个上下文片段组装为统一的分层 ExecutionContext。 三层结构： - base: 基础层（不变的会话常量，如 schemaVersion、用户身份） - session: 会话层（当前会话数据，如 missionId、当前意图） - ephemeral: 临时层（瞬态计算结果，如风险评分、推荐） / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/context/retrieval/ContextRetriever.ts` | ContextRetriever — 上下文相关性检索器（v16i RAG-lazy · v16k·4 升级 Dense+Sparse+Cross-Encoder）：Dense(bge-m3) + Sparse(BM25) → RRF 融合 → Cross-Encoder 重排 → 领域/新鲜度 → Top-K，输出指针+蒸馏摘要 | 权威存储+Tier写规则；只检索不生成 |
 | `knowledge/context/retrieval/SparseRetriever.ts` | SparseRetriever — BM25 稀疏检索器（v16k·4）：中文双字分词 + ASCII 单词，IDF 基于候选集统计，精确词项召回（专有名词/型号/ID） | 权威存储+Tier写规则；纯 JS 无外部依赖 |

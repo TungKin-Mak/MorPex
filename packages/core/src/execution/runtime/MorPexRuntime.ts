@@ -21,6 +21,7 @@ import { SelfImprovementLoop } from '../../evolution/index.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';
 import type { CrossAgentLearningEngine } from '../../cognition/learning/agent/CrossAgentLearningEngine.js';
 import type { IEventStore } from '../../infrastructure/protocol/events/store/IEventStore.js';
+import { prefetchHighFrequencyEntities } from '../../knowledge/context/prefetch.js';
 
 // ── Ontology 迭代4：收敛 ──
 import type { OntologyService } from '../../knowledge/ontology/OntologyService.js';
@@ -383,6 +384,21 @@ export class MorPexRuntime {
           }
         } catch (err) {
           console.warn('[MorPexRuntime] ⚠️ 上下文装配失败（非阻断，继续执行）:', (err as Error).message);
+        }
+      }
+
+      // ── Phase 1.8 F13 预取钩子（执行前预取高频实体，命中下游 LruCache/inflight 缓存）──
+      if (this.contextAssemblyEngine) {
+        try {
+          const pf = await prefetchHighFrequencyEntities(this.contextAssemblyEngine, {
+            goal: context.goal.objective,
+            domain: context.goal.domain,
+            missionId: context.mission.missionId,
+            timeoutMs: 1500,
+          });
+          if (pf.hit) console.log(`[MorPexRuntime] ⚡ F13 预取命中 (${pf.duration}ms, mission=${context.mission.missionId})`);
+        } catch (err) {
+          console.warn('[MorPexRuntime] ⚠️ F13 预取失败（非阻断）:', (err as Error).message);
         }
       }
 

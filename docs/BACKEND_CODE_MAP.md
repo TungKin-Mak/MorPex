@@ -1,16 +1,16 @@
 # MorPex 后端代码函数与关系链分析
 
-> 生成时间：2026-08-25 15:53:38 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
+> 生成时间：2026-08-25 17:44:11 ｜ 工具：`scripts/_backend-code-analyze.ts`（TS compiler API，只读）
 
 ## 0. 统计概览
 
 | 指标 | 值 |
 |---|---|
 | 扫描根 | packages/core/src/facade、packages/core/src/governance、packages/core/src/knowledge、packages/core/src/gate、packages/core/src/cognition、packages/core/src/execution、packages/core/src/evaluation、packages/core/src/evolution、packages/core/src/infrastructure、packages/core/src/workflow、packages/connectors/src、packages/memory/src、packages/studio/server、packages/workflows、packages/workflow-sdk/src、packages/contracts、scripts |
-| 文件数 | 511 |
-| 函数/方法数 | 2961 |
-| 调用表达式数 | 13927 |
-| import 数 | 1076 |
+| 文件数 | 524 |
+| 函数/方法数 | 2987 |
+| 调用表达式数 | 14002 |
+| import 数 | 1094 |
 
 ## 1. 文件间依赖关系链（import 图）
 
@@ -88,6 +88,7 @@
 
 ### packages\core\src\cognition\ReflectionEngine.ts
 - `../infrastructure/common/EventBus.js` → EventBus
+- `./prompts/reflection-prompts.js` → buildReflectionPrompt
 
 ### packages\core\src\cognition\SafetyMonitor.ts
 - `../infrastructure/common/EventBus.js` → EventBus
@@ -197,6 +198,7 @@
 - `./HierarchicalPlanner.js` → HierarchicalPlannerLike, DAGPlan
 - `../../knowledge/ontology/OntologyService.js` → OntologyService
 - `../../gate/ForcedQueryGuard.js` → ForcedQueryGuard
+- `../prompts/delivery-prompts.js` → buildQuickDecomposePrompt
 
 ### packages\core\src\cognition\planning\DeliveryPlannerAdapter.ts
 - `../../execution/runtime/mission/MissionRuntime.js` → MissionPlanner
@@ -231,7 +233,8 @@
 - `../../../infrastructure/protocol/contracts/goal.js` → GoalContext
 
 ### packages\core\src\cognition\planning\goal-intelligence\IntentClassifier.ts
-- （无 import）
+- `../../prompts/intent-prompts.js` → CHAT_SYSTEM
+
 ### packages\core\src\cognition\planning\goal-intelligence\RequirementExtractor.ts
 - `../../../infrastructure/protocol/contracts/goal.js` → GoalContext
 
@@ -243,7 +246,15 @@
 - （无 import）
 ### packages\core\src\cognition\prompts\artifact-generation-prompt.ts
 - （无 import）
+### packages\core\src\cognition\prompts\company-prompts.ts
+- （无 import）
+### packages\core\src\cognition\prompts\delivery-prompts.ts
+- （无 import）
+### packages\core\src\cognition\prompts\intent-prompts.ts
+- （无 import）
 ### packages\core\src\cognition\prompts\orchestrator-prompts.ts
+- （无 import）
+### packages\core\src\cognition\prompts\reflection-prompts.ts
 - （无 import）
 ### packages\core\src\cognition\twin\BehaviorTwin.ts
 - `../../execution/runtime/mission/types.js` → Mission, MissionResult, MissionPlan
@@ -419,6 +430,7 @@
 ### packages\core\src\execution\AgentMailbox.ts
 - `../infrastructure/common/EventBus.js` → EventBus
 - `../governance/control-plane/SpaceService.js` → SpaceService
+- `./prompts/mailbox-prompts.js` → buildMailboxSystemPrompt, buildMailboxUserPrompt, MAIL_FALLBACK_REPLY
 - `node:fs` → *
 - `node:path` → *
 
@@ -506,6 +518,10 @@
 - `../../cognition/prompts/orchestrator-prompts.js` → ANALYSIS_PROMPT, AUDIT_PROMPT, REPLAN_PROMPT, SYNTHESIS_PROMPT
 
 ### packages\core\src\execution\orchestration\error-compactor.ts
+- （无 import）
+### packages\core\src\execution\prompts\mailbox-prompts.ts
+- （无 import）
+### packages\core\src\execution\prompts\step-prompts.ts
 - （无 import）
 ### packages\core\src\execution\runtime\ExecutionContext.ts
 - `../../infrastructure/protocol/contracts/goal.js` → GoalContext
@@ -665,6 +681,7 @@
 - `../../ToolCallApprovalService.js` → createToolCallApprovalHook, ToolApprovalHook
 - `../../TranscriptToolBridge.js` → getTranscriptToolBridge
 - `../../../infrastructure/adapters/pi-bridge/index.js` → AgentTool
+- `../../prompts/step-prompts.js` → buildStepSystemPrompt
 - `node:path` → *
 - `node:fs` → *
 - `../../orchestration/AgentSessionStore.js` → AgentSessionStore, AgentSessionHandle
@@ -769,6 +786,7 @@
 - `../governance/control-plane/ControlPlane.js` → ControlPlane
 - `../infrastructure/observability/deblackbox/DeblackboxRecorder.js` → getSharedDeblackboxRecorder
 - `../cognition/planning/goal-intelligence/IntentClassifier.js` → IntentClassifier
+- `../cognition/prompts/company-prompts.js` → CHAT_REPLY_SYSTEM
 
 ### packages\core\src\facade\gateway\ExecutionGateway.ts
 - `../../infrastructure/common/types.js` → AgentRuntimeAdapter, ExecutionRequest, ExecutionResult, RuntimeHealth, MorPexEvent
@@ -957,6 +975,7 @@
 - `../../workflow/WorkflowProvider.js` → WorkflowRegistry
 - `../../workflow/WorkflowProvider.js` → WorkflowProvider
 - `./space-types.js` → Space, SpaceId, SpaceTree, SpaceAliasMap
+- `../prompts/space-prompts.js` → buildManagerPersona, buildRouteHint
 - `node:fs` → *
 - `node:path` → *
 
@@ -970,6 +989,8 @@
 - （无 import）
 ### packages\core\src\governance\index.ts
 - （无 import）
+### packages\core\src\governance\prompts\space-prompts.ts
+- （无 import）
 ### packages\core\src\governance\types.ts
 - （无 import）
 ### packages\core\src\infrastructure\adapters\agent-spawner.ts
@@ -977,7 +998,10 @@
 - `./pi-bridge/index.js` → getSharedPiBridge
 
 ### packages\core\src\infrastructure\adapters\embedding\EmbeddingProvider.ts
-- （无 import）
+- `node:crypto` → createHash
+- `../../common/cache/LruCache.js` → LruCache
+- `../../common/cache/inflight.js` → withInflight
+
 ### packages\core\src\infrastructure\adapters\identity.ts
 - （无 import）
 ### packages\core\src\infrastructure\adapters\index.ts
@@ -1065,6 +1089,10 @@
 
 ### packages\core\src\infrastructure\common\ToolQualityTracker.ts
 - （无 import）
+### packages\core\src\infrastructure\common\cache\LruCache.ts
+- （无 import）
+### packages\core\src\infrastructure\common\cache\inflight.ts
+- （无 import）
 ### packages\core\src\infrastructure\common\contracts\eventContractCatalog.ts
 - `../eventContract.js` → defineContract, buildContractMap
 - `../eventContract.js` → EventContract, EventContractMap, ReconcileReport
@@ -1136,6 +1164,8 @@
 ### packages\core\src\infrastructure\observability\deblackbox\index.ts
 - （无 import）
 ### packages\core\src\infrastructure\observability\index.ts
+- （无 import）
+### packages\core\src\infrastructure\prompts\param-prompts.ts
 - （无 import）
 ### packages\core\src\infrastructure\protocol\contracts\artifact-lifecycle.ts
 - （无 import）
@@ -1222,6 +1252,7 @@
 - `../../infrastructure/common/EventBus.js` → EventBus
 - `./ToolRegistry.js` → ToolRegistry
 - `./ToolRegistry.js` → ToolSchema, RegisteredTool
+- `./prompts/tool-factory-prompts.js` → buildToolSchemaPrompt
 
 ### packages\core\src\infrastructure\tools\ToolRegistry.ts
 - `../../infrastructure/common/EventBus.js` → EventBus
@@ -1239,7 +1270,8 @@
 - `../../gate/ForcedQueryGuard.js` → ForcedQueryGuard
 
 ### packages\core\src\infrastructure\tools\paramCompleter.ts
-- （无 import）
+- `../prompts/param-prompts.js` → buildExtractPrompt
+
 ### packages\core\src\infrastructure\tools\primitiveAgentTools.ts
 - `../adapters/pi-bridge/index.js` → AgentTool, AgentToolResult
 - `./DomainPrimitiveRegistry.js` → DomainPrimitiveRegistry
@@ -1293,6 +1325,8 @@
 ### packages\core\src\infrastructure\tools\primitives\types.ts
 - `../../../gate/context.js` → KnowledgeContextPackage
 
+### packages\core\src\infrastructure\tools\prompts\tool-factory-prompts.ts
+- （无 import）
 ### packages\core\src\infrastructure\utils\AsyncResourceLocker.ts
 - （无 import）
 ### packages\core\src\infrastructure\utils\extractJson.ts
@@ -1363,6 +1397,8 @@
 - `./ContextTemplateRepository.js` → ContextTemplateRepository
 - `./ContextEnricher.js` → ContextEnricherPipeline
 - `./ContextPersistence.js` → ContextPersistence
+- `node:crypto` → createHash
+- `../../infrastructure/common/cache/inflight.js` → withInflight
 - `../../infrastructure/common/EventBus.js` → EventBus
 - `../../infrastructure/observability/deblackbox/DeblackboxRecorder.js` → getSharedDeblackboxRecorder
 - `../../gate/modelVisibleLog.js` → assertModelVisibleLogged, createContextPackageEntry, createDeblackboxEntry, contextPersistenceResolver, deblackboxResolver
@@ -1388,6 +1424,9 @@
 
 ### packages\core\src\knowledge\context\index.ts
 - （无 import）
+### packages\core\src\knowledge\context\prefetch.ts
+- `./ContextAssemblyEngine.js` → ContextAssemblyEngine
+
 ### packages\core\src\knowledge\context\providers\realProviders.ts
 - `../../ontology/OntologyService.js` → OntologyService
 - `../ContextFragmentRegistry.js` → ContextAssemblyInput, ContextFragment, FragmentProvider
@@ -1402,6 +1441,8 @@
 
 ### packages\core\src\knowledge\context\retrieval\Reranker.ts
 - `node:crypto` → createHash
+- `../../../infrastructure/common/cache/LruCache.js` → LruCache
+- `../../../infrastructure/common/cache/inflight.js` → withInflight
 
 ### packages\core\src\knowledge\context\retrieval\SparseRetriever.ts
 - （无 import）
@@ -1469,6 +1510,7 @@
 
 ### packages\core\src\knowledge\ontology\bootstrapFromDocs.ts
 - `./OntologyService.js` → OntologyService
+- `../prompts/bootstrap-prompts.js` → buildBootstrapSystemPrompt, buildBootstrapUserPrompt
 
 ### packages\core\src\knowledge\ontology\index.ts
 - （无 import）
@@ -1493,6 +1535,8 @@
 - `./prompt-types.js` → PromptTemplate, PromptCompileOptions
 
 ### packages\core\src\knowledge\ontology\prompts\prompt-types.ts
+- （无 import）
+### packages\core\src\knowledge\prompts\bootstrap-prompts.ts
 - （无 import）
 ### packages\core\src\workflow\WorkflowProvider.ts
 - （无 import）
@@ -2252,12 +2296,12 @@
 ### packages\core\src\cognition\ReflectionEngine.ts（6 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 59 |
-| setLLMCaller | method |  |  | 64 |
-| reflect | method | Y |  | 68 |
-| deepReflect | method | Y |  | 97 |
-| parseLLMResponse | method |  |  | 134 |
-| ruleBasedReflect | method |  |  | 150 |
+| (anon) | ctor |  |  | 60 |
+| setLLMCaller | method |  |  | 65 |
+| reflect | method | Y |  | 69 |
+| deepReflect | method | Y |  | 98 |
+| parseLLMResponse | method |  |  | 118 |
+| ruleBasedReflect | method |  |  | 134 |
 
 ### packages\core\src\cognition\SafetyMonitor.ts（5 个）
 | 函数 | kind | async | export | 行 |
@@ -2579,30 +2623,30 @@
 ### packages\core\src\cognition\planning\DeliveryPlanner.ts（24 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 153 |
-| setMetaPlanner | method |  |  | 180 |
-| setSimulationEngine | method |  |  | 187 |
-| setSOPEngine | method |  |  | 192 |
-| setBrainFacade | method |  |  | 197 |
-| setHierarchicalPlanner | method |  |  | 202 |
-| setOntology | method |  |  | 207 |
-| setForcedQueryGuard | method |  |  | 212 |
-| setPiBridge | method |  |  | 217 |
-| isReady | method |  |  | 224 |
-| createPlan | method | Y |  | 247 |
-| resolveMode | method |  |  | 425 |
-| recordOutcome | method |  |  | 480 |
-| setPatterns | method |  |  | 528 |
-| quickPlan | method | Y |  | 541 |
-| parseQuickSteps | method |  |  | 665 |
-| fullPlan | method | Y |  | 689 |
-| normalizePlan | method |  |  | 739 |
-| convertDAGPlanToPlan | method |  |  | 789 |
-| simulate | method | Y |  | 831 |
-| getPlan | method |  |  | 851 |
-| listPlans | method |  |  | 860 |
-| confirmPlan | method |  |  | 869 |
-| getHealth | method |  |  | 879 |
+| (anon) | ctor |  |  | 154 |
+| setMetaPlanner | method |  |  | 181 |
+| setSimulationEngine | method |  |  | 188 |
+| setSOPEngine | method |  |  | 193 |
+| setBrainFacade | method |  |  | 198 |
+| setHierarchicalPlanner | method |  |  | 203 |
+| setOntology | method |  |  | 208 |
+| setForcedQueryGuard | method |  |  | 213 |
+| setPiBridge | method |  |  | 218 |
+| isReady | method |  |  | 225 |
+| createPlan | method | Y |  | 248 |
+| resolveMode | method |  |  | 426 |
+| recordOutcome | method |  |  | 481 |
+| setPatterns | method |  |  | 529 |
+| quickPlan | method | Y |  | 542 |
+| parseQuickSteps | method |  |  | 659 |
+| fullPlan | method | Y |  | 683 |
+| normalizePlan | method |  |  | 733 |
+| convertDAGPlanToPlan | method |  |  | 783 |
+| simulate | method | Y |  | 825 |
+| getPlan | method |  |  | 845 |
+| listPlans | method |  |  | 854 |
+| confirmPlan | method |  |  | 863 |
+| getHealth | method |  |  | 873 |
 
 ### packages\core\src\cognition\planning\DeliveryPlannerAdapter.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -2654,12 +2698,12 @@
 ### packages\core\src\cognition\planning\goal-intelligence\IntentClassifier.ts（6 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| isQuestionLike | fn |  |  | 37 |
-| heuristic | fn |  |  | 45 |
-| withTimeout | fn |  |  | 66 |
-| intentFallbackWarn | fn |  |  | 81 |
-| resetIntentFallbackWarnForTest | fn |  | Y | 90 |
-| classify | method | Y |  | 100 |
+| isQuestionLike | fn |  |  | 31 |
+| heuristic | fn |  |  | 39 |
+| withTimeout | fn |  |  | 60 |
+| intentFallbackWarn | fn |  |  | 75 |
+| resetIntentFallbackWarnForTest | fn |  | Y | 84 |
+| classify | method | Y |  | 94 |
 
 ### packages\core\src\cognition\planning\goal-intelligence\RequirementExtractor.ts（2 个）
 | 函数 | kind | async | export | 行 |
@@ -2678,6 +2722,15 @@
 |---|---|---|---|---|
 | buildArtifactGenerationPrompt | fn |  | Y | 15 |
 
+### packages\core\src\cognition\prompts\company-prompts.ts（0 个）
+- （无顶层函数/方法提取）
+### packages\core\src\cognition\prompts\delivery-prompts.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildQuickDecomposePrompt | fn |  | Y | 12 |
+
+### packages\core\src\cognition\prompts\intent-prompts.ts（0 个）
+- （无顶层函数/方法提取）
 ### packages\core\src\cognition\prompts\orchestrator-prompts.ts（4 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
@@ -2685,6 +2738,11 @@
 | AUDIT_PROMPT | const-fn |  | Y | 24 |
 | REPLAN_PROMPT | const-fn |  | Y | 39 |
 | SYNTHESIS_PROMPT | const-fn |  | Y | 56 |
+
+### packages\core\src\cognition\prompts\reflection-prompts.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildReflectionPrompt | fn |  | Y | 13 |
 
 ### packages\core\src\cognition\twin\BehaviorTwin.ts（30 个）
 | 函数 | kind | async | export | 行 |
@@ -3112,24 +3170,24 @@
 ### packages\core\src\execution\AgentMailbox.ts（18 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 68 |
-| setEventBus | method |  |  | 79 |
-| setLLM | method |  |  | 80 |
-| setSpaceService | method |  |  | 81 |
-| sendAndWait | method |  |  | 88 |
-| fulfill | method | Y |  | 129 |
-| generateReply | method | Y |  | 142 |
-| fallbackReply | method |  |  | 161 |
-| resolvePersona | method |  |  | 166 |
-| emit | method |  |  | 182 |
-| fileFor | method |  |  | 194 |
-| append | method |  |  | 199 |
-| patchStore | method |  |  | 208 |
-| listForSpace | method |  |  | 217 |
-| getPending | method |  |  | 242 |
-| setMailboxInstance | fn |  | Y | 249 |
-| getMailbox | fn |  | Y | 250 |
-| describeMailActor | fn |  | Y | 253 |
+| (anon) | ctor |  |  | 69 |
+| setEventBus | method |  |  | 80 |
+| setLLM | method |  |  | 81 |
+| setSpaceService | method |  |  | 82 |
+| sendAndWait | method |  |  | 89 |
+| fulfill | method | Y |  | 130 |
+| generateReply | method | Y |  | 143 |
+| fallbackReply | method |  |  | 157 |
+| resolvePersona | method |  |  | 162 |
+| emit | method |  |  | 178 |
+| fileFor | method |  |  | 190 |
+| append | method |  |  | 195 |
+| patchStore | method |  |  | 204 |
+| listForSpace | method |  |  | 213 |
+| getPending | method |  |  | 238 |
+| setMailboxInstance | fn |  | Y | 245 |
+| getMailbox | fn |  | Y | 246 |
+| describeMailActor | fn |  | Y | 249 |
 
 ### packages\core\src\execution\DecisionStore.ts（8 个）
 | 函数 | kind | async | export | 行 |
@@ -3341,6 +3399,17 @@
 | advise | fn |  |  | 45 |
 | compactFailure | fn |  | Y | 67 |
 
+### packages\core\src\execution\prompts\mailbox-prompts.ts（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildMailboxSystemPrompt | fn |  | Y | 15 |
+| buildMailboxUserPrompt | fn |  | Y | 29 |
+
+### packages\core\src\execution\prompts\step-prompts.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildStepSystemPrompt | fn |  | Y | 22 |
+
 ### packages\core\src\execution\runtime\ExecutionContext.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\execution\runtime\MorPexRuntime.ts（10 个）
@@ -3355,7 +3424,7 @@
 | setPiBridge | method |  |  | 142 |
 | setEvaluationEngine | method |  |  | 144 |
 | run | method | Y |  | 146 |
-| learnFromVerification | method |  |  | 731 |
+| learnFromVerification | method |  |  | 747 |
 
 ### packages\core\src\execution\runtime\PersistentArtifactStore.ts（7 个）
 | 函数 | kind | async | export | 行 |
@@ -3368,21 +3437,23 @@
 | getByTask | method |  |  | 63 |
 | replay | method |  |  | 65 |
 
-### packages\core\src\execution\runtime\PersistentMissionStore.ts（12 个）
+### packages\core\src\execution\runtime\PersistentMissionStore.ts（14 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | (anon) | ctor |  |  | 45 |
 | init | method | Y |  | 47 |
-| isReady | method |  |  | 67 |
-| getStepStates | method |  |  | 70 |
-| append | method | Y |  | 75 |
-| applyStepEvent | method |  |  | 88 |
-| get | method |  |  | 110 |
-| getAll | method |  |  | 111 |
-| apply | method |  |  | 114 |
-| getDagPlan | method |  |  | 145 |
-| getRunState | method |  |  | 150 |
-| applyDirect | method |  |  | 154 |
+| isReady | method |  |  | 70 |
+| getStepStates | method |  |  | 73 |
+| append | method | Y |  | 78 |
+| applyStepEvent | method |  |  | 91 |
+| get | method |  |  | 113 |
+| getAll | method |  |  | 114 |
+| apply | method |  |  | 117 |
+| getDagPlan | method |  |  | 148 |
+| getRunState | method |  |  | 153 |
+| getAllRunStates | method |  |  | 158 |
+| forEachRunState | method |  |  | 163 |
+| applyDirect | method |  |  | 167 |
 
 ### packages\core\src\execution\runtime\PipelineOrchestrator.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -3404,7 +3475,7 @@
 | getState | method |  |  | 53 |
 | resetForTest | method |  |  | 58 |
 
-### packages\core\src\execution\runtime\ServiceContainer.ts（17 个）
+### packages\core\src\execution\runtime\ServiceContainer.ts（18 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | eventStore | getter |  |  | 85 |
@@ -3412,18 +3483,19 @@
 | recallTaskContext | method | Y |  | 112 |
 | recallTaskForAgent | method | Y |  | 129 |
 | (anon) | ctor |  |  | 158 |
-| setOntology | method |  |  | 257 |
-| setContextAssemblyEngine | method |  |  | 267 |
-| registerRealProviders | method |  |  | 275 |
-| ready | getter |  |  | 289 |
-| createEventStoreAppender | method |  |  | 300 |
-| initEventStore | method | Y |  | 310 |
-| createOrchestratorAgent | method |  |  | 351 |
-| createMissionRuntime | method |  |  | 446 |
-| createDAGRuntime | method |  |  | 451 |
-| createRawDAGRuntime | method |  |  | 546 |
-| ensurePiBridge | method | Y |  | 599 |
-| initLearningPersistence | method | Y |  | 619 |
+| setOntology | method |  |  | 269 |
+| setContextAssemblyEngine | method |  |  | 279 |
+| registerRealProviders | method |  |  | 287 |
+| hydrateRunStates | method |  |  | 302 |
+| ready | getter |  |  | 326 |
+| createEventStoreAppender | method |  |  | 337 |
+| initEventStore | method | Y |  | 347 |
+| createOrchestratorAgent | method |  |  | 388 |
+| createMissionRuntime | method |  |  | 483 |
+| createDAGRuntime | method |  |  | 488 |
+| createRawDAGRuntime | method |  |  | 583 |
+| ensurePiBridge | method | Y |  | 636 |
+| initLearningPersistence | method | Y |  | 656 |
 
 ### packages\core\src\execution\runtime\StepEventRecorder.ts（2 个）
 | 函数 | kind | async | export | 行 |
@@ -3556,28 +3628,27 @@
 | schedule | method |  |  | 33 |
 | getStatus | method |  |  | 61 |
 
-### packages\core\src\execution\runtime\dag\StepAgentExecutor.ts（19 个）
+### packages\core\src\execution\runtime\dag\StepAgentExecutor.ts（18 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | composeBeforeToolCall | fn |  |  | 26 |
-| isToolFailureOutput | fn |  |  | 61 |
-| isSafetyBlockedOutput | fn |  |  | 71 |
-| classifyStepOutput | fn |  | Y | 80 |
-| classifyStepError | fn |  | Y | 91 |
-| buildStepSystemPrompt | fn |  |  | 168 |
-| formatUpstreamResults | fn |  |  | 192 |
-| formatUpstreamSessionRefs | fn |  |  | 204 |
-| sanitizeSessionId | fn |  |  | 211 |
-| previewText | fn |  |  | 216 |
-| (anon) | ctor |  |  | 228 |
-| executeStep | method | Y |  | 239 |
-| flushStream | const-fn |  |  | 358 |
-| emitStepStarted | method |  |  | 494 |
-| emitStepResult | method |  |  | 518 |
-| recordStepResult | method | Y |  | 543 |
-| withSessionMeta | method | Y |  | 566 |
-| withTimeout | method | Y |  | 581 |
-| extractText | fn |  | Y | 598 |
+| isToolFailureOutput | fn |  |  | 62 |
+| isSafetyBlockedOutput | fn |  |  | 72 |
+| classifyStepOutput | fn |  | Y | 81 |
+| classifyStepError | fn |  | Y | 92 |
+| formatUpstreamResults | fn |  |  | 171 |
+| formatUpstreamSessionRefs | fn |  |  | 183 |
+| sanitizeSessionId | fn |  |  | 190 |
+| previewText | fn |  |  | 195 |
+| (anon) | ctor |  |  | 207 |
+| executeStep | method | Y |  | 218 |
+| flushStream | const-fn |  |  | 337 |
+| emitStepStarted | method |  |  | 473 |
+| emitStepResult | method |  |  | 497 |
+| recordStepResult | method | Y |  | 522 |
+| withSessionMeta | method | Y |  | 545 |
+| withTimeout | method | Y |  | 560 |
+| extractText | fn |  | Y | 577 |
 
 ### packages\core\src\execution\runtime\dag\TaskGraph.ts（16 个）
 | 函数 | kind | async | export | 行 |
@@ -3806,27 +3877,27 @@
 ### packages\core\src\facade\CompanyFacade.ts（21 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 61 |
-| ensureBootstrapped | method | Y |  | 93 |
-| createDepartment | method | Y |  | 105 |
-| setLLMProvider | method |  |  | 119 |
-| setChatStreamer | method |  |  | 125 |
-| setContextAssemblyEngine | method |  |  | 133 |
-| sendTask | method | Y |  | 140 |
-| getDepartmentStatus | method |  |  | 149 |
-| listDepartments | method |  |  | 150 |
-| getStats | method |  |  | 151 |
-| executeGoal | method | Y |  | 153 |
-| generateDailyReport | method | Y |  | 294 |
-| searchAcrossDepartments | method | Y |  | 304 |
-| setBrainFacade | method |  |  | 306 |
-| setTeamOrchestrator | method |  |  | 309 |
-| getTeams | method |  |  | 314 |
-| getTeam | method |  |  | 319 |
-| setGoalIntelligenceFacade | method |  |  | 323 |
-| setFeedbackService | method |  |  | 326 |
-| setOntology | method |  |  | 327 |
-| setCEO | method |  |  | 328 |
+| (anon) | ctor |  |  | 56 |
+| ensureBootstrapped | method | Y |  | 88 |
+| createDepartment | method | Y |  | 100 |
+| setLLMProvider | method |  |  | 114 |
+| setChatStreamer | method |  |  | 120 |
+| setContextAssemblyEngine | method |  |  | 128 |
+| sendTask | method | Y |  | 135 |
+| getDepartmentStatus | method |  |  | 144 |
+| listDepartments | method |  |  | 145 |
+| getStats | method |  |  | 146 |
+| executeGoal | method | Y |  | 148 |
+| generateDailyReport | method | Y |  | 289 |
+| searchAcrossDepartments | method | Y |  | 299 |
+| setBrainFacade | method |  |  | 301 |
+| setTeamOrchestrator | method |  |  | 304 |
+| getTeams | method |  |  | 309 |
+| getTeam | method |  |  | 314 |
+| setGoalIntelligenceFacade | method |  |  | 318 |
+| setFeedbackService | method |  |  | 321 |
+| setOntology | method |  |  | 322 |
+| setCEO | method |  |  | 323 |
 
 ### packages\core\src\facade\gateway\ExecutionGateway.ts（10 个）
 | 函数 | kind | async | export | 行 |
@@ -3972,8 +4043,8 @@
 ### packages\core\src\gate\rules\rule-prompts.ts（2 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| buildRuleExtractUserPrompt | const-fn |  | Y | 37 |
-| buildSemanticJudgementUserPrompt | const-fn |  | Y | 58 |
+| buildRuleExtractUserPrompt | const-fn |  | Y | 38 |
+| buildSemanticJudgementUserPrompt | const-fn |  | Y | 59 |
 
 ### packages\core\src\gate\rules\ruleEvents.ts（2 个）
 | 函数 | kind | async | export | 行 |
@@ -4321,24 +4392,24 @@
 ### packages\core\src\governance\control-plane\SpaceService.ts（18 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 40 |
-| aliasesPath | getter |  |  | 49 |
-| loadAliases | method |  |  | 53 |
-| setAlias | method |  |  | 65 |
-| scanWorkflowProviders | method |  |  | 81 |
-| buildDepartmentSpace | method |  |  | 101 |
-| emitSpaceCreated | method |  |  | 130 |
-| spacesPath | getter |  |  | 143 |
-| persist | method |  |  | 147 |
-| restore | method |  |  | 160 |
-| ensureLoaded | method |  |  | 174 |
-| getTree | method |  |  | 181 |
-| getSpace | method |  |  | 197 |
-| getDepartmentSpace | method |  |  | 202 |
-| routeGoal | method |  |  | 208 |
-| routingHint | method |  |  | 216 |
-| getDefaultDepartmentSpace | method |  |  | 224 |
-| refresh | method |  |  | 230 |
+| (anon) | ctor |  |  | 41 |
+| aliasesPath | getter |  |  | 50 |
+| loadAliases | method |  |  | 54 |
+| setAlias | method |  |  | 66 |
+| scanWorkflowProviders | method |  |  | 82 |
+| buildDepartmentSpace | method |  |  | 102 |
+| emitSpaceCreated | method |  |  | 124 |
+| spacesPath | getter |  |  | 137 |
+| persist | method |  |  | 141 |
+| restore | method |  |  | 154 |
+| ensureLoaded | method |  |  | 168 |
+| getTree | method |  |  | 175 |
+| getSpace | method |  |  | 191 |
+| getDepartmentSpace | method |  |  | 196 |
+| routeGoal | method |  |  | 202 |
+| routingHint | method |  |  | 210 |
+| getDefaultDepartmentSpace | method |  |  | 218 |
+| refresh | method |  |  | 224 |
 
 ### packages\core\src\governance\control-plane\department-types.ts（0 个）
 - （无顶层函数/方法提取）
@@ -4350,6 +4421,12 @@
 - （无顶层函数/方法提取）
 ### packages\core\src\governance\index.ts（0 个）
 - （无顶层函数/方法提取）
+### packages\core\src\governance\prompts\space-prompts.ts（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildManagerPersona | fn |  | Y | 14 |
+| buildRouteHint | fn |  | Y | 29 |
+
 ### packages\core\src\governance\types.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\infrastructure\adapters\agent-spawner.ts（2 个）
@@ -4358,16 +4435,18 @@
 | mapToolForAgent | fn |  | Y | 52 |
 | spawn | method | Y |  | 76 |
 
-### packages\core\src\infrastructure\adapters\embedding\EmbeddingProvider.ts（7 个）
+### packages\core\src\infrastructure\adapters\embedding\EmbeddingProvider.ts（9 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 28 |
-| ready | getter |  |  | 36 |
-| model | getter |  |  | 40 |
-| embed | method | Y |  | 48 |
-| embedOne | method | Y |  | 63 |
-| cosine | method |  |  | 69 |
-| embedBatch | method | Y |  | 81 |
+| (anon) | ctor |  |  | 37 |
+| ready | getter |  |  | 45 |
+| model | getter |  |  | 49 |
+| embed | method | Y |  | 58 |
+| embedOne | method | Y |  | 110 |
+| cosine | method |  |  | 116 |
+| cacheKey | method |  |  | 128 |
+| clearCache | method |  |  | 138 |
+| embedBatch | method | Y |  | 140 |
 
 ### packages\core\src\infrastructure\adapters\identity.ts（2 个）
 | 函数 | kind | async | export | 行 |
@@ -4616,6 +4695,23 @@
 | connectToRegistry | method |  |  | 180 |
 | getSummary | method |  |  | 192 |
 
+### packages\core\src\infrastructure\common\cache\LruCache.ts（8 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| (anon) | ctor |  |  | 15 |
+| get | method |  |  | 21 |
+| peek | method |  |  | 31 |
+| set | method |  |  | 35 |
+| has | method |  |  | 44 |
+| delete | method |  |  | 48 |
+| clear | method |  |  | 52 |
+| size | getter |  |  | 56 |
+
+### packages\core\src\infrastructure\common\cache\inflight.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| withInflight | fn | Y | Y | 7 |
+
 ### packages\core\src\infrastructure\common\contracts\eventContractCatalog.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
@@ -4834,6 +4930,11 @@
 - （无顶层函数/方法提取）
 ### packages\core\src\infrastructure\observability\index.ts（0 个）
 - （无顶层函数/方法提取）
+### packages\core\src\infrastructure\prompts\param-prompts.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildExtractPrompt | fn |  | Y | 15 |
+
 ### packages\core\src\infrastructure\protocol\contracts\artifact-lifecycle.ts（0 个）
 - （无顶层函数/方法提取）
 ### packages\core\src\infrastructure\protocol\contracts\goal.ts（0 个）
@@ -5020,13 +5121,13 @@
 ### packages\core\src\infrastructure\tools\ToolFactory.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 81 |
-| setLLMCaller | method |  |  | 86 |
-| generateToolForTask | method | Y |  | 90 |
-| matchPreset | method |  |  | 124 |
-| llmGenerate | method | Y |  | 138 |
-| generateCodeImpl | method |  |  | 172 |
-| generateAndRegister | method | Y |  | 184 |
+| (anon) | ctor |  |  | 82 |
+| setLLMCaller | method |  |  | 87 |
+| generateToolForTask | method | Y |  | 91 |
+| matchPreset | method |  |  | 125 |
+| llmGenerate | method | Y |  | 139 |
+| generateCodeImpl | method |  |  | 155 |
+| generateAndRegister | method | Y |  | 167 |
 
 ### packages\core\src\infrastructure\tools\ToolRegistry.ts（10 个）
 | 函数 | kind | async | export | 行 |
@@ -5055,14 +5156,13 @@
 |---|---|---|---|---|
 | createOntologyToolExecutor | fn |  | Y | 101 |
 
-### packages\core\src\infrastructure\tools\paramCompleter.ts（5 个）
+### packages\core\src\infrastructure\tools\paramCompleter.ts（4 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| getRequiredParams | fn |  | Y | 19 |
-| validatePrimitiveParams | fn |  | Y | 25 |
-| buildExtractPrompt | fn |  | Y | 39 |
-| isGenerativePrimitive | fn |  | Y | 56 |
-| inferArtifactType | fn |  | Y | 64 |
+| getRequiredParams | fn |  | Y | 23 |
+| validatePrimitiveParams | fn |  | Y | 29 |
+| isGenerativePrimitive | fn |  | Y | 43 |
+| inferArtifactType | fn |  | Y | 51 |
 
 ### packages\core\src\infrastructure\tools\primitiveAgentTools.ts（10 个）
 | 函数 | kind | async | export | 行 |
@@ -5138,6 +5238,11 @@
 - （无顶层函数/方法提取）
 ### packages\core\src\infrastructure\tools\primitives\types.ts（0 个）
 - （无顶层函数/方法提取）
+### packages\core\src\infrastructure\tools\prompts\tool-factory-prompts.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildToolSchemaPrompt | fn |  | Y | 12 |
+
 ### packages\core\src\infrastructure\utils\AsyncResourceLocker.ts（7 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
@@ -5324,36 +5429,38 @@
 | listRecentArchived | fn | Y | Y | 87 |
 | loadMerged | fn | Y | Y | 138 |
 
-### packages\core\src\knowledge\context\ContextAssemblyEngine.ts（27 个）
+### packages\core\src\knowledge\context\ContextAssemblyEngine.ts（29 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| defaultRiskGrader | fn |  | Y | 106 |
-| (anon) | ctor |  |  | 125 |
-| assemble | method | Y |  | 152 |
-| sourceFilter | const-fn |  |  | 170 |
-| assertModelVisibleReconstructable | method |  |  | 430 |
-| recordRetrievalDecision | method |  |  | 460 |
-| attachAssemblyTelemetry | method |  |  | 503 |
-| getContext | method |  |  | 551 |
-| loadContext | method |  |  | 559 |
-| resolvePersistence | method |  |  | 569 |
-| setPersistenceProvider | method |  |  | 583 |
-| getConfig | method |  |  | 590 |
-| updateConfig | method |  |  | 597 |
-| setRecentSummaryReader | method |  |  | 607 |
-| setRetriever | method |  |  | 615 |
-| setRiskGrader | method |  |  | 622 |
-| getRegistry | method |  |  | 629 |
-| getVersioner | method |  |  | 636 |
-| getTemplateRepository | method |  |  | 643 |
-| getEnricherPipeline | method |  |  | 650 |
-| generateFallbackFragment | method |  |  | 662 |
-| selectTemplate | method |  |  | 769 |
-| collectFragmentsWithTimeout | method | Y |  | 789 |
-| estimateFragmentTokens | fn |  |  | 822 |
-| buildWorkingLayer | fn |  |  | 837 |
-| buildSemanticItems | fn |  |  | 862 |
-| selectLayerItems | fn |  |  | 890 |
+| defaultRiskGrader | fn |  | Y | 108 |
+| (anon) | ctor |  |  | 129 |
+| assembleKey | method |  |  | 156 |
+| assemble | method | Y |  | 165 |
+| assembleInternal | method | Y |  | 170 |
+| sourceFilter | const-fn |  |  | 188 |
+| assertModelVisibleReconstructable | method |  |  | 448 |
+| recordRetrievalDecision | method |  |  | 478 |
+| attachAssemblyTelemetry | method |  |  | 521 |
+| getContext | method |  |  | 569 |
+| loadContext | method |  |  | 577 |
+| resolvePersistence | method |  |  | 587 |
+| setPersistenceProvider | method |  |  | 601 |
+| getConfig | method |  |  | 608 |
+| updateConfig | method |  |  | 615 |
+| setRecentSummaryReader | method |  |  | 625 |
+| setRetriever | method |  |  | 633 |
+| setRiskGrader | method |  |  | 640 |
+| getRegistry | method |  |  | 647 |
+| getVersioner | method |  |  | 654 |
+| getTemplateRepository | method |  |  | 661 |
+| getEnricherPipeline | method |  |  | 668 |
+| generateFallbackFragment | method |  |  | 680 |
+| selectTemplate | method |  |  | 787 |
+| collectFragmentsWithTimeout | method | Y |  | 807 |
+| estimateFragmentTokens | fn |  |  | 840 |
+| buildWorkingLayer | fn |  |  | 855 |
+| buildSemanticItems | fn |  |  | 880 |
+| selectLayerItems | fn |  |  | 908 |
 
 ### packages\core\src\knowledge\context\ContextBuilder.ts（11 个）
 | 函数 | kind | async | export | 行 |
@@ -5435,6 +5542,11 @@
 
 ### packages\core\src\knowledge\context\index.ts（0 个）
 - （无顶层函数/方法提取）
+### packages\core\src\knowledge\context\prefetch.ts（1 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| prefetchHighFrequencyEntities | fn | Y | Y | 25 |
+
 ### packages\core\src\knowledge\context\providers\realProviders.ts（12 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
@@ -5470,10 +5582,10 @@
 ### packages\core\src\knowledge\context\retrieval\Reranker.ts（4 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| (anon) | ctor |  |  | 42 |
-| rerank | method | Y |  | 67 |
-| clearCache | method |  |  | 111 |
-| cacheKey | method |  |  | 119 |
+| (anon) | ctor |  |  | 44 |
+| rerank | method | Y |  | 69 |
+| clearCache | method |  |  | 108 |
+| cacheKey | method |  |  | 117 |
 
 ### packages\core\src\knowledge\context\retrieval\SparseRetriever.ts（3 个）
 | 函数 | kind | async | export | 行 |
@@ -5649,7 +5761,7 @@
 ### packages\core\src\knowledge\ontology\bootstrapFromDocs.ts（1 个）
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
-| bootstrapFromWorkflowDocs | fn | Y | Y | 67 |
+| bootstrapFromWorkflowDocs | fn | Y | Y | 68 |
 
 ### packages\core\src\knowledge\ontology\index.ts（0 个）
 - （无顶层函数/方法提取）
@@ -5692,6 +5804,12 @@
 | 函数 | kind | async | export | 行 |
 |---|---|---|---|---|
 | createAstroMTrace | fn |  | Y | 93 |
+
+### packages\core\src\knowledge\prompts\bootstrap-prompts.ts（2 个）
+| 函数 | kind | async | export | 行 |
+|---|---|---|---|---|
+| buildBootstrapSystemPrompt | fn |  | Y | 12 |
+| buildBootstrapUserPrompt | fn |  | Y | 35 |
 
 ### packages\core\src\workflow\WorkflowProvider.ts（4 个）
 | 函数 | kind | async | export | 行 |
