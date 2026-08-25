@@ -109,9 +109,10 @@
 | `knowledge/ontology/projectors/ArtifactProjector.ts` | ArtifactProjector — 将 Artifact 存储投影到 Ontology 迭代2：从 ArtifactFacade / ArtifactStore 投影到 Ontology。 使 LLM 能查询到已创建的 Artifact 对象。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/projectors/MissionProjector.ts` | MissionProjector — 将 Mission 存储投影到 Ontology 迭代2：从 MissionStore / Event 投影重建 Ontology 中的 Mission 对象。 使 LLM 查询 ontology_queryObjects({type:'Mission'}) 能看到真实数据。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/projectors/index.ts` | projectors — Ontology 投影器 迭代2：将现有数据（Mission / Artifact / Agent 等）投影到 Ontology， 使 LLM 查询 ontology_queryObjects 能看到真实数据。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
-| `knowledge/ontology/prompts/expert-prompt.ts`
+| `knowledge/ontology/prompts/expert-prompt.ts` | Expert Prompt — Ring 1 领域专家系统提示词 适用对象：由 Leader 动态衍生出的特定脑区专家 （如 hardware_engineering、firmware_execution、business_finance 等领域的 AgentHarness）。 三级分封架构： Leader (Ring 0) → Expert (Ring 1) → Fork (Ring 2) 遵循迁移铁律： 0.2 (类型来源法则): 基于 pi-agent-core 扩展 0.4 (删除优先法则): 提示词驱动行 | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `cognition/prompts/orchestrator-prompts.ts` | Orchestrator 提示词资产 — ANALYSIS/AUDIT/REPLAN/SYNTHESIS 四件套（U4 自内联逐字迁入，只改引用不改文案） / | 资产化存储；调优改此文件 |
-| `cognition/prompts/artifact-generation-prompt.ts` | 产物生成提示词 — buildArtifactGenerationPrompt（U4 自三元嵌套逐字迁入；knowledgeBlock 由调用方构造） / | 资产化存储；调优改此文件 | | Expert Prompt — Ring 1 领域专家系统提示词 适用对象：由 Leader 动态衍生出的特定脑区专家 （如 hardware_engineering、firmware_execution、business_finance 等领域的 AgentHarness）。 三级分封架构： Leader (Ring 0) → Expert (Ring 1) → Fork (Ring 2) 遵循迁移铁律： 0.2 (类型来源法则): 基于 pi-agent-core 扩展 0.4 (删除优先法则): 提示词驱动行 | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
+| `cognition/prompts/artifact-generation-prompt.ts` | 产物生成提示词 — buildArtifactGenerationPrompt（U4 自三元嵌套逐字迁入；knowledgeBlock 由调用方构造） / | 资产化存储；调优改此文件 |
+| `cognition/prompts/reflection-prompts.ts` | 反思提示词资产 — buildReflectionPrompt（P1 #3 自 ReflectionEngine 内联逐字迁入，只改引用不改文案） | 资产化存储；调优改此文件 |
 | `knowledge/ontology/prompts/forced-query-system.ts` | forced-query-system — 强制查询系统提示模板 迭代1：用于 LLM 规划阶段，强制先查询 Ontology 再推理。 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/prompts/index.ts` | Prompts — 提示词系统统一出口 三级分封架构（Leader Ring 0 → Expert Ring 1 → Fork Ring 2） 的提示词模板与编译函数。 使用方式： import { compileLeaderPrompt, compileExpertPrompt, createAstroMTrace } from './prompts/index.js'; / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
 | `knowledge/ontology/prompts/leader-prompt.ts` | Leader Prompt — Ring 0 中央路由大脑系统提示词 适用对象：控制面主 LLM（如 DeepSeek-R1 等高推理规格模型）， 负责驱动 FSM 状态机与跨领域调度。 三级分封架构： Leader (Ring 0) → Expert (Ring 1) → Fork (Ring 2) 遵循迁移铁律： 0.2 (类型来源法则): 基于 pi-agent-core 扩展 0.4 (删除优先法则): 提示词驱动行为而非代码封装 / | 权威存储+Tier写规则；不拦截/不推理/不触发演化 |
@@ -141,7 +142,7 @@
 |---|---|---|
 | `cognition/BrainFacade.ts` | BrainFacade — 统一大脑门面 Phase 4.5 / 架构打磨 — P1 修复 将 4 套重叠的大脑系统统一为一个入口： - PersonalBrain   (cognition/memory/) — 五层记忆，内存级 - MemoryWiki       (packages/memory/)   — SQLite 持久层（zvec 已废弃移除 S17） - LearningLoop     (learning/)          — 经验提取 + 策略优化 - EvolutionEngine  (e | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/CrossDepartmentKnowledgeSynthesizer.ts` | CrossDepartmentKnowledgeSynthesizer — 跨部门知识融合引擎 v16 Phase 4.7: 一人跨多领域虚拟公司的核心智能引擎。 将不同部门的经验、模式、知识进行对比和融合，自动迁移成功模式。 设计原则： - EventBus 是唯一通信通道 - 部门级数据隔离（所有查询带 deptId） - PiBridge 隔离底层 LLM - 真实执行，无 mock 数据流： BrainFacade.processTask() → CrossDepartmentKnowledgeSynthe | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
-| `cognition/ReflectionEngine.ts` | ReflectionEngine — 反思引擎（任务后反思 → 洞察/建议，只读数据） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
+| `cognition/ReflectionEngine.ts` | ReflectionEngine — 反思引擎（任务后反思 → 洞察/建议，只读数据）；提示词已收编至 prompts/reflection-prompts.ts（逐字等价） | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/SafetyMonitor.ts` | SafetyMonitor — 安全监控器 Phase 2: 持续观察系统状态，检测异常模式 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
 | `cognition/decision/DecisionTwin.ts` | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne | Decision Twin — 用户决策模式分析引擎 P1 架构完善: 从决策历史中学习用户的决策模式、风险偏好、关键因素。 职责: 1. 构建用户决策画像（buildProfile） 2. 分析特定决策场景（analyze） 3. 预测用户选择（predict） 4. 提取常见决策因素（extractCommonFactors） 数据来源: - DecisionMemory: 存储的历史决策记录 - PersonalTwinGraph: 用户孪生图谱中的决策节点（可选） 使用方式: const twin = ne |
 | `cognition/decision/index.ts` | cognition/decision — Decision Twin barrel P1 架构完善: 用户决策模式分析引擎 / | 理解/推理/规划；禁副作用Primitive/不改知识/不触发演化 |
@@ -379,7 +380,8 @@
 | `infrastructure/tools/ReadArtifactTool.ts` | ReadArtifactTool — 按需读取 Artifact 工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 读取（权限检查），回退到直接 ArtifactRegistry 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/TeamSayTool.ts` | TeamSayTool — 领域间通信工具 向指定 Agent 发送消息（UDP 语义，非阻塞）。 目标 Agent 当前 turn 完成后自动消费消息。 使用 pi-agent-core harness.steer() 实现。 steer() 注入 steering 消息，异步非阻塞。 遵循迁移铁律： 0.2 (类型来源法则): 类型基于 pi-agent-core 扩展 0.4 (删除优先法则): 使用 pi 原生 steer() 而非自定义通信 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolExecutionProxy.ts` | ToolExecutionProxy — Worker 隔离执行器（含僵尸防御 + 反向熔断） 每个工具调用在独立 worker_threads 中执行。 内核不关心执行细节，只监听三种信号： - progress   → 透传给 harness 的 tool_execution_update - completed  → 返回 ToolResult - timeout/oom → 执行 worker.terminate()，向 FSMEngine 抛出 TOOL_EXECUTION_TIMEOUT / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
-| `infrastructure/tools/ToolFactory.ts` | ToolFactory — 工具工厂（EventBus 注入，创建并注册 LLM 工具） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
+| `infrastructure/tools/ToolFactory.ts` | ToolFactory — 工具工厂（EventBus 注入，创建并注册 LLM 工具）；提示词已收编至 prompts/tool-factory-prompts.ts（逐字等价） |
+| `infrastructure/tools/prompts/tool-factory-prompts.ts` | 工具工厂提示词资产 — buildToolSchemaPrompt（P1 #3 自 ToolFactory 内联逐字迁入，只改引用不改文案） | 资产化存储；调优改此文件 | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/ToolRegistry.ts` | ToolRegistry — LLM 工具注册中心（ToolSchema 登记/查找） | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/index.ts` | tools — 动态工具层 ToolFactory → 动态生成工具 ToolRegistry → 工具注册与统计 DomainPrimitiveRegistry → 通用原语注册与匹配 primitives/ → 5 个领域无关的基础原语 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |
 | `infrastructure/tools/memory-search-tool.ts` | memory-search-tool.ts — 记忆搜索工具 (Phase 11: Harness-aware) 优先通过 AgentHarness 搜索（上下文+记忆激活），回退到直接 MemoryRetriever 访问。 / | 底座服务；无领域逻辑/不推理/不规划/不评价/不演化 |

@@ -4,6 +4,7 @@
 import { EventBus } from '../../infrastructure/common/EventBus.js';
 import { ToolRegistry } from './ToolRegistry.js';
 import type { ToolSchema, RegisteredTool } from './ToolRegistry.js';
+import { buildToolSchemaPrompt } from './prompts/tool-factory-prompts.js';
 
 // ── Types ──
 
@@ -136,25 +137,7 @@ export class ToolFactory {
   }
 
   private async llmGenerate(taskDesc: string): Promise<ToolSchema> {
-    const prompt = `根据以下任务描述，生成一个 OpenAI function calling 格式的 tool schema。
-
-任务: "${taskDesc}"
-
-返回 JSON 格式:
-{
-  "name": "工具名(英文小写蛇形)",
-  "description": "工具描述(中文)",
-  "parameters": {
-    "type": "object",
-    "properties": {
-      "param1": { "type": "string", "description": "参数说明" }
-    },
-    "required": ["param1"]
-  },
-  "category": "research|development|integration|general"
-}
-
-只返回 JSON，不要其他内容。`;
+    const prompt = buildToolSchemaPrompt(taskDesc);
 
     try {
       const response = await this.llmCaller!.generateText({ prompt, temperature: 0.2 });

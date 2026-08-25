@@ -2,6 +2,7 @@
  * ReflectionEngine — 任务后反思（洞察/建议，只读数据，不触发改动）
  */
 import { EventBus } from '../infrastructure/common/EventBus.js';
+import { buildReflectionPrompt } from './prompts/reflection-prompts.js';
 
 // ── Types ──
 
@@ -99,24 +100,7 @@ export class ReflectionEngine {
       `[${t.result}] ${t.goal.substring(0, 60)} (${t.duration}ms)`
     ).join('\n');
 
-    const prompt = `你是一个 AI 公司的大脑，正在反思最近的执行表现。
-
-最近任务:
-${taskSummary || '(无)'}
-
-当前计划: ${state.currentPlan ? `${state.currentPlan.goal} (${state.currentPlan.taskCount}个任务)` : '(无)'}
-
-请分析:
-1. 存在哪些风险？
-2. 有什么改进建议？
-3. 观察到什么模式？
-
-返回 JSON 格式:
-{
-  "insights": [{"type": "improvement|warning|pattern|suggestion", "message": "...", "confidence": 0-1}],
-  "risks": [{"description": "...", "severity": "low|medium|high", "probability": 0-1}],
-  "suggestions": ["建议1", "建议2"]
-}`;
+    const prompt = buildReflectionPrompt(taskSummary, state.currentPlan);
 
     try {
       const response = await this.llmCaller!.generateText({ prompt, temperature: 0.3 });
