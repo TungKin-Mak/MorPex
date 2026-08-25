@@ -64,9 +64,9 @@ export class PersistentMissionStore {
   /** U2+U3：事件源就绪状态（false = 内存模式，重启丢数据） */
   isReady(): boolean { return this.ready; }
 
-  /** U2+U3：按 missionId 重放重建的 step 运行态（供断点续跑/运行控制查询） */
+  /** U2+U3：按 missionId 重放重建的 step 运行态（防御性拷贝，外部修改不污染内部状态） */
   getStepStates(missionId: string): Map<string, StepState> {
-    return this.stepStates.get(missionId) ?? new Map();
+    return new Map(this.stepStates.get(missionId) ?? []);
   }
 
   /** 追加事件并应用（事件源核心） */
