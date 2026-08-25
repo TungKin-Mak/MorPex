@@ -195,6 +195,9 @@ function buildAttachmentContext(attachments: Array<{ fileId: string; name?: stri
 }
 
 export class StudioServer {
+  /** U4：chat/send 处理器（webhook 委派目标） */
+  private chatSendHandler!: (req: import("express").Request, res: import("express").Response) => unknown;
+
   private app: express.Express;
   private config: StudioServerConfig;
   private httpServer?: HttpServer;
@@ -385,7 +388,8 @@ export class StudioServer {
     registerRuntimeRoutes(this.app);
 
     // 路由注册
-    this.registerIdealRoutes();
+    this.registerIdealRoutes()
+    this.registerWebhookRoutes();
 
     // SSE（L10 EventBus → 前端事件流）
     this.registerSSE(container.eventBus);
@@ -1048,7 +1052,8 @@ export class StudioServer {
     });
 
     // ── 对话：意图分流在引擎级（CompanyFacade.executeGoal 内）——闲聊直答/任务执行 ──
-    this.app.post('/api/chat/send', async (req, res) => {
+    // U4：处理器提为成员——/api/hooks/trigger 委派同一路径（复用并发护栏/会话绑定/意图分流）
+    const chatSendHandler = async (req: import('express').Request, res: import('express').Response): Promise<unknown> => {
       const goal = req.body?.message ?? req.body?.goal;
       if (!goal) return res.status(400).json({ ok: false, error: 'message required' });
       const originalMessage = String(goal).trim();
@@ -1246,7 +1251,9 @@ export class StudioServer {
       } catch (err) {
         return res.status(500).json({ ok: false, error: (err as Error).message });
       }
-    });
+    };
+    this.chatSendHandler = chatSendHandler;
+    this.app.post('/api/chat/send', chatSendHandler);
 
     // ── U2+U3 运行控制：pause/resume/cancel（12-Factor F6）──
     this.app.post('/api/runs/:missionId/pause', (req, res) => {
@@ -1518,6 +1525,23 @@ export class StudioServer {
       } catch (err) {
         return res.status(500).json({ ok: false, error: (err as Error).message });
       }
+    });
+  }
+
+  // ── U4 Webhook 触发（12-Factor F11 最小版）──
+  private registerWebhookRoutes(): void {
+    this.app.post('/api/hooks/trigger', (req, res) => {
+      const secret = process.env.MORPEX_HOOK_SECRET;
+      // 未配置 secret = 功能禁用；404 不暴露端点存在性
+      if (!secret) return res.status(404).json({ ok: false });
+      const provided = req.header('x-morpex-secret');
+      if (!provided || provided !== secret) return res.status(401).json({ ok: false, error: 'unauthorized' });
+      const goal = typeof req.body?.goal === 'string' ? req.body.goal.trim() : '';
+      if (!goal) return res.status(400).json({ ok: false, error: 'goal required' });
+      const sessionId = typeof req.body?.sessionId === 'string' ? req.body.sessionId : undefined;
+      // 委派 chat/send 同一处理器（goalMode=true 全自动；并发护栏/会话绑定/意图分流全复用）
+      const syntheticReq = { body: { message: goal, goalMode: true, sessionId }, header: () => provided } as unknown as Parameters<StudioServer['chatSendHandler']>[0];
+      void this.chatSendHandler(syntheticReq, res);
     });
   }
 

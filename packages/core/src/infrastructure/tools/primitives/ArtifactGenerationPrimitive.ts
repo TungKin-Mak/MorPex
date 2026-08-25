@@ -18,6 +18,7 @@
  */
 
 import type { ActionPrimitive, ActionResult, ArtifactGenerationRequest, ArtifactGenerationResult } from './types.js';
+import { buildArtifactGenerationPrompt } from '../../../cognition/prompts/artifact-generation-prompt.js';
 import type { ForcedQueryGuard } from '../../../gate/ForcedQueryGuard.js';
 import { runOntologyGroundedReasoning } from '../../../gate/runOntologyGroundedReasoning.js';
 import type { KnowledgeContextPackage } from '../../../gate/context.js';
@@ -281,26 +282,8 @@ export class ArtifactGenerationPrimitive implements ActionPrimitive {
           ? `\n参考知识:\n${knowledgeContext.map((k, i) => `  [${i + 1}] ${k}`).join('\n')}`
           : '\n⚠️ 未提供知识上下文——生成结果可能不准确，建议先使用 KnowledgeQueryPrimitive 查询知识。';
 
-        const prompt = `你是一个专业的${type === 'code' ? '程序员' : type === 'doc' ? '技术文档写手' : type === 'config' ? '运维工程师' : type === 'data' ? '数据分析师' : '报告撰写专家'}。
-
-任务: 根据以下规格生成${type === 'code' ? '代码' : type === 'doc' ? '文档' : type === 'config' ? '配置文件' : type === 'data' ? '数据' : '报告'}。
-
-规格说明:
-${specification}
-
-${knowledgeBlock}
-
-请输出 JSON 格式:
-{
-  "files": [
-    { "path": "文件名（含路径）", "content": "完整文件内容", "type": "文件类型" }
-  ]
-}
-
-要求:
-- 内容必须基于给定的知识，不能捏造不存在的事实
-- 如果知识不足以完成任务，请在 content 中注明知识缺口
-- 只输出 JSON，不要其他内容`;
+        // U4 资产化：prompt 逐字迁至 cognition/prompts/artifact-generation-prompt.ts（只改引用不改文案）
+        const prompt = buildArtifactGenerationPrompt(type, specification, knowledgeBlock);
 
         const response = await ArtifactGenerationPrimitive.llmCaller(prompt);
         const jsonMatch = response.match(/\{[\s\S]*\}/);

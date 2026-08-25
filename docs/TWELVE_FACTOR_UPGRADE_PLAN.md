@@ -96,7 +96,7 @@
 - 范围：DAGRuntime.ts、PersistentMissionStore.ts、StudioServer.ts、StepEventRecorder.ts、RunRegistry.ts（新）、RunRegistry 控制钩子接线 ServiceContainer.createRawDAGRuntime()
 - 附带产品决策已拍板：审批存根（custom_message）保留进 LLM 上下文
 
-### U4 可选：Prompt 资产化 + Webhook（F2+F11）｜1 天
+### U4 可选：Prompt 资产化 + Webhook（F2+F11）｜✅ 已完成（Orchestrator 四件套 + ArtifactGenerationPrimitive 已资产化；webhook 带 secret 鉴权，未配置时 404 不暴露）
 - 收编优先级：OrchestratorAgent 四件套 > ArtifactGenerationPrimitive（三元嵌套最严重）> 其余
 - webhook：`POST /api/hooks/trigger`（secret 校验）→ executeGoal，最小实现
 - 范围：config/prompts/（新）、13+ 处 prompt 定义点、StudioServer.ts
