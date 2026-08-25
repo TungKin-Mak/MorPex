@@ -12,6 +12,8 @@
  */
 
 import { createHash } from 'node:crypto';
+import { LruCache } from '../../../infrastructure/common/cache/LruCache.js';
+import { withInflight } from '../../../infrastructure/common/cache/inflight.js';
 
 export interface RerankerConfig {
   enabled?: boolean;
@@ -34,10 +36,10 @@ export class Reranker {
   private topN: number;
   private httpTimeoutMs: number;
   private cacheTtlMs: number;
-  /** 指纹 → 缓存结果（LRU 意识：超 TTL 即丢弃，简单 Map） */
-  private cache: Map<string, CacheEntry> = new Map();
-  /** 缓存上限（防无限增长，超出清空最旧） */
-  private static readonly MAX_CACHE = 512;
+  /** 指纹 → 缓存结果（LRU 有界 512，TTL 过期丢弃） */
+  private cache: LruCache<string, CacheEntry> = new LruCache(512);
+  /** P1 #2：在飞去重——同 cacheKey 并发共享单次 HTTP */
+  private inflight: Map<string, Promise<Array<{ index: number; score: number }>>> = new Map();
 
   constructor(opts: {
     baseUrl: string;
@@ -69,40 +71,35 @@ export class Reranker {
 
     const cacheKey = this.cacheKey(query, docs);
     const hit = this.cache.get(cacheKey);
-    if (hit && hit.expiresAt > Date.now()) {
-      return hit.results;
+    if (hit) {
+      if (hit.expiresAt > Date.now()) return hit.results;
+      this.cache.delete(cacheKey); // 过期条目移除
     }
-    if (hit) this.cache.delete(cacheKey); // 过期条目移除
 
-    const controller = new AbortController();
-    const timer = setTimeout(() => controller.abort(), this.httpTimeoutMs);
-    try {
-      const res = await fetch(`${this.baseUrl}/rerank`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
-        body: JSON.stringify({ model: this.model, query, documents: docs, top_n: Math.min(this.topN, docs.length) }),
-        signal: controller.signal,
-      });
-      if (!res.ok) {
-        const body = await res.text().catch(() => '');
-        throw new Error(`[Reranker] HTTP ${res.status}: ${body.slice(0, 200)}`);
+    return withInflight(this.inflight, cacheKey, async () => {
+      const controller = new AbortController();
+      const timer = setTimeout(() => controller.abort(), this.httpTimeoutMs);
+      try {
+        const res = await fetch(`${this.baseUrl}/rerank`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json', Authorization: `Bearer ${this.apiKey}` },
+          body: JSON.stringify({ model: this.model, query, documents: docs, top_n: Math.min(this.topN, docs.length) }),
+          signal: controller.signal,
+        });
+        if (!res.ok) {
+          const body = await res.text().catch(() => '');
+          throw new Error(`[Reranker] HTTP ${res.status}: ${body.slice(0, 200)}`);
+        }
+        const json = await res.json() as { results?: Array<{ index: number; relevance_score: number }> };
+        const results = (json.results ?? [])
+          .map(r => ({ index: r.index, score: r.relevance_score }))
+          .sort((a, b) => b.score - a.score);
+        this.cache.set(cacheKey, { results, expiresAt: Date.now() + this.cacheTtlMs });
+        return results;
+      } finally {
+        clearTimeout(timer);
       }
-      const json = await res.json() as { results?: Array<{ index: number; relevance_score: number }> };
-      const results = (json.results ?? [])
-        .map(r => ({ index: r.index, score: r.relevance_score }))
-        .sort((a, b) => b.score - a.score);
-
-      // 写缓存（TTL 30s；超出上限清最旧）
-      if (this.cache.size >= Reranker.MAX_CACHE) {
-        const oldestKey = this.cache.keys().next().value;
-        if (oldestKey !== undefined) this.cache.delete(oldestKey);
-      }
-      this.cache.set(cacheKey, { results, expiresAt: Date.now() + this.cacheTtlMs });
-
-      return results;
-    } finally {
-      clearTimeout(timer);
-    }
+    });
   }
 
   /**
@@ -110,15 +107,17 @@ export class Reranker {
    */
   clearCache(): void {
     this.cache.clear();
+    this.inflight.clear();
   }
 
   /**
-   * cacheKey — 生成 (query, docs) 指纹：query + SHA256(排序后 docs join)
-   * docs 排序保证候选集顺序变化不影响缓存命中。
+   * cacheKey — 生成 (query, docs) 指纹：hash(query) + SHA256(排序后 docs join)
+   * query 做 hash 防超长 key；docs 排序保证候选集顺序变化不影响命中。
    */
   private cacheKey(query: string, docs: string[]): string {
     const sorted = [...docs].sort();
-    const hash = createHash('sha256').update(sorted.join('\u0001')).digest('hex').slice(0, 16);
-    return `${this.model}|${query}|${hash}`;
+    const docsHash = createHash('sha256').update(sorted.join('\u0001')).digest('hex').slice(0, 16);
+    const qHash = createHash('sha256').update(query ?? '').digest('hex').slice(0, 16);
+    return `${this.model}|${qHash}|${docsHash}`;
   }
 }

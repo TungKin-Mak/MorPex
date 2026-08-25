@@ -22,6 +22,8 @@ import { ContextVersioner } from './ContextVersioner.js'
 import { ContextTemplateRepository } from './ContextTemplateRepository.js'
 import { ContextEnricherPipeline } from './ContextEnricher.js'
 import type { ContextPersistence } from './ContextPersistence.js'
+import { createHash } from 'node:crypto';
+import { withInflight } from '../../infrastructure/common/cache/inflight.js';
 import type { EventBus } from '../../infrastructure/common/EventBus.js'
 // ═══ 去黑盒化（黑盒③ 检索决策记录）═══
 import { getSharedDeblackboxRecorder } from '../../infrastructure/observability/deblackbox/DeblackboxRecorder.js';
@@ -121,6 +123,8 @@ export class ContextAssemblyEngine {
   private config: ContextAssemblyConfig
   /** 惰性持久化 provider（bootstrap 注入；assemble/loadContext 运行时解析存储，时序安全） */
   private persistenceProvider: (() => ContextPersistence | null | undefined) | null
+  /** P1 #2：在飞去重——同 missionId+goal 并发共享单次装配 */
+  private assembleInflight: Map<string, Promise<ExecutionContext>> = new Map()
 
   constructor(
     registry?: ContextFragmentRegistry,
@@ -149,7 +153,21 @@ export class ContextAssemblyEngine {
    * @param input - 组装输入（missionId, userId, tags 等）
    * @returns 组装完成的 ExecutionContext
    */
+  private assembleKey(input: ContextAssemblyInput): string {
+    // 关键区分度：missionId+goal+domain+currentTask；超长 goal 做 hash 防 key 膨胀与分隔符碰撞
+    const taskPart = input.currentTask ? `${input.currentTask.goalId ?? ''}:${input.currentTask.planId ?? ''}:${input.currentTask.taskId ?? ''}` : '';
+    const raw = `${input.missionId ?? ''}\u0001${input.goal ?? ''}\u0001${input.domain ?? ''}\u0001${taskPart}`;
+    if (raw.length <= 512) return raw;
+    const h = createHash('sha256').update(raw).digest('hex').slice(0, 16);
+    return `${input.missionId ?? ''}:${h}`;
+  }
+
   async assemble(input: ContextAssemblyInput): Promise<ExecutionContext> {
+    const inflightKey = this.assembleKey(input);
+    return withInflight(this.assembleInflight, inflightKey, () => this.assembleInternal(input));
+  }
+
+  private async assembleInternal(input: ContextAssemblyInput): Promise<ExecutionContext> {
     // ═══ 会话 16c（3+4）：装配成本监控——记录开始时间 ═══
     const assembleStart = this.config.enableTelemetry === false ? 0 : Date.now();
     // ═══ 会话 16i：4 层字符量（focus 块填充，attachAssemblyTelemetry 合并）═══
