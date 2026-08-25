@@ -216,6 +216,15 @@ export async function bootstrapUnified(options?: {
   const taskStateProjector = new TaskStateProjector();
   taskStateProjector.attach(eventBus);
   taskStateProjector.restore();
+  // ═══ U 收尾·F5 尾巴：事件源重放完成后以真相源校正投影（消除防抖窗口崩溃丢失）═══
+  //     container 在上方已创建；MissionStore init 为异步，延迟一拍再校正（快照在此期间作即时兜底）
+  taskStateProjector.setTruthSource(() => container.missionStore.getAll().map((m) => ({ missionId: m.missionId, status: m.status, objective: m.objective })));
+  setTimeout(() => {
+    try {
+      const n = taskStateProjector.reconcileWithTruth();
+      if (n > 0) console.log(`[TaskStateProjector] ✅ 已按事件源校正 ${n} 条任务投影（防抖窗口丢失已补）`);
+    } catch (err) { console.warn('[TaskStateProjector] 校正失败:', (err as Error).message); }
+  }, 2000);
   // ═══ P-B 未决决策持久化：重放 data/decisions.jsonl（后端重启后 plan/ask/approval 待决可恢复）═══
   restoreDecisions();
   mailbox.setEventBus(eventBus);

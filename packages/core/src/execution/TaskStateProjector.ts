@@ -88,6 +88,49 @@ export class TaskStateProjector {
     return path.join(this.dataRoot, 'tasks');
   }
 
+  // ── U 收尾·F5 尾巴：事件源校正（快照仅作 UI 即时兜底，真相以事件日志重放为准）──
+
+  /** 真相源视图：由 PersistentMissionStore.getAll() 映射注入（bootstrap 装配） */
+  setTruthSource(fn: () => Array<{ missionId: string; status: string; objective?: string }>): void {
+    this.truthSource = fn;
+  }
+
+  private truthSource: (() => Array<{ missionId: string; status: string; objective?: string }>) | null = null;
+
+  /**
+   * 以事件源重放结果校正投影，消除防抖窗口内的崩溃丢失：
+   * 快照缺失/状态落后的任务 → 从真相源重建并**同步落盘**（不走防抖）。
+   * @returns 校正的条数（0 = 全部一致或无真相源）
+   */
+  reconcileWithTruth(): number {
+    if (!this.truthSource) return 0;
+    let missions: Array<{ missionId: string; status: string; objective?: string }>;
+    try {
+      missions = this.truthSource();
+    } catch (err) {
+      console.warn('[TaskStateProjector] ⚠️ 真相源读取失败（保留快照）:', (err as Error).message);
+      return 0;
+    }
+    const map = statusMap();
+    let fixed = 0;
+    fs.mkdirSync(this.tasksDir(), { recursive: true });
+    for (const m of missions) {
+      const status = map[m.status] ?? 'running';
+      const cur = this.byMission.get(m.missionId);
+      // 一致则跳过；快照缺失但任务已完结且无任何投影痕迹 → 也不凭空造（避免噪音条目）
+      if (cur && cur.status === status) continue;
+      if (!cur && (status === 'done' || status === 'failed')) continue;
+      const p = cur ?? this.newProjection(m.missionId, m.objective ?? '', {});
+      if (m.objective && !p.goal) p.goal = m.objective;
+      p.status = status;
+      p.updatedAt = Date.now();
+      this.byMission.set(m.missionId, p);
+      try { fs.writeFileSync(this.fileFor(p.missionId), JSON.stringify(p), 'utf-8'); fixed++; }
+      catch { /* 单项失败不影响其它 */ }
+    }
+    return fixed;
+  }
+
   private fileFor(missionId: string): string {
     return path.join(this.tasksDir(), `${missionId}.json`);
   }
@@ -224,4 +267,9 @@ export class TaskStateProjector {
   clear(): void {
     this.byMission.clear();
   }
+}
+
+// MissionStatus → TaskProjection.status 映射（PAUSED/BLOCKED 最接近"等人"语义）
+function statusMap(): Record<string, TaskProjection['status']> {
+  return { ACTIVE: 'running', PAUSED: 'waiting_human', BLOCKED: 'waiting_human', COMPLETED: 'done', FAILED: 'failed' };
 }

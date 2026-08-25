@@ -105,4 +105,15 @@
 
 ---
 
+## 五、收尾缺口（已全部完成）
+
+| 缺口 | 实现 | 结果 |
+|---|---|---|
+| F11 尾巴·定时触发 | schedule-manager.ts（自写简化 cron+JSON 真相源+分钟 tick）；/api/schedules CRUD；触发委派 chatSendHandler 全链路；宕机错过跳过不补跑 | 测试 7/7 |
+| F5 尾巴·投影防抖窗口 | TaskStateProjector.setTruthSource/reconcileWithTruth：restore 后按 PersistentMissionStore 事件源校正并同步落盘（快照降级为即时兜底）；完结且无痕迹任务不凭空造条目 | 测试 4/4 |
+
+**最终评级：11✅（F5/F6/F11 补完）· 1🟡（F2 其余内联 prompt 低优先打磨）· 0❌**
+
+---
+
 *本文档由三轮讨论收敛而成：v1 文档转述审计 → 用户提供反例要求代码实证 → 三路并行纯代码审计修订。后续实施以本文档为准，实施中的偏离须回写。*

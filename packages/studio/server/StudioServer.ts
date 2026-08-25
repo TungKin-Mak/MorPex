@@ -20,6 +20,7 @@
 
 import express from 'express';
 import cors from 'cors';
+import { CronScheduler, type ScheduleEntry } from './schedule-manager.js';
 import * as fs from 'node:fs';
 import * as path from 'node:path';
 import mammoth from 'mammoth';
@@ -391,6 +392,7 @@ export class StudioServer {
     // 路由注册
     this.registerIdealRoutes()
     this.registerWebhookRoutes();
+    this.registerScheduleRoutes();
 
     // SSE（L10 EventBus → 前端事件流）
     this.registerSSE(container.eventBus);
@@ -1530,6 +1532,62 @@ export class StudioServer {
   }
 
   // ── U4 Webhook 触发（12-Factor F11 最小版）──
+  // ── U 收尾：定时触发调度器（12-Factor F11 补完：cron 入口）──
+  private cronScheduler: CronScheduler | null = null;
+
+  private registerScheduleRoutes(): void {
+    const ensureScheduler = (): CronScheduler => {
+      if (!this.cronScheduler) {
+        // fire = 委派 chatSendHandler（与 webhook 同款：goalMode=true 全自动，护栏/会话绑定/意图分流全复用）
+        this.cronScheduler = new CronScheduler({
+          fire: (entry: ScheduleEntry) => {
+            const syntheticReq = {
+              body: { message: entry.goal, goalMode: entry.goalMode !== false, sessionId: entry.sessionId },
+              header: () => '',
+            } as unknown as Parameters<StudioServer['chatSendHandler']>[0];
+            const syntheticRes = { status: () => ({ json: () => undefined }), json: () => undefined } as unknown as import('express').Response;
+            return this.chatSendHandler(syntheticReq, syntheticRes) as unknown as Promise<void>;
+          },
+        });
+      }
+      return this.cronScheduler;
+    };
+
+    this.app.post('/api/schedules', (req, res) => {
+      const { name, cron, goal, sessionId, goalMode } = req.body ?? {};
+      if (typeof name !== 'string' || !name.trim() || typeof cron !== 'string' || typeof goal !== 'string' || !goal.trim()) {
+        return res.status(400).json({ ok: false, error: 'name/cron/goal required' });
+      }
+      try {
+        const entry = ensureScheduler().add({ name: name.trim(), cron, goal, sessionId: typeof sessionId === 'string' ? sessionId : undefined, goalMode: goalMode !== false });
+        ensureScheduler().start();
+        return res.json({ ok: true, entry });
+      } catch (err) {
+        return res.status(400).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    this.app.get('/api/schedules', (_req, res) => {
+      try {
+        return res.json({ ok: true, schedules: ensureScheduler().list() });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    this.app.delete('/api/schedules/:name', (req, res) => {
+      try {
+        const removed = ensureScheduler().remove(String(req.params.name));
+        return removed ? res.json({ ok: true }) : res.status(404).json({ ok: false, error: 'not found' });
+      } catch (err) {
+        return res.status(500).json({ ok: false, error: (err as Error).message });
+      }
+    });
+
+    // 启动调度器（有已持久化计划时才真正开始 tick；无计划也启动，成本可忽略且免去动态启停判断）
+    ensureScheduler().start();
+  }
+
   private registerWebhookRoutes(): void {
     this.app.post('/api/hooks/trigger', (req, res) => {
       const secret = process.env.MORPEX_HOOK_SECRET;

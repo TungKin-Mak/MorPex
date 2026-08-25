@@ -695,3 +695,4 @@
 **当前文件数：后端 483 文件 / 2768 函数（其中 core/src 346，独立包 connectors 8 + memory 26 + studio/server 29 + workflows 39 + workflow-sdk 8 + contracts 7 + scripts 20，以 `docs/BACKEND_CODE_MAP.md` 为准）。精简 P0 已移除可选子系统（studio simulation/verification 17 文件）与废弃 harness（5 文件）。**
 
 **设计契约文档：`docs/EVENT_PAYLOAD_SPEC.md`（任务事件载荷 Envelope+MessageBox 可扩展规格，执行链事件契约见 eventContractCatalog +13）。**
+| `packages/studio/server/schedule-manager.ts` | 定时触发调度器（12-Factor F11 补完） | 简化版 5 段 cron 解析（* , - /）+ data/schedules.json 真相源（tmp+rename 原子写）+ 分钟级 tick（异常吞掉不拖垮主进程）；触发经合成请求委派 chatSendHandler 全链路；宕机错过不补跑（lastFiredKey 审计）。路由 POST/GET/DELETE /api/schedules 在 StudioServer |
