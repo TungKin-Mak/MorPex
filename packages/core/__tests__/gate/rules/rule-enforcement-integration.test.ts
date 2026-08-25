@@ -19,8 +19,9 @@ import { runOntologyGroundedReasoning } from '../../../src/gate/runOntologyGroun
 import { RuleRegistry } from '../../../src/gate/rules/RuleRegistry.js';
 import type { RuleEntity } from '../../../src/gate/rules/types.js';
 
-// 有状态 piBridge：第 1 次调用（Phase 1 查询计划）返回空 queries → 默认安全查询；
-// 后续按序返回 Phase 2（推理）输出序列。
+// 有状态 piBridge：第 1 次调用（Phase 1 查询计划）返回**合法非空**计划（通过 sanitizeQueryPlan，
+//   契约见 runOntologyGroundedReasoning.parseQueryPlanRobust/sanitizeQueryPlan——空/无效计划会触发
+//   计划重试+默认安全查询，改变调用计数）；后续按序返回 Phase 2（推理）输出序列。
 function createSequencePiBridge(phase2Outputs: string[]) {
   let call = 0;
   return {
@@ -28,7 +29,10 @@ function createSequencePiBridge(phase2Outputs: string[]) {
     generateText: async () => {
       call++;
       if (call === 1) {
-        return { text: JSON.stringify({ queries: [], reasoning: '默认安全查询' }) };
+        return { text: JSON.stringify({
+          queries: [{ tool: 'ontology_queryObjects', args: { type: 'RuleEntity', limit: 10 } }],
+          reasoning: '检索规则实体',
+        }) };
       }
       const idx = Math.min(call - 2, phase2Outputs.length - 1);
       return { text: phase2Outputs[idx] };
@@ -116,6 +120,24 @@ describe('gate/rules 集成（挂载 runOntologyGroundedReasoning）', () => {
     expect(piBridge.callCount()).toBe(2);
     expect(res.ruleViolations).toEqual([]);
     expect(store.events.some((e) => e.type === 'gate.rule.violation')).toBe(false);
+  });
+
+  it('查询计划为空 → 计划重试一次 + 默认安全查询兑底（防弱模型上下文爆炸语义锁定）', async () => {
+    // Phase1 两次都返回无效计划 → 触发计划重试 + 默认安全查询（不耗额外 LLM），再进 Phase2
+    let call = 0;
+    const piBridge = {
+      callCount: () => call,
+      generateText: async () => {
+        call++;
+        // call1 = 无效计划；call2 = 计划重试仍无效；call3 起 = Phase2 输出
+        return { text: call <= 2 ? '不是 JSON 的回答' : proposalJson('正常文案') };
+      },
+    };
+    const { store } = setup();
+    const res = await runGate('空计划兑底目标', piBridge as never, store);
+
+    expect(piBridge.callCount()).toBe(3); // Phase1 + 计划重试 ×1 + Phase2×1（默认查询不走 LLM）
+    expect(res.proposal.payload).toEqual({ content: '正常文案' });
   });
 
   it('修正成功：违规输出 → 带约束重试 → 合规输出 → 放行', async () => {

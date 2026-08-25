@@ -83,7 +83,12 @@ export class DomainPrimitiveRegistry {
       lastCalledAt: null,
     });
     console.log(`[DomainPrimitiveRegistry] ✅ 原语 "${primitive.name}" 已注册 (共 ${DomainPrimitiveRegistry.primitives.size} 个)`);
-    return () => DomainPrimitiveRegistry.unregister(primitive.name);
+    return () => {
+      // 幂等语义：重复撤销视为成功（净效果已达成），返回恒 true。
+      // 保证 registerMultiple 聚合回滚不因双调误报失败；需精确布尔请直用 unregister()。
+      DomainPrimitiveRegistry.unregister(primitive.name);
+      return true;
+    };
   }
 
   /**

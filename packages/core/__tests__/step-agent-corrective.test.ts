@@ -5,12 +5,14 @@
  * （extractText 判空）。此前直接降级 fallback → 任务失败率 19/99。
  * 修复：空内容时带纠正指令重试（默认 1 次），模型补全参数重新调用或直接给交付摘要。
  *
- * 会话 15 去兜底化：重试仍空 → 失败返回（不再降级 fallback，fail loud）。
+ * 会话 15 去兜底化：纠正重试仍空 → 失败返回（fail loud）。
+ * 16m·2（d12729c）再修订：重试耗尽/跳过后新增**最终兜底**——强制无工具直出交付摘要，
+ *   仅当兜底仍空才失败。correctiveRetries 只控制纠正循环次数，不控制最终兑底。
  *
  * 覆盖：
  *   - 空内容 → 纠正性重试 → 重试产出文本 → 恢复成功（mode=agent）
- *   - 空内容 → 重试仍空 → 失败返回（不无限重试，不降级）
- *   - correctiveRetries=0 → 不重试直接失败
+ *   - 空内容 → 重试仍空 → 失败返回（不无限重试）
+ *   - correctiveRetries=0 → 跳过纠正循环，16m·2 最终兜底直出摘要；兜底仍空才失败
  *   - 无上游成果时 prompt 输入不注入垃圾上下文（替代原 agentDisabled 断言）
  */
 
@@ -74,10 +76,12 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
     expect(res.error).toContain('未产出有效结果');
   });
 
-  it('correctiveRetries=0 → 不重试直接失败', async () => {
+  it('correctiveRetries=0 → 跳过纠正循环，但 16m·2 最终兜底直出摘要救回', async () => {
+    // 16m·2（d12729c）语义：correctiveRetries 只控制纠正循环次数；
+    // 循环跳过/耗尽后仍有最终兜底（强制无工具直出摘要），避免节点因空内容整体失败。
     spawnMock.mockResolvedValue(makeAgent([
       { content: [] },
-      { content: [{ type: 'text', text: '不应被调用' }] },
+      { content: [{ type: 'text', text: '## 交付摘要 兕底直出的总结文本' }] },
     ]));
     const executor = new StepAgentExecutor({
       timeoutMs: 10000,
@@ -85,8 +89,23 @@ describe('StepAgentExecutor — 空内容纠正性重试（会话 9）', () => {
     });
     const res = await executor.executeStep({ id: 's3', name: 's3', description: 'x', agentType: 'general' });
 
-    expect(res.success).toBe(false);
+    expect(res.success).toBe(true); // 兑底救回而非失败
     expect(res.mode).toBe('agent');
+    expect(res.output?.text).toContain('交付摘要');
+  });
+
+  it('correctiveRetries=0 且兑底仍空 → 失败返回（fail loud 边界）', async () => {
+    spawnMock.mockResolvedValue(makeAgent([
+      { content: [] },
+      { content: [] }, // 兑底直出仍空
+    ]));
+    const executor = new StepAgentExecutor({
+      timeoutMs: 10000,
+      correctiveRetries: 0,
+    });
+    const res = await executor.executeStep({ id: 's3b', name: 's3b', description: 'x', agentType: 'general' });
+
+    expect(res.success).toBe(false);
     expect(res.error).toContain('未产出有效结果');
   });
 
