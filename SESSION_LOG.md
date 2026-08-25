@@ -17,6 +17,8 @@
 
 ## 最近进度（里程碑，细节以 git 为准）
 
+- **全量测试闭环（5→0）**：p1-optimization 跨测试污染 beforeEach 清快照 + semantic-judgement 空计划 mock 契约升级为合法非空计划；全量 118/118 绿（1073 passed/5 skipped），无已知 Debt。
+
 - **P1 #2 去重+LRU 缓存（F13 前置，b1b1732 + 2819fad 前身）**：新建 `infrastructure/common/cache/{LruCache,inflight}.ts`（有界 1000/512、get 晋升、try/finally 无泄漏）；EmbeddingProvider（key=`model:`前缀防脏向量、>200 字符 sha256 指纹防 key 膨胀、batchHash 逐项哈希防分隔符碰撞、MAX_TEXT 8000）、Reranker（512+TTL30s、qHash/docsHash）、ContextAssemblyEngine（assembleKey 含 mission/goal/domain/task，>512 哈希回落）三处接线；在飞去重合并并发同请求。
 - **F13 本义预取钩子（P1 #2 收尾，12-Factor F13 闭环）**
 - **P1 #1 Critical hydrate 收进 _ready（复活窗口闭合，24010f7 + 补测）**：ServiceContainer `_ready = Promise.all([initEventStore(), missionStore.init()]).then(hydrateRunStates)`——bootstrap `await ready` 真正含水合；hydrateRunStates O(K) 仅恢复 paused/cancelled（forEachRunState 零拷贝内部迭代 / getAllRunStates 外部防御拷贝成对），单条容错 skipped 聚合计 warn；RunRegistry cancelled 清 paused 终态不复活；artifactStore.init 豁免 _ready 带 TODO(P1-Critical#1) 可追溯。测试 u8-pause-persistence 3→7 例（防御拷贝/等价性/isReady=false 降级/单条容错）。：新增 `knowledge/context/prefetch.ts`（prefetchHighFrequencyEntities：`ContextAssemblyEngine.assemble` 预热 + 1500ms 超时 + 失败静默，不阻塞执行）→ `MorPexRuntime.ts: Phase 1.8` 在 orchestrate 后上下文装配/执行前插入调用，命中日志 `F13 预取命中`；预取结果命中 LruCache/inflight 使后续真实 assemble 命中缓存；验证 `tsc 0` + `prefetch.test.ts 5/5`（命中/空/超时/null/缓存验证）；F13 待办勾除。
@@ -58,7 +60,7 @@
 
 ## 待办（按优先级）
 
-- **全量测试 5 例失败治理**：① semantic-judgement(2)——T0 前基线，gate 语义 LLM 调用计数断言需考古；② p1-optimization type-index(3)——单跑全绿、全量才挂=跨测试状态污染（SystemMetadataGraph 未接 MORPEX_DATA_DIR 隔离），接线即可。
+- **全量测试 5 例失败治理（✅ 已闭环 2026-08-26）**：① semantic-judgement(2)——根因空计划 `{queries:[]}` 触发加固重试分支，已升级 mock 为 `{tool:ontology_queryObjects, args:{type:RuleEntity}}` 合法契约；② p1-optimization(3)——`SystemMetadataGraph` 懒加载共享快照污染，全量跑被先行测试写入的 `graph.snapshot.json` 干扰，`beforeEach` 清快照隔离后 12/12。
 - **真实 LLM 补验两条脚本待配额**：`data/tmp-t5v/verify.mts`（记忆提取）、`data/tmp-u1v/verify-intent.mts`（意图判定）。
 - **P1-Critical#1 长期项**：artifactStore.init 豁免 _ready 的 TODO(P1-Critical#1)——产物状态若未来门控执行需复审收进。
 - **桌面分发三张保命牌**：代码签名（SmartScreen）/ API Key 图形向导 / 数据与程序分离；NSIS 端到端冒烟；bun --compile 单 exe 评估。

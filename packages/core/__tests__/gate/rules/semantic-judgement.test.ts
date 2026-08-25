@@ -43,7 +43,9 @@ function createKeywordPiBridge(phase2Outputs: string[], judgement: Judgement) {
         return { text: JSON.stringify(judgement) };
       }
       if (calls === 1) {
-        return { text: JSON.stringify({ queries: [], reasoning: '默认安全查询' }) };
+        // 合法非空计划（过 sanitizeQueryPlan 白名单，避免触发空计划重试+默认查询加固分支）
+        // 契约见 runOntologyGroundedReasoning.parseQueryPlanRobust/sanitizeQueryPlan
+        return { text: JSON.stringify({ queries: [{ tool: 'ontology_queryObjects', args: { type: 'RuleEntity', limit: 10 } }], reasoning: '默认安全查询' }) };
       }
       const idx = Math.min(phase2Idx, phase2Outputs.length - 1);
       const out = phase2Outputs[idx];

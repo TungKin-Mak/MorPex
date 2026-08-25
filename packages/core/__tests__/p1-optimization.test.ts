@@ -8,10 +8,13 @@
  *   4. Gate 限流退避（RetryPolicy 封装：RateLimitError 重试、其他错误直接抛）
  */
 
-import { describe, it, expect, vi, afterEach } from 'vitest';
+import { describe, it, expect, vi, afterEach, beforeEach } from 'vitest';
+import fs from 'node:fs';
+import path from 'node:path';
 import { Reranker } from '../src/knowledge/context/retrieval/Reranker.js';
 import { SystemMetadataGraph } from '../src/knowledge/graph/SystemMetadataGraph.js';
 import { RetryPolicy } from '../src/infrastructure/common/resilience/RetryPolicy.js';
+import { getDataRoot } from '../src/infrastructure/common/dataRoot.js';
 
 // ═══════════════════════════════════════════════════════════════
 // P1-4 Reranker 缓存
@@ -85,6 +88,14 @@ describe('Reranker — 结果缓存（P1-4）', () => {
 // ═══════════════════════════════════════════════════════════════
 
 describe('SystemMetadataGraph — type 索引（P1-5）', () => {
+  // 隔离：懒加载会合并共享快照（全量跑时被先行测试写入的实体污染计数），先清快照再建实例
+  const snapPath = path.resolve(getDataRoot(), 'graph.snapshot.json');
+  beforeEach(() => {
+    try {
+      fs.rmSync(snapPath, { force: true });
+    } catch { /* 忽略 */ }
+  });
+
   it('getEntities(type) 只返回该 type 实体', () => {
     const g = new SystemMetadataGraph();
     g.registerEntity('m1', 'mission', '目标A', {});
