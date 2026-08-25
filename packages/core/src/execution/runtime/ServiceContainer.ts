@@ -27,6 +27,7 @@ import { OrchestratorAgent } from '../orchestration/OrchestratorAgent.js';
 import { AgentSessionStore } from '../orchestration/AgentSessionStore.js';
 import { ContextPersistence } from '../../knowledge/context/ContextPersistence.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
+import { StepEventRecorder } from './StepEventRecorder.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../../governance/control-plane/ControlPlane.js';
 import { systemMetadataGraph } from '../../knowledge/graph/SystemMetadataGraph.js';
@@ -72,6 +73,8 @@ export class ServiceContainer {
   missionRuntime!: import('./mission/MissionRuntime.js').MissionRuntime;
   readonly runtime: MorPexRuntime;
   readonly missionStore: PersistentMissionStore;
+  /** U2+U3：步骤事件→事件源的订阅桥 */
+  readonly stepEventRecorder: StepEventRecorder;
   readonly artifactStore: PersistentArtifactStore;
   readonly controlPlane: ControlPlane;
   readonly learningEngine: CrossAgentLearningEngine;
@@ -205,6 +208,9 @@ export class ServiceContainer {
     this.artifactStore = new PersistentArtifactStore();
     this.missionStore.init().catch((err: Error) => console.warn('[ServiceContainer] MissionStore 初始化失败:', err.message));
     this.artifactStore.init().catch((err: Error) => console.warn('[ServiceContainer] ArtifactStore 初始化失败:', err.message));
+    // U2+U3：步骤级事件入事件源（订阅总线，EventBus Only 合规）
+    this.stepEventRecorder = new StepEventRecorder();
+    this.stepEventRecorder.attach(this.eventBus, this.missionStore);
     this.missionController.setPersistentStore({ save: (m: any) => { this.missionStore.append('mission.updated', m.missionId, { status: m.status, phase: m.phase, progress: m.progress, blocks: m.blocks, risks: m.risks, objective: m.objective }).catch((err: Error) => console.warn('[ServiceContainer] MissionStore 写入失败:', err.message)); } });
     // 连接 EventStore 作为真相源（异步初始化，通过 ready 等待）
     this._ready = this.initEventStore();

@@ -15,6 +15,10 @@ import { Scheduler, type SchedulerConfig } from './Scheduler.js';
 import { ParallelExecutor } from './ParallelExecutor.js';
 import { TaskNode } from './TaskNode.js';
 import type { EventBus } from '../../../infrastructure/common/EventBus.js';
+import { clip } from '../../orchestration/error-compactor.js';
+
+/** U2+U3：step.completed 事件载荷中结果预览的上限（字节级字符数；完整产物应走 ArtifactRegistry，此为断点续跑的兼容载荷） */
+const RESULT_CLIP = 64 * 1024;
 
 export interface DAGResult {
   success: boolean;
@@ -154,6 +158,8 @@ export class DAGRuntime {
                 node.status = 'skipped';
                 node.error = `Skipped: dependency ${fn.id} failed`;
                 this.trace.push({ nodeId: node.id, nodeName: node.name, action: 'skip', timestamp: Date.now(), detail: node.error });
+                // U2+U3：跳过也落事件源（此前只有 trace 内存记录）
+                this.config.eventBus?.emit({ id: `wf-${node.id}-skip-${Date.now()}`, type: 'workflow.step_skipped', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), nodeId: node.id, nodeName: node.name, error: node.error } });
               }
             }
           }
@@ -172,6 +178,8 @@ export class DAGRuntime {
               b.status = 'skipped';
               b.error = 'Skipped: dependency failed';
               this.trace.push({ nodeId: b.id, nodeName: b.name, action: 'skip', timestamp: Date.now(), detail: b.error });
+              // U2+U3：阻塞节点跳过同样落事件源
+              this.config.eventBus?.emit({ id: `wf-${b.id}-skip-${Date.now()}`, type: 'workflow.step_skipped', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), nodeId: b.id, nodeName: b.name, error: b.error } });
             }
           }
           break;
@@ -214,13 +222,15 @@ export class DAGRuntime {
         });
         // Emit workflow event
         const eventType = result.success ? 'workflow.step_completed' : 'workflow.step_failed';
+        // U2+U3：completed 载荷携带截断结果（断点续跑时下游可消费；上限见 RESULT_CLIP）
+        const outputPreview = result.success ? clip(result.output, RESULT_CLIP) : undefined;
         this.config.eventBus?.emit({
           id: `wf-${nodeId}-${Date.now()}`,
           type: eventType,
           timestamp: Date.now(),
           executionId: graph.id,
           source: 'dag-runtime',
-          payload: { ...this.ctxMeta(context), nodeId, nodeName: node?.name ?? nodeId, success: result.success, error: result.error },
+          payload: { ...this.ctxMeta(context), nodeId, nodeName: node?.name ?? nodeId, success: result.success, error: result.error, output: outputPreview, truncated: typeof result.output === 'string' && (result.output as string).length > RESULT_CLIP },
         });
 
         // 失败处理
@@ -232,6 +242,8 @@ export class DAGRuntime {
             timestamp: Date.now(),
             detail: `Attempt ${node.attempts}/${node.maxRetries + 1}`,
           });
+          // U2+U3：重试也落事件源（attempts 供重放侧回显）
+          this.config.eventBus?.emit({ id: `wf-${nodeId}-retry-${Date.now()}`, type: 'workflow.step_retry', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), nodeId, nodeName: node.name, attempts: node.attempts, maxRetries: node.maxRetries } });
         }
       }
 

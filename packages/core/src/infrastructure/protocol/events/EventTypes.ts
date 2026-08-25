@@ -12,6 +12,12 @@ export const SYSTEM_EVENT_TYPES = {
   MISSION_BLOCK_RESOLVED: 'mission.block_resolved',
   MISSION_RISK_ADDED: 'mission.risk_added',
   MISSION_COMPLETED: 'mission.completed',
+  // ── U2+U3：DAG 步骤级事件（事件溯源编排，PersistentMissionStore 重放用）──
+  STEP_STARTED: 'step.started',
+  STEP_COMPLETED: 'step.completed',
+  STEP_FAILED: 'step.failed',
+  STEP_SKIPPED: 'step.skipped',
+  STEP_RETRY: 'step.retry',
   PLAN_CREATED: 'plan.created',
   PLAN_APPROVED: 'plan.approved',
   PLAN_FAILED: 'plan.failed',
