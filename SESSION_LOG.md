@@ -58,21 +58,15 @@
 
 ## 待办（按优先级）
 
-- **P1-Critical#1: hydrate 可追溯**：`ServiceContainer.ts:artifactStore.init` 豁免 `_ready` 链的 `TODO(P1-Critical#1: hydrate 可追溯)`——若未来产物状态需门控执行，此豁免需复审并收进 `_ready`；告警级别已由 `console.log` 升为 `console.warn`（skipped>0 时），keep 产物生命周期与 RunRegistry 水合分级语义。
-
-- **P1 缺口 #3 内联 prompt 收编（✅ 已闭环 2026-08-26 收尾批）**：示范批 `gate/rules/rule-prompts.ts`（RuleExtractor + semanticJudgement）→ 第四批（DeliveryPlanner/IntentClassifier/ReflectionEngine/AgentMailbox/StepAgentExecutor/ToolFactory/ArtifactGeneration）→ **收尾批 4 文件**：`cognition/prompts/company-prompts.ts`（CompanyFacade.CHAT_REPLY_SYSTEM）+ `governance/prompts/space-prompts.ts`（SpaceService.managerPersona/routeHint → buildManagerPersona/buildRouteHint）+ `infrastructure/prompts/param-prompts.ts`（paramCompleter.buildExtractPrompt）+ `knowledge/prompts/bootstrap-prompts.ts`（bootstrapFromDocs system/user → buildBootstrapSystemPrompt/buildBootstrapUserPrompt），全部逐字等价、零依赖、原文件改为 import；`npx tsc --noEmit 0 错` ✅；FILE_REGISTRY 已补 4 资产 + 4 源文件提示词已收编标注；**全量资产清单 17 文件**（cognition 6 + execution 2 + governance 1 + infrastructure 2 + knowledge 6 + gate 1），剩余内联 `你是/只输出 JSON` 业务 prompt 清零（仅剩资产文件自身 + 注释/工具重试等非业务提示，见审计附表），P1 #3 闭环。
-
-- **全量测试基线失败 10 例→现存 8 例**：semantic-judgement(2) 于 P1#3 收编时 stash 对照证实为既有基线非回归；其余同前：step-agent-corrective(1)/rule-enforcement-integration(6)/primitives-registry(1) 在 T0 前的旧提交（2f06bd8）上同样失败——非近期回归，是更早的行为变更未同步测试（如 gate 语义判断 LLM 调用次数断言）。修复需考古当时意图，勿盲改计数。（注：rule-enforcement-integration 本次实测 21/21 已绿，实际现存以最新全量为准）
-- **测试数据隔离已建成**：MORPEX_DATA_DIR 环境变量 + vitest env/globalSetup（tests/vitest-isolated-data.global.ts）；三个闭环集成套件与 sse-execute-e2e（需真实 LLM 配额）移入显式运行清单。
-
-- **T7 评审建议三项已全部修复（调度器亲验 2026-08-24，tsc 0 错 + memory-extractor.test 25/25）**：① 衰减幂等——MemoryWeightStore 加 last_decayed_at 列（老库 ALTER 自动迁移），computeDecay 以 max(lastSeen,lastDecayedAt) 起算闲置期，applyDecays 衰减时落 last_decayed_at；端到端断言连跑三遍只衰一次 + 纯函数两例；② routeCandidate 显式分支补返回值检查——rejected→'explicit_failed'+warn+不建权重档，异常同标签且不向调用方抛出（handleTurn 循环加 try/catch 单条隔离，聚合日志新增"入库失败 N"）；③ 敏感兜底——新增 looksLikeCredential()（sk-/AKIA/私钥块/password= 等 6 类高置信模式）在 upsert 前硬拒，文件头注明"安全兜底层非触发机制"，与 LLM 化原则不冲突（宁可误杀不可漏放）。
-- **文档体系持续维护**：能力索引随代码补全（发现"索引未覆盖但代码已有"→补条目，防漏判）；`check:docs` 保持 0。
-- **事件 P2**（可选）：试点发射规范化（DAGRuntime workflow.step_started 带 state 块）+ 前端任务卡片消费标准字段。
-- **UI 迭代**（待做）：异常告警阈值 UI、进化审批 UI。
+- **全量测试 5 例失败治理**：① semantic-judgement(2)——T0 前基线，gate 语义 LLM 调用计数断言需考古；② p1-optimization type-index(3)——单跑全绿、全量才挂=跨测试状态污染（SystemMetadataGraph 未接 MORPEX_DATA_DIR 隔离），接线即可。
+- **真实 LLM 补验两条脚本待配额**：`data/tmp-t5v/verify.mts`（记忆提取）、`data/tmp-u1v/verify-intent.mts`（意图判定）。
+- **P1-Critical#1 长期项**：artifactStore.init 豁免 _ready 的 TODO(P1-Critical#1)——产物状态若未来门控执行需复审收进。
+- **桌面分发三张保命牌**：代码签名（SmartScreen）/ API Key 图形向导 / 数据与程序分离；NSIS 端到端冒烟；bun --compile 单 exe 评估。
+- **UI 迭代**：异常告警阈值可配置 UI、进化审批 UI。
+- **技术类辅助 prompt 收编**（P2 决策）：extractJson.retryPrompt / ContextDistiller 压缩 prompt 是否资产化。
+- **事件 P2**（可选）：DAGRuntime workflow.step_started 规范化发射 + 前端任务卡片消费。
 - **验证**（可选）：opencode 50 轮 / 大样本 batch。
-- **沙箱/Linux 执行**（暂缓，用户重提再动）：MSYS 桥 + 程序级 sandbox（Job Object/目录白名单）方案已设计。
-- **DEVKIT 单文件已产出**：`devkit/DEVKIT.md`——LLM 新项目读它（或探测未初始化）即自动建 AGENTS/DEVELOPMENT/CAPABILITY_INDEX/HOOK_MAP/SESSION_LOG/skills 并引导填占位符；旧多骨架建议已清理（改用单文件）。
-- **文档时效清理**：归档 guides/getting-started（旧端口 8080/3000、clone 流程严重过时）；FLOW 附 A 标题改“Agent 执行循环（pi，非自研 harness）”消除歧义；DEVELOPMENT/DEVKIT 新增“时效标记+防误读”规则（过时即归档或 ⚠️ 横幅，LLM 勿采信；读文档先交叉代码）——直接防“误读过时文档错误判断”。
+- **沙箱/Linux 执行**（用户暂缓重提再动）：MSYS 桥+Job Object 方案已设计。
 
 ## 关键教训（避免重蹈）
 
