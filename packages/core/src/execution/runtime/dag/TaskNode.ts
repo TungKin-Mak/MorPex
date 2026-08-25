@@ -47,6 +47,14 @@ export class TaskNode {
     this.priority = dagNode.priority ?? 0;
     this.maxRetries = dagNode.maxRetries ?? 3;
     this.metadata = dagNode.metadata ? { ...dagNode.metadata } : {};
+    // U2+U3 断点续跑：恢复已完成节点的状态与结果预览（调度器天然跳过非 pending 节点）
+    if (dagNode.initialStatus && dagNode.initialStatus !== 'rerouting') {
+      this.status = dagNode.initialStatus;
+      if (dagNode.initialStatus === 'success') {
+        this.result = { success: true, output: dagNode.initialOutput ?? null, duration: 0 };
+        this.completedAt = Date.now();
+      }
+    }
   }
 
   setHandler(handler: (node: TaskNode, context: unknown) => Promise<unknown>): void {

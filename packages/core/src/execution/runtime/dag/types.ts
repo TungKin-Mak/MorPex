@@ -35,6 +35,9 @@ export interface DAGNode {
   completedAt?: number;
   cost?: number;
   metadata?: Record<string, any>;
+  /** U2+U3 断点续跑：重建 DAG 时从事件源恢复的初始状态/结果预览 */
+  initialStatus?: DAGNodeStatus;
+  initialOutput?: unknown;
 }
 
 // ── DAG 边 ──

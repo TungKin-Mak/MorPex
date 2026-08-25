@@ -27,6 +27,7 @@ import { OrchestratorAgent } from '../orchestration/OrchestratorAgent.js';
 import { AgentSessionStore } from '../orchestration/AgentSessionStore.js';
 import { ContextPersistence } from '../../knowledge/context/ContextPersistence.js';
 import { PersistentMissionStore } from './PersistentMissionStore.js';
+import { RunRegistry } from './RunRegistry.js';
 import { StepEventRecorder } from './StepEventRecorder.js';
 import { PersistentArtifactStore } from './PersistentArtifactStore.js';
 import { ControlPlane } from '../../governance/control-plane/ControlPlane.js';
@@ -442,57 +443,7 @@ export class ServiceContainer {
   }
 
   private createDAGRuntime(): DAGRuntimeLike {
-    const realRuntime = new DAGRuntime({
-      maxParallel: 4,
-      enablePriority: true,
-      continueOnFailure: true,
-      eventBus: this.eventBus,
-      // ═══ 多 Agent 框架（会话 3 P0）：DAG 节点由 step-agent（agentSpawner + 原语工具）执行 ═══
-      // 取代原先 ExecutionFabric 单次 LLM 生成（无工具调用 → 生成类任务空转卡死）。
-      // ExecutionFabric 降级为 fallback（Agent 不可用时兜底）。
-      nodeHandler: async (node, ctx) => {
-        const action = node.description || node.name;
-        const ctxObj = (ctx !== null && typeof ctx === 'object')
-          ? (ctx as Record<string, unknown>)
-          : {};
-        // P1：上游成果（DAGRuntime 注入）
-        const upstream = (ctxObj.upstreamResults instanceof Map ? ctxObj.upstreamResults : new Map<string, unknown>());
-        const departmentId = typeof ctxObj.departmentId === 'string' ? ctxObj.departmentId : undefined;
-        console.log(`[DAGRuntime] 执行节点: ${node.id} (agentType=${node.agentType}, action=${action.slice(0, 60)})`);
-
-        const executor = new StepAgentExecutor({
-          departmentId,
-          goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
-          // P-A：任务级关联键（事件 payload 透传 → TaskStateProjector/前端按 missionId 归集）
-          missionId: typeof ctxObj.missionId === 'string' ? ctxObj.missionId : undefined,
-          executionId: typeof ctxObj.executionId === 'string' ? ctxObj.executionId : undefined,
-          // 会话 4（Session 化）：DAG 节点 step-agent 会话也持久化（未预建时自行创建）
-          sessionStore: this.agentSessionStore,
-          // ⬅️ 会话 16c（3+4）：步骤结果事件出口
-          eventBus: this.eventBus,
-          // ⬅️ 会话 16j（B2 指针消费端）：按 taskRef 拉取被裁详情
-          recallTask: (taskRef) => this.recallTaskForAgent(taskRef),
-          // ⬅️ P2：mail 工具（跨部门/工位交流）发起方上下文
-          mailboxCtx: {
-            from: `station:${node.agentType || node.id || 'step'}`,
-            spaceId: departmentId ?? undefined, // departmentId 已是 dept_xxx 格式（StudioServer 路由传 routedSpace.id）
-            taskId: typeof ctxObj.executionId === 'string' ? ctxObj.executionId
-              : typeof ctxObj.missionId === 'string' ? ctxObj.missionId : undefined,
-            goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
-          },
-        });
-        // 会话 4：总大脑预建的 step 会话（按节点名匹配，nodeHandler 复用同一会话）
-        const stepSessions = (ctxObj.stepSessions instanceof Map ? ctxObj.stepSessions : new Map<string, { session: unknown; sessionPath: string }>());
-        const handle = stepSessions.get(node.name) as { session?: unknown; sessionPath?: string } | undefined;
-        const result = await executor.executeStep(
-          { id: node.id, name: node.name, description: node.description, agentType: node.agentType },
-          upstream,
-          { session: handle?.session, sessionPath: handle?.sessionPath },
-        );
-        if (!result.success) throw new Error(result.error || '节点执行失败');
-        return result.output;
-      },
-    });
+    const realRuntime = this.createRawDAGRuntime();
 
     // 执行状态缓存，供 getStatus 返回 state 字段（Engine 轮询依赖）
     const statusMap = new Map<string, {
@@ -580,7 +531,57 @@ export class ServiceContainer {
           statusMap.set(id, { ...s, state: 'cancelled' });
         }
       },
-    };
+    };  }
+
+  /**
+   * U2+U3：公开的原始 DAGRuntime 工厂（供冷恢复 resumeMission 使用）。
+   * 与 createDAGRuntime 共用同一份 nodeHandler/运行控制配置，仅返回具体类型。
+   */
+  createRawDAGRuntime(): DAGRuntime {
+    return new DAGRuntime({
+      maxParallel: 4,
+      enablePriority: true,
+      continueOnFailure: true,
+      eventBus: this.eventBus,
+      // U2+U3 运行控制：每轮迭代查询 RunRegistry（pause/cancel 动作由 API 路由写入）
+      shouldPause: (mid: string) => RunRegistry.isPaused(mid),
+      shouldCancel: (mid: string) => RunRegistry.isCancelled(mid),
+    // ═══ 多 Agent 框架（会话 3 P0）：DAG 节点由 step-agent（agentSpawner + 原语工具）执行 ═══
+      // 取代原先 ExecutionFabric 单次 LLM 生成（无工具调用 → 生成类任务空转卡死）。
+      // ExecutionFabric 降级为 fallback（Agent 不可用时兜底）。
+      nodeHandler: async (node, ctx) => {
+        const action = node.description || node.name;
+        const ctxObj = (ctx !== null && typeof ctx === 'object')
+          ? (ctx as Record<string, unknown>)
+          : {};
+        // P1：上游成果（DAGRuntime 注入）
+        const upstream = (ctxObj.upstreamResults instanceof Map ? ctxObj.upstreamResults : new Map<string, unknown>());
+        const departmentId = typeof ctxObj.departmentId === 'string' ? ctxObj.departmentId : undefined;
+        console.log(`[DAGRuntime] 执行节点: ${node.id} (agentType=${node.agentType}, action=${action.slice(0, 60)})`);
+
+        const executor = new StepAgentExecutor({
+          departmentId,
+          goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
+          // P-A：任务级关联键（事件 payload 透传 → TaskStateProjector/前端按 missionId 归集）
+          missionId: typeof ctxObj.missionId === 'string' ? ctxObj.missionId : undefined,
+          executionId: typeof ctxObj.executionId === 'string' ? ctxObj.executionId : undefined,
+          // 会话 4（Session 化）：DAG 节点 step-agent 会话也持久化（未预建时自行创建）
+          sessionStore: this.agentSessionStore,
+          // ⬅️ 会话 16c（3+4）：步骤结果事件出口
+          eventBus: this.eventBus,
+          // ⬅️ 会话 16j（B2 指针消费端）：按 taskRef 拉取被裁详情
+          recallTask: (taskRef) => this.recallTaskForAgent(taskRef),
+          // ⬅️ P2：mail 工具（跨部门/工位交流）发起方上下文
+          mailboxCtx: {
+            from: `station:${node.agentType || node.id || 'step'}`,
+            spaceId: departmentId ?? undefined, // departmentId 已是 dept_xxx 格式（StudioServer 路由传 routedSpace.id）
+            taskId: typeof ctxObj.executionId === 'string' ? ctxObj.executionId
+              : typeof ctxObj.missionId === 'string' ? ctxObj.missionId : undefined,
+            goal: typeof ctxObj.goal === 'string' ? ctxObj.goal : action,
+          },
+        });
+      },
+    });
   }
 
   private piBridgeInitialized = false;

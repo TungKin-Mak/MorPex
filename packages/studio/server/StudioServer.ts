@@ -27,6 +27,7 @@ import XLSX from 'xlsx';
 import type { Server as HttpServer } from 'node:http';
 import { spawn } from 'node:child_process';
 import { bootstrapUnified } from '../../core/src/bootstrap-unified.js';
+import { RunRegistry } from '../../core/src/execution/runtime/RunRegistry.js';
 import type { UnifiedBootstrapResult } from '../../core/src/bootstrap-unified.js';
 import { CostController } from '../../core/src/governance/CostController.js';
 import { getSharedPiBridge } from '../../core/src/infrastructure/adapters/pi-bridge/PiBridge.js';
@@ -1245,6 +1246,54 @@ export class StudioServer {
       } catch (err) {
         return res.status(500).json({ ok: false, error: (err as Error).message });
       }
+    });
+
+    // ── U2+U3 运行控制：pause/resume/cancel（12-Factor F6）──
+    this.app.post('/api/runs/:missionId/pause', (req, res) => {
+      const id = req.params.missionId;
+      RunRegistry.pause(id);
+      container.eventBus.emit({ id: `run-${id}-paused-${Date.now()}`, type: 'run.paused', timestamp: Date.now(), executionId: id, source: 'studio-api', payload: { missionId: id } });
+      return res.json({ ok: true, missionId: id, state: 'pausing（当前步骤完成后停住）' });
+    });
+
+    this.app.post('/api/runs/:missionId/cancel', (req, res) => {
+      const id = req.params.missionId;
+      RunRegistry.cancel(id);
+      container.eventBus.emit({ id: `run-${id}-cancelled-${Date.now()}`, type: 'run.cancelled', timestamp: Date.now(), executionId: id, source: 'studio-api', payload: { missionId: id } });
+      return res.json({ ok: true, missionId: id, state: 'cancelling（pending 节点将标 skipped）' });
+    });
+
+    this.app.post('/api/runs/:missionId/resume', async (req, res) => {
+      const id = req.params.missionId;
+      // 情形 A：活跃循环被暂停 → 解除标志，下一轮迭代恢复调度
+      if (RunRegistry.isPaused(id)) {
+        RunRegistry.resume(id);
+        container.eventBus.emit({ id: `run-${id}-resumed-${Date.now()}`, type: 'run.resumed', timestamp: Date.now(), executionId: id, source: 'studio-api', payload: { missionId: id } });
+        return res.json({ ok: true, missionId: id, resumed: 'live-loop' });
+      }
+      // 情形 B：进程重启后的冷恢复 —— 从事件源重建计划与节点态，只重跑未完成步骤
+      const plan = container.missionStore.getDagPlan(id);
+      if (!plan) return res.status(404).json({ ok: false, error: 'no plan snapshot for mission' });
+      if (container.missionStore.getRunState(id) === 'cancelled') {
+        return res.status(409).json({ ok: false, error: 'mission was cancelled; 取消状态不复活' });
+      }
+      const states = container.missionStore.getStepStates(id);
+      const dag = {
+        id: `resume_${id}_${Date.now()}`,
+        nodes: plan.nodes.map((n) => ({
+          ...(n as Record<string, unknown>),
+          deps: Array.isArray(n.deps) ? n.deps : [],
+          initialStatus: states.get(String(n.id))?.status === 'success' ? 'success' : undefined,
+          initialOutput: states.get(String(n.id))?.outputPreview ?? undefined,
+        })),
+        edges: plan.edges,
+        status: 'RUNNING',
+        createdAt: Date.now(),
+      };
+      setImmediate(() => {
+        container.createRawDAGRuntime().run(dag as never, { missionId: id }).catch((err: Error) => console.warn('[RunControl] 冷恢复执行失败:', err.message));
+      });
+      return res.json({ ok: true, missionId: id, resumed: 'cold-restart-from-event-log' });
     });
 
     // ── 执行（L5 UnifiedExecutionEngine）──

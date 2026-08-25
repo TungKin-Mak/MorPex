@@ -34,6 +34,12 @@ export class PersistentMissionStore {
   /** U2+U3：step 级运行态（missionId → nodeId → 最新状态），由 step.* 事件重放重建 */
   private stepStates: Map<string, Map<string, StepState>> = new Map();
 
+  /** U2+U3：DAG 计划快照（execution.dag 事件重放产物，供断点续跑重建） */
+  private dagPlans: Map<string, { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> }> = new Map();
+
+  /** U2+U3：运行控制终态（run.paused/cancelled/resumed 事件重放产物，重启后不复活取消） */
+  private runStates: Map<string, 'paused' | 'cancelled' | 'running'> = new Map();
+
   constructor(dbPath?: string) { this.store = new UnifiedEventStore(dbPath || './data/missions.db'); }
 
   async init(): Promise<void> {
@@ -120,6 +126,27 @@ export class PersistentMissionStore {
 
     // ── U2+U3：step 级事件重放（断点续跑的数据基础；复用活写入同一逻辑防语义漂移）──
     this.applyStepEvent(missionId, event.type, p, event.timestamp);
+
+    // ── U2+U3：计划快照与运行控制态 ──
+    if (event.type === 'execution.dag' && Array.isArray(p.nodes)) {
+      this.dagPlans.set(missionId, {
+        nodes: p.nodes as Array<Record<string, unknown>>,
+        edges: (Array.isArray(p.edges) ? p.edges : []) as Array<Record<string, unknown>>,
+      });
+    }
+    if (event.type === 'run.paused') this.runStates.set(missionId, 'paused');
+    if (event.type === 'run.cancelled') this.runStates.set(missionId, 'cancelled');
+    if (event.type === 'run.resumed') this.runStates.set(missionId, 'running');
+  }
+
+  /** U2+U3：重建 DAG 所需的计划快照（无则 null） */
+  getDagPlan(missionId: string): { nodes: Array<Record<string, unknown>>; edges: Array<Record<string, unknown>> } | null {
+    return this.dagPlans.get(missionId) ?? null;
+  }
+
+  /** U2+U3：运行终态查询（undefined=无记录） */
+  getRunState(missionId: string): 'paused' | 'cancelled' | 'running' | undefined {
+    return this.runStates.get(missionId);
   }
 
   private applyDirect(missionId: string, type: string): void {

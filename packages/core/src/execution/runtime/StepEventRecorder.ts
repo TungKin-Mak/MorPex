@@ -22,6 +22,11 @@ const STEP_EVENT_TYPES = [
   'workflow.step_failed',
   'workflow.step_skipped',
   'workflow.step_retry',
+  // U2+U3：计划快照与运行控制态（原样透传，非 workflow.step_ 前缀）
+  'execution.dag',
+  'run.paused',
+  'run.cancelled',
+  'run.resumed',
 ] as const;
 
 export class StepEventRecorder {
@@ -38,7 +43,9 @@ export class StepEventRecorder {
           const payload = (event && typeof event === 'object' ? (event as { payload?: Record<string, unknown> }).payload : {}) ?? {};
           const missionId = typeof payload.missionId === 'string' && payload.missionId ? payload.missionId : null;
           if (!missionId) return; // 无法归属到任务的事件不入生命周期库
-          const type = event.type.replace('workflow.step_', 'step.'); // workflow.step_started → step.started（与 SYSTEM_EVENT_TYPES.STEP_* 一致）
+          const type = event.type.startsWith('workflow.step_')
+            ? event.type.replace('workflow.step_', 'step.') // workflow.step_started → step.started（与 SYSTEM_EVENT_TYPES.STEP_* 一致）
+            : event.type;                                   // execution.dag / run.* 原样透传
           store.append(type, missionId, payload).catch((err: Error) => {
             console.warn('[StepEventRecorder] 步骤事件写入失败:', err.message);
           });

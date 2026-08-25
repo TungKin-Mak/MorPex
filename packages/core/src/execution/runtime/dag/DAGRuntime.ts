@@ -31,6 +31,10 @@ export interface DAGResult {
   nodeResults: Map<string, unknown>;
   errors: Array<{ nodeId: string; error: string }>;
   executionTrace: ExecutionTraceEntry[];
+  /** U2+U3 运行控制终态标记 */
+  paused?: boolean;
+  cancelled?: boolean;
+  endedBy?: 'completed' | 'paused' | 'cancelled' | 'failed';
 }
 
 export interface ExecutionTraceEntry {
@@ -48,6 +52,9 @@ export interface DAGRuntimeConfig extends SchedulerConfig {
   eventBus?: EventBus;
   /** 默认节点执行器：为没有自定义 handler 的节点注入执行逻辑 */
   nodeHandler?: (node: TaskNode, context: unknown) => Promise<unknown>;
+  /** U2+U3 运行控制：每轮迭代顶部查询（missionId 已解析后传入） */
+  shouldPause?: (missionId: string) => boolean;
+  shouldCancel?: (missionId: string) => boolean;
 }
 
 export class DAGRuntime {
@@ -64,6 +71,9 @@ export class DAGRuntime {
       // ⬅️ 会话 3 修复：此前构造器丢弃 nodeHandler → 节点无 handler 直接成功（output=null），
       //    DAG 执行“空转”的真正根因（ServiceContainer 传入的 ExecutionFabric/step-agent 执行器从未生效）。
       nodeHandler: config?.nodeHandler,
+      // U2+U3 运行控制钩子（构造器白名单必须显式拷贝，否则静默丢失）
+      shouldPause: config?.shouldPause,
+      shouldCancel: config?.shouldCancel,
     };
   }
 
@@ -144,6 +154,32 @@ export class DAGRuntime {
 
     while (!graph.isComplete() && iteration < maxIterations) {
       iteration++;
+
+      // ═══ U2+U3 运行控制：每轮迭代顶部检查（取消优先于暂停；运行中节点不硬杀，
+      // 一人规模下步骤级粒度足够——见方案文档 §二约束）═══
+      const ctrlId = this.ctxMeta(context).missionId ?? graph.id;
+      if (this.config.shouldCancel?.(ctrlId)) {
+        for (const node of graph.nodes) {
+          if (node.status === 'pending' || node.status === 'ready') {
+            node.status = 'skipped';
+            node.error = 'Cancelled by user';
+            this.trace.push({ nodeId: node.id, nodeName: node.name, action: 'skip', timestamp: Date.now(), detail: node.error });
+            this.config.eventBus?.emit({ id: `wf-${node.id}-cancel-${Date.now()}`, type: 'workflow.step_skipped', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), nodeId: node.id, nodeName: node.name, error: node.error } });
+          }
+        }
+        this.config.eventBus?.emit({ id: `wf-${graph.id}-cancelled`, type: 'workflow.cancelled', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), dagId: graph.id } });
+        const cancelledResult = this.buildResult(graph, false, startTime, 'cancelled by user');
+        cancelledResult.cancelled = true;
+        cancelledResult.endedBy = 'cancelled';
+        return cancelledResult;
+      }
+      if (this.config.shouldPause?.(ctrlId)) {
+        this.config.eventBus?.emit({ id: `wf-${graph.id}-paused`, type: 'workflow.paused', timestamp: Date.now(), executionId: graph.id, source: 'dag-runtime', payload: { ...this.ctxMeta(context), dagId: graph.id } });
+        const pausedResult = this.buildResult(graph, true, startTime);
+        pausedResult.paused = true;
+        pausedResult.endedBy = 'paused';
+        return pausedResult;
+      }
 
       // 3a. 调度下一批节点
       const batch = scheduler.schedule(graph);

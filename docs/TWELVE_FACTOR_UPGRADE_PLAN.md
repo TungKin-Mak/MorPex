@@ -88,13 +88,13 @@
 - 验收：含中文的意图样本分类正确；长错误信息进 prompt 前被压缩截断（断言长度上界）
 - 范围：IntentClassifier.ts、OrchestratorAgent.ts（formatResults 区域）、StepAgentExecutor.ts
 
-### U2+U3 合并：事件溯源编排 + 运行控制（F5+F6）｜2-3 天
-- DAGRuntime 步骤状态变迁追加事件到 PersistentMissionStore（新增 step.started/completed/failed/skipped 事件类型）；调度器启动时重放事件恢复到断点边界
-- 新增路由 `POST /api/runs/:id/pause|resume|cancel`：pause=停止调度新步骤（复用 PlanGate pending-Promise 等待模式）；cancel=harness.abort() + 下游标记 skipped；resume=从事件日志重放后继续
-- 顺带修复：PersistentMissionStore 静默降级改为显式告警（启动横幅+健康检查可见）
-- 验收：任务执行中途 kill → 重启 → 从未完成步骤边界续跑；pause 后任务停住且 resume 继跑；cancel 后下游不执行
-- 范围：DAGRuntime.ts、PersistentMissionStore.ts、StudioServer.ts（路由）、StepAgentExecutor.ts（abort 接线）
-- ⚠️ 附带产品决策（需用户拍板）：审批存根进 LLM 上下文的去留
+### U2+U3 合并：事件溯源编排 + 运行控制（F5+F6）｜✅ 已完成
+- DAGRuntime 步骤状态变迁追加事件到 PersistentMissionStore（新增 step.started/completed/failed/skipped/retry 事件类型）；调度器启动时重放事件恢复到断点边界
+- 新增路由 `POST /api/runs/:missionId/pause|resume|cancel`：pause=停止调度新步骤（shouldPause 钩子每轮迭代检查，复用 PlanGate 等待模式语义）；cancel=控制钩子触发 pending 节点标 skipped（运行中节点不硬杀——一人规模步骤级粒度足够，注释说明）；resume 双语义：活跃循环解除暂停 / 冷恢复从事件源重建计划只重跑未完成步骤
+- 顺带修复：PersistentMissionStore 静默降级改为显式告警（启动横幅+isReady 可查）+ **init 重放顺序 bug**（query DESC→时间正序，原最新状态被最旧事件覆盖）
+- 验收：u23-run-control 3/3（pause 停住/resume 续跑、cancel 全 skipped 且重启不复活、冷恢复只重跑 b 且下游消费 a 的结果预览）+ dag-step-events 3/3；tsc 0 错
+- 范围：DAGRuntime.ts、PersistentMissionStore.ts、StudioServer.ts、StepEventRecorder.ts、RunRegistry.ts（新）、RunRegistry 控制钩子接线 ServiceContainer.createRawDAGRuntime()
+- 附带产品决策已拍板：审批存根（custom_message）保留进 LLM 上下文
 
 ### U4 可选：Prompt 资产化 + Webhook（F2+F11）｜1 天
 - 收编优先级：OrchestratorAgent 四件套 > ArtifactGenerationPrimitive（三元嵌套最严重）> 其余
