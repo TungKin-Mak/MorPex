@@ -113,6 +113,10 @@ export class DAGRuntime {
           id: n.id,
           name: n.name,
           deps: [...n.deps],
+          // U2+U3：断点续跑重建需要这些字段（缺失会导致冷恢复节点动作描述/重试配置降级）
+          agentType: n.agentType,
+          description: n.description,
+          maxRetries: n.maxRetries,
         })),
         edges: graph.nodes.flatMap((n) => n.deps.map((d) => ({ from: d, to: n.id }))),
       },
